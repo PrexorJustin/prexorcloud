@@ -1,0 +1,140 @@
+/*
+ * PrexorCloud Module Theme
+ *
+ * Provides Tailwind v4 utilities + the dashboard's design tokens for module builds.
+ * This file is automatically injected by @prexorcloud/module-vite-plugin — module
+ * developers do NOT need to import it manually.
+ *
+ * Only utilities and theme are included (no preflight/base reset — the dashboard
+ * already provides those at runtime).
+ */
+
+@import 'tailwindcss/utilities';
+@import 'tailwindcss/theme';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  /* Core palette */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Glass */
+  --color-glass: var(--glass);
+  --color-glass-hover: var(--glass-hover);
+  --color-glass-border: var(--glass-border);
+  --color-glass-border-hover: var(--glass-border-hover);
+
+  /* Status */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  /* Glows */
+  --color-primary-glow: var(--primary-glow);
+  --color-success-glow: var(--success-glow);
+  --color-warning-glow: var(--warning-glow);
+  --color-destructive-glow: var(--destructive-glow);
+
+  /* Chart */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ── Custom utilities (mirrored from dashboard) ─────────────── */
+
+/* Dynamic radius overrides — Tailwind v4 inlines static values, so we
+   redefine the utility classes to reference a single --ui-radius variable. */
+.rounded-sm  { border-radius: calc(var(--ui-radius) * 0.67) !important; }
+.rounded-md  { border-radius: var(--ui-radius) !important; }
+.rounded-lg  { border-radius: calc(var(--ui-radius) * 1.33) !important; }
+.rounded-xl  { border-radius: calc(var(--ui-radius) * 2) !important; }
+.rounded-2xl { border-radius: calc(var(--ui-radius) * 2.67) !important; }
+
+/* Thin styled scrollbar — use .styled-scrollbar on scrollable containers */
+.styled-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--primary) 30%, transparent) transparent;
+}
+.styled-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.styled-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 3px;
+}
+.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+/* Text gradient utility */
+.text-gradient-title {
+  background: linear-gradient(to left, var(--primary) 50%, var(--primary) 70%, var(--foreground) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  width: fit-content;
+}
+
+/* Card poof animation */
+@keyframes card-poof {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: blur(0);
+  }
+  40% {
+    transform: scale(1.05);
+    opacity: 0.8;
+    filter: blur(0);
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0;
+    filter: blur(8px);
+  }
+}
+
+.animate-card-poof {
+  animation: card-poof 500ms ease-in-out forwards;
+}

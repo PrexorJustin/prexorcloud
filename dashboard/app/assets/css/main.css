@@ -1,0 +1,553 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@source "../../**/*.{vue,ts}";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant light (&:is(.light *));
+
+/*
+ * PrexorCloud — Reef tokens
+ * "Quiet Studio" direction: softened cyan accent on inky-dark or warm-sand
+ * background. Inter + Inter Tight + Instrument Serif italic (accent words
+ * only) + JetBrains Mono (real code only).
+ *
+ * Three layers:
+ *   1. Raw scales (--ink-*, --sand-*, --reef-*, state).
+ *   2. Semantic tokens (--bg, --surface, --accent, …) — primary surface
+ *      consumed by Reef components.
+ *   3. shadcn-vue / Tailwind compat aliases (--background, --primary, …)
+ *      so the existing shadcn-vue component library keeps working.
+ */
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display-stack);
+  --font-accent: var(--font-accent-stack);
+  --font-mono: var(--font-mono-stack);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-glass: var(--glass);
+  --color-glass-hover: var(--glass-hover);
+  --color-glass-border: var(--glass-border);
+  --color-glass-border-hover: var(--glass-border-hover);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-primary-glow: var(--primary-glow);
+  --color-success-glow: var(--success-glow);
+  --color-warning-glow: var(--warning-glow);
+  --color-destructive-glow: var(--destructive-glow);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ── 1. RAW SCALES ──────────────────────────────────────────────────────── */
+:root {
+  /* Reef — softened cyan. */
+  --reef-dark:       #4ec5d4;
+  --reef-light:      #0c8aa8;
+  --reef-soft-dark:  #1f6a78;
+  --reef-soft-light: #a5dfe9;
+
+  /* Ink — dark theme spine. */
+  --ink-1: #0a0a10;
+  --ink-2: #0c0c12;
+  --ink-3: #14141d;
+  --ink-4: #1d1d28;
+  --ink-5: #2a2a36;
+  --ink-6: #4a4a55;
+  --ink-7: #7c7c8a;
+  --ink-8: #c5c5cf;
+  --ink-9: #ededf2;
+
+  /* Sand — light theme spine. */
+  --sand-1: #f5f3ed;
+  --sand-2: #ebe7dc;
+  --sand-3: #ffffff;
+  --sand-4: #fbf9f3;
+  --sand-5: #e6e1d3;
+  --sand-6: #a8a399;
+  --sand-7: #6e6a62;
+  --sand-8: #3a3a45;
+  --sand-9: #14141a;
+
+  /* State colors — same hue in both themes, tuned for contrast. */
+  --success-dark:  #10b981;
+  --success-light: #2f7d4a;
+  --warning-dark:  #f59e0b;
+  --warning-light: #a8651e;
+  --danger-dark:   #f43f5e;
+  --danger-light:  #a02d2d;
+
+  /* Legacy raw aliases kept for any inline reference still using them. */
+  --cyan-9:  var(--reef-dark);
+  --cyan-8:  var(--reef-light);
+  --slate-1: var(--ink-1);
+  --slate-2: var(--ink-2);
+  --slate-3: var(--ink-3);
+  --slate-4: var(--ink-4);
+  --slate-9: var(--ink-7);
+  --slate-10: var(--ink-7);
+  --slate-11: var(--ink-8);
+  --slate-12: var(--ink-9);
+  --green-9: var(--success-dark);
+  --amber-9: var(--warning-dark);
+  --red-9:   var(--danger-dark);
+  --green-light-9: var(--success-light);
+  --amber-light-9: var(--warning-light);
+  --red-light-9:   var(--danger-light);
+  --violet-9: #8b5cf6;
+  --violet-10: #a07ff8;
+}
+
+/* ── 2. SEMANTIC + COMPAT TOKENS — DARK (default) ───────────────────────── */
+:root,
+.dark {
+  /* Reef semantics. */
+  --bg:         var(--ink-1);
+  --bg-alt:     var(--ink-2);
+  --surface:    var(--ink-3);
+  --raised:     var(--ink-4);
+  --inset:      rgba(0, 0, 0, 0.30);
+
+  --text:       var(--ink-9);
+  --text-soft:  var(--ink-8);
+  --faint:      var(--ink-6);
+
+  --accent-soft: var(--reef-soft-dark);
+  --accent-fg:   #0a0a10;
+  --accent-glow: rgba(78, 197, 212, 0.20);
+
+  /* shadcn-vue compat. */
+  --background:         var(--ink-1);
+  --foreground:         var(--ink-9);
+
+  --card:               var(--ink-3);
+  --card-foreground:    var(--ink-9);
+
+  --popover:            var(--ink-3);
+  --popover-foreground: var(--ink-9);
+
+  --primary:            var(--reef-dark);
+  --primary-foreground: #0a0a10;
+  --primary-glow:       rgba(78, 197, 212, 0.20);
+
+  --secondary:            var(--violet-9);
+  --secondary-foreground: #ffffff;
+
+  --muted:                var(--ink-4);
+  --muted-foreground:     var(--ink-7);
+
+  /* shadcn convention: --accent is a NEUTRAL hover background, not the
+     brand colour. Brand lives on --primary (and on --brand below for
+     readability in custom code). */
+  --accent:               var(--ink-4);
+  --accent-foreground:    var(--ink-9);
+
+  /* Reef brand accent — used by .accent-serif, .eyebrow, focus rings, etc.
+     Distinct from shadcn's neutral --accent. */
+  --brand:                var(--reef-dark);
+  --brand-foreground:     #0a0a10;
+
+  --destructive:          var(--danger-dark);
+  --destructive-foreground: #ffffff;
+  --destructive-glow:     rgba(244, 63, 94, 0.25);
+
+  --success:              var(--success-dark);
+  --success-glow:         rgba(16, 185, 129, 0.25);
+
+  --warning:              var(--warning-dark);
+  --warning-glow:         rgba(245, 158, 11, 0.25);
+
+  --info:                 var(--reef-dark);
+  --danger:               var(--danger-dark);
+
+  --border:               rgba(255, 255, 255, 0.06);
+  --border-hover:         rgba(255, 255, 255, 0.12);
+  --input:                rgba(255, 255, 255, 0.08);
+  --ring:                 var(--reef-dark);
+
+  /* Glass surfaces. In Reef the "glass" is just --surface — kept as a token
+     so existing components keep their semantics. */
+  --glass:                var(--ink-3);
+  --glass-hover:          var(--ink-4);
+  --glass-border:         rgba(255, 255, 255, 0.06);
+  --glass-border-hover:   rgba(255, 255, 255, 0.12);
+
+  --chart-1: var(--reef-dark);
+  --chart-2: var(--violet-9);
+  --chart-3: var(--success-dark);
+  --chart-4: var(--warning-dark);
+  --chart-5: var(--danger-dark);
+
+  --sidebar:                    var(--ink-1);
+  --sidebar-foreground:         var(--ink-7);
+  --sidebar-primary:            var(--reef-dark);
+  --sidebar-primary-foreground: #0a0a10;
+  --sidebar-accent:             var(--ink-3);
+  --sidebar-accent-foreground:  var(--ink-9);
+  --sidebar-border:             rgba(255, 255, 255, 0.06);
+  --sidebar-ring:               var(--reef-dark);
+
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-md:  0 4px 12px -2px rgba(0, 0, 0, 0.35);
+  --shadow-lg:  0 12px 32px -8px rgba(0, 0, 0, 0.45), 0 4px 8px -4px rgba(0, 0, 0, 0.30);
+  --shadow-glow: 0 0 32px -4px var(--accent-glow);
+  --shadow-glow-primary:     0 0 32px -4px var(--primary-glow);
+  --shadow-glow-success:     0 0 32px -4px var(--success-glow);
+  --shadow-glow-warning:     0 0 32px -4px var(--warning-glow);
+  --shadow-glow-destructive: 0 0 32px -4px var(--destructive-glow);
+}
+
+/* ── 2b. SEMANTIC + COMPAT TOKENS — LIGHT ───────────────────────────────── */
+.light {
+  --bg:         var(--sand-1);
+  --bg-alt:     var(--sand-2);
+  --surface:    var(--sand-3);
+  --raised:     var(--sand-4);
+  --inset:      rgba(20, 15, 8, 0.04);
+
+  --text:       var(--sand-9);
+  --text-soft:  var(--sand-8);
+  --faint:      var(--sand-6);
+
+  --accent-soft: var(--reef-soft-light);
+  --accent-fg:   #ffffff;
+  --accent-glow: rgba(12, 138, 168, 0.22);
+
+  --background:         var(--sand-1);
+  --foreground:         var(--sand-9);
+
+  --card:               var(--sand-3);
+  --card-foreground:    var(--sand-9);
+
+  --popover:            var(--sand-3);
+  --popover-foreground: var(--sand-9);
+
+  --primary:            var(--reef-light);
+  --primary-foreground: #ffffff;
+  --primary-glow:       rgba(12, 138, 168, 0.18);
+
+  --secondary:            #7c3aed;
+  --secondary-foreground: #ffffff;
+
+  --muted:                var(--sand-5);
+  --muted-foreground:     var(--sand-7);
+
+  --accent:               var(--sand-5);
+  --accent-foreground:    var(--sand-9);
+
+  --brand:                var(--reef-light);
+  --brand-foreground:     #ffffff;
+
+  --destructive:          var(--danger-light);
+  --destructive-foreground: #ffffff;
+  --destructive-glow:     rgba(160, 45, 45, 0.18);
+
+  --success:              var(--success-light);
+  --success-glow:         rgba(47, 125, 74, 0.18);
+
+  --warning:              var(--warning-light);
+  --warning-glow:         rgba(168, 101, 30, 0.18);
+
+  --info:                 var(--reef-light);
+  --danger:               var(--danger-light);
+
+  --border:               rgba(20, 15, 8, 0.07);
+  --border-hover:         rgba(20, 15, 8, 0.16);
+  --input:                rgba(20, 15, 8, 0.10);
+  --ring:                 var(--reef-light);
+
+  --glass:                var(--sand-3);
+  --glass-hover:          var(--sand-4);
+  --glass-border:         rgba(20, 15, 8, 0.07);
+  --glass-border-hover:   rgba(20, 15, 8, 0.16);
+
+  --chart-1: var(--reef-light);
+  --chart-2: #7c3aed;
+  --chart-3: var(--success-light);
+  --chart-4: var(--warning-light);
+  --chart-5: var(--danger-light);
+
+  --sidebar:                    var(--sand-2);
+  --sidebar-foreground:         var(--sand-7);
+  --sidebar-primary:            var(--reef-light);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent:             var(--sand-3);
+  --sidebar-accent-foreground:  var(--sand-9);
+  --sidebar-border:             rgba(20, 15, 8, 0.07);
+  --sidebar-ring:               var(--reef-light);
+
+  --shadow-sm:  0 1px 2px rgba(20, 12, 4, 0.04), 0 1px 3px rgba(20, 12, 4, 0.05);
+  --shadow-md:  0 1px 3px rgba(20, 12, 4, 0.05), 0 8px 24px -10px rgba(20, 12, 4, 0.12);
+  --shadow-lg:  0 1px 3px rgba(20, 12, 4, 0.06), 0 24px 64px -20px rgba(20, 12, 4, 0.20);
+  --shadow-glow: 0 0 32px -4px var(--accent-glow);
+}
+
+/* ── 3. TYPE / SPACING / RADIUS ─────────────────────────────────────────── */
+:root {
+  /* Family stack
+     • Display: Inter Tight at 500/600 (no 700+ — we don't shout)
+     • Body:    Inter at 400/500
+     • Accent:  Instrument Serif italic — ONE or two words per heading
+     • Mono:    JetBrains Mono — only for real code, IDs, file paths */
+  --font-body:           'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans-stack:     var(--font-body);
+  --font-display-stack:  'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-accent-stack:   'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono-stack:     'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Reef type ramp. Marketing hero capped at 72px; dashboard h1 is 32. */
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.8125rem;  /* 13px */
+  --text-base: 0.9375rem;  /* 15px */
+  --text-lg:   1.0625rem;  /* 17px */
+  --text-xl:   1.3125rem;  /* 21px */
+  --text-2xl:  1.625rem;   /* 26px */
+  --text-3xl:  2rem;       /* 32px */
+  --text-4xl:  2.625rem;   /* 42px */
+  --text-5xl:  3.5rem;     /* 56px */
+  --text-hero: 4.5rem;     /* 72px */
+
+  --leading-tight:   1.15;
+  --leading-snug:    1.3;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.65;
+
+  --tracking-tighter: -0.035em;
+  --tracking-tight:   -0.025em;
+  --tracking-normal:   0em;
+  --tracking-wide:     0.06em;
+  --tracking-widest:   0.16em;
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  --space-0:  0;
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.25rem;
+  --space-6:  1.5rem;
+  --space-8:  2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+
+  --r-sm:   6px;
+  --r-md:   8px;
+  --r-lg:   12px;
+  --r-xl:   16px;
+  --r-2xl:  20px;
+  --r-full: 9999px;
+
+  --radius-xs:   0.25rem;
+  --radius-2xl:  2rem;
+  --radius-full: 9999px;
+
+  /* Driver for Tailwind's rounded-* utilities (overridden below). */
+  --ui-radius: 0.5rem;
+
+  --z-base:    0;
+  --z-raised:  10;
+  --z-sticky:  20;
+  --z-overlay: 40;
+  --z-dialog:  50;
+  --z-toast:   60;
+  --z-tooltip: 70;
+}
+
+/* ── 4. BASE / UTILITIES ────────────────────────────────────────────────── */
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+}
+
+/* Dynamic radius — Tailwind v4 inlines static values, so override the
+   utilities to reference --ui-radius. */
+.rounded-sm  { border-radius: calc(var(--ui-radius) * 0.75) !important; }
+.rounded-md  { border-radius: var(--ui-radius) !important; }
+.rounded-lg  { border-radius: calc(var(--ui-radius) * 1.5) !important; }
+.rounded-xl  { border-radius: calc(var(--ui-radius) * 2) !important; }
+.rounded-2xl { border-radius: calc(var(--ui-radius) * 2.5) !important; }
+
+/* The signature Reef card. Borders carry the dark theme; light lifts with
+   a soft warm shadow. */
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+}
+.light .glass-card {
+  box-shadow: var(--shadow-sm);
+}
+
+/* The signature serif-italic accent — apply to ONE or two words per heading. */
+.accent-serif {
+  font-family: var(--font-accent-stack);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--brand);
+}
+
+/* Signature gradient title — used on page headers. Soft Reef wash on
+   top of foreground. */
+.text-gradient-title {
+  background: linear-gradient(to left, var(--primary) 50%, var(--primary) 70%, var(--foreground) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  width: fit-content;
+}
+
+/* Eyebrow — uppercase 0.16em-tracked label. Branded by default; pass
+   `eyebrow-muted` for the sidebar-group / secondary case. */
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--brand);
+}
+.eyebrow-muted {
+  color: var(--muted-foreground);
+}
+
+/* Status pill (dot + sentence-case label). */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--text-sm);
+}
+.status-pill > .dot {
+  width: 7px; height: 7px; border-radius: 999px;
+  background: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.status-pill[data-state="running"]  > .dot { background: var(--success); }
+.status-pill[data-state="starting"] > .dot { background: var(--brand); }
+.status-pill[data-state="draining"] > .dot { background: var(--warning); }
+.status-pill[data-state="crashed"]  > .dot { background: var(--destructive); }
+.status-pill[data-state="stopped"]  > .dot { background: var(--muted-foreground); }
+
+/* Type helpers. */
+.body     { font-size: var(--text-base); line-height: var(--leading-normal); }
+.body-sm  { font-size: var(--text-sm);   line-height: var(--leading-normal); }
+.body-lg  { font-size: var(--text-lg);   line-height: var(--leading-relaxed); }
+.mono     { font-family: var(--font-mono-stack); font-feature-settings: 'liga' 0; }
+.tabular  { font-variant-numeric: tabular-nums; }
+
+/* Card-poof — used by destructive deletes only. */
+@keyframes card-poof {
+  0%   { transform: scale(1);    opacity: 1;   filter: blur(0); }
+  40%  { transform: scale(1.05); opacity: 0.8; filter: blur(0); }
+  100% { transform: scale(0.8);  opacity: 0;   filter: blur(8px); }
+}
+.animate-card-poof { animation: card-poof 500ms ease-in-out forwards; }
+
+/* Toast progress bar. */
+[data-sonner-toast] { overflow: hidden; }
+[data-sonner-toast]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--primary);
+  animation: toast-progress 4s linear forwards;
+  border-radius: 0 0 1rem 1rem;
+}
+[data-sonner-toast][data-type="success"]::after { background: var(--success); }
+[data-sonner-toast][data-type="error"]::after   { background: var(--destructive); }
+[data-sonner-toast][data-type="warning"]::after { background: var(--warning); }
+
+@keyframes toast-progress {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+/* Scrollbars. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+.styled-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--primary) 30%, transparent) transparent;
+}
+.styled-scrollbar::-webkit-scrollbar       { width: 6px; }
+.styled-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: 3px;
+}
+.styled-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--primary) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Dot pattern — subtle texture for hero cards / dialog headers only. */
+.bg-dot-pattern {
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--foreground) 8%, transparent) 1px, transparent 1px);
+  background-size: 16px 16px;
+}

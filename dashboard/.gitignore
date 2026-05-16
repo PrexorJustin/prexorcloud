@@ -1,0 +1,30 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Test coverage output
+coverage
+
+# Node dependencies
+node_modules
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+
+# Auto-generated SDK bridge (built by app/modules/sdk-bridge.ts)
+public/sdk/prexorcloud.mjs
+
+# Local env files
+.env.example
+.env.*
+!.env.example

@@ -1,0 +1,21 @@
+manifestVersion: 1
+id: stats-aggregator
+version: 1.0.0-SNAPSHOT
+hosts: [controller]
+backend:
+  controller:
+    entrypoint: me.prexorjustin.prexorcloud.modules.stats.platform.StatsAggregatorModule
+frontend:
+  sdkVersion: 1
+  entry: index.js
+storage:
+  mongo: true
+  limits:
+    mongoDocuments: 500000
+capabilities:
+  requires:
+    - id: prexor.player.journey
+      versionRange: ">=1.0.0 <2.0.0"
+  provides:
+    - id: stats-aggregator-leaderboard
+      version: 1.0.0

@@ -1,0 +1,106 @@
+[versions]
+adventure = "4.26.1"
+argon2 = "2.12"
+bouncycastle = "1.83"
+bungeecord-api = "1.21-R0.4"
+commons-compress = "1.28.0"
+geyser-api = "2.10.0-SNAPSHOT"
+# Core
+grpc = "1.80.0"
+jackson = "2.21.2"
+jakarta-mail = "2.1.3"
+jakarta-activation = "2.1.3"
+angus-mail = "2.0.3"
+javalin = "7.1.0"
+javalin-openapi = "6.7.0-1"
+javapoet = "1.13.0"
+jjwt = "0.13.0"
+# Testing
+junit = "5.12.1"
+lettuce = "7.5.1.RELEASE"
+logback = "1.5.32"
+micrometer = "1.14.5"
+mockito = "5.23.0"
+mongodb = "5.6.5"
+oshi = "6.11.1"
+paperApi120 = "1.20.4-R0.1-SNAPSHOT"
+paperApi121 = "1.21.4-R0.1-SNAPSHOT"
+protobuf = "4.34.1"
+protobuf-plugin = "0.9.6"
+# Gradle plugins
+shadow = "9.4.1"
+slf4j = "2.0.17"
+spotless = "8.4.0"
+testcontainers = "2.0.3"
+# Plugins (Java 17 target)
+velocity-api = "3.4.0"
+
+[libraries]
+adventure-text-serializer-legacy = { module = "net.kyori:adventure-text-serializer-legacy", version.ref = "adventure" }
+argon2-jvm = { module = "de.mkammerer:argon2-jvm", version.ref = "argon2" }
+# Security
+bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-prov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bungeecord-api = { module = "net.md-5:bungeecord-api", version.ref = "bungeecord-api" }
+commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
+# Geyser (Bedrock bridge) — extension API only; the runtime is the host Geyser install.
+geyser-api = { module = "org.geysermc.geyser:api", version.ref = "geyser-api" }
+# gRPC
+grpc-bom = { module = "io.grpc:grpc-bom", version.ref = "grpc" }
+grpc-netty-shaded = { module = "io.grpc:grpc-netty-shaded" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf" }
+grpc-services = { module = "io.grpc:grpc-services" }
+grpc-stub = { module = "io.grpc:grpc-stub" }
+grpc-testing = { module = "io.grpc:grpc-testing" }
+# Jackson
+jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
+jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind" }
+jackson-dataformat-toml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-toml" }
+jackson-dataformat-yaml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml" }
+jackson-datatype-jsr310 = { module = "com.fasterxml.jackson.datatype:jackson-datatype-jsr310" }
+jackson-module-parameter-names = { module = "com.fasterxml.jackson.module:jackson-module-parameter-names" }
+# Mail
+jakarta-mail-api = { module = "jakarta.mail:jakarta.mail-api", version.ref = "jakarta-mail" }
+jakarta-activation-api = { module = "jakarta.activation:jakarta.activation-api", version.ref = "jakarta-activation" }
+angus-mail = { module = "org.eclipse.angus:angus-mail", version.ref = "angus-mail" }
+# HTTP
+javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
+javalin-openapi-plugin = { module = "io.javalin.community.openapi:javalin-openapi-plugin", version.ref = "javalin-openapi" }
+javalin-openapi-annotation-processor = { module = "io.javalin.community.openapi:openapi-annotation-processor", version.ref = "javalin-openapi" }
+javalin-swagger-plugin = { module = "io.javalin.community.openapi:javalin-swagger-plugin", version.ref = "javalin-openapi" }
+javalin-redoc-plugin = { module = "io.javalin.community.openapi:javalin-redoc-plugin", version.ref = "javalin-openapi" }
+javapoet = { module = "com.squareup:javapoet", version.ref = "javapoet" }
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+# Testing
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuce" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+# Metrics
+micrometer-core = { module = "io.micrometer:micrometer-core", version.ref = "micrometer" }
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+# Database
+mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version.ref = "mongodb" }
+oshi-core-java25 = { module = "com.github.oshi:oshi-core-java25", version.ref = "oshi" }
+paperApi120 = { module = "io.papermc.paper:paper-api", version.ref = "paperApi120" }
+paperApi121 = { module = "io.papermc.paper:paper-api", version.ref = "paperApi121" }
+# Protobuf
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+protobuf-protoc = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
+# Logging
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+# Test infrastructure
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-core = { module = "org.testcontainers:testcontainers" }
+testcontainers-mongodb = { module = "org.testcontainers:testcontainers-mongodb" }
+# Plugins (Java 17)
+velocity-api = { module = "com.velocitypowered:velocity-api", version.ref = "velocity-api" }
+
+[plugins]
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
+shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

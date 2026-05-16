@@ -1,0 +1,10 @@
+---
+platforms:
+- platform: "PAPER"
+  category: "SERVER"
+  configFormat: "paper"
+  versions:
+  - version: "1.21.1"
+    downloadUrl: "https://example.com/paper-1.21.1.jar"
+    recommended: true
+  proxy: false

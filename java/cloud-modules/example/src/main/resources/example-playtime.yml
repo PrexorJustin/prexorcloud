@@ -1,0 +1,22 @@
+# example-playtime module config
+# Copied to config/modules/example-playtime/ on first boot if not present.
+# Reference defaults for modules that choose to wire route/task support around
+# the platform v2 storage and capability APIs.
+
+# Suggested cadence for rebuilding the playtime_totals cache from raw sessions.
+flush-interval-seconds: 30
+
+# How many players the /top endpoint returns (and emits on PLAYTIME:TOP_UPDATED).
+top-size: 25
+
+# Suggested retention window for deleting Session documents.
+retain-sessions-days: 30
+
+# Where session start/end data arrives from:
+#   "events" — plugins publish CustomCloudEvent(PLAYTIME:SESSION_*) (default)
+#   "rest"   — plugins POST to /api/v1/modules/example-playtime/session/*
+report-via: "events"
+
+# Legacy destructive demo endpoints were removed with the old controller module
+# runtime. Kept false so copied configs remain conservative.
+enable-destructive-demos: false

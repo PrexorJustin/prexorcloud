@@ -1,0 +1,801 @@
+---
+/*
+ * Marketing landing — Reef direction.
+ *
+ * Token-driven (tokens.css). Inter + Inter Tight + Instrument Serif italic
+ * (one or two accent words per heading) + JetBrains Mono for real code only.
+ * Dual-theme via [data-theme="dark|light"] on <html>.
+ *
+ * Content rule: nothing on this page is fabricated. Every claim, command,
+ * and number maps to something in the repo — README, /docs/public/en/,
+ * LICENSE, or the actual CLI. No customer logos, no testimonials, no
+ * synthetic stats. The "preview" tile shows real `prexorctl status`
+ * output shape (representative, not screenshotted).
+ *
+ * Endpoint wiring:
+ *   - `/getting-started/quickstart/`, `/getting-started/installation/`,
+ *     `/reference/cli/`, `/changelog/`, `/blog/` are Starlight doc routes.
+ *   - REPO links to the public GitHub repo.
+ *   - Install commands point at the static scripts at /install.sh and
+ *     /install.ps1 in public/. There is intentionally no /install web
+ *     route — the setup wizard is a CLI-only feature (`prexorctl setup`).
+ */
+import '../styles/tokens.css';
+import '../styles/starlight.css';
+
+const VERSION = 'v1.0';
+const REPO = 'https://github.com/prexorjustin/prexorcloud';
+const title = 'PrexorCloud — Kubernetes for Minecraft';
+const description =
+  'A self-hosted control plane for Minecraft server fleets. Apache 2.0, mTLS-bootstrapped, cosign-signed modules, yours to run.';
+---
+
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0a0a10" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content="https://prexor.cloud" />
+    <meta property="og:site_name" content="PrexorCloud" />
+    <meta property="og:image" content="https://prexor.cloud/og/default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content="https://prexor.cloud/og/default.png" />
+
+    <script type="application/ld+json" is:inline set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      'name': 'PrexorCloud',
+      'applicationCategory': 'DeveloperApplication',
+      'operatingSystem': 'Linux, Windows, macOS',
+      'description': description,
+      'url': 'https://prexor.cloud',
+      'license': 'https://www.apache.org/licenses/LICENSE-2.0',
+      'offers': { '@type': 'Offer', 'price': '0', 'priceCurrency': 'USD' },
+    })} />
+  </head>
+
+  <body>
+    {/* ───────────── Sticky nav ───────────── */}
+    <nav class="reef-nav">
+      <a href="/" class="brand" aria-label="PrexorCloud home">
+        <svg width="22" height="22" viewBox="0 0 22 22" class="brand-mark" aria-hidden="true">
+          <g fill="currentColor">
+            <rect x="4.4" y="0" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="8.7" y="0" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="0"   y="4.3" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="4.4" y="4.3" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="8.7" y="4.3" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="13"  y="4.3" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="0"   y="8.7" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="4.4" y="8.7" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="8.7" y="8.7" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="13"  y="8.7" width="3.2" height="3.2" rx="0.6"/>
+            <rect x="4.4" y="13"  width="3.2" height="3.2" rx="0.6"/>
+            <rect x="8.7" y="13"  width="3.2" height="3.2" rx="0.6"/>
+          </g>
+        </svg>
+        <span class="brand-name">PrexorCloud</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Product</a>
+        <a href="/getting-started/what-is-prexorcloud/">Docs</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/blog/">Blog</a>
+      </div>
+      <div class="nav-actions">
+        <a href={REPO} rel="external" class="nav-gh" aria-label="GitHub repository">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3c-6.6 0-12 5.4-12 12 0 5.3 3.4 9.8 8.2 11.4.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6 4.8-1.6 8.2-6.1 8.2-11.4 0-6.6-5.4-12-12-12Z"/></svg>
+          <span>GitHub</span>
+        </a>
+        <a href="/getting-started/quickstart/" class="btn-mono">Get started</a>
+      </div>
+    </nav>
+
+    {/* ───────────── Hero ───────────── */}
+    <section class="hero">
+      <div class="hero-wash" aria-hidden="true"></div>
+      <div class="hero-grid">
+        <div>
+          <a href="/changelog/" class="hero-pill">
+            <span class="hero-pill__tag">NEW</span>
+            <span>{VERSION} · Production-ready release</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+          </a>
+          <h1 class="hero-title">
+            Kubernetes for <em class="accent-serif">Minecraft,</em><br/>
+            finally.
+          </h1>
+          <p class="hero-lede">
+            A self-hosted control plane for Minecraft server fleets.
+            mTLS bootstrap from a single join token. Cosign-signed
+            modules verified offline against Rekor. Apache 2.0,
+            yours to run.
+          </p>
+          <div class="hero-cta">
+            <a href="/getting-started/quickstart/" class="btn-mono">
+              Read the docs
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+            </a>
+            <a href={REPO} class="btn-ghost" rel="external">View on GitHub</a>
+          </div>
+          <div class="quick-install" aria-label="Quick install">
+            <div class="qi-tabs" role="tablist" aria-label="Operating system">
+              <button class="qi-tab is-active" data-target="unix" role="tab" aria-selected="true" type="button">macOS · Linux</button>
+              <button class="qi-tab" data-target="win" role="tab" aria-selected="false" type="button">Windows</button>
+            </div>
+            <div class="qi-card" role="tabpanel">
+              <span class="qi-prompt" data-os="unix">$</span>
+              <span class="qi-prompt" data-os="win" hidden>PS&gt;</span>
+              <code class="qi-cmd">
+                <span data-os="unix">curl -fsSL <span class="qi-accent">prexor.cloud/install.sh</span> | sh</span>
+                <span data-os="win" hidden>irm <span class="qi-accent">prexor.cloud/install.ps1</span> | iex</span>
+              </code>
+              <button class="qi-copy" type="button" aria-label="Copy install command" title="Copy">
+                <svg class="qi-copy__icon qi-copy__icon--copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <svg class="qi-copy__icon qi-copy__icon--ok" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right column — a representative `prexorctl status` view.
+           Not a screenshot: it shows the actual output shape from the
+           CLI's status command. Numbers are illustrative — labelled
+           "example output" in the caption. */}
+        <div class="hero-preview">
+          <div class="term term--hero">
+            <div class="term-head">
+              <span class="dot dot--faint"></span>
+              <span class="dot dot--faint"></span>
+              <span class="dot dot--faint"></span>
+              <span class="term-name">~ · prexorctl status</span>
+            </div>
+<pre class="term-body"><span class="t-com"># overview · context: default</span>
+<span class="t-prompt">$</span> <span class="t-accent">prexorctl status</span>
+
+<span class="t-ok">●</span> controller        <span class="t-com">https://controller.local:8080</span>
+<span class="t-ok">●</span> state.store       <span class="t-muted">mongo · available</span>
+<span class="t-ok">●</span> coordination      <span class="t-muted">valkey · available</span>
+
+<span class="t-com"># nodes</span>
+NAME            STATE     INSTANCES   UPTIME
+node-eu-1       <span class="t-ok">ready</span>     <span class="t-mono">7</span>           <span class="t-mono">14d</span>
+node-eu-2       <span class="t-ok">ready</span>     <span class="t-mono">5</span>           <span class="t-mono">9d</span>
+node-us-1       <span class="t-ok">ready</span>     <span class="t-mono">3</span>           <span class="t-mono">2d</span></pre>
+          </div>
+          <div class="preview-foot">
+            <span class="preview-foot__by">Example output from <code>prexorctl status</code>.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {/* ───────────── Features ───────────── */}
+    <section class="band" id="features">
+      <div class="container">
+        <div class="band-head">
+          <h2 class="section-title">
+            Three things it does <em class="accent-serif">really well.</em>
+          </h2>
+          <a href="/getting-started/what-is-prexorcloud/" class="more-link">
+            What is PrexorCloud
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+        <div class="feat-grid">
+          <div class="feat">
+            <div class="eyebrow">Schedule</div>
+            <div class="feat-title">Real scheduling.</div>
+            <p>
+              Place instances on nodes by RAM, region, tags, or any
+              constraint you encode. The scheduler is plain Java — read
+              the code, fork it, replace it. No black-box bin-packing.
+            </p>
+          </div>
+          <div class="feat">
+            <div class="eyebrow">Observe</div>
+            <div class="feat-title">Real telemetry.</div>
+            <p>
+              Crash loops, draining nodes, player-count time-series,
+              p99 latencies. Prometheus scrape endpoint when you want
+              it; everything's already streamed live to the dashboard
+              over SSE.
+            </p>
+          </div>
+          <div class="feat">
+            <div class="eyebrow">Extend</div>
+            <div class="feat-title">Signed extension.</div>
+            <p>
+              Modules are JVM artifacts loaded by the controller.
+              Every release is cosign-signed (keyless OIDC) and
+              verified offline against the Rekor transparency log.
+              No vendor SDK — the API is REST + gRPC.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {/* ───────────── How it's built ───────────── */}
+    <section class="section arch-section">
+      <div class="container">
+        <div class="arch-head">
+          <div class="eyebrow">How it's built</div>
+          <h2 class="section-title arch-title">
+            Three processes, <em class="accent-serif">one cluster.</em>
+          </h2>
+          <p class="arch-lede">
+            No daemon-of-daemons, no central queue, no required
+            sidecars. A controller, an agent per host, and the surfaces
+            operators actually touch.
+          </p>
+        </div>
+
+        <div class="arch-grid">
+          <div class="arch-diagram term">
+            <div class="term-head">
+              <span class="dot dot--faint"></span>
+              <span class="dot dot--faint"></span>
+              <span class="dot dot--faint"></span>
+              <span class="term-name">topology</span>
+            </div>
+<pre class="term-body term-body--diagram">                <span class="t-accent">┌──────────────────────┐</span>
+                <span class="t-accent">│     Controller       │</span>
+                <span class="t-accent">│  REST · gRPC · SSE   │</span>
+                <span class="t-accent">│  Scheduler · Events  │</span>
+                <span class="t-accent">└──┬───────────┬───────┘</span>
+       mTLS / gRPC │           │ JWT / REST + SSE
+        ┌──────────┘           └────────────┐
+        v                                   v
+   <span class="t-accent">┌─────────┐</span>                       <span class="t-accent">┌──────────────┐</span>
+   <span class="t-accent">│ Daemon  │</span>  (one per node)      <span class="t-accent">│ Dashboard /  │</span>
+   <span class="t-accent">│ Agent   │</span>                       <span class="t-accent">│ prexorctl    │</span>
+   <span class="t-accent">└────┬────┘</span>                       <span class="t-accent">└──────────────┘</span>
+        │
+        v
+   <span class="t-muted">Minecraft instances</span></pre>
+          </div>
+
+          <ul class="guarantees">
+            <li>
+              <span class="g-check" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <div>
+                <strong>mTLS bootstrap from one join token.</strong>
+                Daemons exchange a single-use token for a per-node cert
+                issued by the controller's internal CA. Certs rotate
+                without restart.
+              </div>
+            </li>
+            <li>
+              <span class="g-check" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <div>
+                <strong>Modules signed end-to-end.</strong>
+                Cosign keyless (GitHub Actions OIDC) on the artifact;
+                offline Rekor SET enforcement in <code>modules.signing.rekor.policy=REQUIRE_SET</code>.
+              </div>
+            </li>
+            <li>
+              <span class="g-check" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <div>
+                <strong>Nightly DR drill and perf baselines.</strong>
+                Backup-restore round-trip runs in CI every night;
+                p99 latencies are CI gates, not dashboards-to-check.
+              </div>
+            </li>
+            <li>
+              <span class="g-check" aria-hidden="true">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <div>
+                <strong>Apache 2.0, no phone-home.</strong>
+                Self-hosted by design. The CLI talks to your controller
+                and nothing else.
+              </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    {/* ───────────── Install ───────────── */}
+    <section class="band">
+      <div class="container install-grid">
+        <div>
+          <div class="eyebrow">Install</div>
+          <h2 class="section-title">
+            One line, then <em class="accent-serif">prexorctl setup.</em>
+          </h2>
+          <p class="install-lede">
+            The installer downloads a single signed binary, verifies
+            its cosign signature + SHA-256, and (by default) launches
+            <code>prexorctl setup</code> — a browser-based wizard that
+            generates a versioned <code>controller.yml</code> you commit
+            to your infra repo.
+          </p>
+          <a href="/getting-started/installation/" class="btn-mono">
+            Read the install guide
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <div class="term">
+          <div class="term-head">
+            <span class="dot dot--faint"></span>
+            <span class="dot dot--faint"></span>
+            <span class="dot dot--faint"></span>
+            <span class="term-name">~ · install</span>
+          </div>
+<pre class="term-body"><span class="t-com"># Linux / macOS</span>
+<span class="t-prompt">$</span> <span class="t-accent">curl -fsSL prexor.cloud/install.sh | sh</span>
+
+<span class="t-com"># …or Windows (PowerShell)</span>
+<span class="t-prompt">PS&gt;</span> <span class="t-accent">irm prexor.cloud/install.ps1 | iex</span>
+
+<span class="t-com"># the wizard answers three questions, then:</span>
+<span class="t-ok">✓</span> controller up on :8080
+<span class="t-ok">✓</span> daemon up on :9090
+<span class="t-ok">✓</span> bootstrap admin password written (one-time)</pre>
+        </div>
+      </div>
+    </section>
+
+    {/* ───────────── Closer ───────────── */}
+    <section class="section closer">
+      <div class="container">
+        <h2 class="closer-title">
+          Run it on a <em class="accent-serif">Raspberry Pi.</em><br/>
+          Run it on a thousand cores.
+        </h2>
+        <p class="closer-sub">
+          One static binary per role. No daemon-of-daemons. The same
+          system whether you're running a single closet node or a fleet
+          across data centres — the only thing that changes is how
+          many <code>prexorctl token create</code> you've run.
+        </p>
+        <div class="closer-cta">
+          <a href="/getting-started/quickstart/" class="btn-accent">Read the quickstart</a>
+          <a href={REPO} class="btn-ghost" rel="external">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    {/* ───────────── Footer ───────────── */}
+    <footer class="site-footer">
+      <div class="container">
+        <div class="footer-grid">
+          <div>
+            <a href="/" class="footer-brand">
+              <svg width="22" height="22" viewBox="0 0 22 22" class="brand-mark" aria-hidden="true"><g fill="currentColor"><rect x="4.4" y="0" width="3.2" height="3.2" rx="0.6"/><rect x="8.7" y="0" width="3.2" height="3.2" rx="0.6"/><rect x="0" y="4.3" width="3.2" height="3.2" rx="0.6"/><rect x="4.4" y="4.3" width="3.2" height="3.2" rx="0.6"/><rect x="8.7" y="4.3" width="3.2" height="3.2" rx="0.6"/><rect x="13" y="4.3" width="3.2" height="3.2" rx="0.6"/><rect x="0" y="8.7" width="3.2" height="3.2" rx="0.6"/><rect x="4.4" y="8.7" width="3.2" height="3.2" rx="0.6"/><rect x="8.7" y="8.7" width="3.2" height="3.2" rx="0.6"/><rect x="13" y="8.7" width="3.2" height="3.2" rx="0.6"/><rect x="4.4" y="13" width="3.2" height="3.2" rx="0.6"/><rect x="8.7" y="13" width="3.2" height="3.2" rx="0.6"/></g></svg>
+              <span class="brand-name">PrexorCloud</span>
+            </a>
+            <p class="footer-blurb">
+              A self-hosted control plane for Minecraft server fleets.
+              Apache 2.0 licensed.
+            </p>
+          </div>
+          <div>
+            <h5>Product</h5>
+            <ul>
+              <li><a href="#features">Features</a></li>
+              <li><a href="/changelog/">Changelog</a></li>
+              <li><a href="/roadmap/">Roadmap</a></li>
+            </ul>
+          </div>
+          <div>
+            <h5>Docs</h5>
+            <ul>
+              <li><a href="/getting-started/quickstart/">Quick start</a></li>
+              <li><a href="/getting-started/installation/">Installation</a></li>
+              <li><a href="/reference/rest-api/">REST API</a></li>
+              <li><a href="/reference/cli/">CLI reference</a></li>
+            </ul>
+          </div>
+          <div>
+            <h5>Project</h5>
+            <ul>
+              <li><a href={REPO} rel="external">GitHub</a></li>
+              <li><a href="/blog/">Blog</a></li>
+              <li><a href="/contributing/">Contributing</a></li>
+              <li><a href={`${REPO}/blob/main/LICENSE`} rel="external">License</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <span>© 2026 PrexorCloud · Apache 2.0</span>
+          <span class="mono">{VERSION}</span>
+        </div>
+      </div>
+    </footer>
+
+    <style is:global>
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: var(--font-sans);
+        font-size: var(--text-base);
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; }
+      *::selection { background: hsl(var(--accent) / 0.30); color: hsl(var(--foreground)); }
+
+      .container { max-width: 1200px; margin: 0 auto; padding: 0 var(--space-8); }
+
+      /* ── Buttons ───────────────────────────────────────── */
+      .btn-mono, .btn-ghost, .btn-accent {
+        display: inline-flex; align-items: center; gap: 8px;
+        height: 40px; padding: 0 18px;
+        border-radius: var(--radius-md);
+        font-family: inherit; font-weight: 500; font-size: 14px;
+        text-decoration: none; cursor: pointer; border: 0;
+        transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+      }
+      .btn-mono   { background: hsl(var(--foreground)); color: hsl(var(--background)); }
+      .btn-mono:hover  { background: hsl(var(--foreground) / 0.9); }
+      .btn-ghost  { background: transparent; color: hsl(var(--foreground)); border: 1px solid hsl(var(--border)); }
+      .btn-ghost:hover { border-color: hsl(var(--border-hover)); background: hsl(var(--surface)); }
+      .btn-accent { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); font-weight: 600; height: 44px; padding: 0 22px; }
+      .btn-accent:hover { filter: brightness(1.05); }
+
+      /* ── Nav ───────────────────────────────────────────── */
+      .reef-nav {
+        position: sticky; top: 0; z-index: 50;
+        display: flex; align-items: center; gap: 32px;
+        padding: 16px 48px;
+        background: color-mix(in srgb, hsl(var(--background)) 80%, transparent);
+        -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+        border-bottom: 1px solid hsl(var(--border));
+      }
+      .brand {
+        display: inline-flex; align-items: center; gap: 10px;
+        text-decoration: none; color: inherit;
+      }
+      .brand-mark { color: hsl(var(--accent)); }
+      .brand-name { font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: var(--tracking-tight); }
+      .nav-links { display: flex; gap: 26px; margin-left: 12px; font-size: 14px; color: hsl(var(--muted-foreground)); }
+      .nav-links a { color: inherit; text-decoration: none; transition: color 120ms ease; }
+      .nav-links a:hover { color: hsl(var(--foreground)); }
+      .nav-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+      .nav-gh {
+        display: inline-flex; align-items: center; gap: 7px;
+        color: hsl(var(--muted-foreground)); text-decoration: none;
+        padding: 0 10px; height: 36px;
+        transition: color 120ms ease;
+      }
+      .nav-gh:hover { color: hsl(var(--foreground)); }
+      .nav-actions .btn-mono { height: 36px; padding: 0 14px; font-size: 13px; }
+
+      /* ── Hero ──────────────────────────────────────────── */
+      .hero { position: relative; padding: 96px 48px 80px; overflow: hidden; }
+      .hero-wash {
+        position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse 900px 500px at 12% -10%, hsl(var(--accent-glow)), transparent 60%);
+      }
+      .hero-grid {
+        position: relative; max-width: 1200px; margin: 0 auto;
+        display: grid; grid-template-columns: 1.1fr 1fr; gap: 64px; align-items: center;
+      }
+      .hero-pill {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 5px 12px 5px 8px;
+        border-radius: var(--radius-full);
+        background: hsl(var(--surface));
+        border: 1px solid hsl(var(--border));
+        font-size: 12px; color: hsl(var(--muted-foreground));
+        text-decoration: none;
+        transition: border-color 120ms ease;
+      }
+      .hero-pill:hover { border-color: hsl(var(--border-hover)); }
+      .hero-pill__tag {
+        padding: 2px 8px;
+        border-radius: var(--radius-full);
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+        font-size: 10.5px; font-weight: 600;
+      }
+      .hero-title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: var(--text-hero);
+        letter-spacing: var(--tracking-tighter);
+        line-height: 1.02;
+        margin: 20px 0 0;
+        max-width: 600px;
+      }
+      .hero-title .accent-serif { font-size: 1.06em; }
+      .hero-lede {
+        font-size: var(--text-lg);
+        color: hsl(var(--muted-foreground));
+        line-height: 1.55;
+        max-width: 520px;
+        margin-top: 24px;
+      }
+      .hero-cta { display: flex; gap: 10px; margin-top: 32px; align-items: center; flex-wrap: wrap; }
+
+      /* Quick-install tabbed card */
+      .quick-install { margin-top: 22px; max-width: 480px; }
+      .qi-tabs {
+        display: inline-flex; gap: 2px;
+        padding: 3px;
+        background: hsl(var(--surface));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-full);
+        margin-bottom: 10px;
+        font-size: 12px;
+      }
+      .qi-tab {
+        background: transparent; border: 0;
+        color: hsl(var(--muted-foreground));
+        padding: 6px 14px;
+        border-radius: var(--radius-full);
+        font: inherit; font-weight: 500;
+        cursor: pointer;
+        transition: color 120ms ease, background 120ms ease;
+      }
+      .qi-tab:hover { color: hsl(var(--foreground)); }
+      .qi-tab.is-active {
+        background: hsl(var(--bg-alt));
+        color: hsl(var(--foreground));
+        box-shadow: var(--shadow-sm);
+      }
+      .qi-card {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 8px 10px 16px;
+        background: hsl(var(--surface));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius-md);
+        font-family: var(--font-mono);
+        font-size: 13px;
+        transition: border-color 120ms ease;
+      }
+      .qi-card:hover { border-color: hsl(var(--border-hover)); }
+      .qi-prompt { color: hsl(var(--faint)); flex-shrink: 0; }
+      .qi-cmd {
+        flex: 1; min-width: 0;
+        overflow-x: auto;
+        white-space: nowrap;
+        font-family: var(--font-mono);
+        color: hsl(var(--foreground));
+        scrollbar-width: none;
+      }
+      .qi-cmd::-webkit-scrollbar { display: none; }
+      .qi-accent { color: hsl(var(--accent)); }
+      .qi-copy {
+        flex-shrink: 0;
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 30px; height: 30px;
+        background: transparent; border: 0;
+        border-radius: var(--radius-sm);
+        color: hsl(var(--muted-foreground));
+        cursor: pointer;
+        transition: background 120ms ease, color 120ms ease;
+      }
+      .qi-copy:hover { background: hsl(var(--bg-alt)); color: hsl(var(--foreground)); }
+      .qi-copy:focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; }
+      .qi-copy__icon--ok { display: none; color: hsl(var(--success)); }
+      .qi-copy.is-copied .qi-copy__icon--copy { display: none; }
+      .qi-copy.is-copied .qi-copy__icon--ok   { display: inline-block; color: hsl(var(--success)); }
+
+      /* Hero preview column */
+      .hero-preview { display: flex; flex-direction: column; gap: 14px; }
+      .term--hero { box-shadow: var(--shadow-lg); }
+      .preview-foot { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: hsl(var(--muted-foreground)); padding: 0 4px; }
+      .preview-foot__by { color: hsl(var(--faint)); }
+      .preview-foot code { font-family: var(--font-mono); color: hsl(var(--muted-foreground)); font-size: 12px; }
+
+      /* ── Bands & sections ──────────────────────────────── */
+      .section { padding: 96px 0; }
+      .band { padding: 72px 48px; background: hsl(var(--bg-alt)); border-top: 1px solid hsl(var(--border)); border-bottom: 1px solid hsl(var(--border)); }
+      .band .container { padding: 0; }
+      .band-head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 40px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+      .section-title {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: var(--text-3xl);
+        letter-spacing: var(--tracking-tight);
+        line-height: 1.15;
+        margin: 0;
+        max-width: 560px;
+      }
+      .more-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: hsl(var(--muted-foreground)); text-decoration: none; }
+      .more-link:hover { color: hsl(var(--foreground)); }
+
+      /* Eyebrow utility (shared with feature cards + arch section) */
+      .eyebrow {
+        font-family: var(--font-sans);
+        font-size: 12px; font-weight: 600;
+        letter-spacing: var(--tracking-widest);
+        text-transform: uppercase;
+        color: hsl(var(--accent));
+      }
+
+      /* Features */
+      .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 1200px; margin: 0 auto; }
+      .feat {
+        padding: 28px;
+        border-radius: var(--radius-xl);
+        background: hsl(var(--surface));
+        border: 1px solid hsl(var(--border));
+      }
+      .feat-title { font-family: var(--font-display); font-weight: 600; font-size: var(--text-xl); letter-spacing: var(--tracking-tight); margin: 10px 0 0; }
+      .feat p { font-size: 14px; color: hsl(var(--muted-foreground)); line-height: 1.6; margin: 12px 0 0; }
+
+      /* Architecture section (replaces fake quote section) */
+      .arch-section { padding: 96px 0; }
+      .arch-head { max-width: 720px; margin: 0 auto 56px; text-align: center; padding: 0 24px; }
+      .arch-title { margin: 12px auto 0; max-width: 640px; }
+      .arch-lede { font-size: var(--text-lg); color: hsl(var(--muted-foreground)); line-height: 1.55; margin-top: 20px; }
+      .arch-grid {
+        max-width: 1100px; margin: 0 auto; padding: 0 24px;
+        display: grid; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: start;
+      }
+      .arch-diagram { width: 100%; }
+      .term-body--diagram { font-size: 12px; line-height: 1.5; padding: 24px 22px; color: hsl(var(--muted-foreground)); }
+      .guarantees {
+        list-style: none; padding: 0; margin: 0;
+        display: flex; flex-direction: column; gap: 20px;
+      }
+      .guarantees li {
+        display: grid; grid-template-columns: 24px 1fr; gap: 14px;
+        font-size: 14px; color: hsl(var(--muted-foreground)); line-height: 1.55;
+      }
+      .guarantees strong { color: hsl(var(--foreground)); font-weight: 600; display: block; margin-bottom: 2px; }
+      .guarantees code { font-family: var(--font-mono); font-size: 12.5px; color: hsl(var(--foreground)); background: hsl(var(--surface)); padding: 1px 6px; border-radius: var(--radius-sm); border: 1px solid hsl(var(--border)); }
+      .g-check {
+        width: 22px; height: 22px; border-radius: 999px;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: hsl(var(--accent) / 0.15);
+        color: hsl(var(--accent));
+        margin-top: 1px;
+      }
+
+      /* Install */
+      .install-grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.2fr; gap: 56px; align-items: center; }
+      .install-lede { font-size: var(--text-base); color: hsl(var(--muted-foreground)); line-height: 1.6; margin: 14px 0 24px; max-width: 440px; }
+      .install-lede code { font-family: var(--font-mono); color: hsl(var(--foreground)); font-size: 13px; }
+
+      /* Terminal (used in hero preview, arch diagram, install) */
+      .term {
+        border-radius: var(--radius-xl);
+        background: hsl(var(--surface));
+        border: 1px solid hsl(var(--border));
+        overflow: hidden;
+        box-shadow: var(--shadow-md);
+      }
+      .term-head {
+        display: flex; align-items: center; gap: 10px;
+        padding: 12px 18px;
+        border-bottom: 1px solid hsl(var(--border));
+        font-family: var(--font-mono); font-size: 11.5px;
+        color: hsl(var(--muted-foreground));
+      }
+      .term-head .dot { width: 8px; height: 8px; border-radius: 999px; }
+      .term-head .dot--faint { background: hsl(var(--faint)); }
+      .term-name { margin-left: 8px; }
+      .term-body { margin: 0; padding: 22px 24px; font-family: var(--font-mono); font-size: 13px; line-height: 1.8; color: hsl(var(--foreground)); white-space: pre; overflow-x: auto; }
+      .t-prompt { color: hsl(var(--faint)); }
+      .t-accent { color: hsl(var(--accent)); }
+      .t-com    { color: hsl(var(--muted-foreground)); }
+      .t-ok     { color: hsl(var(--success)); }
+      .t-muted  { color: hsl(var(--muted-foreground)); }
+      .t-mono   { color: hsl(var(--foreground)); }
+
+      /* Closer */
+      .closer { padding: 96px 0; text-align: center; }
+      .closer-title { font-family: var(--font-display); font-weight: 600; font-size: var(--text-4xl); letter-spacing: var(--tracking-tighter); line-height: 1.05; margin: 0; max-width: 720px; margin-left: auto; margin-right: auto; }
+      .closer-sub { font-size: var(--text-lg); color: hsl(var(--muted-foreground)); line-height: 1.55; margin-top: 20px; max-width: 720px; margin-left: auto; margin-right: auto; padding: 0 24px; }
+      .closer-sub code { font-family: var(--font-mono); color: hsl(var(--foreground)); font-size: 14px; background: hsl(var(--surface)); padding: 1px 6px; border-radius: var(--radius-sm); border: 1px solid hsl(var(--border)); }
+      .closer-cta { display: flex; gap: 10px; margin-top: 36px; justify-content: center; flex-wrap: wrap; }
+
+      /* Footer */
+      .site-footer { border-top: 1px solid hsl(var(--border)); padding: 40px 48px 56px; background: hsl(var(--bg-alt)); }
+      .site-footer .container { padding: 0; }
+      .footer-grid { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 40px; }
+      .footer-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+      .footer-blurb { font-size: 13px; color: hsl(var(--muted-foreground)); max-width: 280px; margin: 14px 0 0; line-height: 1.55; }
+      .site-footer h5 { font-size: 12px; font-weight: 600; color: hsl(var(--foreground)); margin: 0 0 12px; }
+      .site-footer ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+      .site-footer a { font-size: 13px; color: hsl(var(--muted-foreground)); text-decoration: none; }
+      .site-footer a:hover { color: hsl(var(--foreground)); }
+      .footer-bottom { max-width: 1200px; margin: 40px auto 0; padding-top: 24px; border-top: 1px solid hsl(var(--border)); display: flex; justify-content: space-between; font-size: 12px; color: hsl(var(--faint)); }
+      .footer-bottom .mono { font-family: var(--font-mono); }
+
+      /* ── Responsive ──────────────────────────────────────── */
+      @media (max-width: 980px) {
+        .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+        .feat-grid { grid-template-columns: 1fr; }
+        .arch-grid { grid-template-columns: 1fr; gap: 32px; }
+        .install-grid { grid-template-columns: 1fr; gap: 32px; }
+        .footer-grid { grid-template-columns: 1fr 1fr; }
+        .nav-links { display: none; }
+        .hero, .band, .closer { padding-left: 24px; padding-right: 24px; }
+        .container, .site-footer { padding-left: 24px; padding-right: 24px; }
+        .band-head { padding: 0 24px; }
+      }
+      @media (max-width: 720px) {
+        .term-body--diagram { font-size: 10.5px; }
+      }
+      @media (max-width: 540px) {
+        .hero-title { font-size: clamp(40px, 13vw, 56px); }
+        .closer-title { font-size: var(--text-3xl); }
+        .footer-grid { grid-template-columns: 1fr; }
+        .band-head { flex-direction: column; align-items: flex-start; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+
+    <script>
+      // Quick-install: OS tabs + copy button. No framework — vanilla, scoped
+      // to .quick-install instances. Auto-detects Windows on first load.
+      document.querySelectorAll<HTMLElement>('.quick-install').forEach((root) => {
+        const tabs = root.querySelectorAll<HTMLButtonElement>('.qi-tab');
+        const targets = root.querySelectorAll<HTMLElement>('[data-os]');
+        const copyBtn = root.querySelector<HTMLButtonElement>('.qi-copy');
+
+        function setOS(os: string) {
+          tabs.forEach((t) => {
+            const active = t.dataset.target === os;
+            t.classList.toggle('is-active', active);
+            t.setAttribute('aria-selected', String(active));
+          });
+          targets.forEach((el) => {
+            el.hidden = el.dataset.os !== os;
+          });
+        }
+
+        tabs.forEach((t) => {
+          t.addEventListener('click', () => {
+            if (t.dataset.target) setOS(t.dataset.target);
+          });
+        });
+
+        // Default to Windows tab on Windows browsers.
+        if (/windows/i.test(navigator.userAgent)) setOS('win');
+
+        copyBtn?.addEventListener('click', async () => {
+          const visible = root.querySelector<HTMLElement>('.qi-cmd > [data-os]:not([hidden])');
+          if (!visible) return;
+          try {
+            await navigator.clipboard.writeText((visible.textContent ?? '').trim());
+            copyBtn.classList.add('is-copied');
+            setTimeout(() => copyBtn.classList.remove('is-copied'), 1500);
+          } catch {
+            // Clipboard API requires a secure context — silently noop on http://
+          }
+        });
+      });
+    </script>
+  </body>
+</html>

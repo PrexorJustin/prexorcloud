@@ -1,0 +1,368 @@
+@charset "UTF-8";
+/* =============================================================================
+ * PrexorCloud — Color & Type Tokens
+ * Single source of truth shared by website, dashboard (Nuxt+shadcn-vue) and CLI.
+ *
+ * Architecture:
+ *   1. RAW SCALES (radix-style 12 steps × 7 ramps) — never used directly in UI.
+ *   2. SEMANTIC TOKENS (--background, --foreground, --primary, …) — what UI uses.
+ *      Light + Dark variants. shadcn-compatible names.
+ *   3. TYPE TOKENS — fluid scale, line-heights, families.
+ *   4. SPACING / RADIUS / SHADOW / ELEVATION.
+ *   5. CONVENIENCE CLASSES — .h1, .h2, .body, .mono, .text-gradient-title …
+ * ===========================================================================*/
+
+/* ── 1. RAW SCALES ─────────────────────────────────────────────────────────
+   Each ramp is 12 steps. 1–2 = backgrounds, 3–5 = subtle UI, 6–8 = borders,
+   9–10 = solid fills, 11–12 = high-contrast text.
+   Two ramps per scale: dark-mode tuned + light-mode tuned (not just inverted).
+   ─────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Cyan — primary brand. Compute is "kubernetes-y but warmer than blue". */
+  --cyan-1: #06121a;   --cyan-2: #07171f;   --cyan-3: #082431;
+  --cyan-4: #093142;   --cyan-5: #0b3f54;   --cyan-6: #0d5168;
+  --cyan-7: #0e6a85;   --cyan-8: #0c8aa8;   --cyan-9: #06b6d4; /* primary */
+  --cyan-10: #22c5e0;  --cyan-11: #67e2f5;  --cyan-12: #cbf6ff;
+
+  /* Violet — secondary. Used for groups/templates. Distinct from primary. */
+  --violet-1: #100b1e;  --violet-2: #160f28; --violet-3: #211632;
+  --violet-4: #2b1c41;  --violet-5: #382450; --violet-6: #4a3068;
+  --violet-7: #614085;  --violet-8: #7a4fb0; --violet-9: #8b5cf6; /* secondary */
+  --violet-10: #a07ff8; --violet-11: #c3a8fb; --violet-12: #ece2ff;
+
+  /* Slate — neutral. The background spine of the dark theme. */
+  --slate-1: #0a0a12;   --slate-2: #0e0e1a;  --slate-3: #14142b;
+  --slate-4: #1e1e36;   --slate-5: #1e293b;  --slate-6: #2a3448;
+  --slate-7: #3a445e;   --slate-8: #475569;  --slate-9: #64748b;
+  --slate-10: #94a3b8;  --slate-11: #cbd5e1; --slate-12: #f8fafc;
+
+  /* Sand — neutral for the light theme. Soft Scandinavian, not cold gray. */
+  --sand-1: #f5f4f0;    --sand-2: #eeede8;   --sand-3: #e4e3dc;
+  --sand-4: #d8d5cd;    --sand-5: #c9c6bd;   --sand-6: #c5c2b8;
+  --sand-7: #b8b5ac;    --sand-8: #aba8a0;   --sand-9: #8b8880;
+  --sand-10: #6b7265;   --sand-11: #4a4f45;  --sand-12: #2c3027;
+
+  /* Green — success. State color for RUNNING / ONLINE. */
+  --green-1: #03130c;   --green-2: #051a10;  --green-3: #07271b;
+  --green-4: #093526;   --green-5: #0c4934;  --green-6: #0f6244;
+  --green-7: #137a55;   --green-8: #0e9268;  --green-9: #10b981; /* success dark */
+  --green-10: #34d39c;  --green-11: #6ee7b7; --green-12: #d1fae5;
+  --green-light-9: #059669; /* success light */
+
+  /* Amber — warning. State color for STARTING / DRAINING / STOPPING. */
+  --amber-1: #160a02;   --amber-2: #1d1004;  --amber-3: #2c1a06;
+  --amber-4: #3a2308;   --amber-5: #4d2f0a;  --amber-6: #6a410d;
+  --amber-7: #8a5410;   --amber-8: #b07013;  --amber-9: #f59e0b; /* warning dark */
+  --amber-10: #fbbf24;  --amber-11: #fcd34d; --amber-12: #fef3c7;
+  --amber-light-9: #d97706; /* warning light */
+
+  /* Red — destructive. State color for CRASHED / UNREACHABLE / errors. */
+  --red-1: #170609;     --red-2: #1f070b;    --red-3: #310a10;
+  --red-4: #420c14;     --red-5: #561019;    --red-6: #701420;
+  --red-7: #8c1a28;     --red-8: #b31f31;    --red-9: #ef4444; /* destructive dark */
+  --red-10: #f87171;    --red-11: #fca5a5;   --red-12: #fee2e2;
+  --red-light-9: #dc2626; /* destructive light */
+}
+
+/* ── 2. SEMANTIC TOKENS (DARK — default) ─────────────────────────────────── */
+:root, .dark {
+  /* shadcn surface */
+  --background: var(--slate-1);
+  --foreground: var(--slate-12);
+
+  --card: #ffffff08;          /* semi-transparent glass over background */
+  --card-foreground: var(--slate-12);
+
+  --popover: #0f0f1aee;
+  --popover-foreground: var(--slate-12);
+
+  --primary: var(--cyan-9);
+  --primary-foreground: #ffffff;
+  --primary-glow: #06b6d440;
+
+  --secondary: var(--violet-9);
+  --secondary-foreground: #ffffff;
+
+  --muted: var(--slate-5);
+  --muted-foreground: var(--slate-9);
+
+  --accent: #ffffff08;
+  --accent-foreground: var(--slate-12);
+
+  --destructive: var(--red-9);
+  --destructive-foreground: #ffffff;
+  --destructive-glow: #ef444440;
+
+  --success: var(--green-9);
+  --success-glow: #10b98140;
+
+  --warning: var(--amber-9);
+  --warning-glow: #f59e0b40;
+
+  --info: var(--cyan-10);
+
+  --border: #ffffff15;
+  --input: #ffffff10;
+  --ring: var(--cyan-9);
+
+  /* Glass — translucent surfaces over the background. The spine of the dark UI. */
+  --glass: #ffffff08;
+  --glass-hover: #ffffff12;
+  --glass-border: #ffffff15;
+  --glass-border-hover: #ffffff25;
+
+  /* Charts */
+  --chart-1: var(--cyan-9);
+  --chart-2: var(--violet-9);
+  --chart-3: var(--green-9);
+  --chart-4: var(--amber-9);
+  --chart-5: var(--red-9);
+
+  /* Sidebar (slightly different from main bg for visual separation) */
+  --sidebar: var(--slate-2);
+  --sidebar-foreground: var(--slate-10);
+  --sidebar-primary: var(--cyan-9);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: var(--slate-5);
+  --sidebar-accent-foreground: var(--slate-12);
+  --sidebar-border: var(--slate-5);
+  --sidebar-ring: var(--cyan-9);
+}
+
+/* ── 2b. SEMANTIC TOKENS (LIGHT — Scandinavian) ──────────────────────────── */
+.light {
+  --background: var(--sand-4);
+  --foreground: var(--sand-12);
+
+  --card: var(--sand-1);
+  --card-foreground: var(--sand-12);
+
+  --popover: #f2f1ecee;
+  --popover-foreground: var(--sand-12);
+
+  --primary: var(--cyan-8);   /* slightly darker for AA on sand-4 */
+  --primary-foreground: #ffffff;
+  --primary-glow: #0891b230;
+
+  --secondary: #7c3aed;
+  --secondary-foreground: #ffffff;
+
+  --muted: var(--sand-6);
+  --muted-foreground: var(--sand-10);
+
+  --accent: var(--sand-6);
+  --accent-foreground: var(--sand-12);
+
+  --destructive: var(--red-light-9);
+  --destructive-foreground: #ffffff;
+  --destructive-glow: #dc262630;
+
+  --success: var(--green-light-9);
+  --success-glow: #05966930;
+
+  --warning: var(--amber-light-9);
+  --warning-glow: #d9770630;
+
+  --info: var(--cyan-8);
+
+  --border: var(--sand-7);
+  --input: var(--sand-7);
+  --ring: var(--cyan-8);
+
+  --glass: var(--sand-2);
+  --glass-hover: var(--sand-3);
+  --glass-border: var(--sand-7);
+  --glass-border-hover: var(--sand-8);
+
+  --chart-1: var(--cyan-8);
+  --chart-2: #7c3aed;
+  --chart-3: var(--green-light-9);
+  --chart-4: var(--amber-light-9);
+  --chart-5: var(--red-light-9);
+
+  --sidebar: var(--sand-5);
+  --sidebar-foreground: var(--sand-11);
+  --sidebar-primary: var(--cyan-8);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #bbb8ae;
+  --sidebar-accent-foreground: var(--sand-12);
+  --sidebar-border: #aba8a0;
+  --sidebar-ring: var(--cyan-8);
+}
+
+/* ── 3. TYPE ───────────────────────────────────────────────────────────────
+   - UI:      Inter (variable). The default for everything.
+   - Display: Inter Tight (variable). Tight-tracked for marketing hero text.
+   - Mono:    JetBrains Mono. Code, terminal, tabular-nums in tables.
+
+   All three are open-source + on Google Fonts. Fonts are imported from
+   /fonts/ when self-hosting; this file only defines variables + classes.
+   ─────────────────────────────────────────────────────────────────────── */
+:root {
+  --font-sans:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* 8-step modular scale (1.2 ratio). Use these, not raw rem. */
+  --text-xs:   0.75rem;   /* 12px — meta, badge labels, table column heads */
+  --text-sm:   0.875rem;  /* 14px — body in dense UI */
+  --text-base: 1rem;      /* 16px — comfortable body */
+  --text-lg:   1.125rem;  /* 18px — emphasis body, lead */
+  --text-xl:   1.25rem;   /* 20px — card title */
+  --text-2xl:  1.5rem;    /* 24px — page title (h1 in dashboard) */
+  --text-3xl:  2rem;      /* 32px — section heading on marketing */
+  --text-4xl:  2.5rem;    /* 40px — small hero */
+  --text-5xl:  3.5rem;    /* 56px — large hero (clamp on marketing) */
+
+  /* Line heights paired with sizes. */
+  --leading-tight:  1.15;   /* display/hero */
+  --leading-snug:   1.3;    /* large headlines */
+  --leading-normal: 1.5;    /* body */
+  --leading-relaxed:1.65;   /* docs prose */
+
+  /* Letter spacing. */
+  --tracking-tighter: -0.04em; /* hero display */
+  --tracking-tight:   -0.02em; /* headings */
+  --tracking-normal:  0em;
+  --tracking-wide:    0.02em;
+  --tracking-widest:  0.12em;  /* uppercase eyebrows + table column heads */
+
+  /* Weights. Inter has full range; we use only these four. */
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+}
+
+/* ── 4. SPACING / RADIUS / SHADOW / ELEVATION ────────────────────────────── */
+:root {
+  /* Spacing scale. 4px base. Use in gap/padding. */
+  --space-0:  0;
+  --space-1:  0.25rem;  /* 4px  */
+  --space-2:  0.5rem;   /* 8px  */
+  --space-3:  0.75rem;  /* 12px */
+  --space-4:  1rem;     /* 16px */
+  --space-5:  1.25rem;  /* 20px — card padding (default) */
+  --space-6:  1.5rem;   /* 24px — section gap */
+  --space-8:  2rem;     /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-24: 6rem;     /* 96px — marketing section */
+
+  /* Radii. Cards default to lg; pills are full. */
+  --radius-xs:  0.25rem;  /*  4px — input chips */
+  --radius-sm:  0.5rem;   /*  8px — small buttons */
+  --radius-md:  0.75rem;  /* 12px — buttons, inputs */
+  --radius-lg:  1rem;     /* 16px — cards */
+  --radius-xl:  1.5rem;   /* 24px — large cards, dialogs */
+  --radius-2xl: 2rem;     /* 32px — hero containers */
+  --radius-full: 9999px;
+
+  /* Shadows. Dark theme uses glow-tinted shadows; light uses soft neutral. */
+  --shadow-sm:    0 1px 2px 0 rgb(0 0 0 / 0.20);
+  --shadow-md:    0 4px 12px -2px rgb(0 0 0 / 0.30), 0 2px 4px -2px rgb(0 0 0 / 0.20);
+  --shadow-lg:    0 12px 32px -8px rgb(0 0 0 / 0.40), 0 4px 8px -4px rgb(0 0 0 / 0.20);
+  --shadow-xl:    0 24px 64px -16px rgb(0 0 0 / 0.50), 0 8px 16px -8px rgb(0 0 0 / 0.30);
+  --shadow-glow-primary:     0 0 32px -4px var(--primary-glow);
+  --shadow-glow-success:     0 0 32px -4px var(--success-glow);
+  --shadow-glow-warning:     0 0 32px -4px var(--warning-glow);
+  --shadow-glow-destructive: 0 0 32px -4px var(--destructive-glow);
+
+  /* Z elevation tiers — keep stacking sane across surfaces. */
+  --z-base:     0;
+  --z-raised:   10;   /* hovered card */
+  --z-sticky:   20;   /* sticky table head */
+  --z-overlay:  40;   /* dialog backdrop, command palette scrim */
+  --z-dialog:   50;
+  --z-toast:    60;
+  --z-tooltip:  70;
+}
+
+/* ── 5. CONVENIENCE CLASSES ─────────────────────────────────────────────── */
+
+/* Reset baseline */
+html { font-family: var(--font-sans); color: var(--foreground); background: var(--background); -webkit-font-smoothing: antialiased; }
+body { font-size: var(--text-base); line-height: var(--leading-normal); }
+
+/* Text styles — match Tailwind utility names where possible. */
+.h1, h1.ds {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+}
+.h2, h2.ds {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+}
+.h3, h3.ds {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+.display-lg {
+  font-family: var(--font-display);
+  font-size: var(--text-5xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
+}
+.display-md {
+  font-family: var(--font-display);
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tighter);
+}
+.display-sm {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+}
+.body, p.ds  { font-size: var(--text-base); line-height: var(--leading-normal); }
+.body-sm     { font-size: var(--text-sm);   line-height: var(--leading-normal); }
+.body-lg     { font-size: var(--text-lg);   line-height: var(--leading-relaxed); }
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--muted-foreground);
+}
+.mono        { font-family: var(--font-mono); font-feature-settings: 'liga' 0; }
+.tabular     { font-variant-numeric: tabular-nums; }
+
+/* The signature gradient title — primary fades to foreground, used on every page header. */
+.text-gradient-title {
+  background: linear-gradient(to left, var(--primary) 50%, var(--primary) 70%, var(--foreground) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  width: fit-content;
+}
+
+/* The signature glass card — used for almost every surface in the dashboard. */
+.glass-card {
+  background: color-mix(in srgb, var(--glass) 60%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+}
+.glass-card:hover {
+  background: var(--glass-hover);
+  border-color: var(--glass-border-hover);
+}
+
+/* Dot pattern background — subtle texture used inside hero cards. */
+.bg-dot-pattern {
+  background-image: radial-gradient(circle, oklch(0.75 0.18 55 / 0.08) 1px, transparent 1px);
+  background-size: 16px 16px;
+}

@@ -1,0 +1,795 @@
+{
+  "nav": {
+    "groups": {
+      "overview": "Overview",
+      "workloads": "Workloads",
+      "cluster": "Cluster",
+      "configuration": "Configuration",
+      "observability": "Observability",
+      "identity": "Identity",
+      "operations": "Operations",
+      "settings": "Settings",
+      "modules": "Modules"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "map": "Map",
+      "groups": "Groups",
+      "instances": "Instances",
+      "deployments": "Deployments",
+      "nodes": "Nodes",
+      "networks": "Networks",
+      "players": "Players",
+      "templates": "Templates",
+      "catalog": "Catalog",
+      "modules": "Modules",
+      "crashes": "Crashes",
+      "activity": "Activity",
+      "logs": "Logs",
+      "systemStatus": "System status",
+      "audit": "Audit",
+      "shares": "Shares",
+      "users": "Users",
+      "roles": "Roles",
+      "tokens": "Tokens",
+      "workloadCredentials": "Workload credentials",
+      "certificates": "Certificates",
+      "backups": "Backups",
+      "maintenance": "Maintenance",
+      "settings": "Settings"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "pleaseWait": "Please wait...",
+    "search": "Search...",
+    "items": "items",
+    "gridView": "Grid view",
+    "tableView": "Table view"
+  },
+  "sidebar": {
+    "adminPanel": "Admin panel",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "user": "User"
+  },
+  "confirmDialog": {
+    "title": "Are you sure?",
+    "description": "This action cannot be undone."
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Welcome back. Enter your credentials to continue.",
+      "username": "Username",
+      "password": "Password",
+      "usernamePlaceholder": "Enter your username",
+      "passwordPlaceholder": "Enter your password",
+      "signIn": "Sign in",
+      "signingIn": "Signing in…",
+      "forgotPassword": "Forgot your password?",
+      "togglePassword": "Toggle password visibility",
+      "devSignIn": "Sign in as dev (mock data)",
+      "devHint": "Local-only shortcut. Hidden in production builds.",
+      "usernameRequired": "Enter your username",
+      "passwordRequired": "Enter your password",
+      "devToastTitle": "Signed in as dev",
+      "devToastDesc": "Dashboard is using mock data — no controller required."
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "We'll email you a link to choose a new one.",
+      "email": "Email",
+      "emailPlaceholder": "you{'@'}example.com",
+      "sendLink": "Send reset link",
+      "sending": "Sending…",
+      "backToSignIn": "Back to sign in",
+      "sentMessage": "If an account exists for that address, a password-reset link has been sent. Check your inbox — and spam folder — for a message from PrexorCloud.",
+      "emailInvalid": "Enter a valid email address"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Choose something at least 8 characters long.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "newPasswordPlaceholder": "At least 8 characters",
+      "confirmPasswordPlaceholder": "Re-enter your new password",
+      "updatePassword": "Update password",
+      "updating": "Updating…",
+      "completedMessage": "Your password has been updated. Sign in with your new password to continue.",
+      "continueToSignIn": "Continue to sign in",
+      "backToSignIn": "Back to sign in",
+      "missingTokenMessage": "This reset link is missing the required token. Request a fresh password-reset email.",
+      "requestNewLink": "Request a new link",
+      "successToast": "Password updated. Sign in with your new password.",
+      "minChars": "Use at least 8 characters",
+      "reenter": "Re-enter your new password",
+      "mismatch": "Passwords do not match",
+      "missingToken": "The reset link is missing or malformed. Request a new one from the sign-in page.",
+      "invalidToken": "This reset link is invalid or has expired. Request a fresh one from the sign-in page.",
+      "genericError": "Reset failed. Try again, or request a fresh link.",
+      "networkError": "Can't reach the controller. Check your connection and try again."
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Customize how the dashboard looks and feels.",
+    "tabs": {
+      "preferences": "Preferences",
+      "customize": "Customize"
+    },
+    "groups": {
+      "palette": "Theme Palette",
+      "glows": "Ambient Glows"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose the language used across the dashboard."
+    }
+  },
+  "toast": {
+    "nodes": {
+      "draining": "Draining {count} node | Draining {count} nodes",
+      "cordoned": "Cordoned {count} node | Cordoned {count} nodes",
+      "drainingOne": "Draining {id}",
+      "cordonedOne": "Cordoned {id}",
+      "bulkDrainFailed": "Bulk drain failed",
+      "bulkDrainFailedDesc": "Some nodes couldn't be drained. Check the controller logs.",
+      "bulkCordonFailed": "Bulk cordon failed",
+      "bulkCordonFailedDesc": "Some nodes couldn't be cordoned. Check the controller logs.",
+      "drainFailed": "Drain failed",
+      "drainFailedDesc": "Couldn't drain the node. Check the controller logs.",
+      "cordonFailed": "Cordon failed",
+      "cordonFailedDesc": "Couldn't cordon the node. Check the controller logs.",
+      "cacheRefreshRequested": "Cache status refresh requested",
+      "cachePrewarmStarted": "Cache pre-warm started"
+    },
+    "groups": {
+      "instanceScheduled": "Instance scheduled for {name}",
+      "rollingRestart": "Rolling restart for {name}",
+      "deploymentTriggered": "Deployment triggered for {name}",
+      "startFailed": "Start failed",
+      "startFailedDesc": "Check that the group exists and at least one node has capacity.",
+      "restartFailed": "Restart failed",
+      "restartFailedDesc": "Check the controller logs.",
+      "deployFailed": "Deploy failed",
+      "deployFailedDesc": "Check the controller logs."
+    },
+    "instances": {
+      "stopFailed": "Stop instance failed",
+      "stopFailedDesc": "Couldn't stop {id}. Try again, or force-stop from the detail page.",
+      "deleteFailed": "Delete instance failed",
+      "deleteFailedDesc": "Couldn't delete {id}. The instance must be STOPPED, CRASHED, or SCHEDULED first."
+    },
+    "templates": {
+      "createFailed": "Failed to create template",
+      "createFailedDesc": "Check the template name and try again.",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't update the template. Try again, or check the controller logs.",
+      "fieldUpdateFailed": "Failed to update {field}",
+      "deleteVersionFailed": "Failed to delete version",
+      "uploadFailed": "Upload failed",
+      "uploadFailedDesc": "Check the file and try again.",
+      "importInvalidFile": "Invalid file",
+      "importInvalidFileDesc": "Only .tar.gz or .tgz files are accepted.",
+      "importFailed": "Failed to import template",
+      "importFailedDesc": "Check the archive and try again.",
+      "historyLoadFailed": "Can't load version history",
+      "historyLoadFailedDesc": "Try again, or check the controller logs.",
+      "snapshotLoadFailed": "Failed to load snapshot files",
+      "comparisonLoadFailed": "Failed to load comparison",
+      "restoreFailed": "Restore failed",
+      "restoreFailedDesc": "Couldn't roll back to that version. Try again, or check the controller logs."
+    },
+    "networks": {
+      "createFailed": "Failed to create network",
+      "updateFailed": "Failed to update network",
+      "lobbyInFallback": "Cannot include lobby group in fallback chain",
+      "notBackendGroup": "{name} is not a backend group",
+      "notProxyGroup": "{name} is not a proxy-platform group"
+    },
+    "catalog": {
+      "addVersionFailed": "Failed to add version",
+      "addVersionFailedDesc": "Check the platform name and version details."
+    }
+  },
+  "store": {
+    "common": {
+      "controllerUnreachable": "The controller may be unreachable. Try again, or check the controller logs."
+    },
+    "nodes": {
+      "loadFailed": "Failed to load nodes",
+      "drainCompleted": "Drain completed",
+      "drainCompletedDesc": "Node \"{id}\" has been fully drained"
+    },
+    "overview": {
+      "loadFailed": "Failed to load overview"
+    },
+    "instances": {
+      "loadFailed": "Failed to load instances",
+      "stopRequested": "Stop requested",
+      "stopRequestedDesc": "Instance \"{id}\" is stopping",
+      "forceStopRequested": "Force stop requested",
+      "forceStopRequestedDesc": "Instance \"{id}\" is being killed",
+      "deleted": "Instance deleted",
+      "deletedDesc": "Instance \"{id}\" removed"
+    },
+    "groups": {
+      "loadFailed": "Failed to load groups",
+      "created": "Group created",
+      "createdDesc": "\"{name}\" has been created",
+      "createFailed": "Failed to create group",
+      "crashLoop": "Crash loop detected",
+      "crashLoopDesc": "Group \"{group}\" is crash-looping"
+    },
+    "templates": {
+      "loadFailed": "Failed to load templates",
+      "created": "Template created",
+      "createdDesc": "\"{name}\" has been created",
+      "updated": "Template updated",
+      "updatedDesc": "\"{name}\" has been updated",
+      "deleted": "Template deleted",
+      "deletedDesc": "\"{name}\" has been deleted",
+      "versionDeleted": "Version deleted",
+      "restored": "Template restored",
+      "restoredDesc": "\"{name}\" rolled back successfully",
+      "filesUploaded": "Files uploaded",
+      "filesUploadedDesc": "{count} file uploaded | {count} files uploaded",
+      "zipExtracted": "ZIP extracted",
+      "zipExtractedDesc": "{count} file extracted | {count} files extracted",
+      "rehashed": "Template rehashed",
+      "rehashedDesc": "\"{name}\" has been rehashed",
+      "variablesSaved": "Variables saved",
+      "imported": "Template imported"
+    },
+    "networks": {
+      "loadFailed": "Failed to load networks",
+      "created": "Network created",
+      "createdDesc": "\"{name}\" has been created",
+      "createFailed": "Failed to create network",
+      "updated": "Network updated",
+      "updatedDesc": "\"{name}\" has been updated",
+      "updateFailed": "Failed to update network",
+      "deleted": "Network deleted",
+      "deletedDesc": "\"{name}\" has been deleted",
+      "deleteFailed": "Failed to delete network"
+    },
+    "catalog": {
+      "loadFailed": "Failed to load catalog",
+      "versionAdded": "Version added",
+      "versionAddedDesc": "Added {version} to {platform}",
+      "addVersionFailed": "Failed to add version",
+      "versionUpdated": "Version updated",
+      "versionUpdatedDesc": "Updated {version} in {platform}",
+      "updateVersionFailed": "Failed to update version",
+      "recommendedSet": "Recommended version set",
+      "recommendedSetDesc": "{version} is now recommended for {platform}",
+      "setRecommendedFailed": "Failed to set recommended version",
+      "versionRemoved": "Version removed",
+      "versionRemovedDesc": "Removed {version} from {platform}",
+      "removeVersionFailed": "Failed to remove version"
+    },
+    "auth": {
+      "welcomeBack": "Welcome back, {username}",
+      "invalidCredentials": "Invalid credentials",
+      "passwordChanged": "Password changed"
+    },
+    "backups": {
+      "loadFailed": "Can't load backups",
+      "created": "Backup created",
+      "createFailed": "Backup failed",
+      "createFailedDesc": "Couldn't create the backup. Check disk space on the controller host, or check the controller logs.",
+      "verificationStarted": "Verification started",
+      "verifyFailed": "Verify failed",
+      "verifyFailedDesc": "Couldn't start verification. Check the controller logs.",
+      "deleted": "Backup deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Couldn't delete the backup. Try again, or check the controller logs.",
+      "pruned": "Pruned to {keep} most recent backups",
+      "pruneFailed": "Prune failed",
+      "pruneFailedDesc": "Couldn't prune backups. Check the controller logs.",
+      "restoreStarted": "Restore started",
+      "restoreStartedDesc": "The cluster will pause scheduling and roll back state. This may take several minutes.",
+      "restoreFailed": "Restore failed",
+      "restoreFailedDesc": "Couldn't start the restore. Check the controller logs."
+    },
+    "maintenance": {
+      "loadFailed": "Can't load maintenance state",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't apply the maintenance change. Try again, or check the controller logs.",
+      "clusterEnabled": "Cluster maintenance enabled",
+      "clusterDisabled": "Cluster maintenance disabled",
+      "groupEnabled": "Group \"{group}\" maintenance enabled",
+      "groupDisabled": "Group \"{group}\" maintenance disabled"
+    },
+    "credentials": {
+      "loadFailed": "Can't load credentials",
+      "revokeFailed": "Revoke failed",
+      "revokeFailedDesc": "Couldn't revoke the credential. Try again, or check the controller logs.",
+      "revokedAll": "Revoked all credentials for {instanceId}",
+      "revokeAllFailedDesc": "Couldn't revoke the instance's credentials. Try again, or check the controller logs."
+    },
+    "adminTokens": {
+      "loadFailed": "Can't load tokens",
+      "generated": "Token generated",
+      "generatedDesc": "Copy it now — it won't be shown again.",
+      "generateFailed": "Generate failed",
+      "generateFailedDesc": "Couldn't generate the join token. Check the controller logs.",
+      "revoked": "Token revoked",
+      "revokeFailed": "Revoke failed",
+      "revokeFailedDesc": "Couldn't revoke the token. Try again, or check the controller logs."
+    },
+    "players": {
+      "loadFailed": "Can't load players",
+      "journeyLoadFailed": "Can't load journey",
+      "journeyLoadFailedDesc": "Try again, or check the controller logs.",
+      "transferred": "Transferred to {instanceId}",
+      "transferFailed": "Transfer failed",
+      "transferFailedDesc": "Couldn't transfer the player. Check that the target instance is RUNNING and has capacity."
+    },
+    "certificates": {
+      "loadFailed": "Can't load revoked certificates",
+      "revoked": "Revoked cert for {nodeId}",
+      "revokedDesc": "The daemon will lose controller access on next reconnect.",
+      "revokeFailed": "Revoke failed",
+      "revokeFailedDesc": "Couldn't revoke the certificate. Try again, or check the controller logs.",
+      "unrevoked": "Unrevoked cert for {nodeId}",
+      "unrevokeFailed": "Unrevoke failed",
+      "unrevokeFailedDesc": "Couldn't unrevoke the certificate. Try again, or check the controller logs."
+    },
+    "roles": {
+      "loadFailed": "Can't load roles",
+      "created": "Role \"{name}\" created",
+      "createFailed": "Create failed",
+      "createFailedDesc": "Couldn't create the role. Names must match [A-Z][A-Z0-9_]* and be unique.",
+      "updated": "Role updated",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't update the role. Built-in roles can't be edited.",
+      "deleted": "Role \"{name}\" deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Couldn't delete the role. Built-in roles can't be deleted, and roles in use must be reassigned first."
+    },
+    "users": {
+      "loadFailed": "Can't load users",
+      "created": "User \"{username}\" created",
+      "createFailed": "Create failed",
+      "createFailedDesc": "Couldn't create the user. Check that the username isn't taken and the password is valid.",
+      "updated": "User updated",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't update the user. Try again, or check the controller logs.",
+      "deleted": "User \"{username}\" deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Couldn't delete the user. They may be the only admin — promote another user first."
+    },
+    "system": {
+      "loadFailed": "Can't load system status"
+    },
+    "activity": {
+      "loadFailed": "Can't load activity"
+    },
+    "crashes": {
+      "loadFailed": "Failed to load crashes",
+      "shareSuccess": "Crash shared: {url}",
+      "shareRevokeHint": "Revoke: {url}",
+      "shareFailed": "Couldn't share crash",
+      "shareDisabled": "Sharing is disabled on this controller."
+    },
+    "share": {
+      "logsSuccess": "Logs shared: {url}",
+      "logsFailed": "Couldn't share logs",
+      "diagnosticsSuccess": "Diagnostics shared: {url}",
+      "diagnosticsFailed": "Couldn't share diagnostics",
+      "revokeHint": "Revoke: {url}",
+      "disabled": "Sharing is disabled on this controller.",
+      "upstream": "Paste service unreachable.",
+      "listFailed": "Couldn't load recent shares",
+      "revoked": "Revoked share {id}",
+      "revokeFailed": "Couldn't revoke share",
+      "alreadyRevoked": "Share is already revoked.",
+      "notRevocable": "Share has no delete token and can't be revoked."
+    },
+    "audit": {
+      "loadFailed": "Failed to load audit log"
+    },
+    "templateEditor": {
+      "alreadyExists": "Already exists",
+      "moveStaged": "Move staged",
+      "moveStagedDesc": "{source} → {target}",
+      "deletionStaged": "Deletion staged",
+      "extractZipFailed": "Failed to extract ZIP",
+      "changesSaved": "Changes saved & rehashed",
+      "changesSavedDesc": "{count} operation applied | {count} operations applied",
+      "validationIssues": "Current file has validation issues",
+      "validationIssuesDesc": "{count} issue detected | {count} issues detected",
+      "saveChangesFailed": "Failed to save changes",
+      "changesDiscarded": "All staged changes discarded"
+    },
+    "templateMeta": {
+      "saveVariablesFailed": "Failed to save variables",
+      "newVariablesFound": "Found {count} new variable | Found {count} new variables",
+      "noNewVariables": "No new variables found",
+      "scanFilesFailed": "Failed to scan files"
+    }
+  },
+  "errorHandler": {
+    "actionFailed": "{context} failed",
+    "tooManyRequests": "Too many requests. Wait a moment and try again.",
+    "networkMessage": "Can't reach the controller. Check your connection or try again in a moment.",
+    "retrySuffix": "next: try again, or check the controller logs.",
+    "title": {
+      "network": "Can't reach the controller",
+      "validation": "Check the form",
+      "server": "Controller error",
+      "unknown": "Something went wrong"
+    }
+  },
+  "pages": {
+    "overview": {
+      "title": "Overview",
+      "description": "Cluster health at a glance — nodes, instances, players, and groups.",
+      "stats": {
+        "nodes": "Nodes",
+        "nodesSubtitle": "Connected to cluster",
+        "players": "Players online",
+        "playersSubtitle": "Currently connected",
+        "instances": "Instances",
+        "instancesSubtitle": "Running servers",
+        "groups": "Groups",
+        "groupsSubtitle": "Configured groups"
+      }
+    },
+    "nodes": {
+      "title": "Nodes",
+      "description": "Hosts connected to the cluster.",
+      "searchPlaceholder": "Search nodes...",
+      "filters": {
+        "all": "All Types",
+        "online": "Online",
+        "draining": "Draining",
+        "cordoned": "Cordoned",
+        "offline": "Offline",
+        "pending": "Pending"
+      },
+      "emptyTitle": "No nodes found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyAddHint": "Add a node to get started",
+      "selectAll": "Select all nodes",
+      "selectOne": "Select {id}",
+      "columns": {
+        "node": "Node",
+        "status": "Status",
+        "cpu": "CPU",
+        "memory": "Memory",
+        "diskFree": "Disk Free",
+        "instances": "Instances",
+        "address": "Address"
+      },
+      "awaitingConnection": "Awaiting connection",
+      "disconnected": "Disconnected"
+    },
+    "groups": {
+      "title": "Groups",
+      "description": "Server groups and their scaling policies.",
+      "searchPlaceholder": "Search groups...",
+      "filters": {
+        "all": "All",
+        "dynamic": "Dynamic",
+        "static": "Static",
+        "manual": "Manual"
+      },
+      "emptyTitle": "No groups found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyCreateHint": "No server groups configured yet",
+      "columns": {
+        "group": "Group",
+        "platform": "Platform",
+        "scaling": "Scaling",
+        "instances": "Instances",
+        "players": "Players",
+        "memory": "Memory"
+      },
+      "eyebrow": "Group",
+      "statusMaintenance": "Maintenance",
+      "statusLive": "Live",
+      "actionStart": "Start",
+      "actionRestart": "Restart",
+      "actionDeploy": "Deploy",
+      "detail": {
+        "platform": "Platform",
+        "scaling": "Scaling",
+        "instances": "Instances",
+        "instancesValue": "{running} running ({min}–{max})",
+        "players": "Players",
+        "memoryPerInstance": "Memory per instance",
+        "routing": "Routing",
+        "updateStrategy": "Update strategy"
+      }
+    },
+    "instances": {
+      "title": "Instances",
+      "description": "Running Minecraft server processes across the cluster.",
+      "searchPlaceholder": "Search instances...",
+      "startButton": "Start instance",
+      "emptyTitle": "No instances found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyStartHint": "No server instances running",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "starting": "Starting",
+        "stopping": "Stopping",
+        "stopped": "Stopped",
+        "crashed": "Crashed"
+      },
+      "columns": {
+        "instance": "Instance",
+        "group": "Group",
+        "node": "Node",
+        "state": "State",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "selectAll": "Select all instances",
+      "selectOne": "Select {id}",
+      "rowStop": "Stop",
+      "rowDelete": "Delete",
+      "startDialog": {
+        "title": "Start Instance",
+        "description": "Schedule a new instance on a server group.",
+        "noGroups": "No groups available",
+        "selectGroup": "Select Group",
+        "count": "Count",
+        "cancel": "Cancel",
+        "starting": "Starting...",
+        "submitOne": "Start Instance",
+        "submitMany": "Start {count} Instances"
+      },
+      "eyebrow": "Instance",
+      "actionStop": "Stop",
+      "actionForceStop": "Force-stop",
+      "actionDelete": "Delete",
+      "detail": {
+        "group": "Group",
+        "node": "Node",
+        "port": "Port",
+        "players": "Players",
+        "uptime": "Uptime",
+        "started": "Started",
+        "deployment": "Deployment",
+        "deploymentValue": "rev {revision}"
+      },
+      "toast": {
+        "scheduled": "Instance scheduled | {count} instances scheduled",
+        "scheduledDesc": "Starting for \"{group}\"",
+        "startFailed": "Start failed",
+        "startFailedDesc": "Couldn't schedule an instance. Check that the group exists and at least one node has capacity.",
+        "bulkStopping": "{count} instances stopping",
+        "bulkStopFailed": "Bulk stop failed",
+        "bulkStopFailedDesc": "Some instances couldn't be stopped. Check the controller logs.",
+        "bulkKilled": "{count} instances killed",
+        "bulkForceStopFailed": "Bulk force-stop failed",
+        "bulkForceStopFailedDesc": "Try again, or check the daemon logs on the affected nodes.",
+        "bulkDeleted": "{count} instances deleted",
+        "bulkDeleteFailed": "Bulk delete failed",
+        "bulkDeleteFailedDesc": "Each instance must be STOPPED, CRASHED, or SCHEDULED. Check the controller logs."
+      }
+    },
+    "templates": {
+      "title": "Templates",
+      "description": "Versioned filesystem and JVM args used to start instances.",
+      "searchPlaceholder": "Search templates...",
+      "emptyTitle": "No templates found",
+      "emptySearchHint": "Try adjusting your search",
+      "emptyCreateHint": "Create your first template to get started",
+      "columns": {
+        "template": "Template",
+        "platform": "Platform",
+        "description": "Description",
+        "hash": "Hash",
+        "size": "Size"
+      },
+      "deleteButton": "Delete template",
+      "confirmDeleteTitle": "Delete Template",
+      "confirmDeleteDescription": "Permanently delete '{name}'? All files and version history will be lost.",
+      "confirmDeleteLabel": "Delete Template"
+    },
+    "common": {
+      "showing": "Showing {from}–{to} entries",
+      "previous": "Previous",
+      "next": "Next",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "shares": {
+      "title": "Recent Shares",
+      "description": "Audit and revoke paste shares created from this controller.",
+      "filterKind": "Kind",
+      "kindAll": "All",
+      "activeOnly": "Active only",
+      "revoke": "Revoke",
+      "revoked": "Revoked",
+      "notRevocable": "—",
+      "revokeConfirm": "Revoke {kind} share {id}? This calls pste DELETE and cannot be undone.",
+      "justNow": "now",
+      "emptyTitle": "No shares yet",
+      "emptyHint": "Use the Share buttons on a crash, the diagnostics page, or a console viewer to create one.",
+      "pageInfo": "Page {page} of {total} · {count} total",
+      "columns": {
+        "kind": "Kind",
+        "resource": "Resource",
+        "sharedBy": "Shared by",
+        "size": "Bytes",
+        "age": "Age",
+        "url": "URL",
+        "actions": "Actions"
+      }
+    },
+    "crashes": {
+      "title": "Crashes",
+      "description": "Non-graceful instance exits — OOM, SIGKILL, ERROR.",
+      "last24h": "Last 24h",
+      "trendTooltip": "{count} crash in the last 24h | {count} crashes in the last 24h",
+      "searchPlaceholder": "Search crashes...",
+      "filters": {
+        "all": "All",
+        "oom": "OOM",
+        "error": "Error",
+        "sigkill": "SIGKILL",
+        "sigterm": "SIGTERM"
+      },
+      "class": {
+        "oom": "Out of memory",
+        "error": "Error",
+        "sigkill": "Killed",
+        "sigterm": "Terminated",
+        "unknown": "Unknown"
+      },
+      "emptyTitle": "No crashes",
+      "emptyFilterHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "Nothing has crashed in the visible window. Healthy is good.",
+      "share": "Share",
+      "columns": {
+        "instance": "Instance",
+        "group": "Group",
+        "node": "Node",
+        "classification": "Classification",
+        "exit": "Exit",
+        "uptime": "Uptime",
+        "time": "Time"
+      },
+      "eyebrow": "Crash report",
+      "detail": {
+        "group": "Group",
+        "node": "Node",
+        "exitCode": "Exit code",
+        "uptime": "Uptime",
+        "crashedAt": "Crashed at",
+        "cause": "Cause",
+        "signature": "Signature",
+        "signatureTooltip": "Crashes with the same signature share this root cause"
+      },
+      "logTail": "Log tail",
+      "loadingLogTail": "Loading log tail…"
+    },
+    "audit": {
+      "title": "Audit log",
+      "description": "A record of who did what across the cluster.",
+      "searchPlaceholder": "Search by user, action, or resource…",
+      "emptyTitle": "No audit entries",
+      "emptySearchHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "No audit entries recorded yet — actions will appear here as they happen.",
+      "columns": {
+        "timestamp": "Timestamp",
+        "user": "User",
+        "action": "Action",
+        "resourceType": "Resource type",
+        "resourceId": "Resource ID",
+        "ip": "IP",
+        "details": "Details"
+      },
+      "diffBefore": "Before",
+      "diffAfter": "After"
+    },
+    "activity": {
+      "title": "Activity",
+      "description": "Every action, deployment, and state change across the cluster.",
+      "searchPlaceholder": "Search by event type, actor, or message…",
+      "emptyMatchesTitle": "No matches",
+      "emptyTitle": "No activity yet",
+      "emptySearchHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "Cluster events will appear here as they happen.",
+      "loadOlder": "Load older events",
+      "loadingMore": "Loading…"
+    },
+    "logs": {
+      "title": "Logs",
+      "description": "Live tail of controller and node stdout/stderr.",
+      "controller": "Controller",
+      "nodeOption": "Node · {id}",
+      "resume": "Resume",
+      "pause": "Pause",
+      "export": "Export",
+      "clear": "Clear",
+      "share": "Share",
+      "scrollbackNote": "10 000-line scrollback. History before the session start isn't available.",
+      "followTail": "Follow tail",
+      "statusPaused": "Paused",
+      "statusConnected": "Connected",
+      "statusDisconnected": "Disconnected"
+    },
+    "system": {
+      "title": "System status",
+      "description": "Cluster health, controller version, and runtime configuration.",
+      "statusUnknown": "Unknown",
+      "shareDiagnostics": "Share diagnostics",
+      "diagnostics": "Diagnostics",
+      "health": "Health",
+      "columns": {
+        "component": "Component",
+        "status": "Status",
+        "detail": "Detail"
+      },
+      "noComponents": "No component health reported.",
+      "controller": "Controller",
+      "version": "Version",
+      "commit": "Commit",
+      "built": "Built",
+      "java": "Java",
+      "redis": "Redis",
+      "keys": "Keys",
+      "withTtl": "With TTL",
+      "avgTtl": "Avg TTL",
+      "byPrefix": "By prefix",
+      "settings": "Settings"
+    },
+    "users": {
+      "title": "Users",
+      "description": "People with dashboard access.",
+      "createButton": "Create user",
+      "searchPlaceholder": "Search by username, email, or role…",
+      "emptyMatchesTitle": "No matches",
+      "emptyTitle": "No users yet",
+      "emptySearchHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "Create the first user to grant dashboard access.",
+      "selectAll": "Select all users",
+      "selectOne": "Select {username}",
+      "columns": {
+        "user": "User",
+        "email": "Email",
+        "role": "Role",
+        "lastSignIn": "Last sign-in"
+      },
+      "never": "Never",
+      "eyebrow": "User",
+      "bulkDelete": "Delete",
+      "bulkDeleted": "{count} user deleted | {count} users deleted",
+      "detail": {
+        "email": "Email",
+        "created": "Created",
+        "lastSignIn": "Last sign-in",
+        "role": "Role",
+        "savingRole": "Saving…",
+        "saveRole": "Save role",
+        "permissions": "Permissions",
+        "inheritsFrom": "Inherits from {role}."
+      },
+      "createDialog": {
+        "title": "Create user",
+        "username": "Username",
+        "usernamePlaceholder": "alice",
+        "email": "Email (optional)",
+        "emailPlaceholder": "alice{'@'}example.com",
+        "password": "Initial password",
+        "passwordPlaceholder": "At least 8 characters",
+        "role": "Role",
+        "rolePlaceholder": "Pick a role",
+        "cancel": "Cancel",
+        "creating": "Creating…",
+        "create": "Create"
+      }
+    }
+  }
+}

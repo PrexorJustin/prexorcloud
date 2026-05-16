@@ -1,0 +1,32 @@
+manifestVersion: 1
+id: tablist
+version: 1.0.0-SNAPSHOT
+hosts: [controller]
+backend:
+  controller:
+    entrypoint: me.prexorjustin.prexorcloud.modules.tablist.platform.TablistModule
+storage:
+  mongo: true
+  limits:
+    mongoDocuments: 10000
+extensions:
+  - id: tablist-paper
+    target: server/paper
+    activation: explicit-group-attach
+    variants:
+      - id: tablist-paper
+        mcVersionRange: "*"
+        runtimeApiVersion: 1
+        artifact: extensions/server/paper/tablist-paper.jar
+        sha256: AUTO
+        installPath: plugins/
+  - id: tablist-folia
+    target: server/folia
+    activation: explicit-group-attach
+    variants:
+      - id: tablist-folia
+        mcVersionRange: "*"
+        runtimeApiVersion: 1
+        artifact: extensions/server/folia/tablist-folia.jar
+        sha256: AUTO
+        installPath: plugins/

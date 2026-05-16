@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "displayName": "Stats",
+  "entry": "index.js",
+  "icon": "bar-chart-3",
+  "permissions": [],
+  "routes": [
+    {
+      "path": "/modules/stats-aggregator",
+      "component": "StatsLeaderboardPage",
+      "title": "Stats",
+      "icon": "bar-chart-3",
+      "nav": true,
+      "navGroup": "Modules",
+      "navGroupOrder": 100,
+      "adminOnly": false
+    },
+    {
+      "path": "/modules/stats-aggregator/players/:uuid",
+      "component": "StatsPlayerPage",
+      "title": "Player Stats",
+      "nav": false,
+      "adminOnly": false
+    }
+  ],
+  "events": []
+}

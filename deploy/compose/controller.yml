@@ -1,0 +1,107 @@
+# PrexorCloud controller — production reference.
+#
+# Mounted into the container at /app/config/controller.yml.
+# Generate `security.jwtSecret` with: openssl rand -base64 48
+# Set `security.initialAdminPassword` once, then clear it after first login.
+# See docs/configuration.md for the full schema.
+
+uuid: ""
+
+http:
+  host: "0.0.0.0"
+  port: 8080
+  cors:
+    # In production, list only the dashboard origin you actually serve.
+    allowedOrigins:
+      - "http://localhost:3000"
+
+grpc:
+  host: "0.0.0.0"
+  port: 9090
+
+network:
+  # Restrict which subnets daemons may connect from. Default below is
+  # permissive — tighten this to your daemon network ranges.
+  allowedSubnets:
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+
+runtime:
+  profile: "production"
+
+database:
+  uri: "mongodb://mongo:27017"
+  database: "prexorcloud"
+
+redis:
+  uri: "redis://valkey:6379"
+
+logging:
+  level: "INFO"
+  format: "JSON"
+
+scheduler:
+  evaluationIntervalSeconds: 15
+  scalingCooldownSeconds: 60
+  nodeTimeoutSeconds: 90
+
+heartbeat:
+  intervalMs: 30000
+  missedThreshold: 3
+
+security:
+  # REQUIRED in production. 32+ random bytes (base64). Rotate per
+  # docs/runbooks/rotate-secrets.md.
+  jwtSecret: ""
+  jwtExpirationMinutes: 1440
+  # Set once on first boot, then clear and restart.
+  initialAdminPassword: ""
+  rateLimiting:
+    perIpPerMinute: 100
+    perUserPerMinute: 300
+    failOpenOnRedisError: false
+
+crashes:
+  ringBufferSize: 500
+  crashLoopThreshold: 3
+  crashLoopWindowSeconds: 300
+
+metrics:
+  enabled: true
+  retentionHours: 168
+  collectionIntervalSeconds: 30
+
+maintenance:
+  enabled: false
+  message: "The network is currently under maintenance."
+  bypass: []
+
+modules:
+  directory: "modules"
+  dataDirectory: "modules/data"
+  hotReload: false
+
+dashboard:
+  enabled: true
+  path: "dashboard"
+
+# Paste-share workflow (prexorctl … --share / dashboard Share buttons).
+# Every send is operator-invoked, redacted server-side, and prints a link.
+# Disabled by default — flip enabled=true once you've decided sharing is
+# acceptable for this cluster. While disabled, Share buttons are hidden and
+# share endpoints return 409.
+# Set pasteUrl to repoint at a self-hosted pste instance.
+share:
+  enabled: false
+  pasteUrl: "https://pste.dev"
+  # pasteToken: ""              # optional bearer token for higher rate limits
+  defaultExpiry: "1d"           # one of: 1h | 1d | 30d | never
+  defaultPrivate: true
+  # defaultBurnAfterRead is a hint; crash/log shares always burn-after-read,
+  # diagnostics shares never do, regardless of this setting.
+  defaultBurnAfterRead: true
+  # End-to-end encryption: passes x-e2e=1 to pste so the paste body is
+  # encrypted client-side. The receiver needs the URL fragment to read it.
+  e2e: false
+

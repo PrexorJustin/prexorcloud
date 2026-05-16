@@ -1,0 +1,182 @@
+---
+/*
+ * ThemeSelect override — replaces Starlight's stock <select> dropdown
+ * with a 3-position slider pill (Light · Auto · Dark). Glass-card pill,
+ * cyan-9 thumb that slides under the active option.
+ *
+ * Compatibility: Starlight 0.36 stores the preference at
+ * localStorage["starlight-theme"] with values 'auto' | 'light' | 'dark'
+ * (empty string treated as 'auto'), and applies the resolved theme via
+ * `document.documentElement.dataset.theme`. We mirror that contract so
+ * Starlight's other components (color-scheme media-query handler,
+ * server-side default) keep working.
+ *
+ * The component is a custom element (<pc-theme-slider>) so a single
+ * instance can drive multiple pickers if Starlight ever mounts more
+ * than one — Starlight's stock component does the same dance.
+ *
+ * Wired in astro.config.mjs via `components.ThemeSelect`.
+ */
+const STORAGE_KEY = 'starlight-theme';
+---
+
+<pc-theme-slider class="pc-theme" role="radiogroup" aria-label="Color theme">
+  <span class="pc-theme-thumb" aria-hidden="true"></span>
+
+  <button type="button" class="pc-theme-option" data-theme="light" role="radio" aria-checked="false" aria-label="Light theme">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"></circle>
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+    </svg>
+  </button>
+
+  <button type="button" class="pc-theme-option" data-theme="auto" role="radio" aria-checked="true" aria-label="System theme">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+      <path d="M8 21h8M12 17v4"></path>
+    </svg>
+  </button>
+
+  <button type="button" class="pc-theme-option" data-theme="dark" role="radio" aria-checked="false" aria-label="Dark theme">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+    </svg>
+  </button>
+</pc-theme-slider>
+
+<script is:inline define:vars={{ STORAGE_KEY }}>
+  /* Defines the <pc-theme-slider> custom element. Idempotent — multiple
+   * imports across navigation safe-guard with `customElements.get`. */
+  if (!customElements.get('pc-theme-slider')) {
+    class PcThemeSlider extends HTMLElement {
+      static THEMES = ['light', 'auto', 'dark'];
+
+      connectedCallback() {
+        this.options = Array.from(this.querySelectorAll('.pc-theme-option'));
+        const stored = (() => {
+          try { return localStorage.getItem(STORAGE_KEY) ?? ''; } catch { return ''; }
+        })();
+        const initial = PcThemeSlider.THEMES.includes(stored) ? stored : 'auto';
+        this.setActive(initial, /* persist */ false);
+
+        for (const opt of this.options) {
+          opt.addEventListener('click', () => this.setActive(opt.dataset.theme, true));
+        }
+
+        // System color-scheme changes — when the user is on 'auto', mirror
+        // the OS preference into <html data-theme>. Starlight's stock
+        // ThemeProvider already does this for the page; we just keep our
+        // pill in sync.
+        const mql = window.matchMedia('(prefers-color-scheme: dark)');
+        mql.addEventListener?.('change', () => {
+          if (this.current === 'auto') this.applyResolved('auto');
+        });
+
+        // Cross-tab sync
+        window.addEventListener('storage', (e) => {
+          if (e.key === STORAGE_KEY) {
+            const v = PcThemeSlider.THEMES.includes(e.newValue) ? e.newValue : 'auto';
+            this.setActive(v, false);
+          }
+        });
+      }
+
+      setActive(theme, persist) {
+        if (!PcThemeSlider.THEMES.includes(theme)) theme = 'auto';
+        this.current = theme;
+
+        const idx = PcThemeSlider.THEMES.indexOf(theme);
+        this.style.setProperty('--pc-theme-index', String(idx));
+
+        for (const opt of this.options) {
+          const on = opt.dataset.theme === theme;
+          opt.setAttribute('aria-checked', String(on));
+          opt.classList.toggle('is-active', on);
+        }
+
+        this.applyResolved(theme);
+
+        if (persist) {
+          try { localStorage.setItem(STORAGE_KEY, theme === 'auto' ? '' : theme); } catch {}
+        }
+      }
+
+      applyResolved(theme) {
+        const resolved =
+          theme === 'auto'
+            ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            : theme;
+        document.documentElement.dataset.theme = resolved;
+      }
+    }
+    customElements.define('pc-theme-slider', PcThemeSlider);
+  }
+</script>
+
+<style>
+  .pc-theme {
+    --pc-theme-index: 1;            /* 0=light, 1=auto, 2=dark */
+    --pc-theme-cell: 32px;
+    position: relative;
+    display: inline-grid;
+    grid-template-columns: repeat(3, var(--pc-theme-cell));
+    align-items: center;
+    height: 32px;
+    padding: 0;
+    border-radius: 999px;
+    background: hsl(var(--glass));
+    border: 1px solid hsl(var(--glass-border));
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  /* Sliding thumb — translateX based on the --pc-theme-index var. The
+   * easing matches the design-system "≤500ms ease-in-out" rule. */
+  .pc-theme-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: calc(var(--pc-theme-cell) - 4px);
+    height: calc(100% - 4px);
+    border-radius: 999px;
+    background: hsl(var(--primary));
+    box-shadow: 0 0 12px hsl(var(--primary) / 0.45);
+    transform: translateX(calc(var(--pc-theme-index) * var(--pc-theme-cell)));
+    transition: transform 220ms ease-in-out;
+    pointer-events: none;
+  }
+
+  .pc-theme-option {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: var(--pc-theme-cell);
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: hsl(var(--muted-foreground));
+    transition: color 120ms ease-out;
+  }
+  .pc-theme-option:hover { color: hsl(var(--foreground)); }
+  .pc-theme-option.is-active {
+    color: hsl(var(--primary-foreground));   /* white on cyan thumb */
+  }
+  .pc-theme-option svg {
+    width: 14px;
+    height: 14px;
+    stroke-width: 2;
+  }
+  .pc-theme-option:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 999px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pc-theme-thumb { transition: none; }
+  }
+</style>

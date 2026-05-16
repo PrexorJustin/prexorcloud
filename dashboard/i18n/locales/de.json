@@ -1,0 +1,749 @@
+{
+  "nav": {
+    "groups": {
+      "overview": "Übersicht",
+      "workloads": "Workloads",
+      "cluster": "Cluster",
+      "configuration": "Konfiguration",
+      "observability": "Observability",
+      "identity": "Identität",
+      "operations": "Betrieb",
+      "settings": "Einstellungen",
+      "modules": "Module"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "map": "Karte",
+      "groups": "Gruppen",
+      "instances": "Instanzen",
+      "deployments": "Deployments",
+      "nodes": "Nodes",
+      "networks": "Netzwerke",
+      "players": "Spieler",
+      "templates": "Templates",
+      "catalog": "Katalog",
+      "modules": "Module",
+      "crashes": "Abstürze",
+      "activity": "Aktivität",
+      "logs": "Logs",
+      "systemStatus": "Systemstatus",
+      "audit": "Audit",
+      "users": "Benutzer",
+      "roles": "Rollen",
+      "tokens": "Tokens",
+      "workloadCredentials": "Workload-Zugangsdaten",
+      "certificates": "Zertifikate",
+      "backups": "Backups",
+      "maintenance": "Wartung",
+      "settings": "Einstellungen"
+    }
+  },
+  "common": {
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "save": "Speichern",
+    "pleaseWait": "Bitte warten...",
+    "search": "Suchen...",
+    "items": "Einträge",
+    "gridView": "Rasteransicht",
+    "tableView": "Tabellenansicht"
+  },
+  "sidebar": {
+    "adminPanel": "Admin-Bereich",
+    "profile": "Profil",
+    "settings": "Einstellungen",
+    "logout": "Abmelden",
+    "user": "Benutzer"
+  },
+  "confirmDialog": {
+    "title": "Bist du sicher?",
+    "description": "Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  "auth": {
+    "login": {
+      "title": "Anmelden",
+      "subtitle": "Willkommen zurück. Gib deine Zugangsdaten ein, um fortzufahren.",
+      "username": "Benutzername",
+      "password": "Passwort",
+      "usernamePlaceholder": "Benutzername eingeben",
+      "passwordPlaceholder": "Passwort eingeben",
+      "signIn": "Anmelden",
+      "signingIn": "Anmeldung läuft…",
+      "forgotPassword": "Passwort vergessen?",
+      "togglePassword": "Passwortsichtbarkeit umschalten",
+      "devSignIn": "Als Dev anmelden (Mock-Daten)",
+      "devHint": "Nur lokal verfügbar. In Produktions-Builds ausgeblendet.",
+      "usernameRequired": "Gib deinen Benutzernamen ein",
+      "passwordRequired": "Gib dein Passwort ein",
+      "devToastTitle": "Als Dev angemeldet",
+      "devToastDesc": "Das Dashboard verwendet Mock-Daten — kein Controller erforderlich."
+    },
+    "forgot": {
+      "title": "Passwort zurücksetzen",
+      "subtitle": "Wir senden dir per E-Mail einen Link, um ein neues zu wählen.",
+      "email": "E-Mail",
+      "emailPlaceholder": "du{'@'}beispiel.de",
+      "sendLink": "Reset-Link senden",
+      "sending": "Wird gesendet…",
+      "backToSignIn": "Zurück zur Anmeldung",
+      "sentMessage": "Falls für diese Adresse ein Konto existiert, wurde ein Link zum Zurücksetzen des Passworts gesendet. Prüfe deinen Posteingang — und den Spam-Ordner — auf eine Nachricht von PrexorCloud.",
+      "emailInvalid": "Gib eine gültige E-Mail-Adresse ein"
+    },
+    "reset": {
+      "title": "Neues Passwort festlegen",
+      "subtitle": "Wähle etwas mit mindestens 8 Zeichen.",
+      "newPassword": "Neues Passwort",
+      "confirmPassword": "Passwort bestätigen",
+      "newPasswordPlaceholder": "Mindestens 8 Zeichen",
+      "confirmPasswordPlaceholder": "Neues Passwort erneut eingeben",
+      "updatePassword": "Passwort aktualisieren",
+      "updating": "Wird aktualisiert…",
+      "completedMessage": "Dein Passwort wurde aktualisiert. Melde dich mit deinem neuen Passwort an, um fortzufahren.",
+      "continueToSignIn": "Weiter zur Anmeldung",
+      "backToSignIn": "Zurück zur Anmeldung",
+      "missingTokenMessage": "Diesem Reset-Link fehlt das erforderliche Token. Fordere eine neue Passwort-Reset-E-Mail an.",
+      "requestNewLink": "Neuen Link anfordern",
+      "successToast": "Passwort aktualisiert. Melde dich mit deinem neuen Passwort an.",
+      "minChars": "Verwende mindestens 8 Zeichen",
+      "reenter": "Gib dein neues Passwort erneut ein",
+      "mismatch": "Passwörter stimmen nicht überein",
+      "missingToken": "Dem Reset-Link fehlt etwas oder er ist fehlerhaft. Fordere auf der Anmeldeseite einen neuen an.",
+      "invalidToken": "Dieser Reset-Link ist ungültig oder abgelaufen. Fordere auf der Anmeldeseite einen neuen an.",
+      "genericError": "Zurücksetzen fehlgeschlagen. Versuche es erneut oder fordere einen neuen Link an.",
+      "networkError": "Controller nicht erreichbar. Prüfe deine Verbindung und versuche es erneut."
+    }
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "description": "Passe an, wie das Dashboard aussieht und sich anfühlt.",
+    "tabs": {
+      "preferences": "Präferenzen",
+      "customize": "Anpassen"
+    },
+    "groups": {
+      "palette": "Farbpalette",
+      "glows": "Ambient-Glow"
+    },
+    "language": {
+      "title": "Sprache",
+      "description": "Wähle die im Dashboard verwendete Sprache."
+    }
+  },
+  "toast": {
+    "nodes": {
+      "draining": "{count} Node wird geleert | {count} Nodes werden geleert",
+      "cordoned": "{count} Node gesperrt | {count} Nodes gesperrt",
+      "drainingOne": "{id} wird geleert",
+      "cordonedOne": "{id} gesperrt",
+      "bulkDrainFailed": "Sammel-Leerung fehlgeschlagen",
+      "bulkDrainFailedDesc": "Einige Nodes konnten nicht geleert werden. Prüfe die Controller-Logs.",
+      "bulkCordonFailed": "Sammel-Sperrung fehlgeschlagen",
+      "bulkCordonFailedDesc": "Einige Nodes konnten nicht gesperrt werden. Prüfe die Controller-Logs.",
+      "drainFailed": "Leerung fehlgeschlagen",
+      "drainFailedDesc": "Node konnte nicht geleert werden. Prüfe die Controller-Logs.",
+      "cordonFailed": "Sperren fehlgeschlagen",
+      "cordonFailedDesc": "Node konnte nicht gesperrt werden. Prüfe die Controller-Logs.",
+      "cacheRefreshRequested": "Aktualisierung des Cache-Status angefordert",
+      "cachePrewarmStarted": "Cache-Vorwärmung gestartet"
+    },
+    "groups": {
+      "instanceScheduled": "Instanz für {name} eingeplant",
+      "rollingRestart": "Rolling-Restart für {name}",
+      "deploymentTriggered": "Deployment für {name} ausgelöst",
+      "startFailed": "Start fehlgeschlagen",
+      "startFailedDesc": "Prüfe, ob die Gruppe existiert und mindestens ein Node Kapazität hat.",
+      "restartFailed": "Neustart fehlgeschlagen",
+      "restartFailedDesc": "Prüfe die Controller-Logs.",
+      "deployFailed": "Deployment fehlgeschlagen",
+      "deployFailedDesc": "Prüfe die Controller-Logs."
+    },
+    "instances": {
+      "stopFailed": "Instanz stoppen fehlgeschlagen",
+      "stopFailedDesc": "{id} konnte nicht gestoppt werden. Versuche es erneut oder erzwinge den Stopp über die Detailseite.",
+      "deleteFailed": "Instanz löschen fehlgeschlagen",
+      "deleteFailedDesc": "{id} konnte nicht gelöscht werden. Die Instanz muss zuerst STOPPED, CRASHED oder SCHEDULED sein."
+    },
+    "templates": {
+      "createFailed": "Template konnte nicht erstellt werden",
+      "createFailedDesc": "Prüfe den Template-Namen und versuche es erneut.",
+      "updateFailed": "Aktualisierung fehlgeschlagen",
+      "updateFailedDesc": "Template konnte nicht aktualisiert werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "fieldUpdateFailed": "{field} konnte nicht aktualisiert werden",
+      "deleteVersionFailed": "Version konnte nicht gelöscht werden",
+      "uploadFailed": "Upload fehlgeschlagen",
+      "uploadFailedDesc": "Prüfe die Datei und versuche es erneut.",
+      "importInvalidFile": "Ungültige Datei",
+      "importInvalidFileDesc": "Nur .tar.gz- oder .tgz-Dateien werden akzeptiert.",
+      "importFailed": "Template konnte nicht importiert werden",
+      "importFailedDesc": "Prüfe das Archiv und versuche es erneut.",
+      "historyLoadFailed": "Versionsverlauf kann nicht geladen werden",
+      "historyLoadFailedDesc": "Versuche es erneut oder prüfe die Controller-Logs.",
+      "snapshotLoadFailed": "Snapshot-Dateien konnten nicht geladen werden",
+      "comparisonLoadFailed": "Vergleich konnte nicht geladen werden",
+      "restoreFailed": "Wiederherstellung fehlgeschlagen",
+      "restoreFailedDesc": "Konnte nicht auf diese Version zurückgesetzt werden. Versuche es erneut oder prüfe die Controller-Logs."
+    },
+    "networks": {
+      "createFailed": "Netzwerk konnte nicht erstellt werden",
+      "updateFailed": "Netzwerk konnte nicht aktualisiert werden",
+      "lobbyInFallback": "Lobby-Gruppe kann nicht in die Fallback-Kette aufgenommen werden",
+      "notBackendGroup": "{name} ist keine Backend-Gruppe",
+      "notProxyGroup": "{name} ist keine Proxy-Plattform-Gruppe"
+    },
+    "catalog": {
+      "addVersionFailed": "Version konnte nicht hinzugefügt werden",
+      "addVersionFailedDesc": "Prüfe den Plattformnamen und die Versionsdetails."
+    }
+  },
+  "store": {
+    "common": {
+      "controllerUnreachable": "Der Controller ist möglicherweise nicht erreichbar. Versuche es erneut oder prüfe die Controller-Logs."
+    },
+    "nodes": {
+      "loadFailed": "Nodes konnten nicht geladen werden",
+      "drainCompleted": "Leerung abgeschlossen",
+      "drainCompletedDesc": "Node \"{id}\" wurde vollständig geleert"
+    },
+    "overview": {
+      "loadFailed": "Übersicht konnte nicht geladen werden"
+    },
+    "instances": {
+      "loadFailed": "Instanzen konnten nicht geladen werden",
+      "stopRequested": "Stopp angefordert",
+      "stopRequestedDesc": "Instanz \"{id}\" wird gestoppt",
+      "forceStopRequested": "Erzwungener Stopp angefordert",
+      "forceStopRequestedDesc": "Instanz \"{id}\" wird beendet",
+      "deleted": "Instanz gelöscht",
+      "deletedDesc": "Instanz \"{id}\" entfernt"
+    },
+    "groups": {
+      "loadFailed": "Gruppen konnten nicht geladen werden",
+      "created": "Gruppe erstellt",
+      "createdDesc": "\"{name}\" wurde erstellt",
+      "createFailed": "Gruppe konnte nicht erstellt werden",
+      "crashLoop": "Crash-Loop erkannt",
+      "crashLoopDesc": "Gruppe \"{group}\" befindet sich in einem Crash-Loop"
+    },
+    "templates": {
+      "loadFailed": "Templates konnten nicht geladen werden",
+      "created": "Template erstellt",
+      "createdDesc": "\"{name}\" wurde erstellt",
+      "updated": "Template aktualisiert",
+      "updatedDesc": "\"{name}\" wurde aktualisiert",
+      "deleted": "Template gelöscht",
+      "deletedDesc": "\"{name}\" wurde gelöscht",
+      "versionDeleted": "Version gelöscht",
+      "restored": "Template wiederhergestellt",
+      "restoredDesc": "\"{name}\" erfolgreich zurückgesetzt",
+      "filesUploaded": "Dateien hochgeladen",
+      "filesUploadedDesc": "{count} Datei hochgeladen | {count} Dateien hochgeladen",
+      "zipExtracted": "ZIP entpackt",
+      "zipExtractedDesc": "{count} Datei entpackt | {count} Dateien entpackt",
+      "rehashed": "Template neu gehasht",
+      "rehashedDesc": "\"{name}\" wurde neu gehasht",
+      "variablesSaved": "Variablen gespeichert",
+      "imported": "Template importiert"
+    },
+    "networks": {
+      "loadFailed": "Netzwerke konnten nicht geladen werden",
+      "created": "Netzwerk erstellt",
+      "createdDesc": "\"{name}\" wurde erstellt",
+      "createFailed": "Netzwerk konnte nicht erstellt werden",
+      "updated": "Netzwerk aktualisiert",
+      "updatedDesc": "\"{name}\" wurde aktualisiert",
+      "updateFailed": "Netzwerk konnte nicht aktualisiert werden",
+      "deleted": "Netzwerk gelöscht",
+      "deletedDesc": "\"{name}\" wurde gelöscht",
+      "deleteFailed": "Netzwerk konnte nicht gelöscht werden"
+    },
+    "catalog": {
+      "loadFailed": "Katalog konnte nicht geladen werden",
+      "versionAdded": "Version hinzugefügt",
+      "versionAddedDesc": "{version} zu {platform} hinzugefügt",
+      "addVersionFailed": "Version konnte nicht hinzugefügt werden",
+      "versionUpdated": "Version aktualisiert",
+      "versionUpdatedDesc": "{version} in {platform} aktualisiert",
+      "updateVersionFailed": "Version konnte nicht aktualisiert werden",
+      "recommendedSet": "Empfohlene Version festgelegt",
+      "recommendedSetDesc": "{version} ist jetzt für {platform} empfohlen",
+      "setRecommendedFailed": "Empfohlene Version konnte nicht festgelegt werden",
+      "versionRemoved": "Version entfernt",
+      "versionRemovedDesc": "{version} aus {platform} entfernt",
+      "removeVersionFailed": "Version konnte nicht entfernt werden"
+    },
+    "auth": {
+      "welcomeBack": "Willkommen zurück, {username}",
+      "invalidCredentials": "Ungültige Zugangsdaten",
+      "passwordChanged": "Passwort geändert"
+    },
+    "backups": {
+      "loadFailed": "Backups können nicht geladen werden",
+      "created": "Backup erstellt",
+      "createFailed": "Backup fehlgeschlagen",
+      "createFailedDesc": "Backup konnte nicht erstellt werden. Prüfe den Speicherplatz auf dem Controller-Host oder die Controller-Logs.",
+      "verificationStarted": "Überprüfung gestartet",
+      "verifyFailed": "Überprüfung fehlgeschlagen",
+      "verifyFailedDesc": "Überprüfung konnte nicht gestartet werden. Prüfe die Controller-Logs.",
+      "deleted": "Backup gelöscht",
+      "deleteFailed": "Löschen fehlgeschlagen",
+      "deleteFailedDesc": "Backup konnte nicht gelöscht werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "pruned": "Auf {keep} aktuellste Backups reduziert",
+      "pruneFailed": "Bereinigung fehlgeschlagen",
+      "pruneFailedDesc": "Backups konnten nicht bereinigt werden. Prüfe die Controller-Logs.",
+      "restoreStarted": "Wiederherstellung gestartet",
+      "restoreStartedDesc": "Der Cluster pausiert die Planung und setzt den Zustand zurück. Das kann mehrere Minuten dauern.",
+      "restoreFailed": "Wiederherstellung fehlgeschlagen",
+      "restoreFailedDesc": "Wiederherstellung konnte nicht gestartet werden. Prüfe die Controller-Logs."
+    },
+    "maintenance": {
+      "loadFailed": "Wartungsstatus kann nicht geladen werden",
+      "updateFailed": "Aktualisierung fehlgeschlagen",
+      "updateFailedDesc": "Wartungsänderung konnte nicht angewendet werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "clusterEnabled": "Cluster-Wartung aktiviert",
+      "clusterDisabled": "Cluster-Wartung deaktiviert",
+      "groupEnabled": "Wartung für Gruppe \"{group}\" aktiviert",
+      "groupDisabled": "Wartung für Gruppe \"{group}\" deaktiviert"
+    },
+    "credentials": {
+      "loadFailed": "Zugangsdaten können nicht geladen werden",
+      "revokeFailed": "Widerruf fehlgeschlagen",
+      "revokeFailedDesc": "Zugangsdaten konnten nicht widerrufen werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "revokedAll": "Alle Zugangsdaten für {instanceId} widerrufen",
+      "revokeAllFailedDesc": "Die Zugangsdaten der Instanz konnten nicht widerrufen werden. Versuche es erneut oder prüfe die Controller-Logs."
+    },
+    "adminTokens": {
+      "loadFailed": "Tokens können nicht geladen werden",
+      "generated": "Token generiert",
+      "generatedDesc": "Kopiere es jetzt — es wird nicht erneut angezeigt.",
+      "generateFailed": "Generierung fehlgeschlagen",
+      "generateFailedDesc": "Join-Token konnte nicht generiert werden. Prüfe die Controller-Logs.",
+      "revoked": "Token widerrufen",
+      "revokeFailed": "Widerruf fehlgeschlagen",
+      "revokeFailedDesc": "Token konnte nicht widerrufen werden. Versuche es erneut oder prüfe die Controller-Logs."
+    },
+    "players": {
+      "loadFailed": "Spieler können nicht geladen werden",
+      "journeyLoadFailed": "Journey kann nicht geladen werden",
+      "journeyLoadFailedDesc": "Versuche es erneut oder prüfe die Controller-Logs.",
+      "transferred": "Zu {instanceId} transferiert",
+      "transferFailed": "Transfer fehlgeschlagen",
+      "transferFailedDesc": "Spieler konnte nicht transferiert werden. Prüfe, ob die Zielinstanz RUNNING ist und Kapazität hat."
+    },
+    "certificates": {
+      "loadFailed": "Widerrufene Zertifikate können nicht geladen werden",
+      "revoked": "Zertifikat für {nodeId} widerrufen",
+      "revokedDesc": "Der Daemon verliert beim nächsten Reconnect den Controller-Zugriff.",
+      "revokeFailed": "Widerruf fehlgeschlagen",
+      "revokeFailedDesc": "Zertifikat konnte nicht widerrufen werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "unrevoked": "Widerruf des Zertifikats für {nodeId} aufgehoben",
+      "unrevokeFailed": "Aufheben des Widerrufs fehlgeschlagen",
+      "unrevokeFailedDesc": "Der Widerruf des Zertifikats konnte nicht aufgehoben werden. Versuche es erneut oder prüfe die Controller-Logs."
+    },
+    "roles": {
+      "loadFailed": "Rollen können nicht geladen werden",
+      "created": "Rolle \"{name}\" erstellt",
+      "createFailed": "Erstellen fehlgeschlagen",
+      "createFailedDesc": "Rolle konnte nicht erstellt werden. Namen müssen [A-Z][A-Z0-9_]* entsprechen und eindeutig sein.",
+      "updated": "Rolle aktualisiert",
+      "updateFailed": "Aktualisierung fehlgeschlagen",
+      "updateFailedDesc": "Rolle konnte nicht aktualisiert werden. Integrierte Rollen können nicht bearbeitet werden.",
+      "deleted": "Rolle \"{name}\" gelöscht",
+      "deleteFailed": "Löschen fehlgeschlagen",
+      "deleteFailedDesc": "Rolle konnte nicht gelöscht werden. Integrierte Rollen können nicht gelöscht werden, und verwendete Rollen müssen zuerst neu zugewiesen werden."
+    },
+    "users": {
+      "loadFailed": "Benutzer können nicht geladen werden",
+      "created": "Benutzer \"{username}\" erstellt",
+      "createFailed": "Erstellen fehlgeschlagen",
+      "createFailedDesc": "Benutzer konnte nicht erstellt werden. Prüfe, ob der Benutzername frei und das Passwort gültig ist.",
+      "updated": "Benutzer aktualisiert",
+      "updateFailed": "Aktualisierung fehlgeschlagen",
+      "updateFailedDesc": "Benutzer konnte nicht aktualisiert werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "deleted": "Benutzer \"{username}\" gelöscht",
+      "deleteFailed": "Löschen fehlgeschlagen",
+      "deleteFailedDesc": "Benutzer konnte nicht gelöscht werden. Er ist möglicherweise der einzige Admin — befördere zuerst einen anderen Benutzer."
+    },
+    "system": {
+      "loadFailed": "Systemstatus kann nicht geladen werden"
+    },
+    "activity": {
+      "loadFailed": "Aktivität kann nicht geladen werden"
+    },
+    "crashes": {
+      "loadFailed": "Abstürze konnten nicht geladen werden"
+    },
+    "audit": {
+      "loadFailed": "Audit-Log konnte nicht geladen werden"
+    },
+    "templateEditor": {
+      "alreadyExists": "Existiert bereits",
+      "moveStaged": "Verschiebung vorgemerkt",
+      "moveStagedDesc": "{source} → {target}",
+      "deletionStaged": "Löschung vorgemerkt",
+      "extractZipFailed": "ZIP konnte nicht entpackt werden",
+      "changesSaved": "Änderungen gespeichert & neu gehasht",
+      "changesSavedDesc": "{count} Operation angewendet | {count} Operationen angewendet",
+      "validationIssues": "Aktuelle Datei hat Validierungsprobleme",
+      "validationIssuesDesc": "{count} Problem erkannt | {count} Probleme erkannt",
+      "saveChangesFailed": "Änderungen konnten nicht gespeichert werden",
+      "changesDiscarded": "Alle vorgemerkten Änderungen verworfen"
+    },
+    "templateMeta": {
+      "saveVariablesFailed": "Variablen konnten nicht gespeichert werden",
+      "newVariablesFound": "{count} neue Variable gefunden | {count} neue Variablen gefunden",
+      "noNewVariables": "Keine neuen Variablen gefunden",
+      "scanFilesFailed": "Dateien konnten nicht gescannt werden"
+    }
+  },
+  "errorHandler": {
+    "actionFailed": "{context} fehlgeschlagen",
+    "tooManyRequests": "Zu viele Anfragen. Warte einen Moment und versuche es erneut.",
+    "networkMessage": "Controller nicht erreichbar. Prüfe deine Verbindung oder versuche es gleich erneut.",
+    "retrySuffix": "Nächster Schritt: erneut versuchen oder die Controller-Logs prüfen.",
+    "title": {
+      "network": "Controller nicht erreichbar",
+      "validation": "Formular prüfen",
+      "server": "Controller-Fehler",
+      "unknown": "Etwas ist schiefgelaufen"
+    }
+  },
+  "pages": {
+    "overview": {
+      "title": "Übersicht",
+      "description": "Cluster-Zustand auf einen Blick — Nodes, Instanzen, Spieler und Gruppen.",
+      "stats": {
+        "nodes": "Nodes",
+        "nodesSubtitle": "Mit dem Cluster verbunden",
+        "players": "Spieler online",
+        "playersSubtitle": "Aktuell verbunden",
+        "instances": "Instanzen",
+        "instancesSubtitle": "Laufende Server",
+        "groups": "Gruppen",
+        "groupsSubtitle": "Konfigurierte Gruppen"
+      }
+    },
+    "nodes": {
+      "title": "Nodes",
+      "description": "Mit dem Cluster verbundene Hosts.",
+      "searchPlaceholder": "Nodes suchen...",
+      "filters": {
+        "all": "Alle Typen",
+        "online": "Online",
+        "draining": "Wird geleert",
+        "cordoned": "Gesperrt",
+        "offline": "Offline",
+        "pending": "Ausstehend"
+      },
+      "emptyTitle": "Keine Nodes gefunden",
+      "emptyFilterHint": "Passe deine Filter an",
+      "emptyAddHint": "Füge einen Node hinzu, um zu beginnen",
+      "selectAll": "Alle Nodes auswählen",
+      "selectOne": "{id} auswählen",
+      "columns": {
+        "node": "Node",
+        "status": "Status",
+        "cpu": "CPU",
+        "memory": "Arbeitsspeicher",
+        "diskFree": "Freier Speicher",
+        "instances": "Instanzen",
+        "address": "Adresse"
+      },
+      "awaitingConnection": "Warte auf Verbindung",
+      "disconnected": "Getrennt"
+    },
+    "groups": {
+      "title": "Gruppen",
+      "description": "Server-Gruppen und ihre Skalierungsrichtlinien.",
+      "searchPlaceholder": "Gruppen suchen...",
+      "filters": {
+        "all": "Alle",
+        "dynamic": "Dynamisch",
+        "static": "Statisch",
+        "manual": "Manuell"
+      },
+      "emptyTitle": "Keine Gruppen gefunden",
+      "emptyFilterHint": "Passe deine Filter an",
+      "emptyCreateHint": "Noch keine Server-Gruppen konfiguriert",
+      "columns": {
+        "group": "Gruppe",
+        "platform": "Plattform",
+        "scaling": "Skalierung",
+        "instances": "Instanzen",
+        "players": "Spieler",
+        "memory": "Arbeitsspeicher"
+      },
+      "eyebrow": "Gruppe",
+      "statusMaintenance": "Wartung",
+      "statusLive": "Live",
+      "actionStart": "Starten",
+      "actionRestart": "Neu starten",
+      "actionDeploy": "Deployen",
+      "detail": {
+        "platform": "Plattform",
+        "scaling": "Skalierung",
+        "instances": "Instanzen",
+        "instancesValue": "{running} laufend ({min}–{max})",
+        "players": "Spieler",
+        "memoryPerInstance": "Arbeitsspeicher pro Instanz",
+        "routing": "Routing",
+        "updateStrategy": "Update-Strategie"
+      }
+    },
+    "instances": {
+      "title": "Instanzen",
+      "description": "Laufende Minecraft-Serverprozesse über den Cluster.",
+      "searchPlaceholder": "Instanzen suchen...",
+      "startButton": "Instanz starten",
+      "emptyTitle": "Keine Instanzen gefunden",
+      "emptyFilterHint": "Passe deine Filter an",
+      "emptyStartHint": "Keine Server-Instanzen laufen",
+      "filters": {
+        "all": "Alle",
+        "running": "Läuft",
+        "starting": "Startet",
+        "stopping": "Stoppt",
+        "stopped": "Gestoppt",
+        "crashed": "Abgestürzt"
+      },
+      "columns": {
+        "instance": "Instanz",
+        "group": "Gruppe",
+        "node": "Node",
+        "state": "Status",
+        "players": "Spieler",
+        "uptime": "Laufzeit"
+      },
+      "selectAll": "Alle Instanzen auswählen",
+      "selectOne": "{id} auswählen",
+      "rowStop": "Stoppen",
+      "rowDelete": "Löschen",
+      "startDialog": {
+        "title": "Instanz starten",
+        "description": "Plane eine neue Instanz auf einer Server-Gruppe.",
+        "noGroups": "Keine Gruppen verfügbar",
+        "selectGroup": "Gruppe wählen",
+        "count": "Anzahl",
+        "cancel": "Abbrechen",
+        "starting": "Wird gestartet...",
+        "submitOne": "Instanz starten",
+        "submitMany": "{count} Instanzen starten"
+      },
+      "eyebrow": "Instanz",
+      "actionStop": "Stoppen",
+      "actionForceStop": "Stopp erzwingen",
+      "actionDelete": "Löschen",
+      "detail": {
+        "group": "Gruppe",
+        "node": "Node",
+        "port": "Port",
+        "players": "Spieler",
+        "uptime": "Laufzeit",
+        "started": "Gestartet",
+        "deployment": "Deployment",
+        "deploymentValue": "Rev. {revision}"
+      },
+      "toast": {
+        "scheduled": "Instanz eingeplant | {count} Instanzen eingeplant",
+        "scheduledDesc": "Wird für \"{group}\" gestartet",
+        "startFailed": "Start fehlgeschlagen",
+        "startFailedDesc": "Instanz konnte nicht eingeplant werden. Prüfe, ob die Gruppe existiert und mindestens ein Node Kapazität hat.",
+        "bulkStopping": "{count} Instanzen werden gestoppt",
+        "bulkStopFailed": "Sammel-Stopp fehlgeschlagen",
+        "bulkStopFailedDesc": "Einige Instanzen konnten nicht gestoppt werden. Prüfe die Controller-Logs.",
+        "bulkKilled": "{count} Instanzen beendet",
+        "bulkForceStopFailed": "Sammel-Stopp (erzwungen) fehlgeschlagen",
+        "bulkForceStopFailedDesc": "Versuche es erneut oder prüfe die Daemon-Logs auf den betroffenen Nodes.",
+        "bulkDeleted": "{count} Instanzen gelöscht",
+        "bulkDeleteFailed": "Sammel-Löschung fehlgeschlagen",
+        "bulkDeleteFailedDesc": "Jede Instanz muss STOPPED, CRASHED oder SCHEDULED sein. Prüfe die Controller-Logs."
+      }
+    },
+    "templates": {
+      "title": "Templates",
+      "description": "Versioniertes Dateisystem und JVM-Argumente zum Starten von Instanzen.",
+      "searchPlaceholder": "Templates suchen...",
+      "emptyTitle": "Keine Templates gefunden",
+      "emptySearchHint": "Passe deine Suche an",
+      "emptyCreateHint": "Erstelle dein erstes Template, um zu beginnen",
+      "columns": {
+        "template": "Template",
+        "platform": "Plattform",
+        "description": "Beschreibung",
+        "hash": "Hash",
+        "size": "Größe"
+      },
+      "deleteButton": "Template löschen",
+      "confirmDeleteTitle": "Template löschen",
+      "confirmDeleteDescription": "'{name}' dauerhaft löschen? Alle Dateien und der Versionsverlauf gehen verloren.",
+      "confirmDeleteLabel": "Template löschen"
+    },
+    "common": {
+      "showing": "Zeige Einträge {from}–{to}",
+      "previous": "Zurück",
+      "next": "Weiter",
+      "today": "Heute",
+      "yesterday": "Gestern"
+    },
+    "crashes": {
+      "title": "Abstürze",
+      "description": "Nicht ordnungsgemäße Instanz-Beendigungen — OOM, SIGKILL, ERROR.",
+      "last24h": "Letzte 24 Std.",
+      "trendTooltip": "{count} Absturz in den letzten 24 Std. | {count} Abstürze in den letzten 24 Std.",
+      "searchPlaceholder": "Abstürze suchen...",
+      "filters": {
+        "all": "Alle",
+        "oom": "OOM",
+        "error": "Fehler",
+        "sigkill": "SIGKILL",
+        "sigterm": "SIGTERM"
+      },
+      "class": {
+        "oom": "Speicher erschöpft",
+        "error": "Fehler",
+        "sigkill": "Beendet (kill)",
+        "sigterm": "Beendet",
+        "unknown": "Unbekannt"
+      },
+      "emptyTitle": "Keine Abstürze",
+      "emptyFilterHint": "Setze den Filter zurück oder suche nach einem anderen Begriff.",
+      "emptyHint": "Im sichtbaren Zeitfenster ist nichts abgestürzt. Gesund ist gut.",
+      "columns": {
+        "instance": "Instanz",
+        "group": "Gruppe",
+        "node": "Node",
+        "classification": "Klassifizierung",
+        "exit": "Exit",
+        "uptime": "Laufzeit",
+        "time": "Zeit"
+      },
+      "eyebrow": "Absturzbericht",
+      "detail": {
+        "group": "Gruppe",
+        "node": "Node",
+        "exitCode": "Exit-Code",
+        "uptime": "Laufzeit",
+        "crashedAt": "Abgestürzt am",
+        "cause": "Ursache",
+        "signature": "Signatur",
+        "signatureTooltip": "Abstürze mit derselben Signatur teilen diese Grundursache"
+      },
+      "logTail": "Log-Ende",
+      "loadingLogTail": "Log-Ende wird geladen…"
+    },
+    "audit": {
+      "title": "Audit-Log",
+      "description": "Eine Aufzeichnung darüber, wer was im Cluster getan hat.",
+      "searchPlaceholder": "Nach Benutzer, Aktion oder Ressource suchen…",
+      "emptyTitle": "Keine Audit-Einträge",
+      "emptySearchHint": "Setze den Filter zurück oder suche nach einem anderen Begriff.",
+      "emptyHint": "Noch keine Audit-Einträge aufgezeichnet — Aktionen erscheinen hier, sobald sie passieren.",
+      "columns": {
+        "timestamp": "Zeitstempel",
+        "user": "Benutzer",
+        "action": "Aktion",
+        "resourceType": "Ressourcentyp",
+        "resourceId": "Ressourcen-ID",
+        "ip": "IP",
+        "details": "Details"
+      },
+      "diffBefore": "Vorher",
+      "diffAfter": "Nachher"
+    },
+    "activity": {
+      "title": "Aktivität",
+      "description": "Jede Aktion, jedes Deployment und jede Zustandsänderung im Cluster.",
+      "searchPlaceholder": "Nach Ereignistyp, Akteur oder Nachricht suchen…",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyTitle": "Noch keine Aktivität",
+      "emptySearchHint": "Setze den Filter zurück oder suche nach einem anderen Begriff.",
+      "emptyHint": "Cluster-Ereignisse erscheinen hier, sobald sie passieren.",
+      "loadOlder": "Ältere Ereignisse laden",
+      "loadingMore": "Lädt…"
+    },
+    "logs": {
+      "title": "Logs",
+      "description": "Live-Tail von Controller- und Node-stdout/stderr.",
+      "controller": "Controller",
+      "nodeOption": "Node · {id}",
+      "resume": "Fortsetzen",
+      "pause": "Pausieren",
+      "export": "Exportieren",
+      "clear": "Leeren",
+      "scrollbackNote": "10 000-Zeilen-Verlauf. Historie vor dem Sitzungsstart ist nicht verfügbar.",
+      "followTail": "Tail folgen",
+      "statusPaused": "Pausiert",
+      "statusConnected": "Verbunden",
+      "statusDisconnected": "Getrennt"
+    },
+    "system": {
+      "title": "Systemstatus",
+      "description": "Cluster-Zustand, Controller-Version und Laufzeitkonfiguration.",
+      "statusUnknown": "Unbekannt",
+      "diagnostics": "Diagnose",
+      "health": "Zustand",
+      "columns": {
+        "component": "Komponente",
+        "status": "Status",
+        "detail": "Detail"
+      },
+      "noComponents": "Kein Komponenten-Zustand gemeldet.",
+      "controller": "Controller",
+      "version": "Version",
+      "commit": "Commit",
+      "built": "Erstellt",
+      "java": "Java",
+      "redis": "Redis",
+      "keys": "Schlüssel",
+      "withTtl": "Mit TTL",
+      "avgTtl": "Durchschn. TTL",
+      "byPrefix": "Nach Präfix",
+      "settings": "Einstellungen"
+    },
+    "users": {
+      "title": "Benutzer",
+      "description": "Personen mit Dashboard-Zugriff.",
+      "createButton": "Benutzer erstellen",
+      "searchPlaceholder": "Nach Benutzername, E-Mail oder Rolle suchen…",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyTitle": "Noch keine Benutzer",
+      "emptySearchHint": "Setze den Filter zurück oder suche nach einem anderen Begriff.",
+      "emptyHint": "Erstelle den ersten Benutzer, um Dashboard-Zugriff zu gewähren.",
+      "selectAll": "Alle Benutzer auswählen",
+      "selectOne": "{username} auswählen",
+      "columns": {
+        "user": "Benutzer",
+        "email": "E-Mail",
+        "role": "Rolle",
+        "lastSignIn": "Letzte Anmeldung"
+      },
+      "never": "Nie",
+      "eyebrow": "Benutzer",
+      "bulkDelete": "Löschen",
+      "bulkDeleted": "{count} Benutzer gelöscht | {count} Benutzer gelöscht",
+      "detail": {
+        "email": "E-Mail",
+        "created": "Erstellt",
+        "lastSignIn": "Letzte Anmeldung",
+        "role": "Rolle",
+        "savingRole": "Wird gespeichert…",
+        "saveRole": "Rolle speichern",
+        "permissions": "Berechtigungen",
+        "inheritsFrom": "Erbt von {role}."
+      },
+      "createDialog": {
+        "title": "Benutzer erstellen",
+        "username": "Benutzername",
+        "usernamePlaceholder": "alice",
+        "email": "E-Mail (optional)",
+        "emailPlaceholder": "alice{'@'}beispiel.de",
+        "password": "Initiales Passwort",
+        "passwordPlaceholder": "Mindestens 8 Zeichen",
+        "role": "Rolle",
+        "rolePlaceholder": "Rolle wählen",
+        "cancel": "Abbrechen",
+        "creating": "Wird erstellt…",
+        "create": "Erstellen"
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+config-version = "2.7"
+bind = "0.0.0.0:%PORT%"
+motd = "<aqua>PrexorCloud Proxy</aqua>"
+show-max-players = %MAX_PLAYERS%
+online-mode = false
+player-info-forwarding-mode = "modern"
+forwarding-secret-file = "forwarding.secret"
+
+[servers]
+try = []
+
+[forced-hosts]
+
+[advanced]
+connection-timeout = 5000
+read-timeout = 30000
+login-ratelimit = 3000
+haproxy-protocol = false
+tcp-fast-open = false
+
+[query]
+enabled = false
+port = 25577

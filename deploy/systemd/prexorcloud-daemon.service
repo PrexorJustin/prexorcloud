@@ -1,0 +1,67 @@
+# PrexorCloud daemon — systemd unit (bare-metal install).
+#
+# Place at /etc/systemd/system/prexorcloud-daemon.service.
+# Layout assumed:
+#   /opt/prexorcloud/daemon/PrexorCloudDaemon.jar
+#   /opt/prexorcloud/daemon/config/daemon.yml
+#   /opt/prexorcloud/daemon/instances/   (writable; this is where MC servers run)
+#   /opt/prexorcloud/daemon/cache/       (writable)
+#   /opt/prexorcloud/daemon/logs/        (writable)
+#
+# Enrolment:
+#   1. Generate a join token on the controller:
+#        prexorctl node generate-token
+#   2. Drop it into /opt/prexorcloud/daemon/config/daemon.yml under
+#      `security.joinToken`.
+#   3. Start the daemon. On first boot it consumes the token, fetches a
+#      certificate, and clears the token in-place.
+#
+# Enable + start:
+#   sudo useradd --system --home /opt/prexorcloud/daemon --shell /usr/sbin/nologin prexorcloud
+#   sudo chown -R prexorcloud:prexorcloud /opt/prexorcloud/daemon
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now prexorcloud-daemon
+
+[Unit]
+Description=PrexorCloud Daemon
+Documentation=https://github.com/prexorjustin/prexorcloud
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=prexorcloud
+Group=prexorcloud
+WorkingDirectory=/opt/prexorcloud/daemon
+
+# Daemon heap is small — it doesn't host instances, just supervises them.
+# Bump only if you run hundreds of instances per node.
+Environment=JAVA_TOOL_OPTIONS=-Xms128m -Xmx512m
+
+ExecStart=/usr/bin/java \
+    --enable-preview \
+    --enable-native-access=ALL-UNNAMED \
+    --sun-misc-unsafe-memory-access=allow \
+    -Dio.netty.noUnsafe=true \
+    -jar /opt/prexorcloud/daemon/PrexorCloudDaemon.jar
+
+Restart=on-failure
+RestartSec=5s
+# Daemon spawns + supervises Minecraft processes; give it room to drain.
+TimeoutStopSec=120s
+# A single MC server can be 1k–10k+ FDs; bump generously.
+LimitNOFILE=131072
+# MC servers are JVM children — let cgroups account for them.
+TasksMax=infinity
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# Do NOT add hardening that blocks the daemon's child processes from doing
+# normal things. Minecraft servers need /tmp, network, and a real-ish
+# filesystem view; over-tightening here breaks instances silently.
+ReadWritePaths=/opt/prexorcloud/daemon/instances /opt/prexorcloud/daemon/cache /opt/prexorcloud/daemon/logs /opt/prexorcloud/daemon/config/security
+
+[Install]
+WantedBy=multi-user.target

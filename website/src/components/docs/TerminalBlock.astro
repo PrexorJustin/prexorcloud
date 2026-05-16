@@ -1,0 +1,90 @@
+---
+/*
+ * <TerminalBlock> — styled terminal frame for prexorctl examples and
+ * inline shell sessions. Matches the dashboard-app's terminal aesthetic
+ * (slate-1 base, traffic-light dots, primary cyan accents).
+ *
+ * Usage:
+ *   <TerminalBlock command="prexorctl deploy --group bedwars --min 3">
+ *     ✓ Template "bedwars" cached across 2 nodes
+ *     ✓ Scaling bedwars → 3 instances
+ *   </TerminalBlock>
+ *
+ * The `command` prop is rendered as the prompt line; the slot is the
+ * command output. Both use JetBrains Mono per the design-system type
+ * scale. Reference: design-system/SKILL.md (CLI section) + cli/internal/tui/.
+ */
+const { command, title = 'prexorctl', host = 'cluster' } = Astro.props as {
+  command?: string;
+  title?: string;
+  host?: string;
+};
+---
+
+<figure class="pc-terminal" role="figure" aria-label={`Terminal: ${command ?? title}`}>
+  <div class="pc-terminal-bar">
+    <span class="pc-terminal-dot pc-terminal-dot-r" aria-hidden="true"></span>
+    <span class="pc-terminal-dot pc-terminal-dot-y" aria-hidden="true"></span>
+    <span class="pc-terminal-dot pc-terminal-dot-g" aria-hidden="true"></span>
+    <span class="pc-terminal-title">{host} — {title}</span>
+  </div>
+  {command && (
+    <pre class="pc-terminal-body pc-terminal-prompt-line"><code><span class="pc-terminal-prompt">$ </span><span class="pc-terminal-cmd">{command}</span></code></pre>
+  )}
+  <pre class="pc-terminal-body"><code><slot /></code></pre>
+</figure>
+
+<style>
+  .pc-terminal {
+    margin: 1.25rem 0;
+    border: 1px solid hsl(var(--glass-border));
+    border-radius: var(--radius-xl, 1.5rem);
+    background: hsl(var(--slate-1, 240 24% 6%));
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+  }
+
+  .pc-terminal-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid hsl(var(--glass-border));
+    background: hsl(var(--glass));
+  }
+
+  .pc-terminal-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 9999px;
+    display: inline-block;
+  }
+  .pc-terminal-dot-r { background: hsl(var(--destructive)); }
+  .pc-terminal-dot-y { background: hsl(var(--warning)); }
+  .pc-terminal-dot-g { background: hsl(var(--success)); }
+
+  .pc-terminal-title {
+    margin-left: 0.5rem;
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+    color: hsl(var(--muted-foreground));
+    letter-spacing: var(--tracking-wide);
+  }
+
+  .pc-terminal-body {
+    margin: 0;
+    padding: 0.9rem 1.1rem;
+    background: transparent;
+    color: hsl(var(--slate-11, 214 32% 84%));
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    overflow-x: auto;
+  }
+
+  .pc-terminal-prompt-line { padding-bottom: 0.2rem; }
+  .pc-terminal-prompt-line + .pc-terminal-body { padding-top: 0.2rem; }
+
+  .pc-terminal-prompt { color: hsl(var(--primary)); }
+  .pc-terminal-cmd    { color: hsl(var(--slate-12, 210 40% 98%)); }
+</style>

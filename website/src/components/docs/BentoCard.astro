@@ -1,0 +1,87 @@
+---
+/*
+ * <BentoCard> — single tile inside a <Bento> grid. Glass card with a
+ * subtle corner gradient and a hover lift that follows design-system
+ * §6 "Hover & press" rules (no shrink, no inset shadow, just lighter
+ * background tint + slightly stronger border).
+ */
+const {
+  title,
+  href,
+  accent = 'primary',
+} = Astro.props as {
+  title: string;
+  href?: string;
+  accent?: 'primary' | 'secondary' | 'success' | 'warning' | 'destructive';
+};
+
+const accentVar = `var(--${accent === 'primary' ? 'primary' : accent})`;
+const Tag = href ? 'a' : 'div';
+---
+
+<Tag href={href} class="pc-bento-card" data-accent={accent}>
+  <h3 class="pc-bento-title">{title}</h3>
+  <div class="pc-bento-body"><slot /></div>
+  {href && <span class="pc-bento-arrow" aria-hidden="true">→</span>}
+</Tag>
+
+<style define:vars={{ accentVar }}>
+  .pc-bento-card {
+    position: relative;
+    display: block;
+    padding: var(--space-5, 1.25rem);
+    border: 1px solid hsl(var(--glass-border));
+    border-radius: var(--radius-lg, 1rem);
+    background: hsl(var(--glass));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    text-decoration: none;
+    color: inherit;
+    overflow: hidden;
+    transition: background 200ms ease, border-color 200ms ease;
+  }
+
+  .pc-bento-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, hsl(var(--accentVar) / 0.08), transparent 60%);
+    pointer-events: none;
+  }
+
+  a.pc-bento-card:hover {
+    background: hsl(var(--glass-hover));
+    border-color: hsl(var(--glass-border-hover));
+  }
+
+  .pc-bento-title {
+    margin: 0 0 0.4rem;
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold, 600);
+    letter-spacing: var(--tracking-tight);
+    color: hsl(var(--foreground));
+  }
+
+  .pc-bento-body {
+    color: hsl(var(--muted-foreground));
+    font-size: var(--text-sm);
+    line-height: var(--leading-normal);
+  }
+  .pc-bento-body :global(p:first-child) { margin-top: 0; }
+  .pc-bento-body :global(p:last-child)  { margin-bottom: 0; }
+
+  .pc-bento-arrow {
+    position: absolute;
+    right: var(--space-4, 1rem);
+    bottom: var(--space-3, 0.75rem);
+    color: hsl(var(--accentVar));
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    transition: transform 200ms ease;
+  }
+
+  a.pc-bento-card:hover .pc-bento-arrow {
+    transform: translateX(2px);
+  }
+</style>

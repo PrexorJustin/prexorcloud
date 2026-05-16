@@ -1,0 +1,17 @@
+{
+  "protocolVersion": "1.0",
+  "defaultGrpcPort": 9090,
+  "defaultHeartbeatIntervalMs": 30000,
+  "defaultNodeTimeoutMs": 90000,
+  "controllerHttpHost": "0.0.0.0",
+  "controllerHttpPort": 8080,
+  "controllerGrpcHost": "0.0.0.0",
+  "controllerGrpcPort": 9090,
+  "daemonControllerHost": "127.0.0.1",
+  "daemonControllerGrpcPort": 9090,
+  "cliControllerHttpPort": 8080,
+  "cliControllerGrpcPort": 9090,
+  "cliDaemonControllerGrpcPort": 9090,
+  "heartbeatMissedThreshold": 3,
+  "schedulerNodeTimeoutSeconds": 90
+}

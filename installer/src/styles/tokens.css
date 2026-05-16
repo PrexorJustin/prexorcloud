@@ -1,0 +1,178 @@
+@charset "UTF-8";
+/* =============================================================================
+ * PrexorCloud — refreshed tokens
+ * Output of the redesign exploration. "Reef" accent within a softened cyan
+ * basin, warm-sand light theme, Inter + Inter Tight + Instrument Serif italic
+ * (accent words only) + JetBrains Mono (real code only).
+ *
+ * Direction: Safe — Quiet Studio.
+ * ===========================================================================*/
+
+/* ── Raw scales (only the ones the redesign actually uses) ─────────────── */
+:root {
+  /* Reef — softened cyan. Dark token brighter, light token darker, both AA. */
+  --reef-dark:  #4ec5d4;
+  --reef-light: #0c8aa8;
+  --reef-soft-dark:  #1f6a78;
+  --reef-soft-light: #a5dfe9;
+
+  /* Slate neutrals — for dark theme spine */
+  --ink-1:  #0a0a10;   /* page bg */
+  --ink-2:  #0c0c12;
+  --ink-3:  #14141d;   /* surface */
+  --ink-4:  #1d1d28;   /* raised */
+  --ink-5:  #2a2a36;
+  --ink-6:  #4a4a55;   /* faint text */
+  --ink-7:  #7c7c8a;   /* muted text */
+  --ink-8:  #c5c5cf;
+  --ink-9:  #ededf2;   /* primary text */
+
+  /* Sand neutrals — for light theme spine */
+  --sand-1:  #f5f3ed;   /* page bg */
+  --sand-2:  #ebe7dc;   /* page bg alt */
+  --sand-3:  #ffffff;   /* surface */
+  --sand-4:  #fbf9f3;   /* raised */
+  --sand-5:  #e6e1d3;
+  --sand-6:  #a8a399;   /* faint */
+  --sand-7:  #6e6a62;   /* muted */
+  --sand-8:  #3a3a45;
+  --sand-9:  #14141a;   /* primary text */
+
+  /* State colors — same hue in both themes, dark/light tuned for contrast */
+  --success-dark:  #10b981;
+  --success-light: #2f7d4a;
+  --warning-dark:  #f59e0b;
+  --warning-light: #a8651e;
+  --danger-dark:   #f43f5e;
+  --danger-light:  #a02d2d;
+}
+
+/* ── Semantic tokens · DARK (default) ──────────────────────────────────── */
+:root,
+.dark {
+  --bg:         var(--ink-1);
+  --bg-alt:     var(--ink-2);
+  --surface:    var(--ink-3);
+  --raised:     var(--ink-4);
+  --inset:      rgba(0, 0, 0, 0.30);
+
+  --text:       var(--ink-9);
+  --text-soft:  var(--ink-8);
+  --muted:      var(--ink-7);
+  --faint:      var(--ink-6);
+
+  --border:           rgba(255, 255, 255, 0.06);
+  --border-hover:     rgba(255, 255, 255, 0.12);
+
+  --accent:           var(--reef-dark);
+  --accent-soft:      var(--reef-soft-dark);
+  --accent-fg:        #0a0a10;   /* text on accent button */
+  --accent-glow:      rgba(78, 197, 212, 0.20);
+
+  --success:    var(--success-dark);
+  --warning:    var(--warning-dark);
+  --danger:     var(--danger-dark);
+
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-md:  0 4px 12px -2px rgba(0, 0, 0, 0.35);
+  --shadow-lg:  0 12px 32px -8px rgba(0, 0, 0, 0.45), 0 4px 8px -4px rgba(0, 0, 0, 0.30);
+  --shadow-glow:0 0 32px -4px var(--accent-glow);
+}
+
+/* ── Semantic tokens · LIGHT ───────────────────────────────────────────── */
+.light {
+  --bg:         var(--sand-1);
+  --bg-alt:     var(--sand-2);
+  --surface:    var(--sand-3);
+  --raised:     var(--sand-4);
+  --inset:      rgba(20, 15, 8, 0.04);
+
+  --text:       var(--sand-9);
+  --text-soft:  var(--sand-8);
+  --muted:      var(--sand-7);
+  --faint:      var(--sand-6);
+
+  --border:           rgba(20, 15, 8, 0.07);
+  --border-hover:     rgba(20, 15, 8, 0.16);
+
+  --accent:           var(--reef-light);
+  --accent-soft:      var(--reef-soft-light);
+  --accent-fg:        #ffffff;
+  --accent-glow:      rgba(12, 138, 168, 0.22);
+
+  --success:    var(--success-light);
+  --warning:    var(--warning-light);
+  --danger:     var(--danger-light);
+
+  --shadow-sm:  0 1px 2px rgba(20, 12, 4, 0.04), 0 1px 3px rgba(20, 12, 4, 0.05);
+  --shadow-md:  0 1px 3px rgba(20, 12, 4, 0.05), 0 8px 24px -10px rgba(20, 12, 4, 0.12);
+  --shadow-lg:  0 1px 3px rgba(20, 12, 4, 0.06), 0 24px 64px -20px rgba(20, 12, 4, 0.20);
+  --shadow-glow:0 0 32px -4px var(--accent-glow);
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Family stack
+     • Display: Inter Tight at 500/600 (no 700+ — we don't shout)
+     • Body:    Inter at 400/500
+     • Accent:  Instrument Serif italic — for ONE or two words per heading
+     • Mono:    JetBrains Mono — only for real code, IDs, IPs, file paths */
+  --font-display: 'Inter Tight', ui-sans-serif, system-ui, sans-serif;
+  --font-body:    'Inter',       ui-sans-serif, system-ui, sans-serif;
+  --font-accent:  'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, Menlo, Monaco, monospace;
+
+  /* Size scale — kept tight, no display-5xl monsters. Marketing hero capped at 72. */
+  --text-xs:   0.75rem;    /* 12px */
+  --text-sm:   0.8125rem;  /* 13px */
+  --text-base: 0.9375rem;  /* 15px — Inter feels best around 15 */
+  --text-lg:   1.0625rem;  /* 17px */
+  --text-xl:   1.3125rem;  /* 21px */
+  --text-2xl:  1.625rem;   /* 26px */
+  --text-3xl:  2rem;       /* 32px */
+  --text-4xl:  2.625rem;   /* 42px */
+  --text-5xl:  3.5rem;     /* 56px */
+  --text-hero: 4.5rem;     /* 72px — marketing only */
+
+  --tracking-tight:   -0.025em;
+  --tracking-tighter: -0.035em;
+  --tracking-wide:     0.06em;
+  --tracking-widest:   0.16em;   /* uppercase eyebrows */
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+}
+
+/* ── Space / radius ────────────────────────────────────────────────────── */
+:root {
+  --r-sm:  6px;
+  --r-md:  8px;
+  --r-lg:  12px;
+  --r-xl:  16px;
+  --r-2xl: 20px;
+  --r-full: 9999px;
+}
+
+/* ── Resets shared across previews ─────────────────────────────────────── */
+html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+body { font-size: var(--text-base); line-height: 1.55; }
+*, *::before, *::after { box-sizing: border-box; }
+button { font-family: inherit; }
+
+/* The signature serif-italic accent — apply to ONE or two words, never a whole heading. */
+.accent-serif {
+  font-family: var(--font-accent);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--accent);
+}
+
+/* The signature eyebrow */
+.eyebrow {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-widest);
+  text-transform: uppercase;
+  color: var(--accent);
+}

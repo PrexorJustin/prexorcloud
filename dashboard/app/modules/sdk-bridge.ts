@@ -1,0 +1,213 @@
+/**
+ * Nuxt module: SDK Bridge Generator
+ *
+ * Auto-generates `public/sdk/prexorcloud.mjs` by introspecting the named exports
+ * of `app/sdk/index.ts`. Runs at build time and during dev — the bridge file is
+ * always in sync with the SDK source. Never hand-edit the bridge again.
+ *
+ * The generated file reads from `globalThis.__prexorcloud_sdk__` (populated by
+ * the sdk.client.ts plugin) and re-exports each symbol as a proper ESM export.
+ * This is resolved by the browser import map: `@prexorcloud/module-sdk` → `/sdk/prexorcloud.mjs`.
+ */
+import { defineNuxtModule } from 'nuxt/kit'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+
+/**
+ * Dynamically reads all named exports from the installed Vue package.
+ * This ensures the bridge always matches the exact Vue version in node_modules,
+ * including new SFC compiler helpers (e.g. createSlots in Vue 3.5+).
+ */
+function getVueExports(): string[] {
+   
+  const vue = require('vue')
+  return Object.keys(vue).filter(key => key !== 'default' && key !== '__esModule')
+}
+
+/**
+ * Parse named exports from the SDK source file.
+ * Handles: `export { Foo, Bar } from '...'`, `export { default as Baz } from '...'`,
+ * `export function name()`, `export const name`, `export type/interface` (skipped).
+ * Ignores `export *` (handled separately via VUE_EXPORTS) and type-only exports.
+ */
+function parseNamedExports(source: string): string[] {
+  const exports: string[] = []
+
+  // Remove block comments
+  const cleaned = source.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  for (const line of cleaned.split('\n')) {
+    const trimmed = line.trim()
+
+    // Skip type-only exports
+    if (trimmed.startsWith('export type ') || trimmed.startsWith('export interface ')) continue
+
+    // Skip wildcard re-exports (handled by VUE_EXPORTS)
+    if (trimmed.startsWith('export *')) continue
+
+    // export { Foo, Bar, default as Baz } from '...'
+    // export { Foo, Bar }
+    const braceMatch = trimmed.match(/^export\s*\{([^}]+)\}/)
+    if (braceMatch?.[1]) {
+      const items = braceMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+      for (const item of items) {
+        // Handle `default as Name` pattern
+        const asMatch = item.match(/(?:default|\w+)\s+as\s+(\w+)/)
+        if (asMatch?.[1]) {
+          exports.push(asMatch[1])
+        } else {
+          // Plain name, possibly with `type` keyword
+          const clean = item.replace(/^type\s+/, '')
+          if (clean && /^\w+$/.test(clean)) {
+            // Skip if it's a type re-export
+            if (!item.startsWith('type ')) {
+              exports.push(clean)
+            }
+          }
+        }
+      }
+      continue
+    }
+
+    // export function name(
+    const funcMatch = trimmed.match(/^export\s+function\s+(\w+)/)
+    if (funcMatch?.[1]) {
+      exports.push(funcMatch[1])
+      continue
+    }
+
+    // export const name
+    const constMatch = trimmed.match(/^export\s+(?:const|let|var)\s+(\w+)/)
+    if (constMatch?.[1]) {
+      exports.push(constMatch[1])
+      continue
+    }
+  }
+
+  return exports
+}
+
+/**
+ * Also parse multi-line export blocks where `export {` and `}` span multiple lines.
+ */
+function parseMultiLineExports(source: string): string[] {
+  const exports: string[] = []
+  // Remove block comments
+  const cleaned = source.replace(/\/\*[\s\S]*?\*\//g, '')
+
+  // Match export { ... } blocks that may span multiple lines
+  const multiLineRegex = /export\s*\{([^}]+)\}/g
+  let match
+  while ((match = multiLineRegex.exec(cleaned)) !== null) {
+    const block = match[1]
+    if (!block) continue
+    // Check this isn't inside a type export
+    const beforeExport = cleaned.slice(Math.max(0, match.index - 20), match.index)
+    if (beforeExport.match(/export\s+type\s*$/)) continue
+
+    const items = block.split(',').map(s => s.trim()).filter(Boolean)
+    for (const item of items) {
+      if (item.startsWith('type ')) continue
+      const asMatch = item.match(/(?:default|\w+)\s+as\s+(\w+)/)
+      if (asMatch?.[1]) {
+        exports.push(asMatch[1])
+      } else if (/^\w+$/.test(item)) {
+        exports.push(item)
+      }
+    }
+  }
+
+  // Also get export function/const/let
+  for (const line of cleaned.split('\n')) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith('export type ') || trimmed.startsWith('export interface ')) continue
+    const funcMatch = trimmed.match(/^export\s+function\s+(\w+)/)
+    if (funcMatch?.[1]) { exports.push(funcMatch[1]); continue }
+    const constMatch = trimmed.match(/^export\s+(?:const|let|var)\s+(\w+)/)
+    if (constMatch?.[1]) { exports.push(constMatch[1]); continue }
+  }
+
+  return [...new Set(exports)]
+}
+
+function generateBridge(exportNames: string[]): string {
+  const lines = [
+    '/**',
+    ' * PrexorCloud Module SDK — ES Module Bridge',
+    ' *',
+    ' * AUTO-GENERATED by app/modules/sdk-bridge.ts — DO NOT EDIT MANUALLY.',
+    ' * Served at /sdk/prexorcloud.mjs, mapped via browser import map.',
+    ' * Re-exports from the dashboard\'s runtime SDK global.',
+    ' */',
+    'const s = globalThis.__prexorcloud_sdk__;',
+    'if (!s) throw new Error(\'[PrexorCloud SDK] Dashboard SDK not initialized. Ensure the dashboard is loaded before importing modules.\');',
+    '',
+  ]
+
+  for (const name of exportNames) {
+    lines.push(`export const ${name} = s.${name};`)
+  }
+
+  lines.push('') // trailing newline
+  return lines.join('\n')
+}
+
+export default defineNuxtModule({
+  meta: {
+    name: 'sdk-bridge',
+    configKey: 'sdkBridge',
+  },
+
+  setup(_options, nuxt) {
+    const sdkPath = resolve(nuxt.options.srcDir, 'sdk', 'index.ts')
+    const outputDir = resolve(nuxt.options.srcDir, '..', 'public', 'sdk')
+    const outputPath = resolve(outputDir, 'prexorcloud.mjs')
+
+    function regenerate() {
+      const source = readFileSync(sdkPath, 'utf-8')
+
+      // Collect all named exports from the SDK source
+      const namedExports = parseMultiLineExports(source)
+
+      // Check if SDK re-exports all of Vue
+      const hasVueWildcard = /export\s*\*\s*from\s*['"]vue['"]/.test(source)
+      const vueExports = hasVueWildcard ? getVueExports() : []
+
+      // Merge: Vue wildcard exports + SDK named exports (deduplicated)
+      const allExports = [...new Set([
+        ...vueExports,
+        ...namedExports,
+      ])]
+
+      // Sort for stable output (Vue exports first, then alphabetical)
+      allExports.sort((a, b) => {
+        const aIsVue = vueExports.includes(a)
+        const bIsVue = vueExports.includes(b)
+        if (aIsVue && !bIsVue) return -1
+        if (!aIsVue && bIsVue) return 1
+        return a.localeCompare(b)
+      })
+
+      mkdirSync(outputDir, { recursive: true })
+      writeFileSync(outputPath, generateBridge(allExports), 'utf-8')
+
+      console.log(`[sdk-bridge] Generated ${outputPath} with ${allExports.length} exports`)
+    }
+
+    // Generate on startup (build + dev)
+    regenerate()
+
+    // In dev mode, watch the SDK source for changes and regenerate
+    if (nuxt.options.dev) {
+      nuxt.hook('builder:watch', (_event, relativePath) => {
+        if (relativePath.replace(/\\/g, '/').includes('sdk/index.ts')) {
+          console.log('[sdk-bridge] SDK source changed, regenerating bridge...')
+          regenerate()
+        }
+      })
+    }
+  },
+})
