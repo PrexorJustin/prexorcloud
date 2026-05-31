@@ -229,6 +229,7 @@ public final class RestServer {
                 new ClusterConfigRoutes(controller).register();
                 new ClusterMembersRoutes(controller).register();
                 new ClusterJoinTokenRoutes(controller).register();
+                new ClusterSeedRoutes(controller).register();
                 new PasswordResetRoutes(controller).register();
                 new OverviewRoutes(controller).register();
                 new TimeseriesRoutes(controller).register();
