@@ -57,10 +57,10 @@ public final class LocalClusterMaterials {
     public Loaded load() throws IOException {
         try {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            X509Certificate caCert = (X509Certificate) cf.generateCertificate(
-                    new java.io.ByteArrayInputStream(decodePem(Files.readString(dir.resolve(CA_CERT_FILE)), "CERTIFICATE")));
-            X509Certificate leafCert = (X509Certificate) cf.generateCertificate(
-                    new java.io.ByteArrayInputStream(decodePem(Files.readString(dir.resolve(LEAF_CERT_FILE)), "CERTIFICATE")));
+            X509Certificate caCert = (X509Certificate) cf.generateCertificate(new java.io.ByteArrayInputStream(
+                    decodePem(Files.readString(dir.resolve(CA_CERT_FILE)), "CERTIFICATE")));
+            X509Certificate leafCert = (X509Certificate) cf.generateCertificate(new java.io.ByteArrayInputStream(
+                    decodePem(Files.readString(dir.resolve(LEAF_CERT_FILE)), "CERTIFICATE")));
             byte[] keyDer = decodePem(Files.readString(dir.resolve(LEAF_KEY_FILE)), "PRIVATE KEY");
             PrivateKey leafKey = KeyFactory.getInstance("EC").generatePrivate(new PKCS8EncodedKeySpec(keyDer));
             return new Loaded(caCert, leafCert, leafKey);

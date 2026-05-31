@@ -77,10 +77,8 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
                     .asRuntimeException());
         } catch (Exception e) {
             logger.warn("RequestJoin internal error", e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription(e.getMessage())
-                    .withCause(e)
-                    .asRuntimeException());
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription(e.getMessage()).withCause(e).asRuntimeException());
         }
     }
 
@@ -95,7 +93,8 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
             throw new TokenRejected("NODE_ID_EMPTY", "node_id required");
         }
 
-        ClusterMeta meta = controlPlane.getClusterMeta()
+        ClusterMeta meta = controlPlane
+                .getClusterMeta()
                 .orElseThrow(() -> new IOException("cluster meta not yet stamped — controller still bootstrapping"));
         byte[] seed = JoinTokenCodec.decodeSeed(meta.seedSecretBase64());
 
@@ -125,9 +124,11 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
         String peerCidr = peerCidr(request);
         controlPlane.redeemJoinToken(payload.jti(), now, peerCidr, request.getNodeId());
 
-        ClusterFile certFile = controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+        ClusterFile certFile = controlPlane
+                .getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
                 .orElseThrow(() -> new IOException("cluster CA cert missing from raft state"));
-        ClusterFile keyFile = controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY)
+        ClusterFile keyFile = controlPlane
+                .getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY)
                 .orElseThrow(() -> new IOException("cluster CA key missing from raft state"));
         CertificateAuthority ca = CertificateAuthority.loadFromDer(certFile.bytes(), keyFile.bytes());
 

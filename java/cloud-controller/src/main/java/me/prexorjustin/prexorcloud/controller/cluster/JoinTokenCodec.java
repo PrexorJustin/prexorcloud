@@ -1,13 +1,11 @@
 package me.prexorjustin.prexorcloud.controller.cluster;
 
-import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
-
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -55,8 +53,7 @@ public final class JoinTokenCodec {
     /** Returned by {@link #parse}; only the payload is exposed — the HMAC is consumed during verify. */
     public record Parsed(Payload payload, String hmacBase64) {}
 
-    public static Issued encode(
-            String clusterId, List<String> joinAddrs, Instant expiresAt, byte[] seedSecret) {
+    public static Issued encode(String clusterId, List<String> joinAddrs, Instant expiresAt, byte[] seedSecret) {
         String jti = UUID.randomUUID().toString();
         Payload payload = new Payload(jti, clusterId, List.copyOf(joinAddrs), expiresAt);
         byte[] payloadBytes;

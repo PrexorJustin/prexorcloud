@@ -400,8 +400,7 @@ public final class PrexorController {
     }
 
     /** Cluster control plane (Raft facade). Wired by bootstrap right after the service starts. */
-    public void setClusterControlPlane(
-            me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane plane) {
+    public void setClusterControlPlane(me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane plane) {
         this.clusterControlPlane = Objects.requireNonNull(plane);
     }
 

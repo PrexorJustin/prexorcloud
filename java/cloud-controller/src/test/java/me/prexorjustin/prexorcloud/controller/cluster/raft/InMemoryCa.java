@@ -65,7 +65,9 @@ final class InMemoryCa {
                 kp.getPublic());
         builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
         builder.addExtension(
-                Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature));
+                Extension.keyUsage,
+                true,
+                new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature));
         ContentSigner signer = new JcaContentSignerBuilder(SIG_ALG)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .build(kp.getPrivate());
@@ -90,18 +92,14 @@ final class InMemoryCa {
         builder.addExtension(Extension.basicConstraints, false, new BasicConstraints(false));
         builder.addExtension(
                 Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
-        builder.addExtension(
-                Extension.extendedKeyUsage,
-                false,
-                new ExtendedKeyUsage(new KeyPurposeId[] {KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth}));
-        builder.addExtension(
-                Extension.subjectAlternativeName,
-                false,
-                new GeneralNames(new GeneralName[] {
-                    new GeneralName(GeneralName.dNSName, "localhost"),
-                    new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
-                    new GeneralName(GeneralName.dNSName, commonName)
-                }));
+        builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(new KeyPurposeId[] {
+            KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth
+        }));
+        builder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(new GeneralName[] {
+            new GeneralName(GeneralName.dNSName, "localhost"),
+            new GeneralName(GeneralName.iPAddress, "127.0.0.1"),
+            new GeneralName(GeneralName.dNSName, commonName)
+        }));
         ContentSigner signer = new JcaContentSignerBuilder(SIG_ALG)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .build(caKeyPair.getPrivate());

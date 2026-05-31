@@ -66,8 +66,7 @@ class ClusterControlServiceJoinTest {
                 null,
                 null,
                 new RuntimeConfig(RuntimeConfig.PRODUCTION),
-                new SecurityControllerConfig(
-                        "jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
+                new SecurityControllerConfig("jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
                 null,
                 null,
                 null,
@@ -120,8 +119,10 @@ class ClusterControlServiceJoinTest {
             final String capturedServerName = serverName;
             // Intercept the channel factory used by ClusterControlService — point it
             // at the in-process server so we don't actually open a network socket.
-            ClusterControlService.JoinChannelFactory inProcFactory = hostPort ->
-                    InProcessChannelBuilder.forName(capturedServerName).directExecutor().build();
+            ClusterControlService.JoinChannelFactory inProcFactory =
+                    hostPort -> InProcessChannelBuilder.forName(capturedServerName)
+                            .directExecutor()
+                            .build();
 
             // --- joiner side: pristine state. Run startInJoinMode. ---
             int joinerRaftPort = freePort();
@@ -135,9 +136,7 @@ class ClusterControlServiceJoinTest {
                     issued.token(),
                     joinerMaterials,
                     new ClusterControlService.JoinIdentity(
-                            "127.0.0.1:" + joinerRaftPort,
-                            "127.0.0.1:8444",
-                            "127.0.0.1:9091"));
+                            "127.0.0.1:" + joinerRaftPort, "127.0.0.1:8444", "127.0.0.1:9091"));
 
             // Joiner sees the leader-stamped cluster meta — proves the SM replicated.
             awaitMeta(joiner.controlPlane(), clusterId, 30_000);

@@ -808,7 +808,8 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public Optional<String> getClusterId() {
-        Document doc = clusterMeta.find(Filters.eq("_id", CLUSTER_META_SINGLETON_ID)).first();
+        Document doc =
+                clusterMeta.find(Filters.eq("_id", CLUSTER_META_SINGLETON_ID)).first();
         return doc == null ? Optional.empty() : Optional.ofNullable(doc.getString("clusterId"));
     }
 

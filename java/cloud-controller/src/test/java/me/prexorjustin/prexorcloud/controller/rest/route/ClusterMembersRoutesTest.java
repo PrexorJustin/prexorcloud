@@ -17,8 +17,14 @@ import org.junit.jupiter.api.Test;
 class ClusterMembersRoutesTest {
 
     private static Member member(String nodeId) {
-        return new Member(nodeId, "127.0.0.1:9190", "127.0.0.1:8443", "127.0.0.1:9090", nodeId,
-                Instant.parse("2026-05-31T10:00:00Z"), Instant.parse("2026-05-31T10:00:00Z"));
+        return new Member(
+                nodeId,
+                "127.0.0.1:9190",
+                "127.0.0.1:8443",
+                "127.0.0.1:9090",
+                nodeId,
+                Instant.parse("2026-05-31T10:00:00Z"),
+                Instant.parse("2026-05-31T10:00:00Z"));
     }
 
     @Test

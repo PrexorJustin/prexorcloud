@@ -71,7 +71,8 @@ class ClusterJoinFlowTest {
                 CLUSTER_ID, SEED_B64, Instant.parse("2026-05-29T12:00:00Z"), ClusterMeta.CURRENT_SCHEMA_VERSION));
         CertificateAuthority ca = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 365);
         plane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
-        plane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
+        plane.writeClusterFile(
+                ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
 
         String serverName = "join-flow-test-" + UUID.randomUUID();
         Server inProc = InProcessServerBuilder.forName(serverName)
@@ -79,19 +80,15 @@ class ClusterJoinFlowTest {
                 .addService(new ClusterMembershipServiceImpl(plane))
                 .build()
                 .start();
-        ManagedChannel channel = InProcessChannelBuilder.forName(serverName)
-                .directExecutor()
-                .build();
+        ManagedChannel channel =
+                InProcessChannelBuilder.forName(serverName).directExecutor().build();
         ClusterMembershipGrpc.ClusterMembershipBlockingStub stub = ClusterMembershipGrpc.newBlockingStub(channel);
         return new Harness(raft, plane, ca, inProc, channel, new ClusterJoinFlow(stub));
     }
 
     private static String stampValidToken(Harness h, Instant expiresAt) throws Exception {
         var issued = JoinTokenCodec.encode(
-                CLUSTER_ID,
-                List.of("controller-1.cluster.test:9091"),
-                expiresAt,
-                JoinTokenCodec.decodeSeed(SEED_B64));
+                CLUSTER_ID, List.of("controller-1.cluster.test:9091"), expiresAt, JoinTokenCodec.decodeSeed(SEED_B64));
         h.plane.writeJoinToken(new me.prexorjustin.prexorcloud.controller.cluster.state.JoinToken(
                 issued.jti(),
                 "hmac-not-used-by-state-machine",
@@ -143,8 +140,10 @@ class ClusterJoinFlowTest {
         try (Harness h = boot(tmp)) {
             byte[] wrongSeed = "wrong-seed".getBytes();
             var bad = JoinTokenCodec.encode(
-                    CLUSTER_ID, List.of("controller-1.cluster.test:9091"),
-                    Instant.now().plusSeconds(3600), wrongSeed);
+                    CLUSTER_ID,
+                    List.of("controller-1.cluster.test:9091"),
+                    Instant.now().plusSeconds(3600),
+                    wrongSeed);
 
             StatusRuntimeException ex = assertThrows(
                     StatusRuntimeException.class,

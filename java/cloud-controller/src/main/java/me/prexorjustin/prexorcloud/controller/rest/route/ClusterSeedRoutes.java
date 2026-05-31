@@ -59,9 +59,7 @@ public final class ClusterSeedRoutes {
         if (plane.getClusterMeta().isEmpty()) {
             ctx.status(409);
             ctx.json(errorResponse(
-                    "META_NOT_STAMPED",
-                    "cluster meta has not been stamped yet — controller still bootstrapping",
-                    409));
+                    "META_NOT_STAMPED", "cluster meta has not been stamped yet — controller still bootstrapping", 409));
             return;
         }
         String mutator = ctx.attribute("username");
@@ -71,8 +69,7 @@ public final class ClusterSeedRoutes {
         } catch (IOException e) {
             logger.error("Raft submit failed for seed rotate: {}", e.getMessage(), e);
             ctx.status(503);
-            ctx.json(errorResponse(
-                    "RAFT_UNAVAILABLE", "Could not rotate cluster seed: " + e.getMessage(), 503));
+            ctx.json(errorResponse("RAFT_UNAVAILABLE", "Could not rotate cluster seed: " + e.getMessage(), 503));
             return;
         }
         RestServer.audit(

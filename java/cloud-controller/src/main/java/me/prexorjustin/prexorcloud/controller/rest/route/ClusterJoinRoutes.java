@@ -107,8 +107,7 @@ public final class ClusterJoinRoutes {
                 "cluster",
                 clusterId,
                 Map.of("clusterId", clusterId, "trustRootEmbedded", trustRootB64 != null));
-        logger.info(
-                "Issued cluster join template (clusterId={}, requester={} @ {})", clusterId, issuedBy, ctx.ip());
+        logger.info("Issued cluster join template (clusterId={}, requester={} @ {})", clusterId, issuedBy, ctx.ip());
     }
 
     /**
@@ -119,7 +118,9 @@ public final class ClusterJoinRoutes {
     private static String readTrustRootIfPresent(ControllerConfig config) throws IOException {
         String trustRoot = config.modules() == null
                 ? null
-                : (config.modules().signing() == null ? null : config.modules().signing().trustRoot());
+                : (config.modules().signing() == null
+                        ? null
+                        : config.modules().signing().trustRoot());
         if (trustRoot == null || trustRoot.isBlank()) {
             return null;
         }

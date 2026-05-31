@@ -159,7 +159,8 @@ public final class CertificateAuthority {
      * act as both in cluster traffic.
      */
     public X509Certificate signCsr(byte[] csrDer, java.util.List<String> extraSans, int validityDays) throws Exception {
-        org.bouncycastle.pkcs.PKCS10CertificationRequest csr = new org.bouncycastle.pkcs.PKCS10CertificationRequest(csrDer);
+        org.bouncycastle.pkcs.PKCS10CertificationRequest csr =
+                new org.bouncycastle.pkcs.PKCS10CertificationRequest(csrDer);
         java.security.PublicKey subjectPublicKey = new org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest(csr)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .getPublicKey();
@@ -174,10 +175,9 @@ public final class CertificateAuthority {
         builder.addExtension(Extension.basicConstraints, false, new BasicConstraints(false));
         builder.addExtension(
                 Extension.keyUsage, true, new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment));
-        builder.addExtension(
-                Extension.extendedKeyUsage,
-                false,
-                new ExtendedKeyUsage(new KeyPurposeId[] {KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth}));
+        builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(new KeyPurposeId[] {
+            KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth
+        }));
         if (extraSans != null && !extraSans.isEmpty()) {
             GeneralName[] names = extraSans.stream()
                     .filter(s -> s != null && !s.isBlank())

@@ -54,8 +54,7 @@ class ClusterControlServiceTest {
                 null,
                 null,
                 new RuntimeConfig(RuntimeConfig.PRODUCTION),
-                new SecurityControllerConfig(
-                        "jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
+                new SecurityControllerConfig("jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
                 null,
                 null,
                 null,
@@ -126,7 +125,8 @@ class ClusterControlServiceTest {
         try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
             svc.start();
             var cert = svc.controlPlane()
-                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .getClusterFile(
+                            me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
                     .orElseThrow(() -> new AssertionError("CA cert must be stamped on first boot"));
             var key = svc.controlPlane()
                     .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
@@ -134,7 +134,8 @@ class ClusterControlServiceTest {
             assertTrue(cert.bytes().length > 0);
             assertTrue(key.bytes().length > 0);
             // Verify the bytes round-trip through the security helper as a real EC keypair / X.509 cert.
-            var reloaded = me.prexorjustin.prexorcloud.security.ca.CertificateAuthority.loadFromDer(cert.bytes(), key.bytes());
+            var reloaded =
+                    me.prexorjustin.prexorcloud.security.ca.CertificateAuthority.loadFromDer(cert.bytes(), key.bytes());
             assertNotNull(reloaded.certificate());
             assertNotNull(reloaded.keyPair().getPrivate());
             firstCert = cert.bytes();
@@ -143,7 +144,8 @@ class ClusterControlServiceTest {
         try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
             svc.start();
             var cert = svc.controlPlane()
-                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .getClusterFile(
+                            me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
                     .orElseThrow();
             var key = svc.controlPlane()
                     .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
@@ -168,13 +170,11 @@ class ClusterControlServiceTest {
 
         // Second boot with a DIFFERENT yaml cluster.id — must refuse.
         ControllerConfig wrongCfg = sampleConfigWithRaft(tmp, port, "deliberately-wrong-cluster-id");
-        IllegalStateException ex = assertThrows(
-                IllegalStateException.class,
-                () -> {
-                    try (ClusterControlService svc = new ClusterControlService(wrongCfg, "controller-1")) {
-                        svc.start();
-                    }
-                });
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
+            try (ClusterControlService svc = new ClusterControlService(wrongCfg, "controller-1")) {
+                svc.start();
+            }
+        });
         assertTrue(ex.getMessage().contains("deliberately-wrong-cluster-id"));
         assertTrue(ex.getMessage().contains(stampedClusterId), "error must show the actual Raft id");
     }

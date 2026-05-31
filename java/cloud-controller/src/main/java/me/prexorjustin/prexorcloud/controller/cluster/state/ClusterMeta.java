@@ -8,11 +8,7 @@ import java.time.Instant;
  * single-use join tokens; it NEVER appears in any REST response or audit log.
  * See docs/engineering/cluster-join-plan.md.
  */
-public record ClusterMeta(
-        String clusterId,
-        String seedSecretBase64,
-        Instant createdAt,
-        int schemaVersion) {
+public record ClusterMeta(String clusterId, String seedSecretBase64, Instant createdAt, int schemaVersion) {
 
     public static final int CURRENT_SCHEMA_VERSION = 1;
 }

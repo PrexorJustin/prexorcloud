@@ -10,7 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -94,17 +93,18 @@ class RatisMultiPeerSpikeTest {
         Peer(String nodeId, int port, Path storageDir) {
             this.id = RaftPeerId.valueOf(nodeId);
             this.port = port;
-            this.peer = RaftPeer.newBuilder().setId(nodeId).setAddress("127.0.0.1:" + port).build();
+            this.peer = RaftPeer.newBuilder()
+                    .setId(nodeId)
+                    .setAddress("127.0.0.1:" + port)
+                    .build();
             this.storageDir = storageDir;
         }
 
         void start(RaftGroup initialGroup) throws IOException {
             Files.createDirectories(storageDir);
             RaftProperties props = baseProps(storageDir, port);
-            RaftServer.Builder builder = RaftServer.newBuilder()
-                    .setServerId(id)
-                    .setProperties(props)
-                    .setStateMachine(sm);
+            RaftServer.Builder builder =
+                    RaftServer.newBuilder().setServerId(id).setProperties(props).setStateMachine(sm);
             if (initialGroup != null) {
                 builder.setGroup(initialGroup);
             }
@@ -171,8 +171,7 @@ class RatisMultiPeerSpikeTest {
         while (System.nanoTime() < deadline) {
             try {
                 var info = p.client.getGroupManagementApi(p.id).info(GROUP_ID);
-                if (info.getRoleInfoProto().getRole()
-                        == org.apache.ratis.proto.RaftProtos.RaftPeerRole.LEADER) {
+                if (info.getRoleInfoProto().getRole() == org.apache.ratis.proto.RaftProtos.RaftPeerRole.LEADER) {
                     return;
                 }
             } catch (IOException ignored) {
@@ -208,12 +207,13 @@ class RatisMultiPeerSpikeTest {
                 throw new RuntimeException(ie);
             }
         }
-        throw new TimeoutException(observer.id + " did not see meta " + expectedClusterId + " within " + timeoutMs + "ms");
+        throw new TimeoutException(
+                observer.id + " did not see meta " + expectedClusterId + " within " + timeoutMs + "ms");
     }
 
     private static void submitMeta(Peer leader, String clusterId) throws IOException {
-        var entry = new me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.SetClusterMeta(
-                new ClusterMeta(
+        var entry =
+                new me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.SetClusterMeta(new ClusterMeta(
                         clusterId,
                         "c2VlZC1zZWVkLXNlZWQtc2VlZC1zZWVkLXNlZWQtc2VlZC1zZWVkPT0=",
                         Instant.parse("2026-05-31T12:00:00Z"),
@@ -229,7 +229,9 @@ class RatisMultiPeerSpikeTest {
         Peer p2 = new Peer("controller-2", freePort(), tmp.resolve("p2"));
         Peer p3 = new Peer("controller-3", freePort(), tmp.resolve("p3"));
 
-        try (p1; p2; p3) {
+        try (p1;
+                p2;
+                p3) {
             // --- Bootstrap p1 as single-member group ---
             p1.start(groupOf(p1));
             awaitLeader(p1, 10_000);
@@ -257,17 +259,23 @@ class RatisMultiPeerSpikeTest {
             p3.start(null);
             RaftGroup threePeerGroup = groupOf(p1, p2, p3);
             p3.rebuildClient(threePeerGroup);
-            assertTrue(p3.client.getGroupManagementApi(p3.id).add(threePeerGroup, true).isSuccess());
+            assertTrue(p3.client
+                    .getGroupManagementApi(p3.id)
+                    .add(threePeerGroup, true)
+                    .isSuccess());
             p1.rebuildClient(threePeerGroup);
             p2.rebuildClient(threePeerGroup);
-            assertTrue(p1.client.admin().setConfiguration(List.of(p1.peer, p2.peer, p3.peer)).isSuccess());
+            assertTrue(p1.client
+                    .admin()
+                    .setConfiguration(List.of(p1.peer, p2.peer, p3.peer))
+                    .isSuccess());
             awaitMetaApplied(p3, "cluster-bootstrap", 10_000);
 
             // --- Drive enough writes to force a snapshot (Q B) ---
             // Use AddMember entries since each one is a distinct apply that grows the log.
             for (int i = 0; i < 80; i++) {
-                var addMember = new me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.AddMember(
-                        new Member(
+                var addMember =
+                        new me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.AddMember(new Member(
                                 "fake-member-" + i,
                                 "127.0.0.1:" + (10_000 + i),
                                 "127.0.0.1:" + (11_000 + i),
@@ -291,7 +299,10 @@ class RatisMultiPeerSpikeTest {
                 p4.start(null);
                 RaftGroup fourPeerGroup = groupOf(p1, p2, p3, p4);
                 p4.rebuildClient(fourPeerGroup);
-                assertTrue(p4.client.getGroupManagementApi(p4.id).add(fourPeerGroup, true).isSuccess());
+                assertTrue(p4.client
+                        .getGroupManagementApi(p4.id)
+                        .add(fourPeerGroup, true)
+                        .isSuccess());
                 p1.rebuildClient(fourPeerGroup);
                 assertTrue(p1.client
                         .admin()
@@ -323,7 +334,8 @@ class RatisMultiPeerSpikeTest {
         Peer p1 = new TlsPeer("controller-1", freePort(), tmp.resolve("p1"), tlsConfig(c1, ca));
         Peer p2 = new TlsPeer("controller-2", freePort(), tmp.resolve("p2"), tlsConfig(c2, ca));
 
-        try (p1; p2) {
+        try (p1;
+                p2) {
             p1.start(groupOf(p1));
             awaitLeader(p1, 10_000);
 
@@ -332,7 +344,10 @@ class RatisMultiPeerSpikeTest {
             p2.rebuildClient(g);
             assertTrue(p2.client.getGroupManagementApi(p2.id).add(g, true).isSuccess());
             p1.rebuildClient(g);
-            assertTrue(p1.client.admin().setConfiguration(List.of(p1.peer, p2.peer)).isSuccess());
+            assertTrue(p1.client
+                    .admin()
+                    .setConfiguration(List.of(p1.peer, p2.peer))
+                    .isSuccess());
 
             submitMeta(p1, "cluster-tls");
             awaitMetaApplied(p2, "cluster-tls", 10_000);
@@ -399,5 +414,4 @@ class RatisMultiPeerSpikeTest {
                     .build();
         }
     }
-
 }

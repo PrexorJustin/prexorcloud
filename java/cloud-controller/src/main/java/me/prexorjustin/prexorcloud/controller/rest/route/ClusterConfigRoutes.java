@@ -82,9 +82,10 @@ public final class ClusterConfigRoutes {
         boolean reveal = revealRequested(ctx);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("activeVersion", plane.getActiveConfigVersion());
-        plane.getActiveConfigPatch().ifPresentOrElse(
-                v -> body.put("patch", reveal ? v.patch() : maskPatch(v.patch(), "")),
-                () -> body.put("patch", Map.of()));
+        plane.getActiveConfigPatch()
+                .ifPresentOrElse(
+                        v -> body.put("patch", reveal ? v.patch() : maskPatch(v.patch(), "")),
+                        () -> body.put("patch", Map.of()));
         ctx.status(200);
         ctx.json(body);
     }
@@ -158,8 +159,7 @@ public final class ClusterConfigRoutes {
         String mutator = ctx.attribute("username");
         ClusterControlPlane plane = controller.clusterControlPlane();
         try {
-            int newVersion =
-                    plane.proposeConfigPatch(parentVersion, mutator, (Map<String, Object>) patchMap, reason);
+            int newVersion = plane.proposeConfigPatch(parentVersion, mutator, (Map<String, Object>) patchMap, reason);
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("version", newVersion);
             resp.put("parentVersion", parentVersion);

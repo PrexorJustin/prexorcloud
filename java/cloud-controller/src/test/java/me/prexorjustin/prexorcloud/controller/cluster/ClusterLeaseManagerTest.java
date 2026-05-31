@@ -49,8 +49,7 @@ class ClusterLeaseManagerTest {
                 null,
                 null,
                 new RuntimeConfig(RuntimeConfig.PRODUCTION),
-                new SecurityControllerConfig(
-                        "jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
+                new SecurityControllerConfig("jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
                 null,
                 null,
                 null,
@@ -76,7 +75,8 @@ class ClusterLeaseManagerTest {
             var b = new ClusterLeaseManager(plane, "controller-b");
 
             assertTrue(a.tryAcquire("audit-pruner", Duration.ofMinutes(5)));
-            assertFalse(b.tryAcquire("audit-pruner", Duration.ofMinutes(5)),
+            assertFalse(
+                    b.tryAcquire("audit-pruner", Duration.ofMinutes(5)),
                     "second holder must be rejected while first one's lease is valid");
 
             // Same holder re-acquiring is treated as a re-grant (state machine
@@ -85,7 +85,8 @@ class ClusterLeaseManagerTest {
             assertTrue(a.tryAcquire("audit-pruner", Duration.ofMinutes(5)));
 
             a.release("audit-pruner");
-            assertTrue(b.tryAcquire("audit-pruner", Duration.ofMinutes(5)),
+            assertTrue(
+                    b.tryAcquire("audit-pruner", Duration.ofMinutes(5)),
                     "after release the contending holder must acquire cleanly");
         }
     }

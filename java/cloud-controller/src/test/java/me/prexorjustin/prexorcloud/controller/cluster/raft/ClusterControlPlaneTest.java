@@ -77,14 +77,13 @@ class ClusterControlPlaneTest {
             assertEquals(List.of(m1), cp.listMembers());
 
             cp.touchMember("controller-1", Instant.parse("2026-05-29T12:05:00Z"));
-            assertEquals(Instant.parse("2026-05-29T12:05:00Z"), cp.listMembers().get(0).lastSeen());
+            assertEquals(
+                    Instant.parse("2026-05-29T12:05:00Z"),
+                    cp.listMembers().get(0).lastSeen());
 
             // Versioned config — first version with parentVersion=0, then a child.
             int v1 = cp.proposeConfigPatch(
-                    0,
-                    "wizard",
-                    Map.of("runtime", Map.of("profile", "production")),
-                    "first-boot");
+                    0, "wizard", Map.of("runtime", Map.of("profile", "production")), "first-boot");
             assertEquals(1, v1);
             assertEquals(1, cp.getActiveConfigVersion());
 
@@ -118,8 +117,7 @@ class ClusterControlPlaneTest {
             cp.writeJoinToken(token);
             assertEquals(1, cp.listJoinTokens().size());
 
-            cp.redeemJoinToken(
-                    "jti-abc", Instant.parse("2026-05-29T12:11:00Z"), "10.0.0.42", "controller-2-node");
+            cp.redeemJoinToken("jti-abc", Instant.parse("2026-05-29T12:11:00Z"), "10.0.0.42", "controller-2-node");
             JoinToken redeemed = cp.getJoinToken("jti-abc").orElseThrow();
             assertNotNull(redeemed.redeemedAt());
             assertEquals("controller-2-node", redeemed.redeemedAs());
@@ -232,10 +230,7 @@ class ClusterControlPlaneTest {
             assertThrows(
                     IllegalStateException.class,
                     () -> cp.issueJoinToken(
-                            List.of("controller-1.cluster.test:9091"),
-                            java.time.Duration.ofHours(1),
-                            null,
-                            "alice"));
+                            List.of("controller-1.cluster.test:9091"), java.time.Duration.ofHours(1), null, "alice"));
         }
     }
 
@@ -257,7 +252,12 @@ class ClusterControlPlaneTest {
                     "alice",
                     Instant.parse("2026-05-29T12:00:00Z"),
                     Instant.parse("2026-05-30T12:00:00Z"),
-                    null, null, null, false, null, null);
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    null);
             cp.writeJoinToken(token);
             cp.redeemJoinToken("jti-replay", Instant.parse("2026-05-29T12:01:00Z"), "10.0.0.42", "ctrl-2");
 
@@ -282,9 +282,8 @@ class ClusterControlPlaneTest {
             ClusterControlPlane cp = new ClusterControlPlane(raft, sm);
 
             cp.grantLease("scheduler", "controller-1", 60_000);
-            ClusterWriteConflict ex = assertThrows(
-                    ClusterWriteConflict.class,
-                    () -> cp.grantLease("scheduler", "controller-2", 60_000));
+            ClusterWriteConflict ex =
+                    assertThrows(ClusterWriteConflict.class, () -> cp.grantLease("scheduler", "controller-2", 60_000));
             assertEquals("LEASE_HELD", ex.code());
         }
     }
@@ -330,7 +329,12 @@ class ClusterControlPlaneTest {
                         "alice",
                         Instant.parse("2026-05-29T12:02:00Z"),
                         Instant.parse("2026-05-30T12:02:00Z"),
-                        null, null, null, false, null, null));
+                        null,
+                        null,
+                        null,
+                        false,
+                        null,
+                        null));
                 cp.grantLease("scheduler", "controller-1", 30_000);
                 cp.writeClusterFile("cluster-ca.crt", "fake-ca-cert".getBytes());
                 cp.writeClusterFile("cluster-ca.key", "fake-ca-key".getBytes());
@@ -413,8 +417,8 @@ class ClusterControlPlaneTest {
             assertEquals(3, committed.size(), "patches surfaced, only the throwing call dropped");
             assertTrue(committed.stream()
                     .allMatch(e -> e
-                            instanceof me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry
-                                    .WriteConfigVersion));
+                            instanceof
+                            me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.WriteConfigVersion));
         }
     }
 }

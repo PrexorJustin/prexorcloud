@@ -60,8 +60,7 @@ class JoinTokenCodecTest {
     @DisplayName("parse rejects tokens with non-base64 payload")
     void parseRejectsCorruptPayload() {
         assertThrows(
-                JoinTokenCodec.InvalidJoinToken.class,
-                () -> JoinTokenCodec.parse("prexor-jt:v1:###not-base64###.aaa"));
+                JoinTokenCodec.InvalidJoinToken.class, () -> JoinTokenCodec.parse("prexor-jt:v1:###not-base64###.aaa"));
     }
 
     @Test

@@ -28,6 +28,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.ratis.protocol.Message;
+import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.ratis.server.storage.FileInfo;
@@ -38,7 +39,6 @@ import org.apache.ratis.statemachine.TransactionContext;
 import org.apache.ratis.statemachine.impl.BaseStateMachine;
 import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage;
 import org.apache.ratis.statemachine.impl.SingleFileSnapshotInfo;
-import org.apache.ratis.protocol.RaftGroupId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,8 +59,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterControlStateMachine.class);
 
-    private static final ObjectMapper SNAPSHOT_MAPPER =
-            new ObjectMapper().registerModule(new JavaTimeModule());
+    private static final ObjectMapper SNAPSHOT_MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final SimpleStateMachineStorage storage = new SimpleStateMachineStorage();
 
@@ -128,12 +127,14 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
     @Override
     public CompletableFuture<Message> applyTransaction(TransactionContext trx) {
         try {
-            ClusterEntry entry = ClusterEntry.decode(trx.getStateMachineLogEntry().getLogData());
+            ClusterEntry entry =
+                    ClusterEntry.decode(trx.getStateMachineLogEntry().getLogData());
             ClusterEntry.Reply reply = apply(entry);
             if (reply.ok()) {
                 notifyCommit(entry);
             }
-            updateLastAppliedTermIndex(trx.getLogEntry().getTerm(), trx.getLogEntry().getIndex());
+            updateLastAppliedTermIndex(
+                    trx.getLogEntry().getTerm(), trx.getLogEntry().getIndex());
             return CompletableFuture.completedFuture(Message.valueOf(reply.encode()));
         } catch (RuntimeException e) {
             logger.error("applyTransaction failed", e);
@@ -179,7 +180,8 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         if (prior != null && !prior.clusterId().equals(e.meta().clusterId())) {
             return ClusterEntry.Reply.rejected(
                     "CLUSTER_ID_MISMATCH",
-                    "Refusing to overwrite clusterId=" + prior.clusterId() + " with " + e.meta().clusterId());
+                    "Refusing to overwrite clusterId=" + prior.clusterId() + " with "
+                            + e.meta().clusterId());
         }
         meta.set(e.meta());
         return ClusterEntry.Reply.success();
@@ -190,8 +192,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         if (prior == null) {
             return ClusterEntry.Reply.rejected("NO_CLUSTER_META", "RotateSeed before SetClusterMeta");
         }
-        meta.set(new ClusterMeta(
-                prior.clusterId(), e.newSeedSecretBase64(), prior.createdAt(), prior.schemaVersion()));
+        meta.set(new ClusterMeta(prior.clusterId(), e.newSeedSecretBase64(), prior.createdAt(), prior.schemaVersion()));
         return ClusterEntry.Reply.success();
     }
 
@@ -211,8 +212,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         }
         if (active == 0 && cv.parentVersion() != 0) {
             return ClusterEntry.Reply.rejected(
-                    "PARENT_VERSION_INVALID",
-                    "first version must declare parentVersion=0, got " + cv.parentVersion());
+                    "PARENT_VERSION_INVALID", "first version must declare parentVersion=0, got " + cv.parentVersion());
         }
         configVersions.put(cv.version(), cv);
         activeConfigVersion.set(cv.version());
@@ -263,7 +263,8 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         // existing token is identical. Different payload for the same jti is rejected.
         JoinToken existing = joinTokens.get(e.token().jti());
         if (existing != null && !existing.equals(e.token())) {
-            return ClusterEntry.Reply.rejected("JTI_COLLISION", "jti " + e.token().jti() + " already exists");
+            return ClusterEntry.Reply.rejected(
+                    "JTI_COLLISION", "jti " + e.token().jti() + " already exists");
         }
         joinTokens.put(e.token().jti(), e.token());
         return ClusterEntry.Reply.success();
@@ -284,7 +285,8 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
                             + token.redeemedAs());
         }
         if (token.isExpired(e.redeemedAt())) {
-            return ClusterEntry.Reply.rejected("TOKEN_EXPIRED", "token " + e.jti() + " expired at " + token.expiresAt());
+            return ClusterEntry.Reply.rejected(
+                    "TOKEN_EXPIRED", "token " + e.jti() + " expired at " + token.expiresAt());
         }
         joinTokens.put(
                 e.jti(),
@@ -332,7 +334,9 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
 
     private ClusterEntry.Reply applyGrantLease(ClusterEntry.GrantLease e) {
         Lease existing = leases.get(e.name());
-        if (existing != null && existing.isValid(e.grantedAt()) && !existing.holder().equals(e.holder())) {
+        if (existing != null
+                && existing.isValid(e.grantedAt())
+                && !existing.holder().equals(e.holder())) {
             return ClusterEntry.Reply.rejected(
                     "LEASE_HELD",
                     "lease '" + e.name() + "' is held by " + existing.holder() + " until "
@@ -353,8 +357,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
                     "lease '" + e.name() + "' is held by " + existing.holder() + ", not " + e.holder());
         }
         leases.put(
-                e.name(),
-                new Lease(e.name(), e.holder(), existing.grantedAt(), existing.ttlMillis(), e.renewedAt()));
+                e.name(), new Lease(e.name(), e.holder(), existing.grantedAt(), existing.ttlMillis(), e.renewedAt()));
         return ClusterEntry.Reply.success();
     }
 
@@ -444,7 +447,8 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         if (applied == null || applied.getIndex() <= 0) {
             return -1L;
         }
-        Path snapshotFile = storage.getSnapshotFile(applied.getTerm(), applied.getIndex()).toPath();
+        Path snapshotFile =
+                storage.getSnapshotFile(applied.getTerm(), applied.getIndex()).toPath();
         Files.createDirectories(snapshotFile.getParent());
         try (OutputStream out = Files.newOutputStream(snapshotFile)) {
             SNAPSHOT_MAPPER.writeValue(out, captureState());
@@ -473,11 +477,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         SnapshotState state = SNAPSHOT_MAPPER.readValue(path.toFile(), SnapshotState.class);
         restoreState(state);
         setLastAppliedTermIndex(latest.getTermIndex());
-        logger.info(
-                "Restored from snapshot term={}, index={}, file={}",
-                latest.getTerm(),
-                latest.getIndex(),
-                path);
+        logger.info("Restored from snapshot term={}, index={}, file={}", latest.getTerm(), latest.getIndex(), path);
     }
 
     private SnapshotState captureState() {

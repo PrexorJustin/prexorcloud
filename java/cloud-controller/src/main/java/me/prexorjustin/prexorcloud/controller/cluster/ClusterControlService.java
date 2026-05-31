@@ -24,12 +24,12 @@ import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
-import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
 import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
 import me.prexorjustin.prexorcloud.controller.config.ClusterJoinTemplate;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.protocol.ClusterMembershipGrpc;
+import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
 
 import io.grpc.ManagedChannel;
 import org.apache.ratis.grpc.GrpcTlsConfig;
@@ -214,10 +214,7 @@ public final class ClusterControlService implements AutoCloseable {
             joinResult = flow.join(
                     token,
                     new ClusterJoinFlow.JoinIdentity(
-                            nodeId,
-                            selfIdentity.raftAddr(),
-                            selfIdentity.restAddr(),
-                            selfIdentity.grpcAddr()));
+                            nodeId, selfIdentity.raftAddr(), selfIdentity.restAddr(), selfIdentity.grpcAddr()));
         } catch (IOException | RuntimeException e) {
             throw e;
         } catch (Exception e) {
@@ -243,10 +240,11 @@ public final class ClusterControlService implements AutoCloseable {
                 .setAddress(selfRaftAddress())
                 .build();
         List<RaftPeer> knownPeers = Stream.concat(
-                        joinResult.existingPeers().stream().map(p -> RaftPeer.newBuilder()
-                                .setId(p.nodeId())
-                                .setAddress(p.raftAddr())
-                                .build()),
+                        joinResult.existingPeers().stream()
+                                .map(p -> RaftPeer.newBuilder()
+                                        .setId(p.nodeId())
+                                        .setAddress(p.raftAddr())
+                                        .build()),
                         Stream.of(self))
                 .toList();
         RaftGroup knownGroup = RaftGroup.valueOf(raftGroupId(), knownPeers);
@@ -291,14 +289,13 @@ public final class ClusterControlService implements AutoCloseable {
         Path raftDir = Path.of(config.raft().dataDir());
         if (Files.isDirectory(raftDir)) {
             try (Stream<Path> entries = Files.walk(raftDir)) {
-                entries.sorted((a, b) -> b.getNameCount() - a.getNameCount())
-                        .forEach(p -> {
-                            try {
-                                Files.deleteIfExists(p);
-                            } catch (IOException ignored) {
-                                // best-effort
-                            }
-                        });
+                entries.sorted((a, b) -> b.getNameCount() - a.getNameCount()).forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                    } catch (IOException ignored) {
+                        // best-effort
+                    }
+                });
             }
         }
     }
@@ -314,7 +311,8 @@ public final class ClusterControlService implements AutoCloseable {
                     .distinct()
                     .toList();
             var leaf = ca.issueClusterPeerCertificate(nodeId, sans, 365);
-            materials.persist(ca.certificate(), leaf.certificate(), leaf.keyPair().getPrivate());
+            materials.persist(
+                    ca.certificate(), leaf.certificate(), leaf.keyPair().getPrivate());
             logger.info(
                     "Minted Day-0 cluster CA + self leaf cert; persisted to {} (CA fingerprint={})",
                     materials.directory(),
@@ -338,20 +336,12 @@ public final class ClusterControlService implements AutoCloseable {
      * we swallow.
      */
     private void ensureSelfMember() {
-        boolean alreadyPresent = controlPlane.listMembers().stream()
-                .anyMatch(m -> nodeId.equals(m.nodeId()));
+        boolean alreadyPresent = controlPlane.listMembers().stream().anyMatch(m -> nodeId.equals(m.nodeId()));
         if (alreadyPresent) {
             return;
         }
         try {
-            Member self = new Member(
-                    nodeId,
-                    selfRaftAddress(),
-                    "",
-                    "",
-                    nodeId,
-                    Instant.now(clock),
-                    Instant.now(clock));
+            Member self = new Member(nodeId, selfRaftAddress(), "", "", nodeId, Instant.now(clock), Instant.now(clock));
             controlPlane.addMember(self);
             logger.info("Stamped Day-0 self member {} at {}", nodeId, selfRaftAddress());
         } catch (IOException e) {
@@ -367,9 +357,7 @@ public final class ClusterControlService implements AutoCloseable {
     private static ControllerConfig withClusterId(ControllerConfig cfg, String clusterId) {
         ClusterConfig prior = cfg.cluster();
         ClusterConfig updated = new ClusterConfig(
-                clusterId,
-                prior == null ? null : prior.joinedFrom(),
-                prior == null ? null : prior.joinedAt());
+                clusterId, prior == null ? null : prior.joinedFrom(), prior == null ? null : prior.joinedAt());
         return new ControllerConfig(
                 cfg.uuid(),
                 cfg.http(),
@@ -412,7 +400,8 @@ public final class ClusterControlService implements AutoCloseable {
      */
     private void reconcileClusterIdentity() throws IOException {
         Optional<ClusterMeta> existing = controlPlane.getClusterMeta();
-        String yamlClusterId = config.cluster() == null ? null : config.cluster().id();
+        String yamlClusterId =
+                config.cluster() == null ? null : config.cluster().id();
 
         if (existing.isPresent()) {
             ClusterMeta meta = existing.get();
@@ -429,12 +418,13 @@ public final class ClusterControlService implements AutoCloseable {
 
         // No cluster meta in Raft yet. First-ever boot (or first v1.1 boot post-migration).
         // Generate a fresh identity AND a fresh seed secret.
-        String clusterId = yamlClusterId != null ? yamlClusterId : UUID.randomUUID().toString();
+        String clusterId =
+                yamlClusterId != null ? yamlClusterId : UUID.randomUUID().toString();
         byte[] seed = new byte[32];
         random.nextBytes(seed);
         String seedB64 = Base64.getEncoder().encodeToString(seed);
-        ClusterMeta seeded = new ClusterMeta(
-                clusterId, seedB64, Instant.now(clock), ClusterMeta.CURRENT_SCHEMA_VERSION);
+        ClusterMeta seeded =
+                new ClusterMeta(clusterId, seedB64, Instant.now(clock), ClusterMeta.CURRENT_SCHEMA_VERSION);
         controlPlane.setClusterMeta(seeded);
         resolvedClusterId = clusterId;
         logger.info(
@@ -461,7 +451,8 @@ public final class ClusterControlService implements AutoCloseable {
             CertificateAuthority ca = day0InMemoryCa != null
                     ? day0InMemoryCa
                     : CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
-            controlPlane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
+            controlPlane.writeClusterFile(
+                    ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
             controlPlane.writeClusterFile(
                     ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
             logger.info("Stamped cluster CA (fingerprint={}) into Raft state", ca.fingerprint());
@@ -486,9 +477,8 @@ public final class ClusterControlService implements AutoCloseable {
         }
         Map<String, Object> initial = ClusterJoinTemplate.buildSharedMap(config);
         if (initial.isEmpty()) {
-            logger.warn(
-                    "No cluster-shared config detected in controller.yml — leaving cluster_config empty until"
-                            + " the wizard or first PATCH writes one.");
+            logger.warn("No cluster-shared config detected in controller.yml — leaving cluster_config empty until"
+                    + " the wizard or first PATCH writes one.");
             return;
         }
         int newVersion = controlPlane.proposeConfigPatch(
@@ -527,13 +517,14 @@ public final class ClusterControlService implements AutoCloseable {
 
     private static CloudEvent toCloudEvent(ClusterEntry entry) {
         return switch (entry) {
-            case ClusterEntry.WriteConfigVersion e -> new ClusterConfigChangedEvent(
-                    e.version().version(),
-                    e.version().parentVersion(),
-                    e.version().mutator(),
-                    ClusterConfigChangedEvent.ACTION_PATCH);
-            case ClusterEntry.SetActiveConfigVersion e -> new ClusterConfigChangedEvent(
-                    e.version(), -1, e.setBy(), ClusterConfigChangedEvent.ACTION_ROLLBACK);
+            case ClusterEntry.WriteConfigVersion e ->
+                new ClusterConfigChangedEvent(
+                        e.version().version(),
+                        e.version().parentVersion(),
+                        e.version().mutator(),
+                        ClusterConfigChangedEvent.ACTION_PATCH);
+            case ClusterEntry.SetActiveConfigVersion e ->
+                new ClusterConfigChangedEvent(e.version(), -1, e.setBy(), ClusterConfigChangedEvent.ACTION_ROLLBACK);
             // Other entries (SetClusterMeta, RotateSeed, AddMember, …) don't fan
             // out via EventBus today — subscribers can be added as the relevant
             // phases materialise.

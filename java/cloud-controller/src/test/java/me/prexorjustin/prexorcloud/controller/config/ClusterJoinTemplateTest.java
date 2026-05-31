@@ -142,9 +142,23 @@ class ClusterJoinTemplateTest {
     @DisplayName("redis omitted when null (development without redis)")
     void redisOmittedWhenNull() {
         ControllerConfig devConfig = new ControllerConfig(
-                null, null, null, null, null, null, null, null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 new RuntimeConfig(RuntimeConfig.DEVELOPMENT),
-                null, null, null, null, null, null, null, null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null /* redis */);
 
         Map<String, Object> shared = ClusterJoinTemplate.buildSharedMap(devConfig);
@@ -156,10 +170,25 @@ class ClusterJoinTemplateTest {
     @SuppressWarnings("unchecked")
     void clusterIdProjectsWhenSet() {
         ControllerConfig withClusterId = new ControllerConfig(
-                null, null, null, null, null, null, null, null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 new RuntimeConfig(RuntimeConfig.DEVELOPMENT),
-                null, null, null, null, null, null, null, null,
-                null, null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 new ClusterConfig("cluster-uuid-abc", null, null),
                 null);

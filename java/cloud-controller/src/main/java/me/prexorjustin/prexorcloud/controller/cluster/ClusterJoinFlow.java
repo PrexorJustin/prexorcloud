@@ -106,10 +106,10 @@ public final class ClusterJoinFlow {
         RequestJoinResponse resp = stub.requestJoin(req);
 
         CertificateFactory cf = CertificateFactory.getInstance("X.509");
-        X509Certificate signed = (X509Certificate)
-                cf.generateCertificate(new java.io.ByteArrayInputStream(resp.getSignedCertDer().toByteArray()));
-        X509Certificate ca = (X509Certificate)
-                cf.generateCertificate(new java.io.ByteArrayInputStream(resp.getCaCertDer().toByteArray()));
+        X509Certificate signed = (X509Certificate) cf.generateCertificate(
+                new java.io.ByteArrayInputStream(resp.getSignedCertDer().toByteArray()));
+        X509Certificate ca = (X509Certificate) cf.generateCertificate(
+                new java.io.ByteArrayInputStream(resp.getCaCertDer().toByteArray()));
 
         List<KnownRaftPeer> peers = resp.getCurrentPeersList().stream()
                 .map(ClusterJoinFlow::toKnownPeer)

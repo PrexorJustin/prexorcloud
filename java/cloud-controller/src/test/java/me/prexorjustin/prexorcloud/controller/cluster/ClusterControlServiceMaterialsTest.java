@@ -49,8 +49,7 @@ class ClusterControlServiceMaterialsTest {
                 null,
                 null,
                 new RuntimeConfig(RuntimeConfig.PRODUCTION),
-                new SecurityControllerConfig(
-                        "jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
+                new SecurityControllerConfig("jwt-secret-1234567890123456789012345678901234567890", 720, "", null),
                 null,
                 null,
                 null,
@@ -80,7 +79,9 @@ class ClusterControlServiceMaterialsTest {
             clusterId = svc.clusterId();
             assertNotNull(clusterId);
             // CA in Raft state.
-            var caFile = svc.controlPlane().getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).orElseThrow();
+            var caFile = svc.controlPlane()
+                    .getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow();
             caCertBytes = caFile.bytes();
             // Self appears in the member list (Day-0 founder).
             assertEquals(1, svc.controlPlane().listMembers().size());
@@ -95,7 +96,9 @@ class ClusterControlServiceMaterialsTest {
         try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
             svc.start(materials);
             assertEquals(clusterId, svc.clusterId(), "restart must reuse persisted clusterId");
-            var caFile = svc.controlPlane().getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).orElseThrow();
+            var caFile = svc.controlPlane()
+                    .getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow();
             org.junit.jupiter.api.Assertions.assertArrayEquals(
                     caCertBytes,
                     caFile.bytes(),

@@ -98,10 +98,12 @@ class ClusterMembershipServiceImplTest {
         raft.start();
         raft.awaitLeader(10_000);
         ClusterControlPlane plane = new ClusterControlPlane(raft, sm);
-        plane.setClusterMeta(new ClusterMeta(CLUSTER_ID, SEED_B64, Instant.parse("2026-05-29T12:00:00Z"), ClusterMeta.CURRENT_SCHEMA_VERSION));
+        plane.setClusterMeta(new ClusterMeta(
+                CLUSTER_ID, SEED_B64, Instant.parse("2026-05-29T12:00:00Z"), ClusterMeta.CURRENT_SCHEMA_VERSION));
         CertificateAuthority ca = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 365);
         plane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
-        plane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
+        plane.writeClusterFile(
+                ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
         return new Harness(raft, plane, ca);
     }
 
@@ -180,11 +182,12 @@ class ClusterMembershipServiceImplTest {
 
             // Returned cert chains to the cluster CA.
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            X509Certificate leaf = (X509Certificate)
-                    cf.generateCertificate(new java.io.ByteArrayInputStream(response.getSignedCertDer().toByteArray()));
+            X509Certificate leaf = (X509Certificate) cf.generateCertificate(
+                    new java.io.ByteArrayInputStream(response.getSignedCertDer().toByteArray()));
             assertNotNull(leaf);
             leaf.verify(h.ca.certificate().getPublicKey());
-            assertEquals(joinerKp.getPublic(), leaf.getPublicKey(), "leaf must use the joiner's public key from the CSR");
+            assertEquals(
+                    joinerKp.getPublic(), leaf.getPublicKey(), "leaf must use the joiner's public key from the CSR");
 
             // Returned CA cert is the cluster CA bytes that were stamped earlier.
             assertEquals(ByteString.copyFrom(h.ca.certificate().getEncoded()), response.getCaCertDer());
@@ -219,7 +222,9 @@ class ClusterMembershipServiceImplTest {
             svc.requestJoin(joinRequest(issued.token(), csr, "controller-2"), obs);
 
             assertNotNull(obs.failure.get());
-            assertEquals(Status.UNAUTHENTICATED.getCode(), Status.fromThrowable(obs.failure.get()).getCode());
+            assertEquals(
+                    Status.UNAUTHENTICATED.getCode(),
+                    Status.fromThrowable(obs.failure.get()).getCode());
             // No member was added.
             assertTrue(h.plane.listMembers().isEmpty());
         }
@@ -270,7 +275,9 @@ class ClusterMembershipServiceImplTest {
             svc.requestJoin(joinRequest(issued.token(), csr, "controller-2"), obs);
 
             assertNotNull(obs.failure.get());
-            assertEquals(Status.UNAUTHENTICATED.getCode(), Status.fromThrowable(obs.failure.get()).getCode());
+            assertEquals(
+                    Status.UNAUTHENTICATED.getCode(),
+                    Status.fromThrowable(obs.failure.get()).getCode());
         }
     }
 

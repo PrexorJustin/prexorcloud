@@ -144,7 +144,9 @@ public final class ClusterMembersRoutes {
         logger.info("cluster leave initiated by {} for nodeId={}", mutator, selfNodeId);
 
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("clusterId", plane.getClusterMeta().map(meta -> meta.clusterId()).orElse(null));
+        body.put(
+                "clusterId",
+                plane.getClusterMeta().map(meta -> meta.clusterId()).orElse(null));
         body.put("nodeId", selfNodeId);
         body.put("status", "leaving");
         ctx.status(202);
@@ -166,14 +168,15 @@ public final class ClusterMembersRoutes {
      */
     static LeaveDecision decideLeavability(List<Member> members, String selfNodeId) {
         if (members.size() <= 1) {
-            return new LeaveDecision(false, "LAST_MEMBER",
+            return new LeaveDecision(
+                    false,
+                    "LAST_MEMBER",
                     "cannot leave: this controller is the only cluster member. Use cluster recovery"
                             + " tooling to tear the cluster down.");
         }
         boolean selfIsMember = members.stream().anyMatch(m -> selfNodeId != null && selfNodeId.equals(m.nodeId()));
         if (!selfIsMember) {
-            return new LeaveDecision(false, "NOT_A_MEMBER",
-                    "this controller is not a member of the cluster");
+            return new LeaveDecision(false, "NOT_A_MEMBER", "this controller is not a member of the cluster");
         }
         return new LeaveDecision(true, null, null);
     }

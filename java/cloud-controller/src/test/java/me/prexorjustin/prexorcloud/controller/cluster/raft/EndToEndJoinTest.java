@@ -67,17 +67,15 @@ class EndToEndJoinTest {
         // === leader side (controller-1): existing single-node cluster ===
         int leaderPort = freePort();
         ClusterControlStateMachine leaderSm = new ClusterControlStateMachine();
-        RaftConfig leaderCfg = new RaftConfig("127.0.0.1", leaderPort, tmp.resolve("p1").toString(), List.of());
+        RaftConfig leaderCfg =
+                new RaftConfig("127.0.0.1", leaderPort, tmp.resolve("p1").toString(), List.of());
         RaftBootstrap leaderRaft = new RaftBootstrap(leaderCfg, GROUP_ID, "controller-1", leaderSm);
 
         // Generate the cluster CA + signed leader cert FIRST so we can start the leader with TLS.
         CertificateAuthority ca = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 365);
         var leaderLeaf = ca.issueClusterPeerCertificate("controller-1", List.of("127.0.0.1", "localhost"), 365);
         GrpcTlsConfig leaderTls = new GrpcTlsConfig(
-                leaderLeaf.keyPair().getPrivate(),
-                leaderLeaf.certificate(),
-                List.of(ca.certificate()),
-                true);
+                leaderLeaf.keyPair().getPrivate(), leaderLeaf.certificate(), List.of(ca.certificate()), true);
 
         leaderRaft.start(leaderTls);
         leaderRaft.awaitLeader(15_000);
@@ -85,9 +83,10 @@ class EndToEndJoinTest {
 
         // Stamp meta, store CA in raft state, add controller-1 to the SM (mirrors what
         // ClusterControlService.reconcileClusterIdentity + ensureClusterCa do at boot).
-        leaderPlane.setClusterMeta(new ClusterMeta(
-                CLUSTER_ID, SEED_B64, Instant.now(), ClusterMeta.CURRENT_SCHEMA_VERSION));
-        leaderPlane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
+        leaderPlane.setClusterMeta(
+                new ClusterMeta(CLUSTER_ID, SEED_B64, Instant.now(), ClusterMeta.CURRENT_SCHEMA_VERSION));
+        leaderPlane.writeClusterFile(
+                ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
         leaderPlane.writeClusterFile(
                 ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
         leaderPlane.addMember(new me.prexorjustin.prexorcloud.controller.cluster.state.Member(
@@ -111,14 +110,14 @@ class EndToEndJoinTest {
                 .addService(new ClusterMembershipServiceImpl(leaderPlane))
                 .build()
                 .start();
-        ManagedChannel joinChannel = InProcessChannelBuilder.forName(serverName)
-                .directExecutor()
-                .build();
+        ManagedChannel joinChannel =
+                InProcessChannelBuilder.forName(serverName).directExecutor().build();
 
         // === joiner side (controller-2): nothing yet on disk, no certs, no raft state ===
         int joinerPort = freePort();
         ClusterControlStateMachine joinerSm = new ClusterControlStateMachine();
-        RaftConfig joinerCfg = new RaftConfig("127.0.0.1", joinerPort, tmp.resolve("p2").toString(), List.of());
+        RaftConfig joinerCfg =
+                new RaftConfig("127.0.0.1", joinerPort, tmp.resolve("p2").toString(), List.of());
         RaftBootstrap joinerRaft = new RaftBootstrap(joinerCfg, GROUP_ID, "controller-2", joinerSm);
 
         try {
@@ -147,24 +146,19 @@ class EndToEndJoinTest {
             ClusterJoinFlow.JoinResult result = flow.join(
                     issued.token(),
                     new ClusterJoinFlow.JoinIdentity(
-                            "controller-2",
-                            "127.0.0.1:" + joinerPort,
-                            "127.0.0.1:8444",
-                            "127.0.0.1:9091"));
+                            "controller-2", "127.0.0.1:" + joinerPort, "127.0.0.1:8444", "127.0.0.1:9091"));
             assertEquals(CLUSTER_ID, result.clusterId());
 
             // --- Joiner builds its TLS Parameters from the signed materials and brings up
             // a join-mode Ratis server, then calls add() on itself. ---
-            GrpcTlsConfig joinerTls = new GrpcTlsConfig(
-                    result.privateKey(),
-                    result.signedCert(),
-                    List.of(result.caCert()),
-                    true);
+            GrpcTlsConfig joinerTls =
+                    new GrpcTlsConfig(result.privateKey(), result.signedCert(), List.of(result.caCert()), true);
             // The known group at join time: the leader plus this peer (which leader will commit
             // via setConfiguration when the reconciler reacts to AddMember).
             RaftGroup knownGroup = RaftGroup.valueOf(
                     org.apache.ratis.protocol.RaftGroupId.valueOf(GROUP_ID),
-                    List.of(leaderRaft.selfPeer(),
+                    List.of(
+                            leaderRaft.selfPeer(),
                             RaftPeer.newBuilder()
                                     .setId("controller-2")
                                     .setAddress("127.0.0.1:" + joinerPort)
@@ -179,16 +173,18 @@ class EndToEndJoinTest {
 
             // And the cluster files (CA cert + key) replicated via the same path.
             ClusterControlPlane joinerPlane = new ClusterControlPlane(joinerRaft, joinerSm);
-            assertTrue(joinerPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).isPresent());
-            assertTrue(joinerPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY).isPresent());
+            assertTrue(
+                    joinerPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).isPresent());
+            assertTrue(
+                    joinerPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY).isPresent());
 
             // Joiner's view of the member list converges on what the leader recorded.
             assertEquals(2, joinerPlane.listMembers().size());
 
             // Cert chains to the cluster CA stored in the leader's raft state.
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
-            X509Certificate joinerCertReloaded = (X509Certificate)
-                    cf.generateCertificate(new java.io.ByteArrayInputStream(result.signedCert().getEncoded()));
+            X509Certificate joinerCertReloaded = (X509Certificate) cf.generateCertificate(
+                    new java.io.ByteArrayInputStream(result.signedCert().getEncoded()));
             joinerCertReloaded.verify(ca.certificate().getPublicKey());
         } finally {
             joinChannel.shutdownNow();

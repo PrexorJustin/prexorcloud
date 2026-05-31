@@ -1,6 +1,5 @@
 package me.prexorjustin.prexorcloud.controller.cluster.raft;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,13 +17,13 @@ import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
 import org.apache.ratis.grpc.GrpcTlsConfig;
 import org.apache.ratis.protocol.ClientId;
-import org.apache.ratis.rpc.SupportedRpcType;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientReply;
 import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
 import org.apache.ratis.protocol.exceptions.RaftException;
+import org.apache.ratis.rpc.SupportedRpcType;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
 import org.apache.ratis.statemachine.StateMachine;
@@ -64,10 +63,8 @@ public final class RaftBootstrap implements AutoCloseable {
         this.config = config;
         this.stateMachine = stateMachine;
         String address = NetUtils.createSocketAddr(config.host(), config.port()).getHostString() + ":" + config.port();
-        this.selfPeer = RaftPeer.newBuilder()
-                .setId(selfNodeId)
-                .setAddress(address)
-                .build();
+        this.selfPeer =
+                RaftPeer.newBuilder().setId(selfNodeId).setAddress(address).build();
         this.groupId = RaftGroupId.valueOf(groupUuid);
         this.currentGroup = RaftGroup.valueOf(groupId, List.of(selfPeer));
     }
@@ -173,7 +170,10 @@ public final class RaftBootstrap implements AutoCloseable {
             throw new IOException("GroupManagementApi.add failed: " + (ex == null ? "unknown" : ex.getMessage()));
         }
         this.currentGroup = group;
-        logger.info("Joined existing group {} ({} peers)", group.getGroupId(), group.getPeers().size());
+        logger.info(
+                "Joined existing group {} ({} peers)",
+                group.getGroupId(),
+                group.getPeers().size());
     }
 
     /** Rebuild the management client to know about the current peer list. */

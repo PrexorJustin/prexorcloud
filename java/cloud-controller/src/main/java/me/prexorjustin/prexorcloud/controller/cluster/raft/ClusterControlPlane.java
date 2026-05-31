@@ -1,14 +1,13 @@
 package me.prexorjustin.prexorcloud.controller.cluster.raft;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 
 import me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
@@ -107,9 +106,10 @@ public final class ClusterControlPlane {
         // Optimistic version assignment: next = lastSeen + 1. If a concurrent writer beats
         // us to it, the state machine rejects with VERSION_NOT_NEXT and the caller retries.
         List<ClusterConfigVersion> existing = sm.listConfigVersions();
-        int proposedVersion = existing.isEmpty() ? 1 : existing.get(existing.size() - 1).version() + 1;
-        ClusterConfigVersion v = new ClusterConfigVersion(
-                proposedVersion, parentVersion, mutator, Instant.now(), patch, reason);
+        int proposedVersion =
+                existing.isEmpty() ? 1 : existing.get(existing.size() - 1).version() + 1;
+        ClusterConfigVersion v =
+                new ClusterConfigVersion(proposedVersion, parentVersion, mutator, Instant.now(), patch, reason);
         ClusterEntry.Reply reply = submit(new ClusterEntry.WriteConfigVersion(v));
         if (!reply.ok()) {
             throw new ClusterWriteConflict(reply.code(), reply.message());

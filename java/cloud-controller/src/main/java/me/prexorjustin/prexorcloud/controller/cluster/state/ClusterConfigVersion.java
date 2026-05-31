@@ -13,12 +13,7 @@ import java.util.Map;
  * compute the effective config.
  */
 public record ClusterConfigVersion(
-        int version,
-        int parentVersion,
-        String mutator,
-        Instant mutatedAt,
-        Map<String, Object> patch,
-        String reason) {
+        int version, int parentVersion, String mutator, Instant mutatedAt, Map<String, Object> patch, String reason) {
 
     public ClusterConfigVersion {
         patch = patch == null ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(patch));

@@ -77,9 +77,7 @@ public final class ClusterJoinTokenRoutes {
         if (ttlSeconds <= 0 || ttlSeconds > MAX_TTL_SECONDS) {
             ctx.status(400);
             ctx.json(errorResponse(
-                    "BAD_TTL",
-                    "ttlSeconds must be in (0, " + MAX_TTL_SECONDS + "]; got " + ttlSeconds,
-                    400));
+                    "BAD_TTL", "ttlSeconds must be in (0, " + MAX_TTL_SECONDS + "]; got " + ttlSeconds, 400));
             return;
         }
         String label = body.get("label") instanceof String s ? s : null;
@@ -87,9 +85,7 @@ public final class ClusterJoinTokenRoutes {
         if (!(joinAddrsObj instanceof List<?> joinAddrsRaw) || joinAddrsRaw.isEmpty()) {
             ctx.status(400);
             ctx.json(errorResponse(
-                    "MISSING_JOIN_ADDRS",
-                    "joinAddrs must be a non-empty array of host:port strings",
-                    400));
+                    "MISSING_JOIN_ADDRS", "joinAddrs must be a non-empty array of host:port strings", 400));
             return;
         }
         List<String> joinAddrs = (List<String>) joinAddrsRaw;
@@ -110,9 +106,7 @@ public final class ClusterJoinTokenRoutes {
                     "cluster.join_token.issued",
                     "cluster_join_token",
                     issued.jti(),
-                    Map.of(
-                            "label", label == null ? "(none)" : label,
-                            "ttlSeconds", ttlSeconds));
+                    Map.of("label", label == null ? "(none)" : label, "ttlSeconds", ttlSeconds));
             logger.info("cluster join token issued (jti={}, ttl={}s, by={})", issued.jti(), ttlSeconds, mutator);
         } catch (IllegalStateException e) {
             ctx.status(409);
@@ -128,9 +122,8 @@ public final class ClusterJoinTokenRoutes {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
         Instant now = Instant.now();
         ClusterControlPlane plane = controller.clusterControlPlane();
-        List<Map<String, Object>> tokens = plane.listJoinTokens().stream()
-                .map(t -> tokenJson(t, now))
-                .toList();
+        List<Map<String, Object>> tokens =
+                plane.listJoinTokens().stream().map(t -> tokenJson(t, now)).toList();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("tokens", tokens);
         ctx.status(200);
@@ -151,12 +144,7 @@ public final class ClusterJoinTokenRoutes {
             plane.revokeJoinToken(jti, mutator);
             ctx.status(204);
             RestServer.audit(
-                    ctx,
-                    controller.stateStore(),
-                    "cluster.join_token.revoked",
-                    "cluster_join_token",
-                    jti,
-                    Map.of());
+                    ctx, controller.stateStore(), "cluster.join_token.revoked", "cluster_join_token", jti, Map.of());
             logger.info("cluster join token {} revoked by {}", jti, mutator);
         } catch (ClusterWriteConflict e) {
             ctx.status(409);

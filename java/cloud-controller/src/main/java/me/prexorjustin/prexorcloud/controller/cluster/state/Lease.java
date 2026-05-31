@@ -12,12 +12,7 @@ import java.time.Instant;
  * fails to renew before TTL expiry implicitly releases the lease; another
  * controller can then {@code GrantLease} itself.
  */
-public record Lease(
-        String name,
-        String holder,
-        Instant grantedAt,
-        long ttlMillis,
-        Instant renewedAt) {
+public record Lease(String name, String holder, Instant grantedAt, long ttlMillis, Instant renewedAt) {
 
     public boolean isValid(Instant now) {
         return holder != null && now.isBefore(renewedAt.plusMillis(ttlMillis));
