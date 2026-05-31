@@ -53,6 +53,7 @@ grpc-protobuf = { module = "io.grpc:grpc-protobuf" }
 grpc-services = { module = "io.grpc:grpc-services" }
 grpc-stub = { module = "io.grpc:grpc-stub" }
 grpc-testing = { module = "io.grpc:grpc-testing" }
+grpc-inprocess = { module = "io.grpc:grpc-inprocess" }
 # Jackson
 jackson-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind" }

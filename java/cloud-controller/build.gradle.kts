@@ -41,6 +41,12 @@ dependencies {
     implementation(libs.jakarta.activation.api)
     runtimeOnly(libs.angus.mail)
 
+    // BouncyCastle is needed for cluster-side CSR generation and CA material
+    // handling (controller-to-controller join flow). cloud-security uses it
+    // internally but doesn't export it.
+    implementation(libs.bouncycastle.pkix)
+    implementation(libs.bouncycastle.prov)
+
     // Apache Ratis — embedded Raft for the cluster control plane.
     // See docs/engineering/cluster-join-plan.md.
     implementation(libs.ratis.server.api)
@@ -54,8 +60,7 @@ dependencies {
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
     testImplementation(libs.grpc.testing)
-    testImplementation(libs.bouncycastle.pkix)
-    testImplementation(libs.bouncycastle.prov)
+    testImplementation(libs.grpc.inprocess)
 }
 
 // Exclude long-running Ratis spike tests from the default test task. Invoke them
