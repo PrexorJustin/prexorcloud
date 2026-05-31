@@ -71,9 +71,10 @@ export const navigation: NavGroup[] = [
     labelKey: 'nav.groups.cluster',
     sortOrder: 30,
     items: [
-      { title: 'Nodes',    titleKey: 'nav.items.nodes',    url: '/nodes',           icon: Server },
-      { title: 'Networks', titleKey: 'nav.items.networks', url: '/networks',        icon: Network, permission: 'networks.view' },
-      { title: 'Players',  titleKey: 'nav.items.players',  url: '/cluster/players', icon: UsersRound },
+      { title: 'Controllers', titleKey: 'nav.items.controllers', url: '/cluster/controllers', icon: HeartPulse, permission: 'cluster.view' },
+      { title: 'Nodes',       titleKey: 'nav.items.nodes',       url: '/nodes',               icon: Server },
+      { title: 'Networks',    titleKey: 'nav.items.networks',    url: '/networks',            icon: Network, permission: 'networks.view' },
+      { title: 'Players',     titleKey: 'nav.items.players',     url: '/cluster/players',     icon: UsersRound },
     ],
   },
   {

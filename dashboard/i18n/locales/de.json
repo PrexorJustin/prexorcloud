@@ -17,6 +17,7 @@
       "groups": "Gruppen",
       "instances": "Instanzen",
       "deployments": "Deployments",
+      "controllers": "Controller",
       "nodes": "Nodes",
       "networks": "Netzwerke",
       "players": "Spieler",
@@ -294,6 +295,22 @@
       "restoreStartedDesc": "Der Cluster pausiert die Planung und setzt den Zustand zurück. Das kann mehrere Minuten dauern.",
       "restoreFailed": "Wiederherstellung fehlgeschlagen",
       "restoreFailedDesc": "Wiederherstellung konnte nicht gestartet werden. Prüfe die Controller-Logs."
+    },
+    "cluster": {
+      "loadFailed": "Cluster-Status kann nicht geladen werden",
+      "tokensLoadFailed": "Beitritts-Tokens können nicht geladen werden",
+      "ejected": "Controller {nodeId} entfernt",
+      "ejectFailed": "Controller konnte nicht entfernt werden. Prüfe die Controller-Logs.",
+      "leaving": "Controller {nodeId} verlässt den Cluster",
+      "leavingDesc": "Er wird heruntergefahren, sobald die Mitgliedschaftsänderung übernommen wurde.",
+      "leaveFailed": "Cluster-Austritt fehlgeschlagen. Prüfe die Controller-Logs.",
+      "tokenIssued": "Beitritts-Token ausgestellt",
+      "tokenIssuedDesc": "Kopiere das Token jetzt — es wird nicht erneut angezeigt.",
+      "tokenIssueFailed": "Beitritts-Token konnte nicht ausgestellt werden. Prüfe die Controller-Logs.",
+      "tokenRevoked": "Beitritts-Token widerrufen",
+      "tokenRevokeFailed": "Token konnte nicht widerrufen werden. Prüfe die Controller-Logs.",
+      "seedRotated": "Cluster-Seed rotiert",
+      "seedRotateFailed": "Cluster-Seed konnte nicht rotiert werden."
     },
     "maintenance": {
       "loadFailed": "Wartungsstatus kann nicht geladen werden",

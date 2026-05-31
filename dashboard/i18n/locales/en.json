@@ -17,6 +17,7 @@
       "groups": "Groups",
       "instances": "Instances",
       "deployments": "Deployments",
+      "controllers": "Controllers",
       "nodes": "Nodes",
       "networks": "Networks",
       "players": "Players",
@@ -295,6 +296,22 @@
       "restoreStartedDesc": "The cluster will pause scheduling and roll back state. This may take several minutes.",
       "restoreFailed": "Restore failed",
       "restoreFailedDesc": "Couldn't start the restore. Check the controller logs."
+    },
+    "cluster": {
+      "loadFailed": "Can't load cluster state",
+      "tokensLoadFailed": "Can't load join tokens",
+      "ejected": "Ejected controller {nodeId}",
+      "ejectFailed": "Couldn't eject the controller. Check the controller logs.",
+      "leaving": "Controller {nodeId} is leaving the cluster",
+      "leavingDesc": "It will shut down once the membership change commits.",
+      "leaveFailed": "Couldn't leave the cluster. Check the controller logs.",
+      "tokenIssued": "Join token issued",
+      "tokenIssuedDesc": "Copy the token now — it won't be shown again.",
+      "tokenIssueFailed": "Couldn't issue a join token. Check the controller logs.",
+      "tokenRevoked": "Join token revoked",
+      "tokenRevokeFailed": "Couldn't revoke the token. Check the controller logs.",
+      "seedRotated": "Cluster seed rotated",
+      "seedRotateFailed": "Couldn't rotate the cluster seed."
     },
     "maintenance": {
       "loadFailed": "Can't load maintenance state",
