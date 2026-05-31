@@ -274,6 +274,131 @@ var clusterSeedRotateCmd = &cobra.Command{
 	},
 }
 
+// --- Recover ---------------------------------------------------------------
+
+var clusterRecoverCmd = &cobra.Command{
+	Use:   "recover",
+	Short: "Recover a degraded cluster (quorum-preserved shrink or catastrophic reset)",
+	Long: "Walks the operator through cluster recovery scenarios.\n\n" +
+		"Quorum-preserved (≤ floor((N-1)/2) failures): force-ejects dead peers from the\n" +
+		"member list via the cluster API. Repeats prexorctl cluster eject under the hood.\n\n" +
+		"Catastrophic (quorum lost): prints the offline single-survivor reset procedure.\n" +
+		"This is destructive filesystem surgery on a stopped controller — see\n" +
+		"docs/runbooks/recover-cluster.md for the canonical playbook.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ejectIDs, _ := cmd.Flags().GetStringSlice("eject")
+		catastrophic, _ := cmd.Flags().GetBool("i-have-only-survivor")
+		yes, _ := cmd.Flags().GetBool("yes")
+
+		if catastrophic {
+			return printCatastrophicPlaybook()
+		}
+
+		// Quorum-preserved path. Either --eject was supplied, or we ask
+		// interactively which peers to drop.
+		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+		var resp map[string]any
+		if err := client.Get("/api/v1/cluster/members", &resp); err != nil {
+			return fmt.Errorf("could not list cluster members (is quorum lost? rerun with --i-have-only-survivor): %w", err)
+		}
+		members, _ := resp["members"].([]any)
+		if len(members) == 0 {
+			return fmt.Errorf("cluster has no members — controller may not yet be bootstrapped")
+		}
+		if len(ejectIDs) == 0 {
+			// Interactive prompt: print the list and ask.
+			theme.PrintTitle("Cluster members")
+			for _, raw := range members {
+				m, _ := raw.(map[string]any)
+				fmt.Printf("  %s   raft=%s   last-seen=%s\n",
+					theme.Code(str(m, "nodeId")),
+					str(m, "raftAddr"),
+					theme.StyleMute().Render(str(m, "lastSeen")))
+			}
+			fmt.Println()
+			fmt.Print("  " + theme.StyleDim().Render("Enter dead nodeIds to eject (comma-separated, blank to cancel): "))
+			reader := bufio.NewReader(os.Stdin)
+			line, _ := reader.ReadString('\n')
+			line = strings.TrimSpace(line)
+			if line == "" {
+				theme.PrintWarn("Aborted — no peers ejected.")
+				return nil
+			}
+			for _, raw := range strings.Split(line, ",") {
+				if id := strings.TrimSpace(raw); id != "" {
+					ejectIDs = append(ejectIDs, id)
+				}
+			}
+		}
+		if !yes && !confirmDestructive(
+			fmt.Sprintf("Force-eject %d peer(s)? %v", len(ejectIDs), ejectIDs)) {
+			theme.PrintWarn("Aborted.")
+			return nil
+		}
+		var failed []string
+		for _, id := range ejectIDs {
+			if err := client.Delete("/api/v1/cluster/members/"+id+"?reason=cluster+recover", nil); err != nil {
+				theme.PrintError(fmt.Sprintf("eject %s: %v", id, err))
+				failed = append(failed, id)
+				continue
+			}
+			theme.PrintSuccess("Ejected " + id)
+		}
+		if len(failed) > 0 {
+			return fmt.Errorf("eject failed for: %v", failed)
+		}
+		fmt.Println()
+		theme.PrintWarn("Consider rotating the cluster seed: prexorctl cluster seed rotate")
+		return nil
+	},
+}
+
+// printCatastrophicPlaybook prints the offline single-survivor reset procedure.
+// We deliberately do NOT automate the filesystem surgery — it operates on a
+// stopped controller, requires per-install path knowledge, and gets the
+// operator into a destructive state. The playbook is the canonical reference;
+// this CLI command surfaces it so an on-call who's never read the doc still
+// finds the right sequence at 3am.
+func printCatastrophicPlaybook() error {
+	if flagJSON {
+		return theme.PrintJSON(map[string]any{
+			"scenario": "catastrophic",
+			"playbook": "docs/runbooks/recover-cluster.md",
+			"steps": []string{
+				"stop prexorcloud-controller on the survivor",
+				"back up data/raft/ and config/security/cluster/",
+				"preserve <raftDir>/<groupId>/sm/, rename current+log+raft-meta to .broken-<ts>",
+				"start prexorcloud-controller",
+				"verify: prexorctl cluster status, prexorctl cluster members (count == 1)",
+				"rotate seed: prexorctl cluster seed rotate",
+				"grow back to HA via prexorctl cluster join-token create",
+			},
+		})
+	}
+	theme.PrintTitle("Catastrophic recovery — single-survivor reset")
+	fmt.Println("  This is destructive filesystem surgery. Read the playbook before continuing:")
+	fmt.Println("    " + theme.Code("docs/runbooks/recover-cluster.md"))
+	fmt.Println()
+	fmt.Println("  Summary:")
+	fmt.Println("    1. Stop the controller on the survivor.")
+	fmt.Println("    2. Back up data/raft/ and config/security/cluster/.")
+	fmt.Println("    3. Under data/raft/<groupId>/, preserve sm/ and rename current,")
+	fmt.Println("       log_inprogress, raft-meta* to .broken-<ts> sidecars.")
+	fmt.Println("    4. Start the controller — it boots as a single-member group,")
+	fmt.Println("       the state machine replays from the preserved snapshot.")
+	fmt.Println("    5. Verify: " + theme.Code("prexorctl cluster status") + " and " +
+		theme.Code("prexorctl cluster members") + " (count == 1).")
+	fmt.Println("    6. " + theme.Code("prexorctl cluster seed rotate") +
+		" — invalidate any in-flight join tokens.")
+	fmt.Println("    7. Issue fresh join tokens to grow back to HA.")
+	fmt.Println()
+	theme.PrintWarn("Anything in flight that hadn't replicated to the survivor is lost.")
+	return nil
+}
+
 // --- Helpers ---------------------------------------------------------------
 
 // confirmDestructive is a small y/N prompt for the cluster subcommands. We
@@ -309,6 +434,12 @@ func init() {
 	clusterSeedRotateCmd.Flags().Bool("yes", false, "Skip the interactive confirmation")
 	clusterSeedCmd.AddCommand(clusterSeedRotateCmd)
 
+	clusterRecoverCmd.Flags().StringSlice("eject", nil,
+		"Comma-separated dead nodeIds to eject (skips the interactive prompt)")
+	clusterRecoverCmd.Flags().Bool("i-have-only-survivor", false,
+		"Print the catastrophic single-survivor reset playbook (quorum is lost)")
+	clusterRecoverCmd.Flags().Bool("yes", false, "Skip the interactive confirmation")
+
 	clusterCmd.AddCommand(
 		clusterStatusCmd,
 		clusterMembersCmd,
@@ -316,6 +447,7 @@ func init() {
 		clusterLeaveCmd,
 		clusterJoinTokenCmd,
 		clusterSeedCmd,
+		clusterRecoverCmd,
 	)
 
 	rootCmd.AddCommand(clusterCmd)

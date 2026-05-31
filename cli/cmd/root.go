@@ -35,6 +35,9 @@ var commandsAllowedBeforeLink = map[string]bool{
 	"help":       true,
 	"completion": true,
 	"context":    true, // viewing/listing contexts is harmless before any are populated
+	"cluster":    true, // `cluster recover --i-have-only-survivor` is reachable during disaster
+	// bring-up where no controller context has been linked yet; other cluster subcommands
+	// fall through to requireAuth() which surfaces the accurate "not authenticated" error.
 }
 
 var rootCmd = &cobra.Command{
