@@ -58,6 +58,25 @@ dependencies {
     testImplementation(libs.bouncycastle.prov)
 }
 
+// Exclude long-running Ratis spike tests from the default test task. Invoke them
+// explicitly via `./gradlew :cloud-controller:spikeTest`. See
+// docs/engineering/ratis-spike.md for context.
+tasks.test {
+    useJUnitPlatform {
+        excludeTags("spike")
+    }
+}
+
+tasks.register<Test>("spikeTest") {
+    description = "Runs Ratis multi-peer spike tests (slow, opt-in)."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform {
+        includeTags("spike")
+    }
+}
+
 // --- Bundled plugin JARs (embedded as resources for base templates) ---
 
 val bundledPlugins by configurations.creating {

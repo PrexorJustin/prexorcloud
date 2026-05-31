@@ -447,7 +447,11 @@ Each phase ships independently and adds value on its own.
    seeds it from `controller.yml`. ~3 days.
 4. **gRPC membership protocol + TLS bootstrap** — `ClusterMembership`
    service, join-token-bound CSR signing, member-add via Ratis joint
-   consensus, snapshot fetch over gRPC streaming. ~5 days.
+   consensus, snapshot fetch over gRPC streaming. ~5 days. **Read
+   [ratis-spike.md](ratis-spike.md) first** — the spike answers the four
+   Ratis-API unknowns this phase rests on and already shipped one
+   prerequisite fix (state-machine lifecycle transitions for InstallSnapshot
+   on a joining follower).
 5. **CLI + REST: join tokens, members, status** — `prexorctl cluster ...`
    subcommands and matching REST endpoints. ~3 days.
 6. **Versioned config + REST patch surface** — append-only versions,
