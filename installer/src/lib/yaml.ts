@@ -4,7 +4,7 @@
 // byte-for-byte identical so existing operator muscle-memory keeps working.
 import type { WizardState, WizardMode } from '@/stores/wizard';
 
-export type YamlFilename = 'controller.yml' | 'daemon.yml' | 'docker-compose.yml' | 'nginx.conf' | 'Caddyfile';
+export type YamlFilename = 'controller.yml' | 'daemon.yml' | 'docker-compose.yml' | 'nginx.conf' | 'Caddyfile' | 'pending-join-token';
 
 function nowIso(): string {
   return new Date().toISOString().slice(0, 19) + 'Z';
@@ -25,6 +25,7 @@ export function filesForMode(
   switch (mode) {
     case 'all': return ['controller.yml', 'daemon.yml'];
     case 'controller': return ['controller.yml'];
+    case 'controller-join': return ['controller.yml', 'pending-join-token'];
     case 'daemon': return ['daemon.yml'];
     case 'cli': return [];
     case 'dashboard':
@@ -41,6 +42,7 @@ export function modeLabel(mode: WizardMode): string {
   switch (mode) {
     case 'all': return 'Controller + Daemon (all-in-one)';
     case 'controller': return 'Controller only';
+    case 'controller-join': return 'Add controller to existing cluster';
     case 'daemon': return 'Daemon only';
     case 'dashboard': return 'Dashboard standalone';
     case 'cli': return 'CLI login';
@@ -392,6 +394,11 @@ export function yamlFor(state: WizardState, filename: YamlFilename | string): st
     case 'nginx.conf':
       return state.installMode === 'native' ? dashboardNginxNative(state) : dashboardNginx(state);
     case 'Caddyfile': return dashboardCaddyfile(state);
+    case 'pending-join-token':
+      // What the controller would persist at config/security/pending-join-token —
+      // shown in the preview pane verbatim. The wizard server writes it for real
+      // via setupweb's writePendingJoinToken.
+      return state.controllerJoinToken.trim() + '\n';
     default: return '';
   }
 }

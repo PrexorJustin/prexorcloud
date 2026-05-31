@@ -12,11 +12,12 @@ interface Mode {
 }
 
 const allModes: Mode[] = [
-  { id: 'all',        tag: 'All-in-one',    name: 'Controller + Daemon', desc: 'Single host runs both. Best for evaluation and home labs.' },
-  { id: 'controller', tag: 'Control plane', name: 'Controller only',     desc: 'Daemons join later from other hosts. Recommended for production.' },
-  { id: 'daemon',     tag: 'Join cluster',  name: 'Add daemon',          desc: 'Bring a node online for an existing controller. Needs a join token.' },
-  { id: 'dashboard',  tag: 'Web UI',        name: 'Dashboard',           desc: 'Standalone frontend that talks to a remote controller over HTTPS.' },
-  { id: 'cli',        tag: 'Sign in',       name: 'CLI login',           desc: "Bind this prexorctl to an existing cluster. No install — just point it at the controller and sign in." },
+  { id: 'all',             tag: 'All-in-one',    name: 'Controller + Daemon', desc: 'Single host runs both. Best for evaluation and home labs.' },
+  { id: 'controller',      tag: 'Control plane', name: 'Controller only',     desc: 'Daemons join later from other hosts. Recommended for production.' },
+  { id: 'controller-join', tag: 'Join cluster',  name: 'Add controller',      desc: "Join this host to an existing controller cluster. Needs a join token from 'prexorctl cluster join-token create'." },
+  { id: 'daemon',          tag: 'Join cluster',  name: 'Add daemon',          desc: 'Bring a node online for an existing controller. Needs a join token.' },
+  { id: 'dashboard',       tag: 'Web UI',        name: 'Dashboard',           desc: 'Standalone frontend that talks to a remote controller over HTTPS.' },
+  { id: 'cli',             tag: 'Sign in',       name: 'CLI login',           desc: "Bind this prexorctl to an existing cluster. No install — just point it at the controller and sign in." },
 ];
 
 // The CLI-login card is hidden when /api/info reports the host wizard wasn't

@@ -181,6 +181,24 @@ describe('doInstall', () => {
     expect(wiz.installLog.some((l) => l.msg.includes('provisioned'))).toBe(true);
   });
 
+  it('POSTs to /api/install/controller with joinToken set in "controller-join" mode', async () => {
+    const calls: Array<{ url: string; body: { joinToken?: string } }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
+        calls.push({ url, body: JSON.parse(init.body as string) });
+        return { ok: true, json: async () => ({ ok: true, messages: ['ok'] }) };
+      }),
+    );
+    const wiz = useWizardStore();
+    wiz.setMode('controller-join');
+    wiz.controllerJoinToken = 'prexor-jt:v1:somepayload.somemac';
+    await wiz.doInstall();
+    expect(wiz.installDone).toBe(true);
+    expect(calls.map((c) => c.url)).toEqual(['/api/install/controller']);
+    expect(calls[0].body.joinToken).toBe('prexor-jt:v1:somepayload.somemac');
+  });
+
   it('captures the server error into installError', async () => {
     vi.stubGlobal(
       'fetch',

@@ -102,16 +102,23 @@ func handleInfo(w http.ResponseWriter, r *http.Request) {
 // new (post-handoff) wizard always sets this; the legacy field-by-field
 // path still works for older clients.
 type controllerInstallRequest struct {
-	InstallMode   string   `json:"installMode"` // "compose"
-	InstallDir    string   `json:"installDir"`
-	HTTPPort      string   `json:"httpPort"`
-	GRPCPort      string   `json:"grpcPort"`
-	CORSOrigins   []string `json:"corsOrigins"`
-	MongoMode     string   `json:"mongoMode"` // "local" or "remote"
-	MongoURI      string   `json:"mongoUri"`
-	RedisMode     string   `json:"redisMode"` // "local" or "remote"
-	RedisURI      string   `json:"redisUri"`
-	YamlOverride  string   `json:"yamlOverride,omitempty"`
+	InstallMode  string   `json:"installMode"` // "compose"
+	InstallDir   string   `json:"installDir"`
+	HTTPPort     string   `json:"httpPort"`
+	GRPCPort     string   `json:"grpcPort"`
+	CORSOrigins  []string `json:"corsOrigins"`
+	MongoMode    string   `json:"mongoMode"` // "local" or "remote"
+	MongoURI     string   `json:"mongoUri"`
+	RedisMode    string   `json:"redisMode"` // "local" or "remote"
+	RedisURI     string   `json:"redisUri"`
+	YamlOverride string   `json:"yamlOverride,omitempty"`
+	// JoinToken switches the install into "controller-join" mode: the wizard
+	// pastes the wire token here (prexor-jt:v1:...) and the handler writes it
+	// to config/security/pending-join-token alongside controller.yml. The
+	// controller's bootstrap picks the file up on first start and runs
+	// ClusterControlService.startInJoinMode against the existing cluster.
+	// Empty for Day-0 controllers (the default).
+	JoinToken string `json:"joinToken,omitempty"`
 }
 
 type installResponse struct {
@@ -347,6 +354,23 @@ func handleInstallController(logf func(string, ...any), onSuccess func()) http.H
 			return
 		} else {
 			say("Wrote controller.yml.")
+		}
+
+		// Controller-join: drop the operator-pasted wire token into the
+		// canonical location the controller's bootstrap polls
+		// (PrexorCloudBootstrap.PENDING_JOIN_TOKEN_FILE). Writing this is
+		// what flips the controller from Day-0 bootstrap into
+		// ClusterControlService.startInJoinMode on first start. Owner-only
+		// perms because the token is single-use cluster credential material —
+		// it's HMAC-bound to the cluster seed but still worth treating like a
+		// short-lived secret.
+		if strings.TrimSpace(req.JoinToken) != "" {
+			tokenPath := filepath.Join(req.InstallDir, "config", "security", "pending-join-token")
+			if err := writePendingJoinToken(tokenPath, strings.TrimSpace(req.JoinToken)); err != nil {
+				em.finishErr(errConfigWrite, "write pending-join-token: "+err.Error())
+				return
+			}
+			say("Wrote pending-join-token (controller will run join flow on first start).")
 		}
 
 		if req.InstallMode == installModeNative {
@@ -774,6 +798,19 @@ func writeYamlOverride(path, body string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(body), 0o600)
+}
+
+// writePendingJoinToken drops the operator-pasted cluster join token at the
+// path the controller's bootstrap polls on startup. Owner-only perms because
+// the token is single-use cluster credential material — even after the
+// controller successfully joins and deletes the file, a copy hanging around
+// in a backup is a credential leak. The 0o700 dir perm matches what the
+// controller itself sets on config/security/ via FilePermissions.setOwnerOnly.
+func writePendingJoinToken(path, token string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(token+"\n"), 0o600)
 }
 
 // resolveStorageURI maps the wizard's mode/URI pair to (localContainer, uri)

@@ -5,7 +5,7 @@ import { apiFetch, apiHeaders } from '@/lib/api';
 import { controllerYaml, daemonYaml } from '@/lib/yaml';
 import { resetTerminal, writeTerminal } from '@/lib/terminalBus';
 
-export type WizardMode = 'all' | 'controller' | 'daemon' | 'dashboard' | 'cli';
+export type WizardMode = 'all' | 'controller' | 'controller-join' | 'daemon' | 'dashboard' | 'cli';
 export type WizardStep = 'mode' | 'essentials' | 'security' | 'review' | 'cli-login';
 export type Profile = 'development' | 'production';
 export type LogLevel = 'TRACE' | 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
@@ -169,6 +169,14 @@ export interface WizardState {
   controllerHost: string;
   controllerGrpcPort: number;
   joinToken: string;
+
+  // Controller-join — operator-pasted wire token (prexor-jt:v1:...) that
+  // the wizard writes to config/security/pending-join-token so the
+  // controller's bootstrap takes the join branch on first start. Distinct
+  // from `joinToken` above, which is the daemon-side token; conflating
+  // them risks cross-mode leakage if the operator backs through the
+  // mode switcher.
+  controllerJoinToken: string;
   // Daemon — instances
   certificateDir: string;
   instancesDirectory: string;
@@ -349,6 +357,7 @@ function defaultState(): WizardState {
     controllerHost: '',
     controllerGrpcPort: 9090,
     joinToken: '',
+    controllerJoinToken: '',
     certificateDir: 'config/security',
     instancesDirectory: 'instances',
     instancesShutdownTimeoutSeconds: 30,
@@ -578,7 +587,7 @@ export const useWizardStore = defineStore('wizard', {
       this.installFinishedAt = null;
       resetTerminal();
       try {
-        if (this.mode === 'all' || this.mode === 'controller') {
+        if (this.mode === 'all' || this.mode === 'controller' || this.mode === 'controller-join') {
           await postInstall(this, '/api/install/controller', {
             installMode: this.installMode,
             httpPort: String(this.httpPort),
@@ -589,6 +598,13 @@ export const useWizardStore = defineStore('wizard', {
             redisMode: this.redisMode,
             redisUri: this.redisUri,
             yamlOverride: controllerYaml(this.$state),
+            // controller-join: hand the operator-pasted wire token to the
+            // installer so it writes config/security/pending-join-token —
+            // the controller's bootstrap picks it up on first start and
+            // runs ClusterControlService.startInJoinMode against the
+            // existing cluster.
+            joinToken:
+              this.mode === 'controller-join' ? this.controllerJoinToken.trim() : '',
           });
         }
         if (this.mode === 'all' || this.mode === 'daemon') {

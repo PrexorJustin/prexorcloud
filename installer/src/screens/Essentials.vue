@@ -11,7 +11,10 @@ import NavBar from '@/components/NavBar.vue';
 
 const wiz = useWizardStore();
 
-const showCtrl = computed(() => wiz.mode === 'all' || wiz.mode === 'controller');
+const showCtrl = computed(() =>
+  wiz.mode === 'all' || wiz.mode === 'controller' || wiz.mode === 'controller-join',
+);
+const showCtrlJoin = computed(() => wiz.mode === 'controller-join');
 const showDaemon = computed(() => wiz.mode === 'all' || wiz.mode === 'daemon');
 const showDash = computed(() => wiz.mode === 'dashboard');
 const conflict = computed(() => portConflict(wiz.$state));
@@ -143,6 +146,30 @@ function generateJoinToken() {
               <li v-if="showDaemon">The daemon runs as a container too — no additional host packages are needed.</li>
             </ul>
           </div>
+        </div>
+
+        <!-- Controller-join: paste the wire token. -->
+        <div v-if="showCtrlJoin" class="section-card">
+          <div class="section-head">
+            <span class="section-title">Cluster join token</span>
+            <span class="section-grow"></span>
+            <span class="section-sub">paste from an existing cluster controller</span>
+          </div>
+          <Field
+            label="Join token"
+            key-path="cluster.joinToken"
+            required
+            help="The wire token printed by 'prexorctl cluster join-token create' on an existing cluster controller. Single-use: a token can be redeemed at most once."
+          >
+            <TextInput
+              v-model="wiz.controllerJoinToken"
+              placeholder="prexor-jt:v1:..."
+              :invalid="!wiz.controllerJoinToken.trim().startsWith('prexor-jt:v1:')"
+            />
+            <div class="hint" style="margin-top:6px;">
+              The token's HMAC is checked against the cluster seed; an unrecognised or rotated token is refused at first start.
+            </div>
+          </Field>
         </div>
 
         <!-- Controller -->

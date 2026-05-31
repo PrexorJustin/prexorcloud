@@ -13,13 +13,15 @@ beforeEach(() => {
 });
 
 describe('Mode.vue', () => {
-  it('renders all five mode cards when cli-login is available', () => {
+  it('renders every mode card when cli-login is available', () => {
     const wiz = useWizardStore();
     wiz.cliLoginAvailable = true;
     const wrap = mount(Mode);
     const cards = wrap.findAll('.mode-card');
-    expect(cards).toHaveLength(5);
+    // all + controller + controller-join + daemon + dashboard + cli
+    expect(cards).toHaveLength(6);
     expect(wrap.html()).toContain('Controller + Daemon');
+    expect(wrap.html()).toContain('Add controller');
     expect(wrap.html()).toContain('CLI login');
   });
 
@@ -27,7 +29,7 @@ describe('Mode.vue', () => {
     const wiz = useWizardStore();
     wiz.cliLoginAvailable = false;
     const wrap = mount(Mode);
-    expect(wrap.findAll('.mode-card')).toHaveLength(4);
+    expect(wrap.findAll('.mode-card')).toHaveLength(5);
     expect(wrap.html()).not.toContain('CLI login');
   });
 
@@ -67,11 +69,11 @@ describe('Mode.vue', () => {
     expect(wrap.html()).toContain('darwin');
 
     const cards = wrap.findAll('.mode-card');
-    expect(cards).toHaveLength(5);
+    expect(cards).toHaveLength(6);
     const disabledIds = cards
       .filter((c) => c.attributes('disabled') !== undefined)
       .map((c) => c.attributes('data-mode'));
-    expect(disabledIds.sort()).toEqual(['all', 'controller', 'daemon', 'dashboard']);
+    expect(disabledIds.sort()).toEqual(['all', 'controller', 'controller-join', 'daemon', 'dashboard']);
     const cliCard = cards.find((c) => c.attributes('data-mode') === 'cli');
     expect(cliCard?.attributes('disabled')).toBeUndefined();
   });
