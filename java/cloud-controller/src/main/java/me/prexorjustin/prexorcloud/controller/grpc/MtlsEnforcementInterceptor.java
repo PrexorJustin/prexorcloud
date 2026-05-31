@@ -33,10 +33,13 @@ public final class MtlsEnforcementInterceptor implements ServerInterceptor {
 
     /**
      * Service names that are allowed without a client certificate. BootstrapService
-     * is the join-token exchange used before a node has certs.
+     * is the join-token exchange used before a daemon has certs; ClusterMembership
+     * is the same idea for a joining controller, authenticated by the cluster
+     * join token's HMAC instead of mTLS.
      */
-    private static final Set<String> UNAUTHENTICATED_SERVICES =
-            Set.of("me.prexorjustin.prexorcloud.protocol.BootstrapService");
+    private static final Set<String> UNAUTHENTICATED_SERVICES = Set.of(
+            "me.prexorjustin.prexorcloud.protocol.BootstrapService",
+            "me.prexorjustin.prexorcloud.protocol.ClusterMembership");
 
     private final NodeRevocationCheck revocationCheck;
 

@@ -27,14 +27,17 @@ public final class GrpcServer {
             DaemonServiceImpl daemonService,
             BootstrapServiceImpl bootstrapService,
             AdminServiceImpl adminService,
+            ClusterMembershipServiceImpl clusterMembershipService,
             MtlsEnforcementInterceptor mtlsInterceptor,
             SubnetGuardInterceptor subnetGuardInterceptor) {
         var builder = NettyServerBuilder.forAddress(new InetSocketAddress(host, port))
                 .intercept(new CorrelationServerInterceptor())
                 .intercept(new PeerAddressInterceptor())
                 // Subnet guard runs BEFORE mTLS so we reject disallowed IPs without
-                // even paying the cert-verification cost. BootstrapService is exempt
-                // from both (the join token is the auth).
+                // even paying the cert-verification cost. BootstrapService and
+                // ClusterMembership are both exempt from mTLS — they're authenticated
+                // by their respective join tokens, not by certs the caller doesn't
+                // yet have.
                 .intercept(mtlsInterceptor == null ? new MtlsEnforcementInterceptor() : mtlsInterceptor);
         if (subnetGuardInterceptor != null) {
             builder.intercept(subnetGuardInterceptor);
@@ -46,6 +49,9 @@ public final class GrpcServer {
                 .keepAliveTime(30, TimeUnit.SECONDS)
                 .keepAliveTimeout(10, TimeUnit.SECONDS)
                 .permitKeepAliveWithoutCalls(true);
+        if (clusterMembershipService != null) {
+            builder.addService(clusterMembershipService);
+        }
 
         if (sslContext != null) {
             builder.sslContext(sslContext);
@@ -54,7 +60,7 @@ public final class GrpcServer {
         this.server = builder.build();
     }
 
-    /** Back-compat overload — no subnet guard. */
+    /** Back-compat overload — no subnet guard, no cluster-membership service. */
     public GrpcServer(
             String host,
             int port,
@@ -63,7 +69,29 @@ public final class GrpcServer {
             BootstrapServiceImpl bootstrapService,
             AdminServiceImpl adminService,
             MtlsEnforcementInterceptor mtlsInterceptor) {
-        this(host, port, sslContext, daemonService, bootstrapService, adminService, mtlsInterceptor, null);
+        this(host, port, sslContext, daemonService, bootstrapService, adminService, null, mtlsInterceptor, null);
+    }
+
+    /** Back-compat overload — no cluster-membership service. */
+    public GrpcServer(
+            String host,
+            int port,
+            SslContext sslContext,
+            DaemonServiceImpl daemonService,
+            BootstrapServiceImpl bootstrapService,
+            AdminServiceImpl adminService,
+            MtlsEnforcementInterceptor mtlsInterceptor,
+            SubnetGuardInterceptor subnetGuardInterceptor) {
+        this(
+                host,
+                port,
+                sslContext,
+                daemonService,
+                bootstrapService,
+                adminService,
+                null,
+                mtlsInterceptor,
+                subnetGuardInterceptor);
     }
 
     public void start() throws Exception {

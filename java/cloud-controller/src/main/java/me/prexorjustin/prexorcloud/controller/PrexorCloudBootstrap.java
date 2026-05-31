@@ -872,6 +872,9 @@ public final class PrexorCloudBootstrap {
                 controller.jwtManager(),
                 subnetAutoReg);
         var adminService = new AdminServiceImpl(controller.joinTokenStore());
+        var clusterMembershipService =
+                new me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl(
+                        clusterControlService.controlPlane());
 
         var mtlsInterceptor = new MtlsEnforcementInterceptor(runtime.nodeCertRevocationStore());
         var subnetGuard =
@@ -884,6 +887,7 @@ public final class PrexorCloudBootstrap {
                 daemonService,
                 bootstrapService,
                 adminService,
+                clusterMembershipService,
                 mtlsInterceptor,
                 subnetGuard);
         grpcServer.start();
