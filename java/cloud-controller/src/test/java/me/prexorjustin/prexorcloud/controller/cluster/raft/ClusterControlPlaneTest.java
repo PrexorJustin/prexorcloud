@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -160,6 +161,81 @@ class ClusterControlPlaneTest {
                     "patch with parentVersion=1 must be rejected when active=2");
             assertEquals("PARENT_VERSION_STALE", ex.code());
             assertEquals(2, cp.getActiveConfigVersion(), "rejected patch must not advance the active version");
+        }
+    }
+
+    @Test
+    @DisplayName("issueJoinToken mints a wire token and writes the registry entry in one shot")
+    void issueJoinTokenRoundTrip(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000d401");
+        ClusterControlStateMachine sm = new ClusterControlStateMachine();
+        try (RaftBootstrap raft = newBootstrap(tmp, sm, port, groupId)) {
+            raft.start();
+            raft.awaitLeader(10_000);
+            ClusterControlPlane cp = new ClusterControlPlane(raft, sm);
+
+            // Cluster meta must be present — issueJoinToken needs the seed secret + clusterId.
+            cp.setClusterMeta(new ClusterMeta(
+                    "cluster-issue-test",
+                    "VGhpcyBpcyBhIDMyLWJ5dGUgZmFrZSBzZWVkLi4uLi4u",
+                    Instant.parse("2026-05-29T12:00:00Z"),
+                    ClusterMeta.CURRENT_SCHEMA_VERSION));
+
+            var issued = cp.issueJoinToken(
+                    List.of("controller-1.cluster.test:9091"),
+                    java.time.Duration.ofHours(1),
+                    "controller-2-label",
+                    "alice");
+
+            assertNotNull(issued.token());
+            assertTrue(issued.token().startsWith("prexor-jt:v1:"));
+            assertNotNull(issued.jti());
+
+            // The token's registry entry landed in the SM via Raft.
+            JoinToken record = cp.getJoinToken(issued.jti()).orElseThrow();
+            assertEquals("controller-2-label", record.label());
+            assertEquals("alice", record.createdBy());
+            assertEquals(issued.expiresAt(), record.expiresAt());
+            assertFalse(record.revoked());
+            assertNull(record.redeemedAt());
+
+            // The wire token's payload parses + verifies against the cluster seed.
+            var parsed = me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec.parse(issued.token());
+            assertEquals("cluster-issue-test", parsed.payload().clusterId());
+            assertEquals(issued.jti(), parsed.payload().jti());
+            assertTrue(me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec.verifyHmac(
+                    parsed,
+                    me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec.decodeSeed(
+                            "VGhpcyBpcyBhIDMyLWJ5dGUgZmFrZSBzZWVkLi4uLi4u")));
+
+            // Revocation flips the flag idempotently.
+            cp.revokeJoinToken(issued.jti(), "alice");
+            JoinToken revoked = cp.getJoinToken(issued.jti()).orElseThrow();
+            assertTrue(revoked.revoked());
+            assertEquals("alice", revoked.revokedBy());
+            cp.revokeJoinToken(issued.jti(), "alice"); // idempotent — no throw
+        }
+    }
+
+    @Test
+    @DisplayName("issueJoinToken without cluster meta throws — bootstrap must stamp meta first")
+    void issueJoinTokenWithoutMetaThrows(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000d402");
+        ClusterControlStateMachine sm = new ClusterControlStateMachine();
+        try (RaftBootstrap raft = newBootstrap(tmp, sm, port, groupId)) {
+            raft.start();
+            raft.awaitLeader(10_000);
+            ClusterControlPlane cp = new ClusterControlPlane(raft, sm);
+
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> cp.issueJoinToken(
+                            List.of("controller-1.cluster.test:9091"),
+                            java.time.Duration.ofHours(1),
+                            null,
+                            "alice"));
         }
     }
 

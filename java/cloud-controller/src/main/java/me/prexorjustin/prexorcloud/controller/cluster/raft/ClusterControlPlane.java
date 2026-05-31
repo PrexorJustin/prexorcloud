@@ -10,6 +10,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
+import me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
@@ -136,6 +137,42 @@ public final class ClusterControlPlane {
     public void writeJoinToken(JoinToken token) throws IOException {
         submitOrThrow(new ClusterEntry.WriteJoinToken(token));
     }
+
+    /**
+     * Mint a new cluster join token: HMAC the payload with the cluster seed,
+     * commit the redemption record to Raft, and return the wire token string.
+     *
+     * @return record carrying the wire token and the JTI (which is the token's
+     *         globally unique identifier).
+     * @throws IOException if Raft is unavailable
+     * @throws IllegalStateException if the cluster meta has not been stamped yet
+     */
+    public IssuedJoinToken issueJoinToken(
+            List<String> joinAddrs, java.time.Duration ttl, String label, String createdBy) throws IOException {
+        ClusterMeta meta = getClusterMeta()
+                .orElseThrow(() -> new IllegalStateException("cluster meta not stamped — issue rejected"));
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(ttl);
+        byte[] seed = JoinTokenCodec.decodeSeed(meta.seedSecretBase64());
+        JoinTokenCodec.Issued issued = JoinTokenCodec.encode(meta.clusterId(), joinAddrs, expiresAt, seed);
+        JoinToken record = new JoinToken(
+                issued.jti(),
+                issued.hmacBase64(),
+                label,
+                createdBy,
+                now,
+                expiresAt,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null);
+        writeJoinToken(record);
+        return new IssuedJoinToken(issued.token(), issued.jti(), expiresAt);
+    }
+
+    public record IssuedJoinToken(String token, String jti, Instant expiresAt) {}
 
     /**
      * Redeem a single-use join token. Throws {@link ClusterWriteConflict} on
