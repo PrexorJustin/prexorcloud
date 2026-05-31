@@ -373,11 +373,16 @@ func handleInstallController(logf func(string, ...any), onSuccess func()) http.H
 			say("Wrote pending-join-token (controller will run join flow on first start).")
 		}
 
+		isControllerJoin := strings.TrimSpace(req.JoinToken) != ""
+
 		if req.InstallMode == installModeNative {
 			nextSteps, code, err := installControllerNative(say, req.InstallDir, req.HTTPPort, cfg, mongoLocal, redisLocal)
 			if err != nil {
 				em.finishErr(code, err.Error())
 				return
+			}
+			if isControllerJoin {
+				nextSteps = append(nextSteps, controllerJoinFollowupSteps()...)
 			}
 			em.finishOK(nextSteps)
 			return
@@ -392,11 +397,15 @@ func handleInstallController(logf func(string, ...any), onSuccess func()) http.H
 		}
 		say("Wrote docker-compose.yml.")
 
-		em.finishOK([]string{
+		composeSteps := []string{
 			fmt.Sprintf("cd %s", req.InstallDir),
 			"docker compose up -d",
 			fmt.Sprintf("Open http://localhost:%s once the controller is healthy.", req.HTTPPort),
-		})
+		}
+		if isControllerJoin {
+			composeSteps = append(composeSteps, controllerJoinFollowupSteps()...)
+		}
+		em.finishOK(composeSteps)
 	}
 }
 
@@ -811,6 +820,24 @@ func writePendingJoinToken(path, token string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(token+"\n"), 0o600)
+}
+
+// controllerJoinFollowupSteps is appended to the post-install nextSteps when
+// the wizard ran in controller-join mode. Two reasons it exists:
+//   - After the join, the operator needs an unambiguous "did this work?" check.
+//     `prexorctl cluster members` against a controller that just joined is
+//     about as direct as it gets.
+//   - A 1-node or 2-node Raft group provides zero fault tolerance. Raft needs
+//     ≥3 voting members to survive losing one. The wizard doesn't know the
+//     post-join member count (it was a question for the cluster, not the
+//     joiner), so we point the operator at the same command that will tell
+//     them.
+func controllerJoinFollowupSteps() []string {
+	return []string{
+		"prexorctl cluster members        # confirm this controller appears as READY",
+		"# Raft tolerates floor((N-1)/2) controller failures. Aim for an odd member count ≥ 3 for HA;",
+		"# a 1- or 2-node cluster has zero fault tolerance.",
+	}
 }
 
 // resolveStorageURI maps the wizard's mode/URI pair to (localContainer, uri)
