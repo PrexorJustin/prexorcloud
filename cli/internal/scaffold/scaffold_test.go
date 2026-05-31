@@ -12,26 +12,26 @@ import (
 func fakeTemplate(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	mustMkdir(t, filepath.Join(root, "java", "cloud-module", "cloud-module-example",
+	mustMkdir(t, filepath.Join(root, "java", "cloud-modules", "example",
 		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "example"))
-	mustMkdir(t, filepath.Join(root, "java", "cloud-module", "cloud-module-example", "build"))                    // ignored
-	mustMkdir(t, filepath.Join(root, "java", "cloud-module", "cloud-module-example", "frontend", "node_modules")) // ignored
+	mustMkdir(t, filepath.Join(root, "java", "cloud-modules", "example", "build"))                    // ignored
+	mustMkdir(t, filepath.Join(root, "java", "cloud-modules", "example", "frontend", "node_modules")) // ignored
 
 	// Plugin subprojects — one tiny file per target so we can assert which
 	// of them survive a selective scaffold.
 	for _, target := range []string{"paper", "folia", "velocity"} {
 		mustWrite(t,
-			filepath.Join(root, "java", "cloud-module", "cloud-module-example",
+			filepath.Join(root, "java", "cloud-modules", "example",
 				"plugin", target, "build.gradle.kts"),
 			`plugins { id("prexorcloud.java21-api") }
 `)
 	}
 
-	mustWrite(t, filepath.Join(root, "java", "cloud-module", "cloud-module-example", "build.gradle.kts"),
+	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "build.gradle.kts"),
 		`plugins { id("prexorcloud.java21-api") }
 // module: example-playtime
 `)
-	mustWrite(t, filepath.Join(root, "java", "cloud-module", "cloud-module-example",
+	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example",
 		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "example",
 		"ExamplePlaytimeModule.java"),
 		`package me.prexorjustin.prexorcloud.modules.example;
@@ -40,7 +40,7 @@ public class ExamplePlaytimeModule {
     static String name() { return "examplePlaytime"; }
 }
 `)
-	mustWrite(t, filepath.Join(root, "java", "cloud-module", "cloud-module-example", "build", "should-be-ignored.txt"),
+	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "build", "should-be-ignored.txt"),
 		`if you see this in the output the build/ filter is broken
 `)
 
@@ -85,7 +85,7 @@ func TestGenerateBasic(t *testing.T) {
 		t.Fatalf("default package wrong: %s", res.PackageDot)
 	}
 
-	dest := filepath.Join(root, "java", "cloud-module", "cloud-module-stats-aggregator")
+	dest := filepath.Join(root, "java", "cloud-modules", "stats-aggregator")
 	got := readFile(t, filepath.Join(dest,
 		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "statsaggregator",
 		"StatsAggregatorModule.java"))
@@ -182,7 +182,7 @@ func TestGenerateDryRun(t *testing.T) {
 	if res.FilesWritten == 0 {
 		t.Fatalf("dry run still reports 0 files — counter should run")
 	}
-	if _, err := os.Stat(filepath.Join(root, "java", "cloud-module", "cloud-module-dry-run-mod")); err == nil {
+	if _, err := os.Stat(filepath.Join(root, "java", "cloud-modules", "dry-run-mod")); err == nil {
 		t.Errorf("dry run should not have created the module dir")
 	}
 	settings := readFile(t, filepath.Join(root, "java", "settings.gradle.kts"))
@@ -196,7 +196,7 @@ func TestStripComments(t *testing.T) {
 	if _, err := Generate(Options{RepoRoot: root, Name: "no-teaching", StripComments: true}); err != nil {
 		t.Fatalf("strip: %v", err)
 	}
-	dest := filepath.Join(root, "java", "cloud-module", "cloud-module-no-teaching")
+	dest := filepath.Join(root, "java", "cloud-modules", "no-teaching")
 	got := readFile(t, filepath.Join(dest,
 		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "noteaching",
 		"NoTeachingModule.java"))
@@ -218,7 +218,7 @@ func TestCustomPackage(t *testing.T) {
 	if res.PackageDot != "io.example.cloudmod.stats" || res.PackageSlash != "io/example/cloudmod/stats" {
 		t.Fatalf("custom package not honoured: %+v", res)
 	}
-	dest := filepath.Join(root, "java", "cloud-module", "cloud-module-stats-aggregator")
+	dest := filepath.Join(root, "java", "cloud-modules", "stats-aggregator")
 	if _, err := os.Stat(filepath.Join(dest,
 		"src", "main", "java", "io", "example", "cloudmod", "stats", "StatsAggregatorModule.java")); err != nil {
 		t.Errorf("expected file at custom package path: %v", err)
@@ -227,7 +227,7 @@ func TestCustomPackage(t *testing.T) {
 
 func TestFindRepoRoot(t *testing.T) {
 	root := fakeTemplate(t)
-	deep := filepath.Join(root, "java", "cloud-module", "cloud-module-example", "src", "main")
+	deep := filepath.Join(root, "java", "cloud-modules", "example", "src", "main")
 	got, err := FindRepoRoot(deep)
 	if err != nil {
 		t.Fatalf("FindRepoRoot: %v", err)
@@ -255,7 +255,7 @@ func TestGenerateSelectiveTargets(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	dest := filepath.Join(root, "java", "cloud-module", "cloud-module-skinny-mod")
+	dest := filepath.Join(root, "java", "cloud-modules", "skinny-mod")
 	for _, kept := range []string{"paper", "folia"} {
 		path := filepath.Join(dest, "plugin", kept, "build.gradle.kts")
 		if _, err := os.Stat(path); err != nil {
@@ -287,7 +287,7 @@ func TestGenerateAllTargetsByDefault(t *testing.T) {
 	if _, err := Generate(Options{RepoRoot: root, Name: "fat-mod"}); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	dest := filepath.Join(root, "java", "cloud-module", "cloud-module-fat-mod")
+	dest := filepath.Join(root, "java", "cloud-modules", "fat-mod")
 	for _, target := range []string{"paper", "folia", "velocity"} {
 		if _, err := os.Stat(filepath.Join(dest, "plugin", target, "build.gradle.kts")); err != nil {
 			t.Errorf("plugin/%s missing: %v", target, err)

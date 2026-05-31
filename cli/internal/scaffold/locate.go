@@ -15,7 +15,7 @@ var archiveNamePattern = regexp.MustCompile(`archiveName\.set\(\s*"([^"]+)"\s*\)
 
 // Module describes a resolved cloud-module checkout on disk.
 type Module struct {
-	Name             string // kebab name without the cloud-module- prefix
+	Name             string // kebab name (no prefix)
 	Dir              string // absolute path to java/cloud-modules/<name>
 	ArchiveName      string // value of archiveName.set(...)
 	JarPath          string // absolute path to build/libs/<archiveName>.jar
@@ -24,18 +24,19 @@ type Module struct {
 }
 
 // LocateModule resolves a module by name within a repo checkout. Name may
-// either be the bare kebab form ("example") or the directory form
-// ("cloud-module-example"); both round-trip to the same module.
+// either be the bare kebab form ("example") or the legacy directory form
+// ("cloud-module-example") that pre-dates the Track B repo hygiene pass;
+// both round-trip to the same module under java/cloud-modules/<name>/.
 func LocateModule(repoRoot, name string) (*Module, error) {
 	if repoRoot == "" {
 		return nil, fmt.Errorf("repoRoot must be set")
 	}
-	kebab := strings.TrimPrefix(name, templateModulePrefix)
+	kebab := strings.TrimPrefix(name, templateModuleLegacyPrefix)
 	if !kebabPattern.MatchString(kebab) {
 		return nil, fmt.Errorf("invalid module name %q — use kebab-case", name)
 	}
 
-	dir := filepath.Join(repoRoot, "java", "cloud-module", templateModulePrefix+kebab)
+	dir := filepath.Join(repoRoot, "java", "cloud-modules", kebab)
 	build := filepath.Join(dir, "build.gradle.kts")
 	raw, err := os.ReadFile(build)
 	if err != nil {

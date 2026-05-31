@@ -9,7 +9,7 @@ package scaffold
 // field here + a prompt + (where applicable) a generation toggle.
 type ModuleSpec struct {
 	// Required identity
-	Name    string // kebab-case, no `cloud-module-` prefix
+	Name    string // kebab-case module id
 	Package string // dotted, optional — empty = derive from Name
 
 	// Storage & API surface

@@ -1,7 +1,7 @@
 // Package scaffold generates new cloud-module directories from the
-// `cloud-module-example` template under java/cloud-module/. Mirrors the
-// behaviour of scripts/new-module.mjs so that `prexorctl module new` is a
-// drop-in replacement.
+// `example` template under java/cloud-modules/. Mirrors the behaviour of
+// scripts/new-module.mjs so that `prexorctl module new` is a drop-in
+// replacement.
 package scaffold
 
 import (
@@ -22,8 +22,16 @@ const (
 	templateNameCamel    = "examplePlaytime"
 	templatePackageDot   = "me.prexorjustin.prexorcloud.modules.example"
 	templatePackageSlash = "me/prexorjustin/prexorcloud/modules/example"
-	templateModuleDir    = "cloud-module-example"
-	templateModulePrefix = "cloud-module-"
+	// templateModuleDir is the source directory under java/cloud-modules/ that
+	// holds the reference module the scaffolder copies from.
+	templateModuleDir = "example"
+	// templateModulePrefix used to be "cloud-module-" when modules lived under
+	// java/cloud-module/cloud-module-<kebab>/. Since the Track B repo hygiene
+	// pass (commit 139d559) modules live at java/cloud-modules/<kebab>/ with
+	// no prefix. Kept as an empty constant + accepted by LocateModule for
+	// callers that still pass the legacy "cloud-module-<kebab>" form.
+	templateModulePrefix       = ""
+	templateModuleLegacyPrefix = "cloud-module-"
 	settingsAnchor       = "// ---- MODULES ---- //"
 )
 
@@ -43,7 +51,7 @@ var (
 // Options drives a single scaffold invocation.
 type Options struct {
 	RepoRoot      string // absolute path to the repo root (contains java/settings.gradle.kts)
-	Name          string // kebab-case module name (without the cloud-module- prefix)
+	Name          string // kebab-case module name
 	Package       string // dotted package; defaults to me.prexorjustin.prexorcloud.modules.<name>
 	StripComments bool
 	Force         bool
@@ -117,8 +125,8 @@ func Generate(opts Options) (*Result, error) {
 	}
 	pkgSlash := strings.ReplaceAll(pkgDot, ".", "/")
 
-	templateRoot := filepath.Join(opts.RepoRoot, "java", "cloud-module", templateModuleDir)
-	destRoot := filepath.Join(opts.RepoRoot, "java", "cloud-module", templateModulePrefix+kebab)
+	templateRoot := filepath.Join(opts.RepoRoot, "java", "cloud-modules", templateModuleDir)
+	destRoot := filepath.Join(opts.RepoRoot, "java", "cloud-modules", kebab)
 	settingsFile := filepath.Join(opts.RepoRoot, "java", "settings.gradle.kts")
 
 	if st, err := os.Stat(templateRoot); err != nil || !st.IsDir() {

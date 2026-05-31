@@ -131,11 +131,23 @@ var (
 	moduleNewWizard        bool
 	moduleNewBrowser       bool
 	moduleNewTargets       []string
+	moduleNewMcPlugin      []string
+	moduleNewCapabilities  []string
+	moduleNewRequires      []string
+	moduleNewNoRest        bool
+	moduleNewNoMongo       bool
+	moduleNewNoFrontend    bool
+	moduleNewNoPlugin      bool
 )
 
 var moduleNewCmd = &cobra.Command{
-	Use:   "new [name]",
-	Short: "Scaffold a new cloud-module — full wizard or fast template copy",
+	Use:     "new [name]",
+	Aliases: []string{"scaffold"},
+	// Local-only: operates entirely on files under repo-root, never talks to
+	// a controller. Opt out of the pre-link gate so a fresh contributor can
+	// scaffold a module before linking the CLI to any cluster.
+	Annotations: map[string]string{"local-only": "true"},
+	Short:       "Scaffold a new cloud-module — full wizard or fast template copy",
 	Long: `Generates a new cloud-module under java/cloud-modules/<name>/.
 
 Three flavours, picked by flag:
@@ -151,10 +163,21 @@ Three flavours, picked by flag:
                          everything else uses example-template defaults.
 
   --targets paper,…    — Non-interactive subset. For scripts.
+  --mc-plugin paper,…  — Alias for --targets, kept to match the docs.
 
   --all-defaults       — No prompts at all. Drops the full example template,
                          all targets emitted. Same shape as the historical
                          scripts/new-module.mjs behaviour.
+
+Composable non-interactive flags (for scripting and CI):
+
+  --capabilities id[@ver],…   Capabilities the new module provides.
+  --requires id[@range],…     Capabilities the new module consumes.
+  --no-rest                   Strip the rest/ package (warning until the
+                              REST-removal pass lands; see scaffold.go).
+  --no-mongo                  Strip the storage scaffold (same warning).
+  --no-frontend               Strip the frontend/ Vue package.
+  --no-plugin                 Generate a backend-only module (no plugin/).
 
 Replaces scripts/new-module.mjs.`,
 	Args: cobra.MaximumNArgs(1),
@@ -171,10 +194,21 @@ Replaces scripts/new-module.mjs.`,
 			}
 		}
 
+		// --mc-plugin is an alias for --targets. If both are set, --targets wins
+		// and we surface the ambiguity instead of silently picking one.
+		targets := moduleNewTargets
+		if len(moduleNewMcPlugin) > 0 {
+			if len(targets) > 0 {
+				return fmt.Errorf("--targets and --mc-plugin are aliases; pass only one")
+			}
+			targets = moduleNewMcPlugin
+		}
+
 		// Decide which flow to run. Order:
 		//   --browser   -> not implemented yet (return clear error)
 		//   --interactive (legacy, targets-only prompt) preserved for scripts
-		//   --targets / --all-defaults (no prompts)
+		//   --capabilities / --requires / --no-* (composable spec flags)
+		//   --targets / --mc-plugin / --all-defaults (no prompts)
 		//   default (no name OR wizard explicitly requested) -> full wizard
 		if moduleNewBrowser {
 			return fmt.Errorf("module new --browser: not implemented in this build (Phase B.2). " +
@@ -201,8 +235,29 @@ Replaces scripts/new-module.mjs.`,
 			})
 		}
 
-		// Non-interactive paths: --targets or --all-defaults.
-		if len(moduleNewTargets) > 0 || moduleNewWizard == false && len(args) == 1 && hasNonWizardFlags(cmd) {
+		// Composable non-interactive path: any of --capabilities / --requires /
+		// --no-rest / --no-mongo / --no-frontend / --no-plugin builds a full
+		// ModuleSpec from flags and runs the same applyWizardOverrides pass as
+		// the TUI wizard. Requires a name argument.
+		if hasComposableSpecFlags(cmd) {
+			if len(args) == 0 {
+				return fmt.Errorf("module new --capabilities/--requires/--no-*: name is required")
+			}
+			spec, err := buildSpecFromFlags(args[0], targets)
+			if err != nil {
+				return err
+			}
+			opts := spec.ApplyToOptions(root, scaffold.Options{
+				Package:       moduleNewPackage,
+				StripComments: moduleNewStripComments,
+				Force:         moduleNewForce,
+				Dry:           moduleNewDry,
+			})
+			return runScaffold(opts)
+		}
+
+		// Non-interactive paths: --targets / --mc-plugin / --all-defaults.
+		if len(targets) > 0 || moduleNewWizard == false && len(args) == 1 && hasNonWizardFlags(cmd) {
 			return runScaffold(scaffold.Options{
 				RepoRoot:      root,
 				Name:          args[0],
@@ -210,7 +265,7 @@ Replaces scripts/new-module.mjs.`,
 				StripComments: moduleNewStripComments,
 				Force:         moduleNewForce,
 				Dry:           moduleNewDry,
-				Targets:       moduleNewTargets,
+				Targets:       targets,
 			})
 		}
 
@@ -238,13 +293,76 @@ Replaces scripts/new-module.mjs.`,
 // non-wizard flags that imply they want the fast template-copy path rather
 // than the wizard.
 func hasNonWizardFlags(cmd *cobra.Command) bool {
-	if cmd.Flag("all-defaults") != nil && cmd.Flag("all-defaults").Changed {
-		return true
-	}
-	if cmd.Flag("targets") != nil && cmd.Flag("targets").Changed {
-		return true
+	for _, n := range []string{"all-defaults", "targets", "mc-plugin"} {
+		if f := cmd.Flag(n); f != nil && f.Changed {
+			return true
+		}
 	}
 	return false
+}
+
+// hasComposableSpecFlags reports whether the user passed any of the
+// non-interactive spec-building flags. These trigger the buildSpecFromFlags
+// path instead of the legacy template-copy or wizard paths.
+func hasComposableSpecFlags(cmd *cobra.Command) bool {
+	for _, n := range []string{"capabilities", "requires", "no-rest", "no-mongo", "no-frontend", "no-plugin"} {
+		if f := cmd.Flag(n); f != nil && f.Changed {
+			return true
+		}
+	}
+	return false
+}
+
+// buildSpecFromFlags assembles a scaffold.ModuleSpec from the composable
+// CLI flags. Defaults mirror the wizard: REST, Mongo, frontend, and plugin
+// are all on unless the user passed --no-X. The --capabilities and
+// --requires flags accept "id" or "id@version" entries (range for requires).
+func buildSpecFromFlags(name string, targets []string) (*scaffold.ModuleSpec, error) {
+	spec := &scaffold.ModuleSpec{
+		Name:         name,
+		WithMongo:    !moduleNewNoMongo,
+		WithRest:     !moduleNewNoRest,
+		WithFrontend: !moduleNewNoFrontend,
+		WithPlugin:   !moduleNewNoPlugin,
+	}
+	if spec.WithPlugin {
+		// Fall back to AllTargets when --no-plugin wasn't set and no targets
+		// were given — mirrors the wizard's "ship every platform by default"
+		// path. An explicit --no-plugin forces an empty target set.
+		if len(targets) == 0 {
+			targets = scaffold.AllTargets()
+		}
+		spec.PluginTargets = make([]scaffold.PluginTarget, 0, len(targets))
+		for _, t := range targets {
+			spec.PluginTargets = append(spec.PluginTargets, scaffold.PluginTarget{
+				Platform:             t,
+				MultiVersionStrategy: "single",
+			})
+		}
+	}
+	for _, raw := range moduleNewCapabilities {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		id, version, _ := strings.Cut(raw, "@")
+		if version == "" {
+			version = "1.0.0"
+		}
+		spec.Provides = append(spec.Provides, scaffold.CapabilitySpec{ID: id, Version: version})
+	}
+	for _, raw := range moduleNewRequires {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		id, vrange, _ := strings.Cut(raw, "@")
+		if vrange == "" {
+			vrange = "[1.0,2.0)"
+		}
+		spec.Requires = append(spec.Requires, scaffold.CapabilityRequirement{ID: id, VersionRange: vrange})
+	}
+	return spec, nil
 }
 
 func runScaffold(opts scaffold.Options) error {
@@ -317,8 +435,28 @@ func init() {
 	moduleNewCmd.Flags().StringSliceVar(&moduleNewTargets, "targets", nil,
 		"Comma-separated subset of plugin targets (paper,folia,velocity,bungeecord,bedrock-geyser). "+
 			"Skips the wizard.")
+	moduleNewCmd.Flags().StringSliceVar(&moduleNewMcPlugin, "mc-plugin", nil,
+		"Alias for --targets, kept to match the docs and the northstar plan.")
 	moduleNewCmd.Flags().Bool("all-defaults", false,
 		"Skip the wizard and emit the full example template (legacy behaviour).")
+	// StringArrayVar (not Slice) — version ranges like "[1.0,2.0)" contain
+	// commas, which StringSliceVar would split. Users pass the flag once per
+	// capability instead.
+	moduleNewCmd.Flags().StringArrayVar(&moduleNewCapabilities, "capabilities", nil,
+		"Capability the module provides — \"id\" or \"id@version\" "+
+			"(default version 1.0.0). Pass multiple times for multiple capabilities.")
+	moduleNewCmd.Flags().StringArrayVar(&moduleNewRequires, "requires", nil,
+		"Capability the module requires — \"id\" or \"id@range\" "+
+			"(default range [1.0,2.0)). Pass multiple times for multiple requirements.")
+	moduleNewCmd.Flags().BoolVar(&moduleNewNoRest, "no-rest", false,
+		"Strip the rest/ package from the generated module. (Warning surfaces "+
+			"until the REST-removal pass lands — see scaffold.go.)")
+	moduleNewCmd.Flags().BoolVar(&moduleNewNoMongo, "no-mongo", false,
+		"Strip the storage scaffold from the generated module. (Same warning.)")
+	moduleNewCmd.Flags().BoolVar(&moduleNewNoFrontend, "no-frontend", false,
+		"Strip the frontend/ Vue package — module is backend-only.")
+	moduleNewCmd.Flags().BoolVar(&moduleNewNoPlugin, "no-plugin", false,
+		"Skip every plugin/<target> subdir — module is backend-only (no in-game plugins).")
 
 	moduleCmd.AddCommand(moduleListCmd, moduleUploadCmd, moduleDeleteCmd, moduleNewCmd)
 }

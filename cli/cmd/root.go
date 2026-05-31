@@ -65,18 +65,36 @@ var rootCmd = &cobra.Command{
 		// that exist to fix that state. Resolves flag/env overrides too — passing
 		// --controller/--token (or PREXOR_CONTROLLER) is a valid way to "use" a
 		// cluster without writing a context first.
+		//
+		// Individual subcommands that operate purely on local files (e.g.
+		// `module new` / `module scaffold` generate code on disk and never touch
+		// a controller) can opt out by setting Annotations["local-only"]="true".
 		if cfg.CurrentContextController() == "" && cfg.Resolve(flagController, flagContext) == "" {
-			top := topLevelName(cmd)
-			if top != "" && !commandsAllowedBeforeLink[top] {
-				return fmt.Errorf(
-					"no cluster connected — run 'prexorctl setup' to install a component, " +
-						"or 'prexorctl login' to link this CLI to an existing controller")
+			if !isLocalOnly(cmd) {
+				top := topLevelName(cmd)
+				if top != "" && !commandsAllowedBeforeLink[top] {
+					return fmt.Errorf(
+						"no cluster connected — run 'prexorctl setup' to install a component, " +
+							"or 'prexorctl login' to link this CLI to an existing controller")
+				}
 			}
 		}
 		return nil
 	},
 	SilenceUsage:  true,
 	SilenceErrors: true,
+}
+
+// isLocalOnly walks the command and its parents looking for the "local-only"
+// annotation. Subcommands flagged this way skip the pre-link gate because
+// they operate purely on local files and never need a controller context.
+func isLocalOnly(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations != nil && c.Annotations["local-only"] == "true" {
+			return true
+		}
+	}
+	return false
 }
 
 // topLevelName walks up to the immediate child of root, so subcommands like

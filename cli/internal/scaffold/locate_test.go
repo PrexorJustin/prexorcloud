@@ -8,7 +8,7 @@ import (
 
 func writeModule(t *testing.T, root, kebab, archive string) {
 	t.Helper()
-	dir := filepath.Join(root, "java", "cloud-module", "cloud-module-"+kebab)
+	dir := filepath.Join(root, "java", "cloud-modules", ""+kebab)
 	mustMkdir(t, dir)
 	body := "plugins { id(\"prexorcloud.module\") }\n" +
 		"prexorcloudModule {\n" +
@@ -57,7 +57,7 @@ func TestLocateModule_AcceptsDirPrefix(t *testing.T) {
 
 func TestLocateModule_ParsesArchiveNameWithExtraWhitespace(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "java", "cloud-module", "cloud-module-spacey")
+	dir := filepath.Join(root, "java", "cloud-modules", "spacey")
 	mustMkdir(t, dir)
 	mustWrite(t, filepath.Join(dir, "build.gradle.kts"),
 		"prexorcloudModule {\n    archiveName.set(  \"spaced-out\"  )\n}\n")
@@ -87,7 +87,7 @@ func TestLocateModule_MissingModule(t *testing.T) {
 
 func TestLocateModule_MissingArchiveName(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "java", "cloud-module", "cloud-module-bare")
+	dir := filepath.Join(root, "java", "cloud-modules", "bare")
 	mustMkdir(t, dir)
 	mustWrite(t, filepath.Join(dir, "build.gradle.kts"), "plugins { id(\"prexorcloud.module\") }\n")
 

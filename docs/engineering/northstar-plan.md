@@ -248,16 +248,24 @@ Top-Level-Dirs ohne README → je ein 8–15-Zeilen-README mit Zweck, Layout, �
 - **Hot-Reload:** Modul-Update ohne Controller-Restart. State-Erhalt über `PlatformModuleStateStore`-Interface, das Module beim Stop persistieren und beim Start lesen.
 - **Health-Checks:** Module exposen optional `healthCheck()`-Methode; Controller pollt, Dashboard zeigt grünen/gelben/roten Punkt.
 
-### C.4 Module-Scaffolder im CLI (~2 d)
+### C.4 Module-Scaffolder im CLI (~2 d) — ✅ **shipped**
 
 ```bash
 prexorctl module scaffold my-cool-module \
-  --capabilities prexor.player.journey \
-  --rest-routes \
-  --mc-plugin paper,velocity
+  --capabilities prexor.smoke@1.0.0 \
+  --requires prexor.player.journey@'[1.0,2.0)' \
+  --mc-plugin paper,velocity \
+  --no-frontend
 ```
 
-Generiert komplette Modul-Skelette inkl. MC-Plugin-Anbindung, build.gradle.kts, manifest.json, GitHub-Actions-Workflow für signed Builds. Senkt die Hürde für externe Contributors auf 5 Minuten.
+**Geliefert:**
+- `prexorctl module new` (mit `scaffold` als Cobra-Alias) erzeugt Modul-Skelette unter `java/cloud-modules/<name>/` aus dem `example/`-Template; vor diesem Commit war das Verzeichnislayout im Scaffolder noch das Pre-Track-B `cloud-module/cloud-module-<name>/` und damit **broken**.
+- Composable non-interactive Flags: `--capabilities`, `--requires` (beide `StringArray`, damit Version-Ranges mit Komma — z.B. `[1.0,2.0)` — durchgehen), `--mc-plugin` (Alias für `--targets`), `--no-rest`, `--no-mongo`, `--no-frontend`, `--no-plugin`. Die `--no-rest`/`--no-mongo`-Flags fließen in die Wizard-Spec, deren Strip-Out für Storage/REST noch nicht implementiert ist (`scaffold.go` warnt, Template-Defaults bleiben).
+- GitHub-Actions-Workflow-Template (`.github/workflows/build.yml`) im `example/`-Modul; cosign-keyless via OIDC, signiert JAR und published Signature-Bundle als Artefakt. Liegt unter `java/cloud-modules/<name>/.github/` — vom Monorepo-CI nicht gescannt (GH Actions scannt nur Repo-Root-`.github/workflows/`), aktiviert sich erst wenn ein Contributor den Modul-Subtree als eigenes Repo extrahiert.
+- Pre-Link-Gate des Root-Kommandos (`prexorctl` ohne Cluster-Kontext) kennt jetzt `Annotations["local-only"]="true"`. `module new`/`module scaffold` ist damit ohne `prexorctl login` benutzbar — passt zu dem von der Plan-Aussage „5-Minuten-Hürde" geforderten First-Run-UX.
+- Tests: `cli/cmd/module_scaffold_flags_test.go` lockt Version-Range-Parsing, `--no-frontend`/`--no-plugin`-Semantik und Default-Versions/Ranges fest. Scaffold-Suite (`internal/scaffold/`) blieb intakt, Paths-Sed durch alle Test-Fixtures gezogen.
+
+**Bewusst out of scope (eigenes follow-up):** `extensions:`-Block in `module.yaml` reflektiert die `--mc-plugin`-Auswahl noch nicht — die `plugin/<platform>/`-Verzeichnisse werden korrekt gefiltert, aber der Manifest-Block listet weiterhin alle Templates auf. WithRest/WithMongo-Strip-Out wartet auf den eigenen Pass; die Wizard-Spec ist vorbereitet.
 
 ### C.5 Erweiterung First-Party-Module (~3 d)
 
