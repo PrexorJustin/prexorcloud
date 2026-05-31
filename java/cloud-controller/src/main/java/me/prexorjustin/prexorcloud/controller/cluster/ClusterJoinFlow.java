@@ -6,8 +6,10 @@ import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.util.List;
 
 import me.prexorjustin.prexorcloud.protocol.ClusterMembershipGrpc;
+import me.prexorjustin.prexorcloud.protocol.KnownPeer;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinRequest;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinResponse;
 
@@ -74,10 +76,19 @@ public final class ClusterJoinFlow {
     /**
      * Materials returned to the joiner after a successful RequestJoin: the
      * joiner's signed leaf cert + the matching private key + the cluster CA
-     * cert + the cluster identifier. The private key never leaves this JVM.
+     * cert + the cluster identifier, plus a snapshot of the existing Raft
+     * peer set so the joiner can build its initial known {@code RaftGroup}.
+     * The private key never leaves this JVM.
      */
     public record JoinResult(
-            X509Certificate signedCert, PrivateKey privateKey, X509Certificate caCert, String clusterId) {}
+            X509Certificate signedCert,
+            PrivateKey privateKey,
+            X509Certificate caCert,
+            String clusterId,
+            List<KnownRaftPeer> existingPeers) {}
+
+    /** Identifier + Raft transport address of a controller already in the cluster. */
+    public record KnownRaftPeer(String nodeId, String raftAddr) {}
 
     public JoinResult join(String token, JoinIdentity identity) throws Exception {
         KeyPair keyPair = generateEcKeyPair();
@@ -100,12 +111,21 @@ public final class ClusterJoinFlow {
         X509Certificate ca = (X509Certificate)
                 cf.generateCertificate(new java.io.ByteArrayInputStream(resp.getCaCertDer().toByteArray()));
 
+        List<KnownRaftPeer> peers = resp.getCurrentPeersList().stream()
+                .map(ClusterJoinFlow::toKnownPeer)
+                .toList();
+
         logger.info(
-                "Joined cluster {} as {} (cert serial={})",
+                "Joined cluster {} as {} (cert serial={}, peers={})",
                 resp.getClusterId(),
                 identity.nodeId(),
-                signed.getSerialNumber());
-        return new JoinResult(signed, keyPair.getPrivate(), ca, resp.getClusterId());
+                signed.getSerialNumber(),
+                peers.size());
+        return new JoinResult(signed, keyPair.getPrivate(), ca, resp.getClusterId(), peers);
+    }
+
+    private static KnownRaftPeer toKnownPeer(KnownPeer p) {
+        return new KnownRaftPeer(p.getNodeId(), p.getRaftAddr());
     }
 
     private static KeyPair generateEcKeyPair() throws Exception {

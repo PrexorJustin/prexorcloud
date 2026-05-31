@@ -14,6 +14,7 @@ import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 import me.prexorjustin.prexorcloud.protocol.ClusterMembershipGrpc;
+import me.prexorjustin.prexorcloud.protocol.KnownPeer;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinRequest;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinResponse;
 import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
@@ -137,6 +138,12 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
         addHostnameSan(sans, request.getGrpcAddr());
         var signedCert = ca.signCsr(request.getCsrDer().toByteArray(), sans, LEAF_VALIDITY_DAYS);
 
+        // Snapshot the current peer set BEFORE adding the joiner so the response carries
+        // only the peers the joiner needs to dial. Adding self again is harmless if the
+        // joiner included its own raft addr, but excluding it keeps the response semantics
+        // clean: "the cluster you are joining, as it currently is".
+        List<Member> existingMembers = controlPlane.listMembers();
+
         // Pin the new peer's addresses in the cluster state. Members survive snapshots; the joiner's
         // Ratis-side member-add comes in sub-step 3 via setConfiguration on the leader.
         controlPlane.addMember(new Member(
@@ -156,11 +163,21 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
                 request.getGrpcAddr(),
                 payload.jti());
 
-        return RequestJoinResponse.newBuilder()
+        RequestJoinResponse.Builder responseBuilder = RequestJoinResponse.newBuilder()
                 .setSignedCertDer(ByteString.copyFrom(signedCert.getEncoded()))
                 .setCaCertDer(ByteString.copyFrom(certFile.bytes()))
-                .setClusterId(meta.clusterId())
-                .build();
+                .setClusterId(meta.clusterId());
+        for (Member peer : existingMembers) {
+            if (peer.nodeId().equals(request.getNodeId())) {
+                // Defensive: a join retry would otherwise echo the joiner back to itself.
+                continue;
+            }
+            responseBuilder.addCurrentPeers(KnownPeer.newBuilder()
+                    .setNodeId(peer.nodeId())
+                    .setRaftAddr(peer.raftAddr())
+                    .build());
+        }
+        return responseBuilder.build();
     }
 
     private static String peerCidr(RequestJoinRequest request) {

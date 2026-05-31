@@ -45,4 +45,16 @@ message RequestJoinResponse {
   // The cluster's stable identifier. The joiner writes it to its controller.yml
   // mirror so a future restart can refuse to bind to a different cluster's data.
   string cluster_id = 3;
+  // Snapshot of the current Raft peer set (node_id + raft_addr) at the moment
+  // the join was processed. The joiner needs these to build the initial known
+  // RaftGroup before calling GroupManagementApi.add() on itself — the token's
+  // joinAddrs[] is the controller gRPC port, which is unrelated to the Raft
+  // transport port. Includes the leader and every other accepted member but
+  // does NOT include the joiner itself.
+  repeated KnownPeer current_peers = 4;
+}
+
+message KnownPeer {
+  string node_id = 1;
+  string raft_addr = 2;
 }

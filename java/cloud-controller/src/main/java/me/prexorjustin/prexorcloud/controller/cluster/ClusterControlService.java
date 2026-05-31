@@ -1,28 +1,41 @@
 package me.prexorjustin.prexorcloud.controller.cluster;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 import me.prexorjustin.prexorcloud.api.event.CloudEvent;
 import me.prexorjustin.prexorcloud.api.event.events.ClusterConfigChangedEvent;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlStateMachine;
+import me.prexorjustin.prexorcloud.controller.cluster.raft.MembershipReconciler;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.RaftBootstrap;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
+import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
+import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
 import me.prexorjustin.prexorcloud.controller.config.ClusterJoinTemplate;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
+import me.prexorjustin.prexorcloud.protocol.ClusterMembershipGrpc;
 
+import io.grpc.ManagedChannel;
+import org.apache.ratis.grpc.GrpcTlsConfig;
+import org.apache.ratis.protocol.RaftGroup;
+import org.apache.ratis.protocol.RaftGroupId;
+import org.apache.ratis.protocol.RaftPeer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,10 +76,14 @@ public final class ClusterControlService implements AutoCloseable {
     private RaftBootstrap raft;
     private ClusterControlStateMachine stateMachine;
     private ClusterControlPlane controlPlane;
+    private MembershipReconciler reconciler;
     private String resolvedClusterId;
 
     /** Effective config after first-boot seeding or v1.0 migration. May equal the input on restart. */
     private ControllerConfig effectiveConfig;
+
+    /** Test seam — overrides the join-flow stub factory. Production wires the gRPC channel. */
+    private JoinChannelFactory joinChannelFactory = ClusterControlService::defaultJoinChannel;
 
     public ClusterControlService(ControllerConfig config, String nodeId) {
         this(config, nodeId, Clock.systemUTC(), new SecureRandom());
@@ -81,7 +98,81 @@ public final class ClusterControlService implements AutoCloseable {
         this.effectiveConfig = config;
     }
 
+    /** Test seam — inject an in-process stub for the {@code RequestJoin} gRPC call. */
+    public void setJoinChannelFactory(JoinChannelFactory factory) {
+        this.joinChannelFactory = factory;
+    }
+
+    /** Address the joiner's Raft transport binds to, advertised to the cluster as part of the join. */
+    private String selfRaftAddress() {
+        return config.raft().host() + ":" + config.raft().port();
+    }
+
+    private RaftGroupId raftGroupId() {
+        return RaftGroupId.valueOf(GROUP_ID);
+    }
+
+    /**
+     * Day-0 bootstrap or restart of an existing member. The split is on whether
+     * {@code materials} already holds this node's cluster TLS material:
+     *
+     * <ul>
+     *   <li><b>Day-0 (materials absent):</b> mint a fresh cluster CA + leaf cert
+     *       in memory, persist them through {@code materials}, then start Raft
+     *       with TLS as a single-member group. Also writes the CA into the Raft
+     *       state machine so future joiners receive it via snapshot.</li>
+     *   <li><b>Restart (materials present):</b> load the persisted CA + leaf,
+     *       start Raft with TLS, let Ratis replay the log. The CA is already in
+     *       state; {@link #ensureClusterCa} is a no-op.</li>
+     * </ul>
+     *
+     * <p>Either way: {@link #reconcileClusterIdentity}, {@link #ensureClusterCa}
+     * and {@link #runV10MigrationIfNeeded} run last so they see the live Raft
+     * state regardless of branch.
+     */
+    public void start(LocalClusterMaterials materials) throws IOException, TimeoutException {
+        if (materials == null) {
+            // Tests that just want the cluster control plane without TLS material
+            // wired call start() (the no-arg overload below); production always
+            // passes a materials handle. Keeping both legal preserves the existing
+            // ClusterControlServiceTest surface.
+            startWithoutTls();
+            return;
+        }
+        stateMachine = new ClusterControlStateMachine();
+        raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
+
+        if (materials.exists()) {
+            LocalClusterMaterials.Loaded loaded = materials.load();
+            GrpcTlsConfig tls = buildTls(loaded);
+            raft.start(tls);
+            logger.info("Restarted Raft with persisted cluster TLS material from {}", materials.directory());
+        } else {
+            CertificateAuthority ca = mintAndPersistDay0Materials(materials);
+            LocalClusterMaterials.Loaded loaded = materials.load();
+            GrpcTlsConfig tls = buildTls(loaded);
+            raft.start(tls);
+            // Stash the CA so ensureClusterCa() doesn't have to re-mint when we get
+            // there. ensureClusterCa() checks raft state first; we write the bytes in
+            // a moment.
+            day0InMemoryCa = ca;
+        }
+        raft.awaitLeader(15_000);
+        controlPlane = new ClusterControlPlane(raft, stateMachine);
+
+        reconcileClusterIdentity();
+        ensureClusterCa();
+        runV10MigrationIfNeeded();
+        ensureSelfMember();
+        startMembershipReconciler();
+    }
+
+    /** Tests-only entry: no TLS, no on-disk material. Day-0 / restart still work via Ratis storage. */
     public void start() throws IOException, TimeoutException {
+        startWithoutTls();
+    }
+
+    private void startWithoutTls() throws IOException, TimeoutException {
         stateMachine = new ClusterControlStateMachine();
         raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
         raft.start();
@@ -91,6 +182,226 @@ public final class ClusterControlService implements AutoCloseable {
         reconcileClusterIdentity();
         ensureClusterCa();
         runV10MigrationIfNeeded();
+    }
+
+    /**
+     * Day-N join. Parses the wire token, dials the existing cluster, redeems the
+     * token, gets a cluster-CA-signed leaf cert, persists the materials locally,
+     * then brings up Raft in join mode and calls {@code GroupManagementApi.add()}
+     * on itself. After this returns, the controller is a full peer — its state
+     * machine will fill in by InstallSnapshot from the leader.
+     *
+     * <p>Idempotency model: the caller (bootstrap) deletes the on-disk token only
+     * after this method returns. If we throw partway through, the operator just
+     * restarts; the next attempt purges {@code materials}, the Raft data dir, and
+     * retries from scratch. The token is single-use server-side, so a retry that
+     * gets past redemption-of-an-already-redeemed-token surfaces a
+     * {@code ClusterWriteConflict} the bootstrap reports.
+     */
+    public void startInJoinMode(String token, LocalClusterMaterials materials, JoinIdentity selfIdentity)
+            throws IOException, TimeoutException {
+        // Wipe stale state from any previous half-failed join attempt — we want a
+        // clean Raft data dir and no leftover leaf cert before we re-run.
+        purgeJoinState(materials);
+
+        ClusterJoinFlow.JoinResult joinResult;
+        ManagedChannel channel = null;
+        try {
+            String dialTarget = pickDialTarget(token);
+            channel = joinChannelFactory.open(dialTarget);
+            var stub = ClusterMembershipGrpc.newBlockingStub(channel);
+            ClusterJoinFlow flow = new ClusterJoinFlow(stub);
+            joinResult = flow.join(
+                    token,
+                    new ClusterJoinFlow.JoinIdentity(
+                            nodeId,
+                            selfIdentity.raftAddr(),
+                            selfIdentity.restAddr(),
+                            selfIdentity.grpcAddr()));
+        } catch (IOException | RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("cluster join failed", e);
+        } finally {
+            if (channel != null) {
+                channel.shutdownNow();
+            }
+        }
+
+        // Persist materials BEFORE we start Raft — a crash between the persist and the
+        // Ratis bring-up leaves the operator with a clean retry path (purge + redo).
+        materials.persist(joinResult.caCert(), joinResult.signedCert(), joinResult.privateKey());
+
+        stateMachine = new ClusterControlStateMachine();
+        raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
+
+        LocalClusterMaterials.Loaded loaded = materials.load();
+        GrpcTlsConfig tls = buildTls(loaded);
+
+        RaftPeer self = RaftPeer.newBuilder()
+                .setId(nodeId)
+                .setAddress(selfRaftAddress())
+                .build();
+        List<RaftPeer> knownPeers = Stream.concat(
+                        joinResult.existingPeers().stream().map(p -> RaftPeer.newBuilder()
+                                .setId(p.nodeId())
+                                .setAddress(p.raftAddr())
+                                .build()),
+                        Stream.of(self))
+                .toList();
+        RaftGroup knownGroup = RaftGroup.valueOf(raftGroupId(), knownPeers);
+
+        raft.startInJoinMode(tls, knownGroup);
+        raft.joinExistingGroup(knownGroup);
+
+        controlPlane = new ClusterControlPlane(raft, stateMachine);
+        resolvedClusterId = joinResult.clusterId();
+        // Mirror the cluster id into our local ControllerConfig so callers reading
+        // effectiveConfig() see it. The yaml mirror is written by bootstrap.
+        effectiveConfig = withClusterId(effectiveConfig, joinResult.clusterId());
+
+        startMembershipReconciler();
+
+        logger.info(
+                "Joined cluster {} as {} with {} existing peer(s); local TLS material persisted to {}",
+                joinResult.clusterId(),
+                nodeId,
+                joinResult.existingPeers().size(),
+                materials.directory());
+    }
+
+    private static ManagedChannel defaultJoinChannel(String hostPort) throws Exception {
+        return ClusterJoinFlow.insecureChannelTo(hostPort);
+    }
+
+    private String pickDialTarget(String token) {
+        // The token's joinAddrs[] is the existing controllers' join-membership endpoints.
+        // We dial the first one; if it's unreachable a future iteration can fall back to the
+        // rest of the list. For v1.1 single-leader / small clusters, head-of-list is enough.
+        var parsed = JoinTokenCodec.parse(token);
+        var addrs = parsed.payload().joinAddrs();
+        if (addrs.isEmpty()) {
+            throw new IllegalStateException("join token contains no joinAddrs — cannot dial cluster");
+        }
+        return addrs.get(0);
+    }
+
+    private void purgeJoinState(LocalClusterMaterials materials) throws IOException {
+        materials.purge();
+        Path raftDir = Path.of(config.raft().dataDir());
+        if (Files.isDirectory(raftDir)) {
+            try (Stream<Path> entries = Files.walk(raftDir)) {
+                entries.sorted((a, b) -> b.getNameCount() - a.getNameCount())
+                        .forEach(p -> {
+                            try {
+                                Files.deleteIfExists(p);
+                            } catch (IOException ignored) {
+                                // best-effort
+                            }
+                        });
+            }
+        }
+    }
+
+    private CertificateAuthority day0InMemoryCa;
+
+    private CertificateAuthority mintAndPersistDay0Materials(LocalClusterMaterials materials) throws IOException {
+        try {
+            CertificateAuthority ca = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
+            // Issue a self-signed leaf for this node. SANs cover both the configured raft
+            // host and the loopback aliases that tests dial via.
+            List<String> sans = Stream.of(nodeId, config.raft().host(), "127.0.0.1", "localhost")
+                    .distinct()
+                    .toList();
+            var leaf = ca.issueClusterPeerCertificate(nodeId, sans, 365);
+            materials.persist(ca.certificate(), leaf.certificate(), leaf.keyPair().getPrivate());
+            logger.info(
+                    "Minted Day-0 cluster CA + self leaf cert; persisted to {} (CA fingerprint={})",
+                    materials.directory(),
+                    ca.fingerprint());
+            return ca;
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Day-0 cluster CA mint failed", e);
+        }
+    }
+
+    private GrpcTlsConfig buildTls(LocalClusterMaterials.Loaded loaded) {
+        return new GrpcTlsConfig(loaded.leafKey(), loaded.leafCert(), List.of(loaded.caCert()), true);
+    }
+
+    /**
+     * Day-0 founder: write its own {@link Member} record so the membership reconciler has
+     * something to set as the Ratis group on first boot. Idempotent on restart — the SM's
+     * AddMember handler rejects duplicates, which surfaces as a {@code ClusterWriteConflict}
+     * we swallow.
+     */
+    private void ensureSelfMember() {
+        boolean alreadyPresent = controlPlane.listMembers().stream()
+                .anyMatch(m -> nodeId.equals(m.nodeId()));
+        if (alreadyPresent) {
+            return;
+        }
+        try {
+            Member self = new Member(
+                    nodeId,
+                    selfRaftAddress(),
+                    "",
+                    "",
+                    nodeId,
+                    Instant.now(clock),
+                    Instant.now(clock));
+            controlPlane.addMember(self);
+            logger.info("Stamped Day-0 self member {} at {}", nodeId, selfRaftAddress());
+        } catch (IOException e) {
+            logger.warn("could not add self to cluster members: {}", e.getMessage());
+        }
+    }
+
+    private void startMembershipReconciler() {
+        reconciler = new MembershipReconciler(raft, stateMachine);
+        reconciler.start();
+    }
+
+    private static ControllerConfig withClusterId(ControllerConfig cfg, String clusterId) {
+        ClusterConfig prior = cfg.cluster();
+        ClusterConfig updated = new ClusterConfig(
+                clusterId,
+                prior == null ? null : prior.joinedFrom(),
+                prior == null ? null : prior.joinedAt());
+        return new ControllerConfig(
+                cfg.uuid(),
+                cfg.http(),
+                cfg.grpc(),
+                cfg.network(),
+                cfg.database(),
+                cfg.logging(),
+                cfg.scheduler(),
+                cfg.heartbeat(),
+                cfg.runtime(),
+                cfg.security(),
+                cfg.crashes(),
+                cfg.metrics(),
+                cfg.modules(),
+                cfg.maintenance(),
+                cfg.dashboard(),
+                cfg.backup(),
+                cfg.share(),
+                cfg.networks(),
+                cfg.events(),
+                cfg.redis(),
+                updated,
+                cfg.raft());
+    }
+
+    /** Identity advertised by the joiner: REST + gRPC bind addresses go into the cluster member list. */
+    public record JoinIdentity(String raftAddr, String restAddr, String grpcAddr) {}
+
+    /** Factory for the gRPC channel used during {@link #startInJoinMode}; in-process channel in tests. */
+    @FunctionalInterface
+    public interface JoinChannelFactory {
+        ManagedChannel open(String hostPort) throws Exception;
     }
 
     /**
@@ -144,11 +455,16 @@ public final class ClusterControlService implements AutoCloseable {
             return;
         }
         try {
-            CertificateAuthority ca = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
+            // Reuse the CA that {@link #mintAndPersistDay0Materials} minted if we're on the
+            // Day-0 path — that way the bytes in Raft state exactly match the bytes on disk
+            // (and the leaf cert we just issued chains correctly).
+            CertificateAuthority ca = day0InMemoryCa != null
+                    ? day0InMemoryCa
+                    : CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
             controlPlane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
             controlPlane.writeClusterFile(
                     ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
-            logger.info("Minted cluster CA (fingerprint={}) into Raft state", ca.fingerprint());
+            logger.info("Stamped cluster CA (fingerprint={}) into Raft state", ca.fingerprint());
         } catch (IOException e) {
             throw e;
         } catch (Exception e) {
@@ -240,6 +556,9 @@ public final class ClusterControlService implements AutoCloseable {
 
     @Override
     public void close() throws IOException {
+        if (reconciler != null) {
+            reconciler.close();
+        }
         if (raft != null) {
             raft.close();
         }

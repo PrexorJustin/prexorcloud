@@ -113,6 +113,15 @@ public final class PrexorCloudBootstrap {
     private static final Path JOIN_TOKENS_FILE = SECURITY_DIR.resolve("join-tokens.json");
     private static final Path FORWARDING_SECRET_FILE = SECURITY_DIR.resolve("forwarding.secret");
 
+    /**
+     * Operator-installed wire token. Present means "this controller has not yet
+     * joined the cluster — run the join flow on next boot." Deleted by the
+     * bootstrap after the join completes; a half-failed join leaves it in place
+     * so the operator can retry by restarting.
+     */
+    private static final Path PENDING_JOIN_TOKEN_FILE = SECURITY_DIR.resolve("pending-join-token");
+    private static final Path CLUSTER_MATERIALS_DIR = SECURITY_DIR.resolve("cluster");
+
     private static final Path TEMPLATE_FILES_DIR = Path.of("templates");
     private static final Path GROUPS_DIR = Path.of("groups");
 
@@ -149,7 +158,7 @@ public final class PrexorCloudBootstrap {
 
         var store = initStorage();
         clusterControlService = new ClusterControlService(config, config.uuid());
-        clusterControlService.start();
+        startClusterControlPlane();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
         runtime = initRuntimeServices();
@@ -218,6 +227,62 @@ public final class PrexorCloudBootstrap {
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    /**
+     * Pick the cluster control-plane entry branch:
+     *
+     * <ul>
+     *   <li>{@code pending-join-token} on disk → run {@code startInJoinMode} (Day-N).
+     *       On success delete the token. On failure leave it in place so a
+     *       restart retries automatically.</li>
+     *   <li>{@code config/security/cluster/} already populated → restart with the
+     *       persisted TLS material (Day-0 founder coming back, or post-join restart).</li>
+     *   <li>Otherwise → Day-0 fresh bootstrap. The cluster control service mints
+     *       its own CA + self leaf cert and persists them locally.</li>
+     * </ul>
+     *
+     * <p>After a successful join the cluster id from the leader gets mirrored into
+     * {@code controller.yml} via {@link #persistClusterIdentity} so subsequent
+     * restarts hit the "yaml mismatch refusal" guard if the operator points the
+     * controller at the wrong Raft state dir.
+     */
+    private void startClusterControlPlane() throws Exception {
+        Files.createDirectories(SECURITY_DIR);
+        FilePermissions.setOwnerOnly(SECURITY_DIR);
+        var materials = new me.prexorjustin.prexorcloud.controller.cluster.LocalClusterMaterials(
+                CLUSTER_MATERIALS_DIR);
+
+        if (Files.isRegularFile(PENDING_JOIN_TOKEN_FILE)) {
+            String token = Files.readString(PENDING_JOIN_TOKEN_FILE).trim();
+            if (token.isEmpty()) {
+                throw new IllegalStateException(PENDING_JOIN_TOKEN_FILE + " exists but is empty — "
+                        + "delete it to run Day-0 bootstrap, or repopulate it with a wire token.");
+            }
+            String restAddr = config.http().host() + ":" + config.http().port();
+            String grpcAddr = config.grpc().host() + ":" + config.grpc().port();
+            String raftAddr = config.raft().host() + ":" + config.raft().port();
+            var identity = new me.prexorjustin.prexorcloud.controller.cluster.ClusterControlService.JoinIdentity(
+                    raftAddr, restAddr, grpcAddr);
+            logger.info(
+                    "Found pending join token at {} — joining cluster as {} (raft={}, rest={}, grpc={})",
+                    PENDING_JOIN_TOKEN_FILE,
+                    config.uuid(),
+                    raftAddr,
+                    restAddr,
+                    grpcAddr);
+            clusterControlService.startInJoinMode(token, materials, identity);
+            // Persist the new cluster id mirror so the next boot's "yaml vs raft" guard fires.
+            String joinedClusterId = clusterControlService.clusterId();
+            if (joinedClusterId != null) {
+                persistClusterIdentity(joinedClusterId);
+            }
+            Files.delete(PENDING_JOIN_TOKEN_FILE);
+            logger.info("Cluster join complete — deleted {}", PENDING_JOIN_TOKEN_FILE);
+            return;
+        }
+
+        clusterControlService.start(materials);
+    }
 
     private RuntimeServices initRuntimeServices() {
         if (config.redis() == null) {
