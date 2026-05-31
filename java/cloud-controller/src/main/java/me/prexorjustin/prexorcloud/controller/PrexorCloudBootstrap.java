@@ -981,6 +981,11 @@ public final class PrexorCloudBootstrap {
 
     private Scheduler initScheduler(PrexorController controller, ModuleRegistry modules) {
         var scheduler = buildScheduler(controller, modules);
+        // Cluster-singleton gate for the deployment reconciliation loop. Without
+        // this, every controller iterated IN_PROGRESS deployments on every tick
+        // and raced on Mongo.
+        scheduler.setClusterLeaseManager(new me.prexorjustin.prexorcloud.controller.cluster.ClusterLeaseManager(
+                clusterControlService.controlPlane(), config.uuid()));
         scheduler.start();
 
         int retentionDays = config.scheduler().auditRetentionDays();

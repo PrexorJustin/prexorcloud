@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import me.prexorjustin.prexorcloud.common.identity.InstanceIdGenerator;
 import me.prexorjustin.prexorcloud.common.logging.CorrelationContext;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterLeaseManager;
 import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentReconciler;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
@@ -55,6 +56,12 @@ public final class Scheduler implements LeaseGate {
     private final StartRetryOrchestrator startRetry;
     private final RecoveryOrchestrator recovery;
     private final Set<String> activeDeployments = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    // Cluster-singleton gate for reconcilePersistedDeployments. Null when no
+    // Raft control plane is available (tests, single-controller dev installs
+    // running without it) — body falls through to its pre-Phase-8 behaviour.
+    private volatile ClusterLeaseManager clusterLeaseManager;
+    private static final java.time.Duration DEPLOYMENT_RECONCILER_LEASE_TTL = java.time.Duration.ofMinutes(5);
 
     private ScheduledExecutorService executor;
 
@@ -359,9 +366,30 @@ public final class Scheduler implements LeaseGate {
     }
 
     public void reconcilePersistedDeployments() {
+        ClusterLeaseManager mgr = clusterLeaseManager;
+        if (mgr == null) {
+            reconcilePersistedDeploymentsBody();
+            return;
+        }
+        // Cluster-singleton: pre-Phase-8 every controller iterated this list in
+        // parallel and raced on Mongo. Skipping when another controller holds
+        // the lease is the desired behaviour — next tick retries.
+        mgr.runUnderLease("deployment-reconciler", DEPLOYMENT_RECONCILER_LEASE_TTL, this::reconcilePersistedDeploymentsBody);
+    }
+
+    private void reconcilePersistedDeploymentsBody() {
         for (var deployment : stateStore.getDeploymentsByState("IN_PROGRESS", 50)) {
             reconcilePersistedDeployment(deployment);
         }
+    }
+
+    /**
+     * Opt the scheduler into the Raft-backed deployment-reconciler lease. Bootstrap
+     * wires this after the cluster control plane is up; tests skip it and run the
+     * reconciler unguarded.
+     */
+    public void setClusterLeaseManager(ClusterLeaseManager clusterLeaseManager) {
+        this.clusterLeaseManager = clusterLeaseManager;
     }
 
     // Thin delegators — tests + DaemonServiceImpl + evaluate() call these
