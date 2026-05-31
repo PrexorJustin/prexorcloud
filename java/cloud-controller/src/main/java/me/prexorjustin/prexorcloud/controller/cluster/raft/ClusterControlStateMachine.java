@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.JoinToken;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
@@ -71,6 +72,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
     private final ConcurrentHashMap<String, Member> members = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, JoinToken> joinTokens = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Lease> leases = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ClusterFile> clusterFiles = new ConcurrentHashMap<>();
 
     /**
      * Hook fired after each successful apply, on every controller. Set lazily by
@@ -167,6 +169,8 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
             case ClusterEntry.GrantLease e -> applyGrantLease(e);
             case ClusterEntry.RenewLease e -> applyRenewLease(e);
             case ClusterEntry.ReleaseLease e -> applyReleaseLease(e);
+            case ClusterEntry.WriteClusterFile e -> applyWriteClusterFile(e);
+            case ClusterEntry.DeleteClusterFile e -> applyDeleteClusterFile(e);
         };
     }
 
@@ -368,6 +372,23 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         return ClusterEntry.Reply.success();
     }
 
+    private ClusterEntry.Reply applyWriteClusterFile(ClusterEntry.WriteClusterFile e) {
+        ClusterFile file = e.file();
+        if (file == null || file.key() == null || file.key().isBlank()) {
+            return ClusterEntry.Reply.rejected("FILE_KEY_INVALID", "cluster file key required");
+        }
+        if (file.bytes() == null) {
+            return ClusterEntry.Reply.rejected("FILE_BYTES_NULL", "cluster file bytes required");
+        }
+        clusterFiles.put(file.key(), file);
+        return ClusterEntry.Reply.success();
+    }
+
+    private ClusterEntry.Reply applyDeleteClusterFile(ClusterEntry.DeleteClusterFile e) {
+        clusterFiles.remove(e.key()); // idempotent
+        return ClusterEntry.Reply.success();
+    }
+
     // --- Read API (direct projection, no Raft round-trip) ---
 
     public Optional<ClusterMeta> getClusterMeta() {
@@ -403,6 +424,16 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
 
     public Optional<Lease> getLease(String name) {
         return Optional.ofNullable(leases.get(name));
+    }
+
+    public Optional<ClusterFile> getClusterFile(String key) {
+        return Optional.ofNullable(clusterFiles.get(key));
+    }
+
+    public List<ClusterFile> listClusterFiles() {
+        return clusterFiles.values().stream()
+                .sorted(Comparator.comparing(ClusterFile::key))
+                .toList();
     }
 
     // --- Snapshots ---
@@ -456,7 +487,8 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
                 activeConfigVersion.get(),
                 List.copyOf(members.values()),
                 List.copyOf(joinTokens.values()),
-                List.copyOf(leases.values()));
+                List.copyOf(leases.values()),
+                List.copyOf(clusterFiles.values()));
     }
 
     private void restoreState(SnapshotState s) {
@@ -486,6 +518,12 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
                 leases.put(l.name(), l);
             }
         }
+        clusterFiles.clear();
+        if (s.clusterFiles != null) {
+            for (ClusterFile f : s.clusterFiles) {
+                clusterFiles.put(f.key(), f);
+            }
+        }
     }
 
     /** On-disk snapshot envelope. Same shape across versions until the schema changes. */
@@ -495,13 +533,15 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
             @JsonProperty("activeConfigVersion") int activeConfigVersion,
             @JsonProperty("members") List<Member> members,
             @JsonProperty("joinTokens") List<JoinToken> joinTokens,
-            @JsonProperty("leases") List<Lease> leases) {
+            @JsonProperty("leases") List<Lease> leases,
+            @JsonProperty("clusterFiles") List<ClusterFile> clusterFiles) {
         // Default ctor keeps lists non-null on deserialise of an older snapshot.
         public SnapshotState {
             if (configVersions == null) configVersions = new ArrayList<>();
             if (members == null) members = new ArrayList<>();
             if (joinTokens == null) joinTokens = new ArrayList<>();
             if (leases == null) leases = new ArrayList<>();
+            if (clusterFiles == null) clusterFiles = new ArrayList<>();
         }
     }
 }

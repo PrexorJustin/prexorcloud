@@ -116,6 +116,44 @@ class ClusterControlServiceTest {
     }
 
     @Test
+    @DisplayName("first boot mints a cluster CA into the Raft state, restart reuses it")
+    void firstBootMintsClusterCa(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
+
+        byte[] firstCert;
+        byte[] firstKey;
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.start();
+            var cert = svc.controlPlane()
+                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow(() -> new AssertionError("CA cert must be stamped on first boot"));
+            var key = svc.controlPlane()
+                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
+                    .orElseThrow(() -> new AssertionError("CA key must be stamped on first boot"));
+            assertTrue(cert.bytes().length > 0);
+            assertTrue(key.bytes().length > 0);
+            // Verify the bytes round-trip through the security helper as a real EC keypair / X.509 cert.
+            var reloaded = me.prexorjustin.prexorcloud.security.ca.CertificateAuthority.loadFromDer(cert.bytes(), key.bytes());
+            assertNotNull(reloaded.certificate());
+            assertNotNull(reloaded.keyPair().getPrivate());
+            firstCert = cert.bytes();
+            firstKey = key.bytes();
+        }
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.start();
+            var cert = svc.controlPlane()
+                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow();
+            var key = svc.controlPlane()
+                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
+                    .orElseThrow();
+            org.junit.jupiter.api.Assertions.assertArrayEquals(firstCert, cert.bytes(), "CA cert survives restart");
+            org.junit.jupiter.api.Assertions.assertArrayEquals(firstKey, key.bytes(), "CA key survives restart");
+        }
+    }
+
+    @Test
     @DisplayName("yaml mismatch refuses to boot")
     void yamlMismatchRefusesBoot(@TempDir Path tmp) throws Exception {
         int port = freePort();

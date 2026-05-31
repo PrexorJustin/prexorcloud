@@ -6,8 +6,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.JoinToken;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
@@ -70,6 +75,14 @@ public final class ClusterControlPlane {
 
     public Optional<Lease> getLease(String name) {
         return sm.getLease(name);
+    }
+
+    public Optional<ClusterFile> getClusterFile(String key) {
+        return sm.getClusterFile(key);
+    }
+
+    public List<ClusterFile> listClusterFiles() {
+        return sm.listClusterFiles();
     }
 
     // --- Writes (through Raft) ---
@@ -148,6 +161,24 @@ public final class ClusterControlPlane {
 
     public void releaseLease(String name, String holder) throws IOException {
         submitOrThrow(new ClusterEntry.ReleaseLease(name, holder));
+    }
+
+    /** Stamp a binary blob into the cluster Raft state under {@code key}. */
+    public void writeClusterFile(String key, byte[] bytes) throws IOException {
+        ClusterFile file = new ClusterFile(key, sha256Hex(bytes), bytes);
+        submitOrThrow(new ClusterEntry.WriteClusterFile(file));
+    }
+
+    public void deleteClusterFile(String key) throws IOException {
+        submitOrThrow(new ClusterEntry.DeleteClusterFile(key));
+    }
+
+    private static String sha256Hex(byte[] bytes) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 unavailable", e);
+        }
     }
 
     /** Force a state-machine snapshot. */

@@ -91,7 +91,28 @@ public final class CertificateAuthority {
      */
     public static CertificateAuthority create(Path keystorePath, char[] password, String commonName, int validityDays)
             throws Exception {
-        logger.info("Generating new CA: CN={}", commonName);
+        CertificateAuthority ca = createInMemory(commonName, validityDays);
+
+        Files.createDirectories(keystorePath.getParent());
+        KeyStore ks = KeyStore.getInstance(KEYSTORE_TYPE);
+        ks.load(null, password);
+        ks.setKeyEntry("ca", ca.caKeyPair.getPrivate(), password, new Certificate[] {ca.caCertificate});
+        try (OutputStream out = Files.newOutputStream(keystorePath)) {
+            ks.store(out, password);
+        }
+        FilePermissions.setOwnerReadWrite(keystorePath);
+
+        logger.info("CA created. Fingerprint: {}", ca.fingerprint());
+        return ca;
+    }
+
+    /**
+     * Generate a new self-signed CA without touching disk. The cluster control
+     * plane uses this to mint the cluster-wide CA and ship its bytes through
+     * the Raft state machine instead of a local keystore.
+     */
+    public static CertificateAuthority createInMemory(String commonName, int validityDays) throws Exception {
+        logger.info("Generating new in-memory CA: CN={}", commonName);
 
         KeyPair keyPair = KeyPairGenerator.generateEC();
         X500Name issuer = new X500Name("CN=" + commonName);
@@ -100,32 +121,32 @@ public final class CertificateAuthority {
 
         X509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
                 issuer, generateSerialNumber(), Date.from(now), Date.from(expiry), issuer, keyPair.getPublic());
-
-        // Mark as CA
         builder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
         builder.addExtension(Extension.keyUsage, true, new KeyUsage(KeyUsage.keyCertSign | KeyUsage.cRLSign));
 
         ContentSigner signer = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM)
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .build(keyPair.getPrivate());
-
         X509Certificate cert = new JcaX509CertificateConverter()
                 .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                 .getCertificate(builder.build(signer));
 
-        // Save to PKCS12
-        Files.createDirectories(keystorePath.getParent());
-        KeyStore ks = KeyStore.getInstance(KEYSTORE_TYPE);
-        ks.load(null, password);
-        ks.setKeyEntry("ca", keyPair.getPrivate(), password, new Certificate[] {cert});
-        try (OutputStream out = Files.newOutputStream(keystorePath)) {
-            ks.store(out, password);
-        }
-        FilePermissions.setOwnerReadWrite(keystorePath);
+        return new CertificateAuthority(keyPair, cert);
+    }
 
-        CertificateAuthority ca = new CertificateAuthority(keyPair, cert);
-        logger.info("CA created. Fingerprint: {}", ca.fingerprint());
-        return ca;
+    /**
+     * Reconstruct a CA from the X.509 DER cert bytes + PKCS#8 DER private key
+     * bytes. Used by controllers that load their CA material from the cluster
+     * Raft state instead of a local keystore.
+     */
+    public static CertificateAuthority loadFromDer(byte[] certDer, byte[] privateKeyPkcs8Der) throws Exception {
+        var certFactory = java.security.cert.CertificateFactory.getInstance("X.509");
+        X509Certificate cert =
+                (X509Certificate) certFactory.generateCertificate(new java.io.ByteArrayInputStream(certDer));
+        var keySpec = new java.security.spec.PKCS8EncodedKeySpec(privateKeyPkcs8Der);
+        PrivateKey priv = java.security.KeyFactory.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME)
+                .generatePrivate(keySpec);
+        return new CertificateAuthority(new KeyPair(cert.getPublicKey(), priv), cert);
     }
 
     /**

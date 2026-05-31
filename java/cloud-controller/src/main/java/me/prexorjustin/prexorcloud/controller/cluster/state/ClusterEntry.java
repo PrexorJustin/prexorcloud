@@ -33,7 +33,9 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
     @JsonSubTypes.Type(value = ClusterEntry.RevokeJoinToken.class, name = "REVOKE_JOIN_TOKEN"),
     @JsonSubTypes.Type(value = ClusterEntry.GrantLease.class, name = "GRANT_LEASE"),
     @JsonSubTypes.Type(value = ClusterEntry.RenewLease.class, name = "RENEW_LEASE"),
-    @JsonSubTypes.Type(value = ClusterEntry.ReleaseLease.class, name = "RELEASE_LEASE")
+    @JsonSubTypes.Type(value = ClusterEntry.ReleaseLease.class, name = "RELEASE_LEASE"),
+    @JsonSubTypes.Type(value = ClusterEntry.WriteClusterFile.class, name = "WRITE_CLUSTER_FILE"),
+    @JsonSubTypes.Type(value = ClusterEntry.DeleteClusterFile.class, name = "DELETE_CLUSTER_FILE")
 })
 public sealed interface ClusterEntry {
 
@@ -92,6 +94,16 @@ public sealed interface ClusterEntry {
     record RenewLease(String name, String holder, Instant renewedAt) implements ClusterEntry {}
 
     record ReleaseLease(String name, String holder) implements ClusterEntry {}
+
+    /**
+     * Persist a small binary blob (cluster CA cert/key, future trust roots).
+     * Idempotent on identical bytes for the same key; mismatched bytes for an
+     * existing key are rejected unless the caller intends an overwrite — for
+     * now we accept overwrites silently and rely on the caller to gate them.
+     */
+    record WriteClusterFile(ClusterFile file) implements ClusterEntry {}
+
+    record DeleteClusterFile(String key) implements ClusterEntry {}
 
     // --- Reply shape ---
 

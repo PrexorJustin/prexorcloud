@@ -1,5 +1,6 @@
 package me.prexorjustin.prexorcloud.controller.cluster.raft;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -255,6 +256,8 @@ class ClusterControlPlaneTest {
                         Instant.parse("2026-05-30T12:02:00Z"),
                         null, null, null, false, null, null));
                 cp.grantLease("scheduler", "controller-1", 30_000);
+                cp.writeClusterFile("cluster-ca.crt", "fake-ca-cert".getBytes());
+                cp.writeClusterFile("cluster-ca.key", "fake-ca-key".getBytes());
 
                 // Ratis's SnapshotManagementApi reply doesn't reliably carry the snapshot
                 // index back to the caller; we treat the call as fire-and-confirmed and let
@@ -282,6 +285,14 @@ class ClusterControlPlaneTest {
                 assertFalse(survivedToken.revoked());
                 assertEquals(
                         "controller-1", cp.getLease("scheduler").orElseThrow().holder());
+
+                assertEquals(2, cp.listClusterFiles().size(), "cluster files survive snapshot");
+                assertArrayEquals(
+                        "fake-ca-cert".getBytes(),
+                        cp.getClusterFile("cluster-ca.crt").orElseThrow().bytes());
+                assertArrayEquals(
+                        "fake-ca-key".getBytes(),
+                        cp.getClusterFile("cluster-ca.key").orElseThrow().bytes());
 
                 // Prove the recovered cluster still accepts new writes.
                 cp.proposeConfigPatch(2, "bob", Map.of("k", "v2"), "after-restart");

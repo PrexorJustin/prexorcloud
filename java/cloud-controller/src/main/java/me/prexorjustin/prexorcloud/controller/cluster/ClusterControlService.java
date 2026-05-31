@@ -16,7 +16,9 @@ import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlStateMachine;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.RaftBootstrap;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
+import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
 import me.prexorjustin.prexorcloud.controller.config.ClusterJoinTemplate;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
@@ -87,6 +89,7 @@ public final class ClusterControlService implements AutoCloseable {
         controlPlane = new ClusterControlPlane(raft, stateMachine);
 
         reconcileClusterIdentity();
+        ensureClusterCa();
         runV10MigrationIfNeeded();
     }
 
@@ -127,6 +130,30 @@ public final class ClusterControlService implements AutoCloseable {
                 "Stamped fresh cluster.id={} into Raft state (yamlSource={})",
                 clusterId,
                 yamlClusterId != null ? "yes" : "no");
+    }
+
+    /**
+     * Day-0: mint the cluster CA in-process and stamp its cert + private key into
+     * the Raft state machine as cluster files. Subsequent controllers (Day-N
+     * joiners and restarts) load it back from there — there is no on-disk CA
+     * keystore. Idempotent: a non-empty CA cert in the state means we already did
+     * this and we just log the fingerprint for visibility.
+     */
+    private void ensureClusterCa() throws IOException {
+        if (controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).isPresent()) {
+            return;
+        }
+        try {
+            CertificateAuthority ca = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
+            controlPlane.writeClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
+            controlPlane.writeClusterFile(
+                    ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
+            logger.info("Minted cluster CA (fingerprint={}) into Raft state", ca.fingerprint());
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("Failed to generate cluster CA", e);
+        }
     }
 
     /**
