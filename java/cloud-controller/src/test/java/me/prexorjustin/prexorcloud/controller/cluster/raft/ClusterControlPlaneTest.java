@@ -289,4 +289,45 @@ class ClusterControlPlaneTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("commit listener fires for patch + rollback, and a throwing listener does not break apply")
+    void commitListenerFiresAndIsErrorIsolated(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000d201");
+        ClusterControlStateMachine sm = new ClusterControlStateMachine();
+        java.util.List<me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry> committed =
+                new java.util.concurrent.CopyOnWriteArrayList<>();
+        java.util.concurrent.atomic.AtomicBoolean failOnce = new java.util.concurrent.atomic.AtomicBoolean(false);
+        sm.setCommitListener(entry -> {
+            if (failOnce.compareAndSet(true, false)) {
+                throw new RuntimeException("boom — listener throws on this one only");
+            }
+            committed.add(entry);
+        });
+        try (RaftBootstrap raft = newBootstrap(tmp, sm, port, groupId)) {
+            raft.start();
+            raft.awaitLeader(10_000);
+            ClusterControlPlane cp = new ClusterControlPlane(raft, sm);
+
+            cp.proposeConfigPatch(0, "alice", Map.of("runtime", Map.of("profile", "prod")), "first");
+            cp.proposeConfigPatch(1, "alice", Map.of("k", "v2"), "second");
+
+            // Force the listener to throw on the next apply — apply() must still succeed.
+            failOnce.set(true);
+            cp.rollbackConfig(1, "alice");
+            assertEquals(1, cp.getActiveConfigVersion(), "rollback must commit even when listener throws");
+
+            // After the throw the listener is healthy again — one more write must surface.
+            cp.proposeConfigPatch(1, "bob", Map.of("k", "v3"), "after-rollback");
+
+            // We should have seen: WriteConfigVersion x2, [throw eats one], WriteConfigVersion x1.
+            // The throwing rollback is missing from the captured list by design.
+            assertEquals(3, committed.size(), "patches surfaced, only the throwing call dropped");
+            assertTrue(committed.stream()
+                    .allMatch(e -> e
+                            instanceof me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry
+                                    .WriteConfigVersion));
+        }
+    }
 }

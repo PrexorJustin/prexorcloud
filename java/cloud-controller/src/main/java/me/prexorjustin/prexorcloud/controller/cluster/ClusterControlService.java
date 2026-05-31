@@ -10,12 +10,16 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 
+import me.prexorjustin.prexorcloud.api.event.CloudEvent;
+import me.prexorjustin.prexorcloud.api.event.events.ClusterConfigChangedEvent;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlStateMachine;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.RaftBootstrap;
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.config.ClusterJoinTemplate;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
+import me.prexorjustin.prexorcloud.controller.event.EventBus;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,6 +158,44 @@ public final class ClusterControlService implements AutoCloseable {
 
     public ClusterControlPlane controlPlane() {
         return controlPlane;
+    }
+
+    /**
+     * Bridge the Raft state-machine commit stream onto the controller's local
+     * {@link EventBus}. Called by bootstrap once {@code CoreServices} exists
+     * (the EventBus is built after this service starts, so wiring is deferred).
+     *
+     * <p>Translates {@link ClusterEntry} types into typed {@link CloudEvent}s.
+     * Today only config patches and rollbacks are surfaced; member / join-token
+     * / lease entries can grow their own events as subscribers materialise
+     * (phases 8, 9, 10 of cluster-join-plan.md).
+     */
+    public void attachEventBus(EventBus eventBus) {
+        if (eventBus == null || stateMachine == null) {
+            return;
+        }
+        stateMachine.setCommitListener(entry -> {
+            CloudEvent event = toCloudEvent(entry);
+            if (event != null) {
+                eventBus.publish(event);
+            }
+        });
+    }
+
+    private static CloudEvent toCloudEvent(ClusterEntry entry) {
+        return switch (entry) {
+            case ClusterEntry.WriteConfigVersion e -> new ClusterConfigChangedEvent(
+                    e.version().version(),
+                    e.version().parentVersion(),
+                    e.version().mutator(),
+                    ClusterConfigChangedEvent.ACTION_PATCH);
+            case ClusterEntry.SetActiveConfigVersion e -> new ClusterConfigChangedEvent(
+                    e.version(), -1, e.setBy(), ClusterConfigChangedEvent.ACTION_ROLLBACK);
+            // Other entries (SetClusterMeta, RotateSeed, AddMember, …) don't fan
+            // out via EventBus today — subscribers can be added as the relevant
+            // phases materialise.
+            default -> null;
+        };
     }
 
     public String clusterId() {

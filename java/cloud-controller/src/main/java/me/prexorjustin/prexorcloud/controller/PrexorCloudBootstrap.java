@@ -154,6 +154,7 @@ public final class PrexorCloudBootstrap {
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
         runtime = initRuntimeServices();
         var core = initCore(runtime.runtimeStore(), store);
+        clusterControlService.attachEventBus(core.eventBus());
         var security = initSecurity();
         var auth = initAuth(security, store, runtime);
         var templates = initTemplates(core, store);

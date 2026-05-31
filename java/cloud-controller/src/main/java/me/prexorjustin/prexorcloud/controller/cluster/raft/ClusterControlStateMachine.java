@@ -72,6 +72,18 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
     private final ConcurrentHashMap<String, JoinToken> joinTokens = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Lease> leases = new ConcurrentHashMap<>();
 
+    /**
+     * Hook fired after each successful apply, on every controller. Set lazily by
+     * {@code ClusterControlService} once the controller's EventBus exists (apply
+     * happens before EventBus is wired during early bootstrap, those entries are
+     * intentionally not surfaced — there is no listener yet).
+     */
+    private volatile java.util.function.Consumer<ClusterEntry> commitListener;
+
+    public void setCommitListener(java.util.function.Consumer<ClusterEntry> listener) {
+        this.commitListener = listener;
+    }
+
     @Override
     public void initialize(RaftServer server, RaftGroupId groupId, RaftStorage raftStorage) throws IOException {
         super.initialize(server, groupId, raftStorage);
@@ -91,11 +103,27 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         try {
             ClusterEntry entry = ClusterEntry.decode(trx.getStateMachineLogEntry().getLogData());
             ClusterEntry.Reply reply = apply(entry);
+            if (reply.ok()) {
+                notifyCommit(entry);
+            }
             updateLastAppliedTermIndex(trx.getLogEntry().getTerm(), trx.getLogEntry().getIndex());
             return CompletableFuture.completedFuture(Message.valueOf(reply.encode()));
         } catch (RuntimeException e) {
             logger.error("applyTransaction failed", e);
             return CompletableFuture.failedFuture(e);
+        }
+    }
+
+    private void notifyCommit(ClusterEntry entry) {
+        java.util.function.Consumer<ClusterEntry> listener = commitListener;
+        if (listener == null) {
+            return;
+        }
+        try {
+            listener.accept(entry);
+        } catch (RuntimeException ex) {
+            // A faulty subscriber must not break the Raft apply loop — log and continue.
+            logger.warn("commit listener threw on {}: {}", entry.getClass().getSimpleName(), ex.getMessage(), ex);
         }
     }
 
