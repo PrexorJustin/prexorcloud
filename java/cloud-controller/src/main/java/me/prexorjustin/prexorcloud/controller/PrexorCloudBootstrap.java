@@ -989,8 +989,21 @@ public final class PrexorCloudBootstrap {
             t.setDaemon(true);
             return t;
         });
+        // Cluster-singleton: only one controller in the cluster runs the prune per tick.
+        // Pre-Phase-8 every controller ran it in parallel, duplicating the work and
+        // racing on Mongo. The lease is named so future operators can inspect it via
+        // /api/v1/cluster/leases.
+        var auditPrunerLease = new me.prexorjustin.prexorcloud.controller.cluster.ClusterLeaseManager(
+                clusterControlService.controlPlane(), config.uuid());
+        java.time.Duration auditPrunerTtl = java.time.Duration.ofHours(1);
         auditRotationExecutor.scheduleAtFixedRate(
-                () -> controller.stateStore().pruneAuditLog(retentionDays), 1, 24, TimeUnit.HOURS);
+                () -> auditPrunerLease.runUnderLease(
+                        "audit-pruner",
+                        auditPrunerTtl,
+                        () -> controller.stateStore().pruneAuditLog(retentionDays)),
+                1,
+                24,
+                TimeUnit.HOURS);
 
         var drainLeaseManager = runtime.newLeaseManager(config.scheduler().evaluationIntervalSeconds() * 2);
         drainManager = new NodeDrainManager(
