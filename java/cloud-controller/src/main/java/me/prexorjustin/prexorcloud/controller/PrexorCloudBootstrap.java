@@ -26,6 +26,8 @@ import me.prexorjustin.prexorcloud.controller.auth.passwordreset.RedisPasswordRe
 import me.prexorjustin.prexorcloud.controller.auth.passwordreset.SmtpMailer;
 import me.prexorjustin.prexorcloud.controller.catalog.CatalogConfigLoader;
 import me.prexorjustin.prexorcloud.controller.catalog.MongoCatalogStore;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterControlService;
+import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
 import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
@@ -135,6 +137,7 @@ public final class PrexorCloudBootstrap {
     private InstanceLifecycleManager lifecycleManager;
     private NodeDrainManager drainManager;
     private ShutdownManager shutdownManager;
+    private ClusterControlService clusterControlService;
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -145,6 +148,10 @@ public final class PrexorCloudBootstrap {
         logger.info("PrexorCloud Controller v{} (Java {})", version.version(), version.javaVersion());
 
         var store = initStorage();
+        clusterControlService = new ClusterControlService(config, config.uuid());
+        clusterControlService.start();
+        config = clusterControlService.effectiveConfig();
+        logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
         runtime = initRuntimeServices();
         var core = initCore(runtime.runtimeStore(), store);
         var security = initSecurity();
@@ -289,7 +296,11 @@ public final class PrexorCloudBootstrap {
                     config.dashboard(),
                     config.backup(),
                     config.share(),
-                    config.redis());
+                    config.networks(),
+                    config.events(),
+                    config.redis(),
+                    config.cluster(),
+                    config.raft());
             YamlConfigLoader.mapper().writeValue(CONFIG_PATH.toFile(), config);
         }
         var jwtManager = new JwtManager(jwtSecret, config.security().jwtExpirationMinutes());
@@ -323,7 +334,86 @@ public final class PrexorCloudBootstrap {
         mongoDatabase = mongoClient.getDatabase(config.database().database());
         var stateStore = new MongoStateStore(mongoClient, mongoDatabase);
         stateStore.initialize();
+        migrateClusterIdentityFromMongoIfNeeded(stateStore);
         return stateStore;
+    }
+
+    /**
+     * One-shot v1.0 → v1.1 migration of cluster identity from Mongo into the Raft
+     * state machine. Runs <em>before</em> {@link ClusterControlService} starts so
+     * that the Raft reconcile picks up the migrated id from {@code controller.yml}.
+     *
+     * <p>Three cases:
+     * <ul>
+     *   <li><b>Mongo absent</b> — no legacy state. Skip. Day-0 first-boot or a
+     *       fresh v1.1 install. {@code ClusterControlService} will mint a fresh
+     *       id or honour an operator-supplied one.</li>
+     *   <li><b>Mongo present, yaml absent or matching</b> — pre-seed
+     *       {@code controller.yml} with the legacy id, drop {@code cluster_meta}.
+     *       {@code ClusterControlService} will reuse the id when stamping fresh
+     *       Raft state.</li>
+     *   <li><b>Mongo present, yaml present, mismatch</b> — refuse to boot. Same
+     *       guard as the v1 plan: the operator has pointed at the wrong Mongo.</li>
+     * </ul>
+     *
+     * <p>Idempotent on retry: a crash after {@link #persistClusterIdentity} but
+     * before {@link StateStore#dropClusterMeta} leaves Mongo+yaml in a matching
+     * state; the next boot's mismatch check passes and the drop runs cleanly.
+     */
+    private void migrateClusterIdentityFromMongoIfNeeded(StateStore stateStore) {
+        String mongoId = stateStore.getClusterId().orElse(null);
+        if (mongoId == null) {
+            return;
+        }
+        String yamlId = config.cluster() == null ? null : config.cluster().id();
+        if (yamlId != null && !yamlId.equals(mongoId)) {
+            throw new IllegalStateException("Configured cluster.id=" + yamlId
+                    + " but legacy Mongo cluster_meta has cluster.id=" + mongoId
+                    + ". Either point database.uri at the correct Mongo, or remove cluster.id from"
+                    + " controller.yml to adopt this Mongo's existing id.");
+        }
+        if (yamlId == null) {
+            persistClusterIdentity(mongoId);
+            logger.info(
+                    "v1.0 → v1.1 migration: adopted cluster.id={} from legacy Mongo cluster_meta", mongoId);
+        }
+        stateStore.dropClusterMeta();
+        logger.info("v1.0 → v1.1 migration: dropped legacy cluster_meta collection — Raft is now the source of truth");
+    }
+
+    private void persistClusterIdentity(String clusterId) {
+        ClusterConfig prior = config.cluster();
+        ClusterConfig updated = new ClusterConfig(clusterId, prior.joinedFrom(), prior.joinedAt());
+        config = new ControllerConfig(
+                config.uuid(),
+                config.http(),
+                config.grpc(),
+                config.network(),
+                config.database(),
+                config.logging(),
+                config.scheduler(),
+                config.heartbeat(),
+                config.runtime(),
+                config.security(),
+                config.crashes(),
+                config.metrics(),
+                config.modules(),
+                config.maintenance(),
+                config.dashboard(),
+                config.backup(),
+                config.share(),
+                config.networks(),
+                config.events(),
+                config.redis(),
+                updated,
+                config.raft());
+        try {
+            YamlConfigLoader.mapper().writeValue(CONFIG_PATH.toFile(), config);
+        } catch (java.io.IOException e) {
+            // Don't fail the boot — the cluster id is the source of truth in Mongo. The next
+            // boot will hit the "yaml absent + mongo present" branch and adopt it again.
+            logger.warn("Could not persist cluster.id={} to controller.yml: {}", clusterId, e.getMessage());
+        }
     }
 
     private PrexorController.AuthServices initAuth(
@@ -541,6 +631,15 @@ public final class PrexorCloudBootstrap {
         });
         shutdownManager.register("gRPC server", () -> {
             if (grpcServer != null) grpcServer.stop();
+        });
+        shutdownManager.register("cluster control plane", () -> {
+            if (clusterControlService != null) {
+                try {
+                    clusterControlService.close();
+                } catch (java.io.IOException e) {
+                    logger.warn("error closing cluster control plane: {}", e.getMessage());
+                }
+            }
         });
         shutdownManager.register("state store", controller.stateStore()::close);
         shutdownManager.register("mongo", () -> {

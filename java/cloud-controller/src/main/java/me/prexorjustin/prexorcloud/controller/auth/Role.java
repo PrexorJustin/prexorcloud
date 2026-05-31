@@ -43,6 +43,13 @@ public final class Role {
     // Derived reflectively from Permission.class so new constants are picked up
     // automatically. Why: a hand-mirrored copy silently drifted before — INSTANCES_DELETE
     // existed in Permission but was missing here, denying ADMIN that permission.
+    // Exception: permissions in EXCLUDED_FROM_DEFAULT_ADMIN are deliberately withheld
+    // from the built-in ADMIN bundle; an operator must consciously create a custom role
+    // that includes them. See CLUSTER_JOIN — issuing a join template hands the requester
+    // the cluster's JWT secret and Mongo URI, so the cluster-join plan keeps it off the
+    // default admin bundle even though ADMIN is otherwise the superuser role.
+    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN = Set.of(Permission.CLUSTER_JOIN);
+
     private static final Set<String> ALL_PERMISSIONS = collectAllPermissions();
 
     private static Set<String> collectAllPermissions() {
@@ -54,7 +61,10 @@ public final class Role {
                     && Modifier.isFinal(mods)
                     && field.getType() == String.class) {
                 try {
-                    permissions.add((String) field.get(null));
+                    String value = (String) field.get(null);
+                    if (!EXCLUDED_FROM_DEFAULT_ADMIN.contains(value)) {
+                        permissions.add(value);
+                    }
                 } catch (IllegalAccessException e) {
                     throw new IllegalStateException("Cannot read Permission." + field.getName(), e);
                 }

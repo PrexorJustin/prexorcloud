@@ -28,10 +28,14 @@ public record ControllerConfig(
         @JsonProperty("share") ShareConfig share,
         @JsonProperty("networks") List<NetworkComposition> networks,
         @JsonProperty("events") List<EventChoreography> events,
-        @JsonProperty("redis") RedisConfig redis) {
+        @JsonProperty("redis") RedisConfig redis,
+        @JsonProperty("cluster") ClusterConfig cluster,
+        @JsonProperty("raft") RaftConfig raft) {
 
     public ControllerConfig {
         if (uuid == null) uuid = java.util.UUID.randomUUID().toString();
+        if (cluster == null) cluster = new ClusterConfig();
+        if (raft == null) raft = new RaftConfig();
         if (http == null) http = new HttpConfig();
         if (grpc == null) grpc = new GrpcConfig();
         if (network == null) network = new NetworkConfig();
@@ -93,6 +97,8 @@ public record ControllerConfig(
                 share,
                 List.of(),
                 List.of(),
-                redis);
+                redis,
+                null,
+                null);
     }
 }

@@ -220,6 +220,25 @@ public interface StateStore {
         return List.of();
     }
 
+    // --- Cluster identity (legacy v1 path, read-only for v1.0 → v1.1 migration) ---
+
+    /**
+     * Reads the legacy v1 cluster id stamped in the {@code cluster_meta} collection.
+     * Used <em>only</em> for the one-shot v1.0 → v1.1 migration in
+     * {@code PrexorCloudBootstrap}; after migration the Raft state machine is the
+     * source of truth and this collection is dropped. Empty on fresh Mongo or
+     * post-migration installs.
+     */
+    default Optional<String> getClusterId() {
+        return Optional.empty();
+    }
+
+    /**
+     * Drops the legacy {@code cluster_meta} collection after a successful v1.0 → v1.1
+     * migration. Idempotent — safe to call when the collection doesn't exist.
+     */
+    default void dropClusterMeta() {}
+
     // --- Records ---
 
     record ConsoleLineRecord(Instant timestamp, String line) {}

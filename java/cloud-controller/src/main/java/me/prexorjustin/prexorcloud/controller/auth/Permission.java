@@ -93,4 +93,9 @@ public final class Permission {
     public static final String BACKUPS_VIEW = "backups.view";
     public static final String BACKUPS_MANAGE = "backups.manage";
     public static final String BACKUPS_RESTORE = "backups.restore";
+
+    // Cluster — issuing a join template returns the shared cluster secrets
+    // (jwtSecret, Mongo/Redis URIs, SMTP credentials). NOT bundled into the
+    // default admin role; must be granted explicitly.
+    public static final String CLUSTER_JOIN = "cluster.join";
 }

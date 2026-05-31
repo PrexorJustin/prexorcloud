@@ -61,6 +61,10 @@ public final class MongoStateStore implements StateStore {
     private MongoCollection<Document> instanceCompositionPlans;
     private MongoCollection<Document> consoleLines;
     private MongoCollection<Document> shares;
+    private MongoCollection<Document> clusterMeta;
+
+    private static final String CLUSTER_META_COLLECTION = "cluster_meta";
+    private static final String CLUSTER_META_SINGLETON_ID = "cluster";
 
     private static final String CONSOLE_LINES_COLLECTION = "console_lines";
     private static final long CONSOLE_LINES_CAP_BYTES = 256L * 1024 * 1024;
@@ -88,6 +92,7 @@ public final class MongoStateStore implements StateStore {
         ensureCappedCollection(CONSOLE_LINES_COLLECTION, CONSOLE_LINES_CAP_BYTES);
         consoleLines = db.getCollection(CONSOLE_LINES_COLLECTION);
         shares = db.getCollection("shares");
+        clusterMeta = db.getCollection(CLUSTER_META_COLLECTION);
 
         ensureIndexes();
         logger.info("MongoDB state store initialized (database: {})", db.getName());
@@ -797,6 +802,19 @@ public final class MongoStateStore implements StateStore {
             list.add(new ConsoleLineRecord(ts != null ? ts.toInstant() : Instant.EPOCH, doc.getString("line")));
         }
         return list;
+    }
+
+    // --- Cluster identity ---
+
+    @Override
+    public Optional<String> getClusterId() {
+        Document doc = clusterMeta.find(Filters.eq("_id", CLUSTER_META_SINGLETON_ID)).first();
+        return doc == null ? Optional.empty() : Optional.ofNullable(doc.getString("clusterId"));
+    }
+
+    @Override
+    public void dropClusterMeta() {
+        clusterMeta.drop();
     }
 
     // --- Helpers ---

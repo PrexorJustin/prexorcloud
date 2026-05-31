@@ -21,8 +21,15 @@ class RoleTest {
         Role.clearCache();
     }
 
+    /**
+     * Permissions intentionally withheld from the built-in ADMIN role. Must stay in
+     * sync with {@code Role.EXCLUDED_FROM_DEFAULT_ADMIN}. Adding a permission here
+     * is a deliberate security decision — see the field's comment in Role.java.
+     */
+    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN = Set.of(Permission.CLUSTER_JOIN);
+
     @Test
-    @DisplayName("ADMIN role grants every Permission constant")
+    @DisplayName("ADMIN role grants every Permission constant except the deliberately excluded set")
     void adminCoversEveryPermissionConstant() throws IllegalAccessException {
         Set<String> declared = new HashSet<>();
         for (Field field : Permission.class.getDeclaredFields()) {
@@ -34,18 +41,29 @@ class RoleTest {
                 declared.add((String) field.get(null));
             }
         }
+        Set<String> expected = new HashSet<>(declared);
+        expected.removeAll(EXCLUDED_FROM_DEFAULT_ADMIN);
 
         Set<String> adminPermissions = Role.permissionsFor(Role.ADMIN);
         assertEquals(
-                declared,
+                expected,
                 adminPermissions,
-                "ADMIN must include every Permission constant — drift means a permission was added to Permission "
-                        + "but not granted to ADMIN.");
+                "ADMIN must include every Permission constant except EXCLUDED_FROM_DEFAULT_ADMIN — drift means "
+                        + "a permission was added to Permission but not granted to ADMIN.");
     }
 
     @Test
     @DisplayName("ADMIN can delete instances (regression: INSTANCES_DELETE drift)")
     void adminCanDeleteInstances() {
         assertTrue(Role.hasPermission(Role.ADMIN, Permission.INSTANCES_DELETE));
+    }
+
+    @Test
+    @DisplayName("ADMIN does NOT receive CLUSTER_JOIN by default")
+    void adminDoesNotGetClusterJoinByDefault() {
+        assertTrue(
+                !Role.hasPermission(Role.ADMIN, Permission.CLUSTER_JOIN),
+                "CLUSTER_JOIN must be explicitly granted via a custom role — issuing a join template leaks the"
+                        + " cluster's JWT secret and Mongo URI.");
     }
 }

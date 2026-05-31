@@ -16,6 +16,20 @@ grpc:
   host: "0.0.0.0"
   port: 9090
 
+# Raft (cluster control plane consensus)
+# Embeds Apache Ratis. Day-0 single-controller installs run as a Raft group of
+# one and serve every cluster-shared write through the local log. Adding a
+# second controller via `prexorctl cluster join-token create` extends the group
+# via joint consensus — see docs/engineering/cluster-join-plan.md.
+raft:
+  host: "0.0.0.0"
+  port: 9190
+  dataDir: "data/raft"
+  # joinAddrs is empty on a fresh install. The wizard's "join existing cluster"
+  # branch writes a pending-join-token to disk; the bootstrap reads it and dials
+  # the existing peers from the token's payload.
+  joinAddrs: []
+
 # Network security
 network:
   allowedSubnets:

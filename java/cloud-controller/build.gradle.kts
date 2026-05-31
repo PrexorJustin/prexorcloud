@@ -41,6 +41,16 @@ dependencies {
     implementation(libs.jakarta.activation.api)
     runtimeOnly(libs.angus.mail)
 
+    // Apache Ratis — embedded Raft for the cluster control plane.
+    // See docs/engineering/cluster-join-plan.md.
+    implementation(libs.ratis.server.api)
+    implementation(libs.ratis.client)
+    implementation(libs.ratis.common)
+    implementation(libs.ratis.proto)
+    implementation(libs.ratis.server)
+    implementation(libs.ratis.grpc)
+    runtimeOnly(libs.ratis.metrics.default)
+
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
     testImplementation(libs.grpc.testing)
