@@ -142,11 +142,11 @@ implemented that contract.
 - `PrexorCloudBootstrap.wireProductionModuleContext(controller, platformManager)` — constructs `ScheduledExecutorService` + `ControllerTaskScheduler` + a `ContextFactory` that builds `ControllerModuleContext` with the live `controller.eventBus()` and the task scheduler. Called from `bootPlatformModules` BEFORE `loadStoredModules`.
 
 **Migrated first-party modules:**
-- `cloud-module-example/.../ExamplePlatformModule.java` — `PlatformModuleContext` → `ModuleContext` in all lifecycle hooks.
-- `cloud-module-stats-aggregator/.../StatsAggregatorModule.java` — same.
-- `cloud-module-tablist/.../TablistModule.java` — same.
-- `cloud-module-protocol-tap/.../ProtocolTapModule.java` — same.
-- `cloud-module-example/.../ExamplePlatformModuleTest.java` — uses `ModuleContexts.forTest(...)` instead of constructing the deleted record.
+- `example/.../ExamplePlatformModule.java` — `PlatformModuleContext` → `ModuleContext` in all lifecycle hooks.
+- `stats-aggregator/.../StatsAggregatorModule.java` — same.
+- `tablist/.../TablistModule.java` — same.
+- `protocol-tap/.../ProtocolTapModule.java` — same.
+- `example/.../ExamplePlatformModuleTest.java` — uses `ModuleContexts.forTest(...)` instead of constructing the deleted record.
 - `cloud-test-harness/.../PlatformModuleTestJarFactory.java`, `cloud-controller/.../ModuleLifecycleManagerTest.java`, `PlatformModuleManagerTest.java` — bulk-migrated `PlatformModuleContext` → `ModuleContext`.
 
 **Verification:** `./gradlew test` — green. `grep -rn "PlatformModuleContext" java --include='*.java'` returns zero matches. Test `EventBusTest` passes; subscribe/publish/subscribeAll round-trip works through the unified contract.
@@ -155,7 +155,7 @@ implemented that contract.
 
 ### Layer 5 — Extract `PlayerJourneyService` + `WebhookAlertService` into modules — **DONE**
 
-**Shipped (`cloud-module/cloud-module-player-journey/`, NEW):**
+**Shipped (`cloud-modules/player-journey/`, NEW):**
 - `module.yaml` — provides `prexor.player.journey@1.0.0`, requests Mongo storage.
 - `PlayerJourneyModule implements PlatformModule` — onLoad builds the
   repository over `ctx.requireMongoStorage()`, onStart starts the recorder,
@@ -173,7 +173,7 @@ implemented that contract.
 - `JourneyRecorderTest` — 3 unit tests (raw event recording, no crash entries,
   stop unsubscribes) using a minimal in-memory `EventBus`.
 
-**Shipped (`cloud-module/cloud-module-webhook-alerts/`, NEW):**
+**Shipped (`cloud-modules/webhook-alerts/`, NEW):**
 - `module.yaml` — provides `prexor.alert-sink@1.0.0`, requests Mongo storage.
 - `WebhookAlertsModule implements PlatformModule` — subscribes to all 7
   alertable event types on start, unsubscribes on stop. Uses `ctx.httpClient()`
@@ -189,7 +189,7 @@ implemented that contract.
 - `StateStore.{savePlayerJourneyEntry,getPlayerJourney,getPlayerJourneySince}` + `MongoStateStore` impls + the `player_journey` collection setup + indexes.
 - `PrexorController.playerJourneyService` field + getter.
 - `PrexorCloudBootstrap.registerBuiltinCapabilities` (and its call site) — no more `@controller`-sentinel registration of `prexor.player.journey`.
-- YAML `webhooks: []` blocks in `defaults/controller.yml`, `config/controller.compose.yml`, `deploy/compose/controller.yml`.
+- YAML `webhooks: []` blocks in `defaults/controller.yml`, `deploy/compose/controller.compose.yml`, `deploy/compose/controller.yml`.
 
 **Updated:**
 - `PlayerJourneyRoutes` — resolves the `PlayerJourneyTracker` capability per-request via `controller.moduleRegistry().platformManager().capabilityRegistry().find(...)`. Returns `503 CAPABILITY_UNAVAILABLE` if no provider is active (i.e. the player-journey module isn't installed).
@@ -199,7 +199,7 @@ implemented that contract.
 - `settings.gradle.kts` — both new modules are includes.
 
 **Verification:**
-- `./gradlew :cloud-controller:test :cloud-module:cloud-module-player-journey:test :cloud-module:cloud-module-webhook-alerts:test :cloud-module:cloud-module-stats-aggregator:test` — green.
+- `./gradlew :cloud-controller:test :cloud-modules:player-journey:test :cloud-modules:webhook-alerts:test :cloud-modules:stats-aggregator:test` — green.
 - Both module shadowJars build cleanly.
 - `StatsAggregatorInstallTest` compiles + skips locally (no Mongo on this dev host); the test asserts the new install ordering.
 - `grep -rn "WebhookAlertService\|PlayerJourneyService\|controller.webhook\|controller.journey" java/cloud-controller/src` returns zero hits.
@@ -250,10 +250,10 @@ backend:
 - `PlatformModuleManifestParser` accepts both the new `backend.controller.entrypoint` / `backend.daemon.entrypoint` shape and the legacy `backend.entrypoint` form (auto-mapped to controller). Validates that listed hosts have matching entrypoints.
 - All six first-party manifests (`stats-aggregator`, `player-journey`, `webhook-alerts`, `tablist`, `protocol-tap`, `example`) migrated to explicit `hosts: [controller]` + `backend.controller.entrypoint`.
 
-**Shipped (`cloud-modules-core`, NEW subproject — Java 21):**
+**Shipped (`cloud-modules:runtime`, NEW subproject — Java 21):**
 - Lifted host-agnostic runtime out of `cloud-controller/.../controller/module/platform/` into `me.prexorjustin.prexorcloud.modules.runtime.*`: `ModuleLifecycleManager`, `CapabilityRegistry`, `ModuleRouteRegistry`, `NoopModuleContext`, `PlatformModuleManifestParser`, `PlatformModuleManifestException`. Three same-package tests (`ModuleLifecycleManagerTest`, `CapabilityRegistryTest`, `ModuleRouteRegistryTest`, plus the parser test) move with them.
 - Pre-step lift fix: `ModuleLifecycleManager` referenced `controller.observability.CorrelationContext` (an MDC helper). Lifted the helper to `cloud-common.logging.CorrelationContext` and updated the 6 controller call sites — no adapter shims into shared code (per principle 4).
-- Both `cloud-controller` and `cloud-daemon` depend on `cloud-modules-core` as `implementation`.
+- Both `cloud-controller` and `cloud-daemon` depend on `cloud-modules:runtime` as `implementation`.
 
 **Shipped (`cloud-security/signing` — new package in the existing `cloud-security` subproject):**
 - Moved `PlatformModuleSignatureVerifier` + `SignatureUtils` out of `cloud-controller`. Repackaged to `me.prexorjustin.prexorcloud.security.signing`.
@@ -296,13 +296,13 @@ backend:
 - `ModuleSigningDaemonConfig` (`required`, `mode={KEYED,COSIGN_BUNDLE}`, `trustRoot`) + `DaemonConfig.modules.signing` block. `PrexorDaemon.buildDaemonSignatureVerifier` builds the right verifier from config (`NOOP` / `failClosed` / `TrustRootVerifier` / `CosignBundleVerifier`).
 - `PrexorDaemon.start()` constructs the daemon module scheduler, `DaemonTaskScheduler`, `DaemonEventBus` (with the reconnect listener), runtime + capability registries, the store, the host, and the manager (with a `ContextFactory` that builds `DaemonModuleContext` and a `ModuleStateReporter` that pipes through the gRPC client). `shutdown()` stops all daemon modules before `processManager.stopAll()`.
 
-**Shipped (`cloud-module/cloud-module-test-daemon/`, NEW):**
+**Shipped (`cloud-modules/test-daemon/`, NEW):**
 - `module.yaml` — `hosts: [daemon]` + `backend.daemon.entrypoint`.
 - `TestDaemonModule implements DaemonModule` — records every lifecycle and instance hook fire to the file at `prexor.test.testDaemonModuleHooksFile` (system property set by the harness). `onStart` subscribes to `GroupCreatedEvent` so the integration test can verify the controller→daemon event bridge end-to-end. `onInstanceStarting` mutates `jvmArgs` / `env` so the harness can verify mutations are read back.
 - `cloud-test-harness/build.gradle.kts` — adds `evaluationDependsOn` + `dependsOn(testDaemonModuleShadowJar)` and exposes `prexor.test.testDaemonModuleJar` as a test system property.
 
 **Verification:**
-- `./gradlew test` — green across `cloud-api`, `cloud-common`, `cloud-protocol`, `cloud-modules-core`, `cloud-security`, `cloud-controller`, `cloud-daemon`, all six first-party module subprojects, plus the new `cloud-module-test-daemon` build.
+- `./gradlew test` — green across `cloud-api`, `cloud-common`, `cloud-protocol`, `cloud-modules:runtime`, `cloud-security`, `cloud-controller`, `cloud-daemon`, all six first-party module subprojects, plus the new `test-fixtures:test-daemon-module` build.
 - `grep -rn "controller.module.platform.*SignatureVerifier" java --include='*.java'` returns zero matches; `grep -rn "controller.observability.CorrelationContext" java --include='*.java'` returns zero matches.
 - `cloud-protocol:build` green; `contracts/proto-contracts.sha256` reflects the new wire shape.
 - `DaemonEventBusTest` (cloud-daemon) — first subscriber sends `EventSubscribe`, last unsubscribe sends `EventUnsubscribe`, inbound dispatch via virtual thread, `onReconnect` re-sends the full set.

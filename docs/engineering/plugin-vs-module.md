@@ -48,7 +48,7 @@ module", it is a different model with its own tooling, docs, and scaffold.
 
 |                                | Standalone plugin (Path A)                       | Module (Path B)                                                         |
 | ------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------- |
-| Lives at                       | `java/cloud-plugin/cloud-plugin-<name>/`         | `java/cloud-module/cloud-module-<name>/`                                |
+| Lives at                       | `java/cloud-plugin/cloud-plugin-<name>/`         | `java/cloud-modules/<name>/`                                |
 | Manifest                       | none — `@CloudPlugin` annotation only            | `module.yaml` + generated `META-INF/prexor-module.json`                 |
 | Deployment                     | drop the shaded jar into `plugins/`              | `prexorctl module install <bundle>` against the controller             |
 | Frontend                       | n/a                                              | optional Vue package via `dashboard/packages/module-sdk`                |

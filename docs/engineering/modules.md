@@ -2,7 +2,7 @@
 
 A platform module is a JVM jar that the controller loads at runtime to add features. Modules can register REST routes, subscribe to events, store per-module state, expose typed capabilities, contribute frontend pages, and ship workload extensions for MC servers.
 
-The reference module is `stats-aggregator` under `java/cloud-module/cloud-module-stats-aggregator/`. Anything described here is exercised by it end-to-end.
+The reference module is `stats-aggregator` under `java/cloud-modules/stats-aggregator/`. Anything described here is exercised by it end-to-end.
 
 > Not sure whether you want a module or a standalone `@CloudPlugin` jar? See [`plugin-vs-module.md`](plugin-vs-module.md) for the decision flowchart.
 
@@ -269,7 +269,7 @@ prexorctl module dev my-module
 prexorctl module test my-module
 
 # Build for release
-cd java && ./gradlew :cloud-module:cloud-module-my-module:shadowJar
+cd java && ./gradlew :cloud-modules:my-module:shadowJar
 
 # Sign with cosign (your key + Sigstore identity flow)
 cosign sign-blob --bundle my-module.cosign.bundle path/to/my-module.jar
@@ -282,7 +282,7 @@ prexorctl module install my-module.jar  # auto-detects sibling .cosign.bundle
 
 If the module has a `frontend/` subtree, `frontend/dist/` is polled as a separate track. A change there triggers a frontend-only `POST /api/v1/modules/platform/{moduleId}/frontend/reload` that re-stages the dashboard bundle without touching the platform module's classloader — capabilities, REST routes, and Mongo handles stay live across the reload. The controller publishes `MODULE_FRONTEND_RELOADED`, the dashboard invalidates its bundle cache and re-imports. Jar changes already include the latest frontend, so a same-tick jar+frontend rebuild short-circuits to a single jar upload.
 
-`module test` is a thin wrapper around `./gradlew :cloud-module:cloud-module-<name>:test`. Mock-based unit tests stay there. For integration tests against real persistence and a real REST surface, use the harness described in [Testing](#testing).
+`module test` is a thin wrapper around `./gradlew :cloud-modules:<name>:test`. Mock-based unit tests stay there. For integration tests against real persistence and a real REST surface, use the harness described in [Testing](#testing).
 
 ## Testing
 
@@ -352,7 +352,7 @@ If you find yourself wanting one of these, the answer is a new capability + a ne
 |---|---|
 | Public API every module compiles against | `java/cloud-api/` |
 | Module registry, lifecycle FSM, classloader tracker | `java/cloud-controller/.../module/` |
-| Reference module | `java/cloud-module/cloud-module-stats-aggregator/` |
+| Reference module | `java/cloud-modules/stats-aggregator/` |
 | Module REST dispatcher | `controller/module/ModuleRouteRegistry`, `controller/rest/RestServer` |
 | Capability registry + dynamic handles | `controller/capability/CapabilityRegistry` |
 | Platform module signing + Rekor | `controller/module/platform/PlatformModuleSignatureVerifier` |

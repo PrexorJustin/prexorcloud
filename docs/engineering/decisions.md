@@ -331,7 +331,7 @@ A note on tone: these aren't tablets from a mountain. They reflect what fits the
 |---|---|---|
 | `prexorcloud.java21-api.gradle.kts` | `cloud-api` (the unified public SPI) | Java 21 source + bytecode, conservative API |
 | `prexorcloud.java21-compat.gradle.kts` | `cloud-plugins/*` (Paper / Spigot / Folia / Velocity / Bungee plugins) | Java 21 — matches what the host MC servers ship |
-| `prexorcloud.java25-preview.gradle.kts` | `cloud-controller`, `cloud-daemon`, `cloud-modules-core`, controller modules | Java 25 with `--enable-preview` so we get pattern-matching + scoped values inside the control plane |
+| `prexorcloud.java25-preview.gradle.kts` | `cloud-controller`, `cloud-daemon`, `cloud-modules:runtime`, controller modules | Java 25 with `--enable-preview` so we get pattern-matching + scoped values inside the control plane |
 
 **Why three, not one.**
 - **Java 21 for the public SPI.** Plugin and module developers compile against `cloud-api`. Pegging it to Java 21 means anyone running Paper 1.21+ (Java 21) can build modules without upgrading their toolchain.

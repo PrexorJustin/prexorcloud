@@ -45,7 +45,7 @@ The Java codebase is a multi-project Gradle build:
 | `cloud-common` | — | Shared infrastructure: YAML config loader, logging setup, version detection, file permissions. |
 | `cloud-controller` | controller JVM | REST, gRPC server, scheduler, module lifecycle, SSE bus, all persistence. |
 | `cloud-daemon` | daemon JVM | Process supervision, template materialisation, plan application. |
-| `cloud-module/cloud-module-stats-aggregator` | controller JVM (loaded) | Reference platform module. |
+| `cloud-modules/stats-aggregator` | controller JVM (loaded) | Reference platform module. |
 | `cloud-plugins/cloud-plugins-server-*` | MC server JVM | Paper / Spigot plugin code (in-game integration). |
 | `cloud-plugins/cloud-plugins-proxy-*` | proxy JVM | Velocity / Bungee plugin code (network composition + routing). |
 | `cloud-test-harness` | test JVM | Multi-controller integration tests (recovery, HA, perf, DR). |

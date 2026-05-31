@@ -29,7 +29,7 @@ TLS rotation), and a modern Vue 3 dashboard.
 A 3-agent audit (`module system deep dive`, `plugin SDK + multi-version
 dive`, `project structure + features audit`) plus direct reading of the
 key files (`PlatformModule.java`, `CloudPluginProcessor.java`,
-`VersionDispatcher.java`, the `cloud-module-example` reference module
+`VersionDispatcher.java`, the `example` reference module
 including its `module.yaml`, `build.gradle.kts`, `ExamplePlatformModule`,
 and the four plugin variants) revealed the project's situation:
 
@@ -94,18 +94,18 @@ does not support it gets cut or deferred.
 - After delete, run `./gradlew :cloud-api:compileJava` to confirm no breakage.
 
 ### 1.3 Move `PlayerJourneyService` into an optional module — DONE
-- `java/cloud-module/cloud-module-player-journey/` ships with `PlayerJourneyModule`,
+- `java/cloud-modules/player-journey/` ships with `PlayerJourneyModule`,
   `JourneyRecorder`, `MongoPlayerJourneyTracker`, and a `JourneyRepository`/`JourneyDoc`
   data layer. The capability `prexor.player.journey` is provided here now;
-  `cloud-module-stats-aggregator`'s `JourneyEnricher` consumes it unchanged.
+  `stats-aggregator`'s `JourneyEnricher` consumes it unchanged.
 - `cloud-controller` no longer holds `PlayerJourneyService` — the previous
   in-controller wiring is gone. The earlier "blocked on PlatformModuleContext"
   status was stale: `ModuleContext.events()` already exposes the full
   `EventBus` (subscribe + publish), so no API extension was needed.
-- Tests live in `cloud-module-player-journey/src/test/java/.../JourneyRecorderTest`.
+- Tests live in `player-journey/src/test/java/.../JourneyRecorderTest`.
 
 ### 1.4 Move `WebhookAlertService` into an optional module — DONE
-- `java/cloud-module/cloud-module-webhook-alerts/` ships with `WebhookAlertsModule`
+- `java/cloud-modules/webhook-alerts/` ships with `WebhookAlertsModule`
   subscribing via `ModuleContext.events()`. Controller no longer holds
   `WebhookAlertService` — extracted alongside 1.3 once the "missing API"
   concern turned out to be a stale assumption.
@@ -272,7 +272,7 @@ setup-wizard works on a fresh VM via one-line install.
   ```
   where `TypedHandler<T>` is `(ApiRequest req, T body, ApiResponse res) -> void`.
 - On JSON parse failure: emit standard `{error: "invalid json body", details: <jackson msg>}` 400 response.
-- Update `cloud-module-example/.../rest/PlaytimeRoutes.java` to use the
+- Update `example/.../rest/PlaytimeRoutes.java` to use the
   new overloads — demonstrates the pattern + reduces 4 try/catch blocks to 0.
 - Reuse: `ApiRequest.bodyAs()` already does the parsing (just wrap with error
   envelope at the registrar level).
@@ -327,7 +327,7 @@ setup-wizard works on a fresh VM via one-line install.
   re-implement in Go using gopkg.in/yaml.v3 — simpler).
 
 **Phase 2 acceptance**: All four module-system gap fixes ship and are
-demonstrated in `cloud-module-example`.
+demonstrated in `example`.
 
 ---
 
@@ -351,7 +351,7 @@ demonstrated in `cloud-module-example`.
 - Extension manifest target: extend `WorkloadExtensionManifest` to recognize
   `target: server/bedrock-geyser` or `proxy/bedrock-geyser` (Geyser can run
   in either standalone or as a Velocity plugin).
-- Reference variant: add `cloud-module-example/plugin/bedrock-geyser/` showing
+- Reference variant: add `example/plugin/bedrock-geyser/` showing
   how to handle Bedrock-specific player metadata.
 - Documentation: extend `docs/engineering/modules.md` with Bedrock section.
 
@@ -362,7 +362,7 @@ demonstrated in `cloud-module-example`.
 - Brings up ephemeral Mongo + Redis, then a lightweight in-process controller
   (`PrexorCloudBootstrap` with test config), exposes `RouteRegistrar`,
   `ModuleDataStore`, `CapabilityRegistry` for tests.
-- `cloud-module-example`: add an integration test using harness. Real Mongo
+- `example`: add an integration test using harness. Real Mongo
   round-trip for `PlaytimeRepository`, real REST round-trip for `/top`.
 - Update `docs/engineering/modules.md` "Testing" section.
 - Reuse: existing `TestCluster` in `cloud-test-harness` is the inspiration but
@@ -380,15 +380,15 @@ demonstrated in `cloud-module-example`.
   to preserve current behavior.
 - New convention plugin:
   `java/build-logic/src/main/kotlin/prexorcloud.plugin-paper-1-21.gradle.kts`
-  using `paperApi121`. `cloud-module-example/plugin/paper/v1_21/build.gradle.kts`
+  using `paperApi121`. `example/plugin/paper/v1_21/build.gradle.kts`
   switched to it. The v1_20 sibling continues to use
   `prexorcloud.plugin-paper`.
 
 ### 3.4 Frontend module-SDK package — DONE
 - New: `dashboard/packages/module-sdk/` (mirrors existing `api-sdk` package)
 - Exports: `useScopedApi`, `registerPage`, type `ModuleContext`, `defineModule`
-- Existing module frontends (`cloud-module-example/frontend/`,
-  `cloud-module-stats-aggregator/frontend/`) migrate to import from
+- Existing module frontends (`example/frontend/`,
+  `stats-aggregator/frontend/`) migrate to import from
   `@prexorcloud/module-sdk` instead of pulling Nuxt internals.
 - `module.yaml` `frontend.sdkVersion: 1` already exists — formalize it
   as the contract.
@@ -403,7 +403,7 @@ demonstrated in `cloud-module-example`.
   re-mounts the module page without full controller upgrade.
 - Optional, can defer if time-constrained.
 
-**Phase 3 acceptance**: Bedrock-Geyser plugin compiles + `cloud-module-example`
+**Phase 3 acceptance**: Bedrock-Geyser plugin compiles + `example`
 ships a Bedrock variant. `ModuleTestHarness` integration test passes.
 
 ---
@@ -522,8 +522,8 @@ These are higher-level items, less code-detailed. They turn the project from
 - `java/cloud-test-harness/src/main/java/.../module/ModuleTestHarness.java` — new
 - `java/build-logic/src/main/kotlin/prexorcloud.plugin-bedrock-geyser.gradle.kts` — new
 - New subproject: `java/cloud-plugins/cloud-plugins-bedrock-geyser/`
-- New subproject: `java/cloud-module/cloud-module-player-journey/`
-- New subproject: `java/cloud-module/cloud-module-webhook-alerts/`
+- New subproject: `java/cloud-modules/player-journey/`
+- New subproject: `java/cloud-modules/webhook-alerts/`
 - `java/settings.gradle.kts` — register new subprojects
 
 ### Go CLI
@@ -601,7 +601,7 @@ out of scope for this plan:
 7. **JWT + ticket-based SSE** (`controller/.../rest/sse/`)
 8. **Manifest version=1 contract** — extending to v2 is Phase 4 work, do not
    break v1 compatibility
-9. **Existing example modules** (`cloud-module-example`, `stats-aggregator`,
+9. **Existing example modules** (`example`, `stats-aggregator`,
    `playtime-consumer`) — they are reference DX. Only ADD a Bedrock variant
    to the example; do not restructure the existing ones beyond migrating
    their frontends to `@prexorcloud/module-sdk` in Phase 3.4
@@ -636,21 +636,21 @@ End-to-end checks per phase:
   prints meaningful warnings when run against a controller that lacks the
   `example-playtime-query` capability
 - `prexorctl module new --interactive` produces only the chosen subprojects
-- `prexorctl module doctor cloud-module-example/build/libs/example-playtime-1.0.0-SNAPSHOT.jar` — clean exit 0
+- `prexorctl module doctor example/build/libs/example-playtime-1.0.0-SNAPSHOT.jar` — clean exit 0
 
 ### Phase 3
 - `cloud-plugins-bedrock-geyser` compiles, `prexorcloud.plugin-bedrock-geyser`
   applies cleanly to a sample subproject
-- `cloud-module-example/plugin/bedrock-geyser/` builds; the manifest's
+- `example/plugin/bedrock-geyser/` builds; the manifest's
   `target: server/bedrock-geyser` resolves on a Geyser-running daemon
-- `cloud-module-example/src/test/java/.../IntegrationTest.java` (new) using
+- `example/src/test/java/.../IntegrationTest.java` (new) using
   `ModuleTestHarness` runs Mongo + REST round-trip in <30s on local Docker
 - `paper-api-1-20` and `paper-api-1-21` are referenced separately by the two
   example Paper subprojects; no version-mismatch warnings
-- `dashboard/packages/module-sdk` builds, `cloud-module-example/frontend`
+- `dashboard/packages/module-sdk` builds, `example/frontend`
   imports from it without dashboard internals
 - (Optional) `prexorctl module dev` — editing a `.vue` file in
-  `cloud-module-example/frontend/` triggers frontend-only reload
+  `example/frontend/` triggers frontend-only reload
 
 ### Phase 4
 - Mintlify site live at `docs.prexor.cloud` (or wherever)

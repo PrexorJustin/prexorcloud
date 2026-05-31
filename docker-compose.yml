@@ -23,7 +23,7 @@ services:
       - "8080:8080"   # REST API
       - "9090:9090"   # gRPC
     volumes:
-      - ./config/controller.compose.yml:/app/config/controller.yml:ro
+      - ./deploy/compose/controller.compose.yml:/app/config/controller.yml:ro
       - controller-data:/app/data
       - controller-templates:/app/templates
       - controller-certs:/app/certs

@@ -1,5 +1,0 @@
-# stats-aggregator runtime config. Loaded from the resource bundle on enable
-# unless overridden by the controller's per-module config dropper.
-leaderboardSize: 25
-retentionDays: 90
-prometheusEnabled: true

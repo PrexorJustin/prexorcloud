@@ -1,7 +1,0 @@
-manifestVersion: 1
-id: test-daemon-module
-version: 1.0.0
-hosts: [daemon]
-backend:
-  daemon:
-    entrypoint: me.prexorjustin.prexorcloud.modules.testdaemon.TestDaemonModule

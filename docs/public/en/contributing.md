@@ -94,25 +94,20 @@ prexorcloud/
 │   ├── cloud-security/                   # JWT, CA, mTLS, signing
 │   ├── cloud-controller/                 # the controller JVM
 │   ├── cloud-daemon/                     # the per-host daemon JVM
-│   ├── cloud-modules:runtime/               # host-agnostic module runtime
-│   ├── cloud-module/                     # first-party platform modules
-│   │   ├── cloud-module-stats-aggregator/
-│   │   ├── cloud-module-player-journey/
-│   │   ├── cloud-module-webhook-alerts/
-│   │   ├── cloud-module-tablist/
-│   │   ├── cloud-module-protocol-tap/
-│   │   ├── cloud-module-test-daemon/
-│   │   └── cloud-module-example/
-│   ├── cloud-plugin/                     # standalone @CloudPlugin jars
-│   ├── cloud-plugins/                    # platform integration code
-│   │   ├── cloud-plugins-server-paper/
-│   │   ├── cloud-plugins-server-spigot/
-│   │   ├── cloud-plugins-server-folia/
-│   │   ├── cloud-plugins-proxy-velocity/
-│   │   ├── cloud-plugins-proxy-bungee/
-│   │   ├── cloud-plugins-server-shared/
-│   │   ├── cloud-plugins-proxy-shared/
-│   │   └── cloud-plugins-internal/
+│   ├── cloud-modules/                    # first-party platform modules
+│   │   ├── runtime/                          # host-agnostic module runtime
+│   │   ├── stats-aggregator/
+│   │   ├── player-journey/
+│   │   ├── webhook-alerts/
+│   │   ├── tablist/
+│   │   ├── protocol-tap/
+│   │   └── example/
+│   ├── cloud-plugins/                    # platform integration code (proxy + server)
+│   │   ├── proxy/{velocity,bungeecord,shared}/
+│   │   ├── server/{paper,spigot,folia,shared}/
+│   │   └── internal/
+│   ├── test-fixtures/                    # shared test infra
+│   │   └── test-daemon-module/           # synthetic module used by harness tests
 │   └── cloud-test-harness/               # integration tests
 ├── dashboard/                            # Nuxt 4 SPA
 │   ├── app/
@@ -208,7 +203,7 @@ Pick the smallest entry point that fits your contribution:
 - **New first-party module** — `prexorctl module new <name>`
   scaffolds the build file, the `module.yaml`, and a starter
   `PlatformModule` implementation. Look at
-  [`cloud-module-stats-aggregator`](https://github.com/prexorjustin/prexorcloud/tree/main/java/cloud-modules/stats-aggregator)
+  [`stats-aggregator`](https://github.com/prexorjustin/prexorcloud/tree/main/java/cloud-modules/stats-aggregator)
   as the reference for routes + capabilities + storage + frontend.
 - **New `@CloudPlugin` jar** — `prexorctl plugin new <name>
   --platform=paper|velocity|...` scaffolds a standalone plugin. See
