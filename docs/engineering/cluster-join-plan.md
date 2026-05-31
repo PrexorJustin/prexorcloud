@@ -1,13 +1,12 @@
 # Cluster control plane — design plan
 
-**Status:** v3 reworked 2026-05-29. Phase 1 from the v1 plan (cluster_meta in
-Mongo) shipped on this branch and is **superseded** by this rework — its
-data moves into the Raft state machine. Phase 2 from the v1 plan (the
-`/join-template` REST endpoint, `Permission.CLUSTER_JOIN`) shipped on this
-branch and is **deprecated and deleted** by this rework. Not yet started for
-v3-specific work.
+**Status:** v3 reworked 2026-05-29. End-to-end implementation landed
+2026-05-31 across phases 1–11 (see "Implementation order" below for the
+per-phase landing pointers). What's left is enhancement work — additional
+lease migrations under the Phase 8 manager, dashboard polish, ops drilling
+of the recovery runbook — not new planned phases.
 **Owner:** unassigned.
-**Target:** v1.1.
+**Target:** v1.1 (shipped).
 
 ## The architectural decision
 
@@ -433,46 +432,48 @@ group. Migration guide will spell this out.
 
 ## Implementation order
 
-Each phase ships independently and adds value on its own.
+Each phase ships independently and adds value on its own. Status as of
+2026-05-31:
 
-1. **Ratis spike** — embed Apache Ratis, build a trivial state-machine that
-   stores a key-value map, prove single-node bootstrap and recovery from
-   restart. ~3 days.
-2. **State machine schema + read path** — implement the typed entries
-   above; expose them via a `ClusterControlPlane` Java interface; replace
-   all readers of `ControllerConfig.security/runtime/network/...` with
-   reads against the resolved (Raft-applied) state. ~4 days.
-3. **First-boot bootstrap + v1.0 migration** — wizard input seeds the
-   state machine on Day 0; on a v1.0 → v1.1 upgrade, the migration shim
-   seeds it from `controller.yml`. ~3 days.
-4. **gRPC membership protocol + TLS bootstrap** — `ClusterMembership`
-   service, join-token-bound CSR signing, member-add via Ratis joint
-   consensus, snapshot fetch over gRPC streaming. ~5 days. **Read
-   [ratis-spike.md](ratis-spike.md) first** — the spike answers the four
-   Ratis-API unknowns this phase rests on and already shipped one
-   prerequisite fix (state-machine lifecycle transitions for InstallSnapshot
-   on a joining follower).
-5. **CLI + REST: join tokens, members, status** — `prexorctl cluster ...`
-   subcommands and matching REST endpoints. ~3 days.
-6. **Versioned config + REST patch surface** — append-only versions,
-   parentVersion concurrency control, rollback, masking on read. ~3 days.
-7. **Live reload over Raft** — replace existing Redis pub/sub
-   subscribers for CORS, rate limits, signing policy, etc. with state-
-   machine `apply()` notifications. ~2 days.
-8. **Leader leases for scheduler / deployment reconciler / DR drill /
-   audit pruner** — replace Redis-based leases. Independent of Raft for
-   correctness if not done immediately, so deferrable to v1.2. ~3 days.
-9. **Wizard: token-pasted branch** — frontend + installer backend. ~2 days.
-10. **Dashboard "Cluster" page** — members table, leader, log lag,
-    config version history with diff view, lease holders. ~3 days.
-11. **Recovery tooling** — `prexorctl cluster recover` + force-eject.
-    ~2 days.
-12. **Docs + ADR + migration guide** — record this architecture as the
-    cluster-control-plane ADR; write the v1.0 → v1.1 ops migration guide.
-    ~2 days.
-
-Total: ~35 engineering days. Roughly 5× the v1 plan and 2.5× the v2
-plan, in exchange for being a true distributed control plane.
+1. ✅ **Ratis spike** — embed Apache Ratis, build a trivial state-machine
+   that stores a key-value map, prove single-node bootstrap and recovery
+   from restart. Landed as `RatisMultiPeerSpikeTest` + `ratis-spike.md`.
+2. ✅ **State machine schema + read path** — typed entries
+   (`ClusterEntry.*`), `ClusterControlPlane` Java façade, reads from the
+   Raft-applied state.
+3. ✅ **First-boot bootstrap + v1.0 migration** — Day-0 stamping in
+   `ClusterControlService.start()`, v1.0 → v1.1 migration via
+   `ClusterJoinTemplate.buildSharedMap`.
+4. ✅ **gRPC membership protocol + TLS bootstrap** — `ClusterMembership`
+   service (`ClusterMembershipServiceImpl`), join-token-bound CSR signing,
+   joiner-side `ClusterJoinFlow`, `MembershipReconciler` driving Ratis
+   joint consensus, end-to-end exercised by `EndToEndJoinTest`.
+5. ✅ **CLI + REST: join tokens, members, status** — `Cluster*Routes`
+   under `controller/rest/route/`, `prexorctl cluster` subcommands
+   (`cli/cmd/cluster.go`). Includes leave + seed-rotate routes added in
+   the Phase 5 closeout commit.
+6. ✅ **Versioned config + REST patch surface** — append-only versions,
+   parent-version concurrency control, rollback, masking on read in
+   `ClusterConfigRoutes`.
+7. ✅ **Live reload over Raft** — config apply() notifications fan out
+   through the controller's existing `EventBus` (no Redis pub/sub needed).
+8. 🟡 **Leader leases via Raft** — `ClusterLeaseManager` shipped and the
+   audit pruner is migrated. Scheduler-leader / deployment-reconciler /
+   DR-drill leases are one-call adoptions away; pick them up opportunistically.
+9. ✅ **Wizard: token-pasted branch** — `controller-join` mode in the
+   installer writes `config/security/pending-join-token`; the controller
+   bootstrap branches on the file and runs `startInJoinMode`.
+10. ✅ **Dashboard "Cluster" page** — `/cluster/controllers` page lists
+    members, outstanding join tokens, lease holders; surfaces leave +
+    seed-rotate destructive actions; uses the same REST surface as the
+    CLI.
+11. ✅ **Recovery tooling** — `prexorctl cluster recover` (quorum-preserved
+    eject + catastrophic-survivor playbook print); canonical playbook at
+    [`docs/runbooks/recover-cluster.md`](../runbooks/recover-cluster.md).
+12. 🟡 **Docs + ADR + migration guide** — this plan + the recovery
+    runbook are the operating docs. A dedicated ADR landed earlier
+    (`ADR-29 embedded Ratis`); the v1.0 → v1.1 ops migration guide is
+    still outstanding.
 
 ## What we're NOT doing
 
@@ -494,14 +495,21 @@ plan, in exchange for being a true distributed control plane.
 - **Default cluster size.** Single-controller installs work as a 1-node
   Raft group (commits to itself). HA needs ≥3 (for f=1) or ≥5 (for f=2).
   The wizard should call this out — "you have one controller; you have an
-  HA cluster of zero. Add ≥2 more for fault tolerance."
-- **Should we co-locate Raft traffic on the existing controller gRPC
-  port, or use a dedicated `raft.port`?** Co-locating saves an open port
-  but mixes traffic types. Lean dedicated port for operability — Raft
-  traffic patterns are different and should be observable separately.
+  HA cluster of zero. Add ≥2 more for fault tolerance." (Still open —
+  the `controller-join` wizard mode doesn't yet warn about cluster size
+  on the post-install screen.)
+- **~~Should we co-locate Raft traffic on the existing controller gRPC
+  port, or use a dedicated `raft.port`?~~** Resolved: dedicated
+  `raft.port` (defaults to 9190). `RaftConfig.port` is node-local; the
+  port is observable separately and the Ratis transport uses its own TLS
+  parameters even though the cluster CA is shared with the controller
+  gRPC server.
 - **Membership-change throttling.** Joint consensus during a join briefly
-  expands the quorum; doing two joins in flight needs care. Probably
-  serialize joins behind a Raft-held mutex.
+  expands the quorum; doing two joins in flight needs care. The current
+  implementation relies on `MembershipReconciler`'s retry-with-backoff to
+  paper over a colliding join, which works for the small-cluster sizes
+  we target but doesn't guarantee progress under sustained churn. A
+  Raft-held "join-in-flight" mutex is the right longer-term fix.
 
 ## What from the v1 work survives, dies, or repurposes
 
