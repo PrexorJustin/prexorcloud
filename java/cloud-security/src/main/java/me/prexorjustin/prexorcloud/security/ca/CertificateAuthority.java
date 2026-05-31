@@ -237,8 +237,30 @@ public final class CertificateAuthority {
                 KeyPurposeId.id_kp_clientAuth);
     }
 
+    /**
+     * Issue a cluster peer certificate signed by this CA. Carries both
+     * {@code id_kp_serverAuth} and {@code id_kp_clientAuth} EKUs because a
+     * controller acts as both server and client to its peers in cluster
+     * (Ratis + controller gRPC) traffic.
+     */
+    public IssuedCertificate issueClusterPeerCertificate(String commonName, List<String> sans, int validityDays)
+            throws Exception {
+        return issueCertificate(
+                commonName,
+                sans,
+                validityDays,
+                KeyUsage.digitalSignature | KeyUsage.keyEncipherment,
+                new KeyPurposeId[] {KeyPurposeId.id_kp_serverAuth, KeyPurposeId.id_kp_clientAuth});
+    }
+
     private IssuedCertificate issueCertificate(
             String commonName, List<String> sans, int validityDays, int keyUsageBits, KeyPurposeId extendedKeyUsage)
+            throws Exception {
+        return issueCertificate(commonName, sans, validityDays, keyUsageBits, new KeyPurposeId[] {extendedKeyUsage});
+    }
+
+    private IssuedCertificate issueCertificate(
+            String commonName, List<String> sans, int validityDays, int keyUsageBits, KeyPurposeId[] extendedKeyUsages)
             throws Exception {
         KeyPair subjectKeyPair = KeyPairGenerator.generateEC();
         X500Name issuerName =
@@ -257,7 +279,7 @@ public final class CertificateAuthority {
 
         builder.addExtension(Extension.basicConstraints, false, new BasicConstraints(false));
         builder.addExtension(Extension.keyUsage, true, new KeyUsage(keyUsageBits));
-        builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(extendedKeyUsage));
+        builder.addExtension(Extension.extendedKeyUsage, false, new ExtendedKeyUsage(extendedKeyUsages));
 
         // Build SANs
         if (sans != null && !sans.isEmpty()) {
