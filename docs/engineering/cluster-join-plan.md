@@ -470,10 +470,12 @@ Each phase ships independently and adds value on its own. Status as of
 11. ✅ **Recovery tooling** — `prexorctl cluster recover` (quorum-preserved
     eject + catastrophic-survivor playbook print); canonical playbook at
     [`docs/runbooks/recover-cluster.md`](../runbooks/recover-cluster.md).
-12. 🟡 **Docs + ADR + migration guide** — this plan + the recovery
-    runbook are the operating docs. A dedicated ADR landed earlier
-    (`ADR-29 embedded Ratis`); the v1.0 → v1.1 ops migration guide is
-    still outstanding.
+12. ✅ **Docs + ADR + migration guide** — this plan, the recovery
+    runbook ([`docs/runbooks/recover-cluster.md`](../runbooks/recover-cluster.md)),
+    and the v1.0 → v1.1 ops migration guide
+    ([`docs/runbooks/upgrade-v1.0-to-v1.1.md`](../runbooks/upgrade-v1.0-to-v1.1.md))
+    are the operating docs. `ADR-29 embedded Ratis` records the
+    architectural call.
 
 ## What we're NOT doing
 

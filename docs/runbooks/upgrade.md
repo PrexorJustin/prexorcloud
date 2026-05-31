@@ -4,6 +4,10 @@ This runbook covers in-place upgrades of a PrexorCloud install. Same flow
 applies to single-controller and HA deployments; HA gets zero-downtime
 because lease handoff is automatic.
 
+> **Upgrading from v1.0?** The v1.0 → v1.1 hop introduces the embedded
+> Raft cluster control plane and is a one-time, one-way migration. Use
+> [`upgrade-v1.0-to-v1.1.md`](upgrade-v1.0-to-v1.1.md) instead.
+
 ## Pre-flight
 
 1. Read the release notes for every version between your current install
@@ -177,3 +181,5 @@ After a successful upgrade, confirm:
 - [`restore.md`](restore.md) — rollback path.
 - [`recover-controller.md`](recover-controller.md) — if upgrade leaves the
   controller in a non-startable state.
+- [`upgrade-v1.0-to-v1.1.md`](upgrade-v1.0-to-v1.1.md) — one-time
+  migration to the embedded-Raft cluster control plane.
