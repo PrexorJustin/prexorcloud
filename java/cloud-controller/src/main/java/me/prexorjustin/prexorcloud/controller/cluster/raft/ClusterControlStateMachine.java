@@ -89,11 +89,36 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         super.initialize(server, groupId, raftStorage);
         storage.init(raftStorage);
         loadLatestSnapshot();
+        // BaseStateMachine.initialize() leaves the lifecycle in NEW. That works fine for normal
+        // apply traffic, but the InstallSnapshot path on a freshly-joining follower goes
+        // NEW -> PAUSING (illegal) and the SnapshotInstallationHandler aborts. Drive the
+        // transition ourselves so we're ready to be paused-and-reinitialized at any time.
+        getLifeCycle().transition(org.apache.ratis.util.LifeCycle.State.STARTING);
+        getLifeCycle().transition(org.apache.ratis.util.LifeCycle.State.RUNNING);
     }
 
     @Override
     public StateMachineStorage getStateMachineStorage() {
         return storage;
+    }
+
+    // --- Snapshot install on a follower ---
+    // Ratis requires the SM to be PAUSED before it calls reinitialize() on InstallSnapshot.
+    // BaseStateMachine.pause()/reinitialize() are no-ops, so we transition the lifecycle and
+    // reload the just-installed snapshot ourselves. Without this, a fresh peer joining behind
+    // the leader's snapshot crashes its StateMachineUpdater with IllegalStateException.
+
+    @Override
+    public void pause() {
+        getLifeCycle().transition(org.apache.ratis.util.LifeCycle.State.PAUSING);
+        getLifeCycle().transition(org.apache.ratis.util.LifeCycle.State.PAUSED);
+    }
+
+    @Override
+    public void reinitialize() throws IOException {
+        loadLatestSnapshot();
+        getLifeCycle().transition(org.apache.ratis.util.LifeCycle.State.STARTING);
+        getLifeCycle().transition(org.apache.ratis.util.LifeCycle.State.RUNNING);
     }
 
     // --- Apply (writes through Raft) ---
