@@ -773,9 +773,33 @@ public final class PrexorCloudBootstrap {
     private void bootPlatformModules(PrexorController controller, ModuleRegistry modules) {
         wireProductionModuleContext(controller, modules.platformManager());
         wireCapabilityEventPublishing(controller, modules.platformManager());
+        registerBuiltinCapabilities(controller, modules.platformManager());
         modules.platformManager().loadStoredModules();
         refreshPlatformFrontends(modules.frontendManager(), modules.platformManager());
         startPlatformModuleReconciler(modules.frontendManager(), modules.platformManager());
+    }
+
+    /**
+     * Register the controller-provided built-in capability handles. Runs after
+     * {@link #wireCapabilityEventPublishing} so the registrations surface as
+     * {@code CapabilityRegisteredEvent}s for SSE consumers, and before
+     * {@link me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleManager#loadStoredModules}
+     * so modules requiring these capabilities resolve on first load.
+     *
+     * <p>Each {@code if} guards against a service that wasn't wired in the
+     * current bootstrap profile (e.g. embedded tests that skip the daemon
+     * gateway). Skipping is silent — modules that {@code require} an unbound
+     * capability stay parked until the provider shows up.
+     */
+    private void registerBuiltinCapabilities(PrexorController controller, PlatformModuleManager platformManager) {
+        var registry = platformManager.capabilityRegistry();
+        if (controller.instanceFileTreeService() != null && controller.instanceFileContentService() != null) {
+            registry.registerBuiltinHandle(
+                    me.prexorjustin.prexorcloud.api.module.capability.InstanceFileAccess.CAPABILITY_ID,
+                    "1.0.0",
+                    new me.prexorjustin.prexorcloud.controller.module.capability.ControllerInstanceFileAccess(
+                            controller.instanceFileTreeService(), controller.instanceFileContentService()));
+        }
     }
 
     /**

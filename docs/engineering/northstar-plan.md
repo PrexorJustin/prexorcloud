@@ -267,12 +267,18 @@ prexorctl module scaffold my-cool-module \
 
 **Bewusst out of scope (eigenes follow-up):** `extensions:`-Block in `module.yaml` reflektiert die `--mc-plugin`-Auswahl noch nicht — die `plugin/<platform>/`-Verzeichnisse werden korrekt gefiltert, aber der Manifest-Block listet weiterhin alle Templates auf. WithRest/WithMongo-Strip-Out wartet auf den eigenen Pass; die Wizard-Spec ist vorbereitet.
 
-### C.5 Erweiterung First-Party-Module (~3 d)
+### C.5 Erweiterung First-Party-Module (~3 d) — ⏳ **teilweise shipped**
 
 Konkrete Module, die heute fehlen und Differenzierung schaffen:
-- `cloud-module-discord-bridge` — Discord-Webhooks + Slash-Commands → MC, MC-Chat → Discord
-- `cloud-module-grafana-bridge` — Read-only Grafana-Datenquelle, die `/metrics` aggregiert exponiert
-- `cloud-module-backup-orchestrator` — automatische Periodische Welt-Snapshots mit Restic/Borg
+- `cloud-module-discord-bridge` — Discord-Webhooks + Slash-Commands → MC, MC-Chat → Discord — **offen**
+- `cloud-module-grafana-bridge` — Read-only Grafana-Datenquelle — **gestrichen** per ADR 10 (no Grafana dashboard pack)
+- `cloud-module-backup-orchestrator` — ✅ **shipped (config-Snapshot-Scope)**
+
+**Backup-orchestrator (geliefert):**
+- Neues Capability `InstanceFileAccess` (`prexor.instance.files`) in `cloud-api` — modules-public Interface über die bisher controller-internen `InstanceFileTreeService` + `InstanceFileContentService`. Built-in Handle wird in `PrexorCloudBootstrap.registerBuiltinCapabilities` registriert, bevor `loadStoredModules()` läuft (sodass abhängige Module schon beim Erststart resolven).
+- Modul `cloud-modules/backup-orchestrator/`: walk → read → `tar.gz` in `<PREXORCLOUD_BACKUP_DIR | /var/lib/prexorcloud/snapshots>/<instance>/<timestamp>.tar.gz`, Metadaten in der eigenen Mongo-Storage. REST `/api/v1/modules/backup-orchestrator/snapshots` (GET/POST/{id} GET/DELETE).
+- **Scope-Grenze ehrlich dokumentiert:** Daemon-RPC `ReadInstanceFile` deckelt Reads bei 64 KiB pro File und encodet als UTF-8. Brauchbar für `server.properties`, `ops.json`, Plugin-YAML, Whitelist/Banlist — **nicht** für Region-Files / NBT / Welt-Daten. Echte Welt-Snapshots brauchen daemon-side tar (`SnapshotInstance` proto-Erweiterung); ist als follow-up im Service-Javadoc und in der Module-`scope`-Sektion vermerkt. Truncierte Reads landen mit voller Pfadliste in `SnapshotMetadata.truncatedFiles`.
+- Periodische Scheduler-Anbindung ist bewusst nicht in v1 — die REST-POST-Trigger reichen für externe Cron/Systemd-Timer, der `TaskScheduler` aus `ModuleContext` ist im Lifecycle vorhanden, sodass ein Folge-Commit nur noch ein `scheduleAtFixedRate` aufruft.
 
 **Track-C-Gesamt: ~28 eng-days. Beginnt nach Track A. Hängt teilweise von Raft ab (Trust-Roots in `clusterFiles`).**
 
