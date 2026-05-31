@@ -27,6 +27,7 @@ prexorctl [command]
 ## Subcommands
 
 - [`backup`](./backup/)
+- [`cluster`](./cluster/)
 - [`config`](./config/)
 - [`context`](./context/)
 - [`crash`](./crash/)
