@@ -48,7 +48,8 @@ public final class Role {
     // that includes them. See CLUSTER_JOIN — issuing a join template hands the requester
     // the cluster's JWT secret and Mongo URI, so the cluster-join plan keeps it off the
     // default admin bundle even though ADMIN is otherwise the superuser role.
-    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN = Set.of(Permission.CLUSTER_JOIN);
+    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN =
+            Set.of(Permission.CLUSTER_JOIN, Permission.CLUSTER_MANAGE);
 
     private static final Set<String> ALL_PERMISSIONS = collectAllPermissions();
 

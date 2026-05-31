@@ -226,6 +226,7 @@ public final class RestServer {
                 new BootstrapRoutes(controller).register();
                 new AdminConfigRoutes(controller).register();
                 new ClusterJoinRoutes(controller).register();
+                new ClusterConfigRoutes(controller).register();
                 new PasswordResetRoutes(controller).register();
                 new OverviewRoutes(controller).register();
                 new TimeseriesRoutes(controller).register();

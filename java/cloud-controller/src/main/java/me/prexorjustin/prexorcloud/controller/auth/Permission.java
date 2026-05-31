@@ -97,5 +97,17 @@ public final class Permission {
     // Cluster — issuing a join template returns the shared cluster secrets
     // (jwtSecret, Mongo/Redis URIs, SMTP credentials). NOT bundled into the
     // default admin role; must be granted explicitly.
+    // CLUSTER_JOIN is the legacy v1 permission (single template endpoint) — kept
+    // until Phase 5 of cluster-join-plan.md replaces it with the typed surface.
     public static final String CLUSTER_JOIN = "cluster.join";
+
+    // Cluster control plane (Phase 6+). Read membership, config history, leases.
+    public static final String CLUSTER_VIEW = "cluster.view";
+    // Patch and rollback cluster_config versions. Default ADMIN includes this —
+    // adjusting CORS / rate limits / lockout policy is core operator work.
+    public static final String CLUSTER_CONFIG_WRITE = "cluster.config.write";
+    // Issue/revoke join tokens, force-eject members, rotate the seed secret, reveal
+    // masked config fields. NOT bundled into default ADMIN: a join-token creator can
+    // add controllers to the cluster — that should be a conscious grant.
+    public static final String CLUSTER_MANAGE = "cluster.manage";
 }

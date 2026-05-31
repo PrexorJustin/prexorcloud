@@ -163,6 +163,7 @@ public final class PrexorCloudBootstrap {
         var obs = initObservability(core, templates, crash, modules);
 
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
+        controller.setClusterControlPlane(clusterControlService.controlPlane());
         var pasteClient = new me.prexorjustin.prexorcloud.controller.share.PasteClient(config.share());
         controller.setShareService(new me.prexorjustin.prexorcloud.controller.share.ShareService(
                 config.share(),

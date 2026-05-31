@@ -132,6 +132,7 @@ public final class PrexorController {
     private volatile me.prexorjustin.prexorcloud.controller.rest.middleware.AllowedSubnetsList allowedSubnetsList;
     private me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetManager passwordResetManager;
     private me.prexorjustin.prexorcloud.controller.share.ShareService shareService;
+    private me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileTreeService instanceFileTreeService;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileContentService instanceFileContentService;
 
@@ -396,6 +397,18 @@ public final class PrexorController {
     public me.prexorjustin.prexorcloud.controller.share.ShareService shareService() {
         if (shareService == null) throw new IllegalStateException("ShareService not initialized");
         return shareService;
+    }
+
+    /** Cluster control plane (Raft facade). Wired by bootstrap right after the service starts. */
+    public void setClusterControlPlane(
+            me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane plane) {
+        this.clusterControlPlane = Objects.requireNonNull(plane);
+    }
+
+    /** Never null after bootstrap completes. */
+    public me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane() {
+        if (clusterControlPlane == null) throw new IllegalStateException("ClusterControlPlane not initialized");
+        return clusterControlPlane;
     }
 
     /** Set the instance-filetree service. Wired in bootstrap once the NodeMessageDispatcher exists. */

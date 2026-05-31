@@ -26,7 +26,8 @@ class RoleTest {
      * sync with {@code Role.EXCLUDED_FROM_DEFAULT_ADMIN}. Adding a permission here
      * is a deliberate security decision — see the field's comment in Role.java.
      */
-    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN = Set.of(Permission.CLUSTER_JOIN);
+    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN =
+            Set.of(Permission.CLUSTER_JOIN, Permission.CLUSTER_MANAGE);
 
     @Test
     @DisplayName("ADMIN role grants every Permission constant except the deliberately excluded set")
@@ -65,5 +66,25 @@ class RoleTest {
                 !Role.hasPermission(Role.ADMIN, Permission.CLUSTER_JOIN),
                 "CLUSTER_JOIN must be explicitly granted via a custom role — issuing a join template leaks the"
                         + " cluster's JWT secret and Mongo URI.");
+    }
+
+    @Test
+    @DisplayName("ADMIN does NOT receive CLUSTER_MANAGE by default")
+    void adminDoesNotGetClusterManageByDefault() {
+        assertTrue(
+                !Role.hasPermission(Role.ADMIN, Permission.CLUSTER_MANAGE),
+                "CLUSTER_MANAGE must be explicitly granted via a custom role — it allows issuing join tokens,"
+                        + " force-ejecting members, and revealing masked cluster_config fields.");
+    }
+
+    @Test
+    @DisplayName("ADMIN DOES receive CLUSTER_VIEW and CLUSTER_CONFIG_WRITE by default (core operator work)")
+    void adminGetsClusterViewAndWriteByDefault() {
+        assertTrue(
+                Role.hasPermission(Role.ADMIN, Permission.CLUSTER_VIEW),
+                "CLUSTER_VIEW is core ADMIN — reading cluster status, members, config history is not sensitive.");
+        assertTrue(
+                Role.hasPermission(Role.ADMIN, Permission.CLUSTER_CONFIG_WRITE),
+                "CLUSTER_CONFIG_WRITE is core ADMIN — patching CORS / rate limits / lockout policy is normal.");
     }
 }
