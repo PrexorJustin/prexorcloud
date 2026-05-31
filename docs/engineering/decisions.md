@@ -54,6 +54,8 @@ A note on tone: these aren't tablets from a mountain. They reflect what fits the
 
 ## ADR 4: Active-active HA, not active-passive
 
+> **Update (v1.1).** The active-active architecture stands. The lease + fencing **mechanism** described below moves from Valkey-TTL to Raft leases under **ADR 29**. Subsequent sections of this ADR describe the original Valkey-based path and stay accurate for v1.0 deployments; v1.1 substitutes the Raft state machine for the same role.
+
 **Decision.** Multiple controllers run simultaneously. Mutation is gated by lease + fencing token. There is no "leader" controller; any healthy controller can serve traffic and take leases.
 
 **Why.**
@@ -452,4 +454,36 @@ If either check fails, or the module simply does not set the flag, the existing 
 **Trade-off.** A module author who wants fast reload must implement `onReload` *correctly* — a buggy hand-off produces a half-reloaded module that still reports `ACTIVE`, and the framework cannot catch that. Accepted because: the flag is opt-in; the primary consumer is the dev watch loop where the author is actively iterating and will see the breakage immediately; and a production install can leave the flag off and keep the fully-safe upgrade path.
 
 **Scope of the implementing PR.** `ModuleState.RELOADING` + `onReload` default-no-op hook on `PlatformModule` + `ModuleLifecycleManager.reload(...)` + the compatibility gate + the manifest `reloadable` flag + the `PlatformModuleManager.install()` third branch + close-old-classloader-after-`onReload` + lifecycle tests covering the fast path, the gate falling back to `upgrade()`, and the `RELOADING → FAILED` throw path. Out of scope: rolling back a failed reload, reloading non-active modules, and the frontend bundle reload (already shipped separately under MASTER_PLAN 3.5).
+
+---
+
+## ADR 29: Embedded Apache Ratis for the cluster control plane
+
+**Decision.** Multi-controller HA is backed by an embedded Apache Ratis Raft group. The N controllers form one Raft group with a typed state machine (`ClusterControlStateMachine`) that holds cluster identity, versioned config, members, join tokens, and named leader leases. MongoDB stays the system-of-record for business state (templates, instances, deployments, audit log, shares); Valkey stays for ephemeral high-frequency state (rate-limit counters, SSE tickets, daemon heartbeats, console buffers). The Raft state machine holds none of that.
+
+**Why Ratis and not something else.**
+- **Apache Ratis** is actively maintained, Apache 2, production-hardened by Apache Ozone (exabytes of storage), and ships a gRPC transport that drops into our existing gRPC infrastructure. **Selected.**
+- **MicroRaft** is clean but development has slowed; we'd own more of the stack over time.
+- **JRaft (Alibaba)** is heavy, opinionated, and tied to the SOFA framework.
+- **Atomix** stalled in 2022.
+- **Roll our own.** Rejected. Raft is famously easy to get subtly wrong and this is not the place to be original.
+
+**Why embed at all.**
+- **No external coordinator.** No etcd, no Consul, no ZooKeeper. The controllers *are* the coordinator. Operations stays "N controllers + Mongo + Valkey", the same envelope we had before HA.
+- **Strong consistency by construction.** Two operators patching the CORS list at the same instant cannot lose a write; the Raft log linearises them. No optimistic-retry dance against Mongo.
+- **Membership is first-class.** Joint-consensus member-add is one Raft operation; the same code path handles a cluster of size 1 and a cluster of size 7. Split-brain is structurally prevented by quorum.
+- **Leader election is free.** Named leases (scheduler, deployment-reconciler, DR-drill, audit-pruner) live in the state machine. Replaces the previous Valkey-TTL lease dance and its known races at expiry.
+
+**Trade-off.** Raft is non-trivial. Snapshot tuning, log compaction, joint-consensus during membership changes, recovery from majority loss are all real ops concerns. We accept that complexity in exchange for the guarantees above; it is the same complexity every serious cloud control plane runs (Consul, etcd, CockroachDB, Kafka KRaft, NATS JetStream, Ozone).
+
+**Boundary — what is NOT in Raft.**
+- Business state (templates, instances, deployments, audit log, shares) stays in Mongo.
+- Ephemeral fan-out (player join/leave, console lines, daemon heartbeats) stays on Valkey pub/sub.
+- Daemon-side state stays on the daemon's local filesystem.
+
+**Cross-cutting impact.**
+- Supersedes the **mechanism** in **ADR 4 "Active-active HA, not active-passive"** — active-active is preserved, but the lease + fencing primitive moves from Valkey TTL to Raft leases. The architectural shape is unchanged; the substrate is stronger.
+- Live config reload is the Raft `apply()` itself — see Phase 7 of `docs/engineering/cluster-join-plan.md`. Subscribers (CorsAllowList, JwtManager, RateLimiter, SigningPolicyManager) react to a typed `ClusterConfigChangedEvent` on the controller's local EventBus. No Redis round-trip for config.
+
+**Scope of the implementing track.** See `docs/engineering/cluster-join-plan.md` (phases 1–11) and `docs/engineering/northstar-plan.md` (Track A). Phases 1, 2, 3, 6, 7 shipped in the foundation commits. Phases 4 (gRPC membership + TLS bootstrap), 5 (REST + prexorctl), 8 (leader leases), 9 (wizard token branch), 10 (dashboard /cluster), 11 (recovery tooling) remain.
 

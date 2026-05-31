@@ -67,7 +67,7 @@ Gesamt:                                                          115 eng-days
 
 Detailplan siehe [`cluster-join-plan.md`](./cluster-join-plan.md). Hier nur die **Lücke**, was noch zu tun ist:
 
-### A.1 Bootstrap wirklich auf Raft umstellen — *Phase 3 zu Ende bringen* (~4 d)
+### A.1 Bootstrap wirklich auf Raft umstellen — *Phase 3 zu Ende bringen* (~4 d) — ✅ **shipped (Commit 2c6960b)**
 
 **Heutiger Defekt:** `PrexorCloudBootstrap.reconcileClusterIdentity()` ist immer noch der v1-Pfad gegen `cluster_meta` in Mongo. `ClusterControlService` (178 LOC) ist instanziierbar aber nirgends instanziiert.
 
@@ -100,13 +100,13 @@ REST-Endpoints aus `cluster-join-plan.md` §REST-surface; alle 11 Routen impleme
 - Neuer `Permission.CLUSTER_VIEW`, `CLUSTER_CONFIG_WRITE`, `CLUSTER_MANAGE`. Letztere **nicht** in default ADMIN — über `Role.EXCLUDED_FROM_DEFAULT_ADMIN`-Mechanik.
 - Alten `Permission.CLUSTER_JOIN` ausbauen, `ClusterJoinRoutes` löschen.
 
-### A.4 Versioned Config + REST-Patch — *Phase 6* (~3 d)
+### A.4 Versioned Config + REST-Patch — *Phase 6* (~3 d) — ✅ **shipped (Commit 15316eb)**
 
 Append-only-Versionierung von `clusterConfig`. `parentVersion`-Konflikterkennung (409). Rollback per `POST /cluster/config/rollback {targetVersion}`. Masking für sensitive Felder (`security.jwtSecret`, `redis.uri`, SMTP).
 
 **Achtung Boundary:** Ein Patch auf `corsAllowList` darf nicht den ganzen Config-State neu schreiben — Patch-Semantik (RFC 7396 oder eigene Path-basierte Patches). Empfehlung: eigene Path-basierte Patches, da JSON-Merge-Patch mit Arrays unklar ist.
 
-### A.5 Live-Reload über Raft `apply()` — *Phase 7* (~2 d)
+### A.5 Live-Reload über Raft `apply()` — *Phase 7* (~2 d) — ✅ **Foundation shipped (Commit c69ff6c)** — konkrete Subscriber (CorsAllowList, JwtManager, RateLimiter, SigningPolicyManager) folgen je Subsystem
 
 `ClusterControlStateMachine.apply()` feuert pro committed Entry ein Event auf den internen `EventBus`. Subscriber (`CorsAllowList`, `RateLimiter`, `JwtManager`, `SigningPolicyManager`) reagieren in-Process.
 
@@ -141,7 +141,7 @@ Neue Seite `/cluster` im Dashboard:
 
 `prexorctl cluster recover --i-have-only-survivor` — single-member Raft-Reset für Majority-Loss. Interaktive Confirmation, Audit-Eintrag der den Reset überlebt. Doku in `docs/runbooks/cluster-recovery.md`.
 
-### A.10 ADR + Migration-Guide — *Phase 12* (~2 d)
+### A.10 ADR + Migration-Guide — *Phase 12* (~2 d) — ⏳ **teilweise shipped**: ADR 29 (embedded Ratis) + ADR 4 Update in `decisions.md` ✅; Migration-Runbook `docs/runbooks/v1.0-to-v1.1.md` und Recovery-Runbook noch ausstehend
 
 ADR-Eintrag in `docs/decisions.md`: „Embedded Raft via Apache Ratis als Cluster-Control-Plane (statt Mongo-CAS / externem Coordinator)". Migration-Guide in `docs/runbooks/v1.0-to-v1.1.md`: Schritt-für-Schritt für die zwei Operator-Szenarien (Single-Controller-Upgrade, Multi-Controller-Upgrade).
 
