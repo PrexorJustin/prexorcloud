@@ -25,7 +25,6 @@
  * directly and never picks this file up.
  */
 
-
 /* ── 1. Bridge design tokens onto Starlight CSS variables ────────────
  * Starlight reads `--sl-color-*` and `--sl-text-*` and `--sl-content-*`.
  * Point those at semantic tokens already defined in tokens.css so a
@@ -34,20 +33,20 @@
 :root[data-theme='dark'],
 :root[data-theme='light'] {
   /* Surfaces */
-  --sl-color-bg:           hsl(var(--background));
-  --sl-color-bg-nav:       hsl(var(--background));
-  --sl-color-bg-sidebar:   hsl(var(--background));
+  --sl-color-bg: hsl(var(--background));
+  --sl-color-bg-nav: hsl(var(--background));
+  --sl-color-bg-sidebar: hsl(var(--background));
   --sl-color-bg-inline-code: hsl(var(--muted) / 0.6);
 
   /* Text */
-  --sl-color-text:        hsl(var(--foreground));
+  --sl-color-text: hsl(var(--foreground));
   --sl-color-text-accent: hsl(var(--primary));
   --sl-color-text-invert: hsl(var(--primary-foreground));
 
   /* Hairlines — design system says "borders carry the UI". */
-  --sl-color-hairline:        hsl(var(--border));
-  --sl-color-hairline-light:  hsl(var(--border));
-  --sl-color-hairline-shade:  hsl(var(--border));
+  --sl-color-hairline: hsl(var(--border));
+  --sl-color-hairline-light: hsl(var(--border));
+  --sl-color-hairline-shade: hsl(var(--border));
 
   /* Gray ramp — Starlight uses these for muted text + sidebar items. */
   --sl-color-gray-1: hsl(var(--foreground));
@@ -61,31 +60,30 @@
    * Starlight's defaults are too small for long-form prose; nudge up
    * across the board.
    */
-  --sl-text-base:  1rem;        /* 16px */
-  --sl-text-sm:    0.875rem;
-  --sl-text-xs:    0.8125rem;
-  --sl-text-2xs:   0.75rem;
-  --sl-text-lg:    1.125rem;
-  --sl-text-xl:    1.25rem;
-  --sl-text-2xl:   1.5rem;       /* page title — design-system §Type */
-  --sl-text-3xl:   2rem;
-  --sl-text-4xl:   2.5rem;
-  --sl-text-5xl:   3.5rem;
-  --sl-text-h1:    var(--sl-text-2xl);   /* 24px page title */
-  --sl-text-h2:    var(--sl-text-xl);    /* 20px section */
-  --sl-text-h3:    var(--sl-text-lg);    /* 18px sub-section */
-  --sl-text-h4:    var(--sl-text-base);
-  --sl-text-h5:    var(--sl-text-sm);
-  --sl-text-code:  0.9375rem;
+  --sl-text-base: 1rem; /* 16px */
+  --sl-text-sm: 0.875rem;
+  --sl-text-xs: 0.8125rem;
+  --sl-text-2xs: 0.75rem;
+  --sl-text-lg: 1.125rem;
+  --sl-text-xl: 1.25rem;
+  --sl-text-2xl: 1.5rem; /* page title — design-system §Type */
+  --sl-text-3xl: 2rem;
+  --sl-text-4xl: 2.5rem;
+  --sl-text-5xl: 3.5rem;
+  --sl-text-h1: var(--sl-text-2xl); /* 24px page title */
+  --sl-text-h2: var(--sl-text-xl); /* 20px section */
+  --sl-text-h3: var(--sl-text-lg); /* 18px sub-section */
+  --sl-text-h4: var(--sl-text-base);
+  --sl-text-h5: var(--sl-text-sm);
+  --sl-text-code: 0.9375rem;
   --sl-text-code-sm: 0.8125rem;
-  --sl-line-height: var(--leading-relaxed);   /* 1.65 — docs prose */
+  --sl-line-height: var(--leading-relaxed); /* 1.65 — docs prose */
 
   /* Layout — give the docs prose a real reading column. */
-  --sl-content-width:  860px;
-  --sl-sidebar-width:  280px;
-  --sl-content-pad-x:  1.75rem;
+  --sl-content-width: 860px;
+  --sl-sidebar-width: 280px;
+  --sl-content-pad-x: 1.75rem;
 }
-
 
 /* ── 2. Body, links, headings ────────────────────────────────────────
  * Inter for UI, Inter Tight for headings (display family per SKILL.md).
@@ -114,8 +112,12 @@ body {
   margin-block-start: var(--space-12);
   margin-block-end: var(--space-3);
 }
-.sl-markdown-content h3 { margin-block-start: var(--space-8);  }
-.sl-markdown-content h4 { margin-block-start: var(--space-6);  }
+.sl-markdown-content h3 {
+  margin-block-start: var(--space-8);
+}
+.sl-markdown-content h4 {
+  margin-block-start: var(--space-6);
+}
 
 /* Page title — the gradient title pattern from the design system. We
  * apply it via `data-page-title` on the Starlight content container's
@@ -147,7 +149,9 @@ body {
   max-width: 72ch;
   color: hsl(var(--foreground));
 }
-.sl-markdown-content :is(ul, ol) li + li { margin-top: var(--space-2); }
+.sl-markdown-content :is(ul, ol) li + li {
+  margin-top: var(--space-2);
+}
 .sl-markdown-content blockquote {
   border-inline-start: 2px solid hsl(var(--primary));
   background: hsl(var(--glass));
@@ -164,13 +168,14 @@ body {
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
   text-decoration-color: hsl(var(--primary) / 0.4);
-  transition: text-decoration-color 0.12s ease, color 0.12s ease;
+  transition:
+    text-decoration-color 0.12s ease,
+    color 0.12s ease;
 }
 .sl-markdown-content a:hover {
   text-decoration-color: hsl(var(--primary));
   color: hsl(var(--cyan-10));
 }
-
 
 /* ── 3. Sidebar ──────────────────────────────────────────────────────
  * Vercel-faithful: small uppercase eyebrows for top-level groups, calm
@@ -234,11 +239,19 @@ body {
   pointer-events: none;
   list-style: none;
 }
-.sidebar-content > ul.top-level > li > details > summary svg.caret { display: none; }
-.sidebar-content > ul.top-level > li > details { display: block; }
-.sidebar-content > ul.top-level > li > details > ul { display: block !important; }
+.sidebar-content > ul.top-level > li > details > summary svg.caret {
+  display: none;
+}
+.sidebar-content > ul.top-level > li > details {
+  display: block;
+}
+.sidebar-content > ul.top-level > li > details > ul {
+  display: block !important;
+}
 .sidebar-content summary::-webkit-details-marker,
-.sidebar-content summary::marker { display: none; }
+.sidebar-content summary::marker {
+  display: none;
+}
 
 /* Nested sub-group label (e.g. "Module System" inside "Concepts") —
  * smaller eyebrow with a chevron that rotates when expanded. */
@@ -251,7 +264,9 @@ body {
   letter-spacing: -0.005em;
   color: hsl(var(--foreground));
 }
-.sidebar-content ul ul details > summary { cursor: pointer; }
+.sidebar-content ul ul details > summary {
+  cursor: pointer;
+}
 .sidebar-content ul ul details > summary > svg.caret {
   display: inline-block;
   width: 14px;
@@ -286,7 +301,7 @@ body {
   padding: var(--space-2) var(--space-3);
   color: hsl(var(--muted-foreground));
   text-decoration: none;
-  background: transparent;       /* nuke Starlight's @layer cyan pill */
+  background: transparent; /* nuke Starlight's @layer cyan pill */
   border-radius: 0;
   transition: color 0.12s ease;
 }
@@ -319,7 +334,6 @@ body {
   box-shadow: 0 0 8px hsl(var(--primary) / 0.6);
 }
 
-
 /* ── 4. Top header ───────────────────────────────────────────────────
  * Sticky glass panel, hairline-bottom, mono-tabular site title. */
 .header {
@@ -334,7 +348,6 @@ body {
   letter-spacing: var(--tracking-tight);
   color: hsl(var(--foreground));
 }
-
 
 /* ── 5. Inline code, code blocks, terminal blocks ────────────────────
  * Code blocks live in glass cards (the design-system unit). Inline
@@ -383,7 +396,6 @@ body {
   border: 1px solid hsl(var(--glass-border));
 }
 
-
 /* ── 6. Tables ───────────────────────────────────────────────────────
  * Sticky-header dense table per design-system table-row.html — bottom
  * rule per row, eyebrow column heads, tabular numerics. */
@@ -412,8 +424,9 @@ body {
   border-bottom: 1px solid hsl(var(--border));
   color: hsl(var(--foreground));
 }
-.sl-markdown-content table tr:last-child td { border-bottom: 0; }
-
+.sl-markdown-content table tr:last-child td {
+  border-bottom: 0;
+}
 
 /* ── 7. Asides / callouts — glass cards with status-tinted corner ──── */
 .sl-markdown-content .starlight-aside {
@@ -431,15 +444,23 @@ body {
   inset: 0;
   background: linear-gradient(
     135deg,
-    var(--aside-tint, hsl(var(--primary)) / 0.10),
+    var(--aside-tint, hsl(var(--primary)) / 0.1),
     transparent 60%
   );
   pointer-events: none;
 }
-.sl-markdown-content .starlight-aside.starlight-aside--note    { --aside-tint: hsl(var(--cyan-9) / 0.10); }
-.sl-markdown-content .starlight-aside.starlight-aside--tip     { --aside-tint: hsl(var(--green-9) / 0.10); }
-.sl-markdown-content .starlight-aside.starlight-aside--caution { --aside-tint: hsl(var(--amber-9) / 0.10); }
-.sl-markdown-content .starlight-aside.starlight-aside--danger  { --aside-tint: hsl(var(--red-9) / 0.10); }
+.sl-markdown-content .starlight-aside.starlight-aside--note {
+  --aside-tint: hsl(var(--cyan-9) / 0.1);
+}
+.sl-markdown-content .starlight-aside.starlight-aside--tip {
+  --aside-tint: hsl(var(--green-9) / 0.1);
+}
+.sl-markdown-content .starlight-aside.starlight-aside--caution {
+  --aside-tint: hsl(var(--amber-9) / 0.1);
+}
+.sl-markdown-content .starlight-aside.starlight-aside--danger {
+  --aside-tint: hsl(var(--red-9) / 0.1);
+}
 .sl-markdown-content .starlight-aside .starlight-aside__title {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
@@ -449,7 +470,6 @@ body {
   color: hsl(var(--muted-foreground));
   margin-bottom: var(--space-2);
 }
-
 
 /* ── 8. Mermaid frame ────────────────────────────────────────────────
  * Glass card per design-system. `<svg>` always block + max-width 100%
@@ -470,7 +490,9 @@ body {
   height: auto;
   margin-inline: auto;
 }
-.mermaid-wrapper pre.mermaid { display: none; }   /* JS hidrates */
+.mermaid-wrapper pre.mermaid {
+  display: none;
+} /* JS hidrates */
 
 .mermaid-wrapper .mermaid-error {
   font-family: var(--font-mono);
@@ -491,7 +513,6 @@ body {
   white-space: pre-wrap;
 }
 
-
 /* ── 9. Pagination + edit-on-github + last-updated ───────────────── */
 .pagination-links {
   border-top: 1px solid hsl(var(--border));
@@ -503,13 +524,14 @@ body {
   border: 1px solid hsl(var(--glass-border));
   border-radius: var(--radius-lg);
   padding: var(--space-3) var(--space-5);
-  transition: border-color 0.12s ease, color 0.12s ease;
+  transition:
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 .pagination-links a:hover {
   border-color: hsl(var(--primary));
   color: hsl(var(--primary));
 }
-
 
 /* ── 10. Right-side TOC + edit-page footer ─────────────────────────── */
 .right-sidebar a {
@@ -518,12 +540,13 @@ body {
   font-size: var(--text-sm);
   transition: color 0.12s ease;
 }
-.right-sidebar a:hover { color: hsl(var(--foreground)); }
+.right-sidebar a:hover {
+  color: hsl(var(--foreground));
+}
 .right-sidebar a[aria-current='true'] {
   color: hsl(var(--primary));
   font-weight: var(--weight-medium);
 }
-
 
 /* ── 11. Footer override (Footer.astro) — minimal, hairlined ───────── */
 .pc-footer {
@@ -538,13 +561,19 @@ body {
   font-weight: var(--weight-bold);
   color: hsl(var(--foreground));
 }
-.pc-footer a { color: hsl(var(--muted-foreground)); transition: color 0.12s ease; }
-.pc-footer a:hover { color: hsl(var(--primary)); }
-
+.pc-footer a {
+  color: hsl(var(--muted-foreground));
+  transition: color 0.12s ease;
+}
+.pc-footer a:hover {
+  color: hsl(var(--primary));
+}
 
 /* ── 12. Reduced motion — kill animations system-wide ─────────────── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

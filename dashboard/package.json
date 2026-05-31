@@ -18,6 +18,8 @@
     "story:preview": "histoire preview",
     "lint": "eslint .",
     "lint:voice": "bash scripts/lint-voice.sh",
+    "format": "prettier --write \"app/**/*.{ts,tsx,js,vue,css,json}\" \"components/**/*.{ts,tsx,js,vue,css,json}\" \"pages/**/*.{ts,tsx,js,vue,css,json}\" \"layouts/**/*.{ts,tsx,js,vue,css,json}\"",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx,js,vue,css,json}\" \"components/**/*.{ts,tsx,js,vue,css,json}\" \"pages/**/*.{ts,tsx,js,vue,css,json}\" \"layouts/**/*.{ts,tsx,js,vue,css,json}\"",
     "test:visual": "playwright test",
     "test:visual:update": "playwright test --update-snapshots",
     "sdk:generate": "pnpm --filter @prexorcloud/api-sdk generate",

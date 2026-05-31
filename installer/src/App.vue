@@ -45,17 +45,39 @@ onMounted(() => {
   <div class="shell" :class="{ 'no-stepper': !showStepper }">
     <div class="brand">
       <div class="brand-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <path d="M17 18a5 5 0 0 0 0-10 7 7 0 0 0-13 3 4 4 0 0 0 1 7h12z" />
         </svg>
       </div>
       <span class="brand-name">PrexorCloud</span>
       <span class="brand-pill">installer</span>
       <span class="brand-grow"></span>
-      <a class="brand-link" href="https://prexor.cloud/docs/getting-started/wizard" target="_blank" rel="noopener">Docs</a>
-      <a class="brand-link" href="https://github.com/prexorjustin/prexorcloud" target="_blank" rel="noopener">Source</a>
+      <a
+        class="brand-link"
+        href="https://prexor.cloud/docs/getting-started/wizard"
+        target="_blank"
+        rel="noopener"
+      >
+        Docs
+      </a>
+      <a
+        class="brand-link"
+        href="https://github.com/prexorjustin/prexorcloud"
+        target="_blank"
+        rel="noopener"
+      >
+        Source
+      </a>
       <span class="brand-profile" :class="wiz.profile === 'production' ? 'prod' : 'dev'">
-        <span class="dot"></span>{{ wiz.profile === 'production' ? 'production' : 'development' }}
+        <span class="dot"></span>
+        {{ wiz.profile === 'production' ? 'production' : 'development' }}
       </span>
       <span class="brand-version">v0.18</span>
     </div>
@@ -65,7 +87,9 @@ onMounted(() => {
         <template v-for="(s, i) in steps" :key="s.id">
           <div class="step" :class="stepState(i)" @click="gotoStep(i)">
             <div class="circle">{{ stepState(i) === 'done' ? '✓' : i + 1 }}</div>
-            <div class="labels"><div class="l1">{{ s.l1 }}</div></div>
+            <div class="labels">
+              <div class="l1">{{ s.l1 }}</div>
+            </div>
           </div>
           <div v-if="i < steps.length - 1" class="connector"></div>
         </template>

@@ -13,7 +13,10 @@ function toggle() {
 <template>
   <button type="button" class="toggle" :class="{ on: model }" @click="toggle">
     <span class="pill"></span>
-    <span v-if="label" :style="{ fontSize: '13px', color: model ? 'var(--foreground)' : 'var(--muted-foreground)' }">
+    <span
+      v-if="label"
+      :style="{ fontSize: '13px', color: model ? 'var(--foreground)' : 'var(--muted-foreground)' }"
+    >
       {{ label }}
     </span>
   </button>

@@ -14,11 +14,11 @@ const { variant = 'running' } = Astro.props as {
 };
 
 const variants = {
-  running:  { label: 'Running',  color: 'var(--success)',     filled: true },
-  pending:  { label: 'Pending',  color: 'var(--primary)',     filled: true },
-  draining: { label: 'Draining', color: 'var(--warning)',     filled: true },
-  crashed:  { label: 'Crashed',  color: 'var(--destructive)', filled: true },
-  stopped:  { label: 'Stopped',  color: 'var(--muted-foreground)', filled: false },
+  running: { label: 'Running', color: 'var(--success)', filled: true },
+  pending: { label: 'Pending', color: 'var(--primary)', filled: true },
+  draining: { label: 'Draining', color: 'var(--warning)', filled: true },
+  crashed: { label: 'Crashed', color: 'var(--destructive)', filled: true },
+  stopped: { label: 'Stopped', color: 'var(--muted-foreground)', filled: false },
 } as const;
 
 const v = variants[variant];

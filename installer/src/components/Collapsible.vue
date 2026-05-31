@@ -24,7 +24,7 @@ function toggle() {
         <div class="title">{{ title }}</div>
         <div v-if="sub" class="sub">{{ sub }}</div>
       </span>
-      <span style="flex:1"></span>
+      <span style="flex: 1"></span>
       <span class="show">{{ open ? 'Hide' : 'Show' }}</span>
     </button>
     <div class="collapsible-body">

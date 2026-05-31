@@ -15,7 +15,9 @@
     "check:links": "node ./scripts/check-links.mjs",
     "gen:cli": "node --experimental-strip-types ../tools/gen-cli-docs.ts",
     "gen:grpc": "../tools/gen-grpc-docs.sh",
-    "gen:bench": "node --experimental-strip-types ../tools/gen-benchmarks.ts"
+    "gen:bench": "node --experimental-strip-types ../tools/gen-benchmarks.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,vue,css,astro,json}\" \"scripts/**/*.{ts,mjs,js,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,vue,css,astro,json}\" \"scripts/**/*.{ts,mjs,js,json}\""
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
@@ -38,6 +40,8 @@
     "vue": "^3.5.30"
   },
   "devDependencies": {
+    "prettier": "^3.8.1",
+    "prettier-plugin-astro": "^0.14.1",
     "unist-util-visit": "^5.1.0"
   }
 }

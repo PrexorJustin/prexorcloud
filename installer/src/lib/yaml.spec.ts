@@ -107,7 +107,7 @@ describe('controllerYaml', () => {
     expect(out).toContain("  uri: 'mongodb://mongo:27017'");
   });
 
-  it("omits the redis: block in development when redisUri is empty", () => {
+  it('omits the redis: block in development when redisUri is empty', () => {
     const wiz = useWizardStore();
     wiz.profile = 'development';
     wiz.redisUri = '';

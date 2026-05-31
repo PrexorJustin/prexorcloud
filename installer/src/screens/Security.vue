@@ -17,7 +17,9 @@ const showCtrl = computed(() => wiz.mode === 'all' || wiz.mode === 'controller')
 const showDaemon = computed(() => wiz.mode === 'all' || wiz.mode === 'daemon');
 
 // Subline summaries shown on each collapsible header — match the legacy text.
-const rateSub = computed(() => `${wiz.rateIpPerMinute}/IP · ${wiz.rateUserPerMinute}/user · per minute`);
+const rateSub = computed(
+  () => `${wiz.rateIpPerMinute}/IP · ${wiz.rateUserPerMinute}/user · per minute`,
+);
 
 const lockoutSub = computed(() =>
   wiz.lockoutEnabled
@@ -33,7 +35,9 @@ const signingReqLabel = computed(() => {
 });
 const signingSub = computed(() => `${signingReqLabel.value} · ${wiz.modulesSigningMode}`);
 
-const obsSub = computed(() => `${wiz.logLevel} · ${wiz.logFormat} · metrics ${wiz.metricsEnabled ? 'on' : 'off'}`);
+const obsSub = computed(
+  () => `${wiz.logLevel} · ${wiz.logFormat} · metrics ${wiz.metricsEnabled ? 'on' : 'off'}`,
+);
 
 function genJwt() {
   wiz.jwtSecret = genSecret(64);
@@ -55,9 +59,14 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
   <div class="body">
     <div class="content-pane">
       <div class="screen-head">
-        <span class="screen-eyebrow"><span class="dot"></span>Step 3 of 4</span>
+        <span class="screen-eyebrow">
+          <span class="dot"></span>
+          Step 3 of 4
+        </span>
         <h2 class="screen-title"><em class="accent-serif">Hardening.</em></h2>
-        <p class="screen-sub">Optional hardening. Defaults are sane — only crack these open if you want to deviate.</p>
+        <p class="screen-sub">
+          Optional hardening. Defaults are sane — only crack these open if you want to deviate.
+        </p>
       </div>
       <div class="screen-body">
         <!-- JWT -->
@@ -122,13 +131,25 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             <ToggleInput v-model="wiz.lockoutEnabled" :label="wiz.lockoutEnabled ? 'on' : 'off'" />
           </Field>
           <template v-if="wiz.lockoutEnabled">
-            <Field label="Max attempts" key-path="security.lockout.maxAttempts" help="Failed logins before lockout.">
+            <Field
+              label="Max attempts"
+              key-path="security.lockout.maxAttempts"
+              help="Failed logins before lockout."
+            >
               <NumInput v-model="wiz.lockoutMaxAttempts" />
             </Field>
-            <Field label="Observation window" key-path="security.lockout.windowSeconds" help="Window in seconds to count failures.">
+            <Field
+              label="Observation window"
+              key-path="security.lockout.windowSeconds"
+              help="Window in seconds to count failures."
+            >
               <NumInput v-model="wiz.lockoutWindowSeconds" suffix="s" />
             </Field>
-            <Field label="Lockout duration" key-path="security.lockout.lockoutSeconds" help="Seconds to stay locked.">
+            <Field
+              label="Lockout duration"
+              key-path="security.lockout.lockoutSeconds"
+              help="Seconds to stay locked."
+            >
               <NumInput v-model="wiz.lockoutLockoutSeconds" suffix="s" />
             </Field>
           </template>
@@ -146,32 +167,73 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             key-path="security.passwordReset.enabled"
             help="Lets users request a reset link via email. Requires SMTP below."
           >
-            <ToggleInput v-model="wiz.passwordResetEnabled" :label="wiz.passwordResetEnabled ? 'on' : 'off'" />
+            <ToggleInput
+              v-model="wiz.passwordResetEnabled"
+              :label="wiz.passwordResetEnabled ? 'on' : 'off'"
+            />
           </Field>
           <template v-if="wiz.passwordResetEnabled">
-            <Field label="Token TTL (min)" key-path="security.passwordReset.tokenTtlMinutes" help="How long a reset token stays valid.">
+            <Field
+              label="Token TTL (min)"
+              key-path="security.passwordReset.tokenTtlMinutes"
+              help="How long a reset token stays valid."
+            >
               <NumInput v-model="wiz.passwordResetTtlMinutes" suffix="minutes" />
             </Field>
-            <Field label="Reset URL base" key-path="security.passwordReset.resetUrlBase" help="URL prefix that emails point to; usually your dashboard origin.">
-              <TextInput v-model="wiz.passwordResetUrlBase" placeholder="https://dash.example.com" />
+            <Field
+              label="Reset URL base"
+              key-path="security.passwordReset.resetUrlBase"
+              help="URL prefix that emails point to; usually your dashboard origin."
+            >
+              <TextInput
+                v-model="wiz.passwordResetUrlBase"
+                placeholder="https://dash.example.com"
+              />
             </Field>
             <div class="subhead">SMTP</div>
-            <Field label="Host" key-path="security.passwordReset.smtp.host" help="SMTP relay hostname.">
+            <Field
+              label="Host"
+              key-path="security.passwordReset.smtp.host"
+              help="SMTP relay hostname."
+            >
               <TextInput v-model="wiz.smtpHost" placeholder="smtp.gmail.com" />
             </Field>
-            <Field label="Port" key-path="security.passwordReset.smtp.port" help="587 for STARTTLS, 465 for implicit TLS.">
+            <Field
+              label="Port"
+              key-path="security.passwordReset.smtp.port"
+              help="587 for STARTTLS, 465 for implicit TLS."
+            >
               <NumInput v-model="wiz.smtpPort" />
             </Field>
-            <Field label="STARTTLS" key-path="security.passwordReset.smtp.startTls" help="Upgrade to TLS after greeting (port 587).">
+            <Field
+              label="STARTTLS"
+              key-path="security.passwordReset.smtp.startTls"
+              help="Upgrade to TLS after greeting (port 587)."
+            >
               <ToggleInput v-model="wiz.smtpStartTls" :label="wiz.smtpStartTls ? 'on' : 'off'" />
             </Field>
-            <Field label="Implicit TLS" key-path="security.passwordReset.smtp.implicitTls" help="Connect over TLS from the start (port 465).">
-              <ToggleInput v-model="wiz.smtpImplicitTls" :label="wiz.smtpImplicitTls ? 'on' : 'off'" />
+            <Field
+              label="Implicit TLS"
+              key-path="security.passwordReset.smtp.implicitTls"
+              help="Connect over TLS from the start (port 465)."
+            >
+              <ToggleInput
+                v-model="wiz.smtpImplicitTls"
+                :label="wiz.smtpImplicitTls ? 'on' : 'off'"
+              />
             </Field>
-            <Field label="Username" key-path="security.passwordReset.smtp.username" help="SMTP auth user.">
+            <Field
+              label="Username"
+              key-path="security.passwordReset.smtp.username"
+              help="SMTP auth user."
+            >
               <TextInput v-model="wiz.smtpUsername" placeholder="noreply@example.com" />
             </Field>
-            <Field label="Password" key-path="security.passwordReset.smtp.password" help="SMTP auth password / app token.">
+            <Field
+              label="Password"
+              key-path="security.passwordReset.smtp.password"
+              help="SMTP auth password / app token."
+            >
               <TextInput v-model="wiz.smtpPassword" type="password" />
             </Field>
             <Field
@@ -205,7 +267,10 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             key-path="modules.signing.mode"
             help="KEYED = simple pubkey trust root; COSIGN_BUNDLE = full cosign attestation incl. optional Rekor transparency log."
           >
-            <SelectInput v-model="wiz.modulesSigningMode" :options="signingModeOpts as unknown as string[]" />
+            <SelectInput
+              v-model="wiz.modulesSigningMode"
+              :options="signingModeOpts as unknown as string[]"
+            />
           </Field>
           <Field
             label="Trust root"
@@ -213,9 +278,14 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             help="Path to a PEM file (KEYED mode) or cosign trust root JSON (COSIGN_BUNDLE). Leave blank and the installer generates a cosign keypair at config/security/module-trust-root.pem (private key kept in /opt/prexorcloud/controller/secrets/cosign.key, 0600). Provide a path here to bring your own."
           >
             <template #badges>
-              <span v-if="!wiz.modulesSigningTrustRoot" class="badge badge-auto">auto-provisioned</span>
+              <span v-if="!wiz.modulesSigningTrustRoot" class="badge badge-auto">
+                auto-provisioned
+              </span>
             </template>
-            <TextInput v-model="wiz.modulesSigningTrustRoot" placeholder="config/security/module-trust-root.pem (auto-provisioned)" />
+            <TextInput
+              v-model="wiz.modulesSigningTrustRoot"
+              placeholder="config/security/module-trust-root.pem (auto-provisioned)"
+            />
           </Field>
           <Field
             label="Allow unsigned in dev"
@@ -234,10 +304,18 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
           <Field label="Log level" key-path="logging.level" help="Root SLF4J level.">
             <SelectInput v-model="wiz.logLevel" :options="logLevelOpts as unknown as string[]" />
           </Field>
-          <Field label="Log format" key-path="logging.format" help="HUMAN = colour-coded for tail -f. JSON = structured for log aggregators.">
+          <Field
+            label="Log format"
+            key-path="logging.format"
+            help="HUMAN = colour-coded for tail -f. JSON = structured for log aggregators."
+          >
             <SelectInput v-model="wiz.logFormat" :options="logFormatOpts as unknown as string[]" />
           </Field>
-          <Field label="Metrics enabled" key-path="metrics.enabled" help="Exposes /metrics (Prometheus) and the in-memory time series.">
+          <Field
+            label="Metrics enabled"
+            key-path="metrics.enabled"
+            help="Exposes /metrics (Prometheus) and the in-memory time series."
+          >
             <ToggleInput v-model="wiz.metricsEnabled" :label="wiz.metricsEnabled ? 'on' : 'off'" />
           </Field>
           <Field
@@ -263,31 +341,67 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
           title="Scheduler & heartbeat"
           sub="Evaluation cadence, cooldowns, crash detection"
         >
-          <Field label="Evaluation interval" key-path="scheduler.evaluationIntervalSeconds" help="Tick rate for the scheduler loop (instance start/stop, scaling, lease renewal).">
+          <Field
+            label="Evaluation interval"
+            key-path="scheduler.evaluationIntervalSeconds"
+            help="Tick rate for the scheduler loop (instance start/stop, scaling, lease renewal)."
+          >
             <NumInput v-model="wiz.schedulerEvalSeconds" suffix="s" />
           </Field>
-          <Field label="Scaling cooldown" key-path="scheduler.scalingCooldownSeconds" help="Minimum gap between two scaling actions for the same group.">
+          <Field
+            label="Scaling cooldown"
+            key-path="scheduler.scalingCooldownSeconds"
+            help="Minimum gap between two scaling actions for the same group."
+          >
             <NumInput v-model="wiz.schedulerCooldownSeconds" suffix="s" />
           </Field>
-          <Field label="Node timeout" key-path="scheduler.nodeTimeoutSeconds" help="How long a daemon can miss heartbeats before the scheduler evicts its instances.">
+          <Field
+            label="Node timeout"
+            key-path="scheduler.nodeTimeoutSeconds"
+            help="How long a daemon can miss heartbeats before the scheduler evicts its instances."
+          >
             <NumInput v-model="wiz.schedulerNodeTimeoutSeconds" suffix="s" />
           </Field>
-          <Field label="Audit retention" key-path="scheduler.auditRetentionDays" help="How long audit log entries are kept before pruning.">
+          <Field
+            label="Audit retention"
+            key-path="scheduler.auditRetentionDays"
+            help="How long audit log entries are kept before pruning."
+          >
             <NumInput v-model="wiz.schedulerAuditRetentionDays" suffix="d" />
           </Field>
-          <Field label="Heartbeat interval" key-path="heartbeat.intervalMs" help="How often daemons must heartbeat back to the controller.">
+          <Field
+            label="Heartbeat interval"
+            key-path="heartbeat.intervalMs"
+            help="How often daemons must heartbeat back to the controller."
+          >
             <NumInput v-model="wiz.heartbeatIntervalMs" suffix="ms" />
           </Field>
-          <Field label="Missed threshold" key-path="heartbeat.missedThreshold" help="Missed heartbeats before a daemon is considered unhealthy.">
+          <Field
+            label="Missed threshold"
+            key-path="heartbeat.missedThreshold"
+            help="Missed heartbeats before a daemon is considered unhealthy."
+          >
             <NumInput v-model="wiz.heartbeatMissedThreshold" />
           </Field>
-          <Field label="Crash ring buffer" key-path="crashes.ringBufferSize" help="How many recent crash records are kept in memory for forensics.">
+          <Field
+            label="Crash ring buffer"
+            key-path="crashes.ringBufferSize"
+            help="How many recent crash records are kept in memory for forensics."
+          >
             <NumInput v-model="wiz.crashRingBufferSize" />
           </Field>
-          <Field label="Crash-loop threshold" key-path="crashes.crashLoopThreshold" help="Crashes within the window below to flag a crash loop.">
+          <Field
+            label="Crash-loop threshold"
+            key-path="crashes.crashLoopThreshold"
+            help="Crashes within the window below to flag a crash loop."
+          >
             <NumInput v-model="wiz.crashLoopThreshold" />
           </Field>
-          <Field label="Crash-loop window" key-path="crashes.crashLoopWindowSeconds" help="Time window for the threshold above.">
+          <Field
+            label="Crash-loop window"
+            key-path="crashes.crashLoopWindowSeconds"
+            help="Time window for the threshold above."
+          >
             <NumInput v-model="wiz.crashLoopWindowSeconds" suffix="s" />
           </Field>
         </Collapsible>
@@ -304,35 +418,72 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             key-path="health.enabled"
             help="Local HTTP probe at health.bindAddress:port — used by orchestrators / load balancers."
           >
-            <ToggleInput v-model="wiz.daemonHealthEnabled" :label="wiz.daemonHealthEnabled ? 'on' : 'off'" />
+            <ToggleInput
+              v-model="wiz.daemonHealthEnabled"
+              :label="wiz.daemonHealthEnabled ? 'on' : 'off'"
+            />
           </Field>
           <template v-if="wiz.daemonHealthEnabled">
-            <Field label="Bind address" key-path="health.bindAddress" help="Where the daemon binds its health endpoint. 127.0.0.1 = localhost only.">
+            <Field
+              label="Bind address"
+              key-path="health.bindAddress"
+              help="Where the daemon binds its health endpoint. 127.0.0.1 = localhost only."
+            >
               <TextInput v-model="wiz.daemonHealthBindAddress" />
             </Field>
             <Field label="Port" key-path="health.port" help="TCP port for the health endpoint.">
               <NumInput v-model="wiz.daemonHealthPort" />
             </Field>
           </template>
-          <Field label="Log level" key-path="logging.level" help="Daemon-side SLF4J level (separate from controller).">
-            <SelectInput v-model="wiz.daemonLogLevel" :options="logLevelOpts as unknown as string[]" />
+          <Field
+            label="Log level"
+            key-path="logging.level"
+            help="Daemon-side SLF4J level (separate from controller)."
+          >
+            <SelectInput
+              v-model="wiz.daemonLogLevel"
+              :options="logLevelOpts as unknown as string[]"
+            />
           </Field>
           <Field label="Log format" key-path="logging.format" help="HUMAN or JSON.">
-            <SelectInput v-model="wiz.daemonLogFormat" :options="logFormatOpts as unknown as string[]" />
+            <SelectInput
+              v-model="wiz.daemonLogFormat"
+              :options="logFormatOpts as unknown as string[]"
+            />
           </Field>
-          <Field label="Reconnect initial delay" key-path="reconnect.initialDelayMs" help="First retry delay after losing the controller connection.">
+          <Field
+            label="Reconnect initial delay"
+            key-path="reconnect.initialDelayMs"
+            help="First retry delay after losing the controller connection."
+          >
             <NumInput v-model="wiz.reconnectInitialDelayMs" suffix="ms" />
           </Field>
-          <Field label="Reconnect max delay" key-path="reconnect.maxDelayMs" help="Cap on the exponential backoff.">
+          <Field
+            label="Reconnect max delay"
+            key-path="reconnect.maxDelayMs"
+            help="Cap on the exponential backoff."
+          >
             <NumInput v-model="wiz.reconnectMaxDelayMs" suffix="ms" />
           </Field>
-          <Field label="Reconnect multiplier" key-path="reconnect.multiplier" help="Exponent for the backoff growth.">
+          <Field
+            label="Reconnect multiplier"
+            key-path="reconnect.multiplier"
+            help="Exponent for the backoff growth."
+          >
             <NumInput v-model="wiz.reconnectMultiplier" />
           </Field>
-          <Field label="Instance shutdown timeout" key-path="instances.shutdownTimeoutSeconds" help="How long the daemon waits for a graceful shutdown before SIGKILL.">
+          <Field
+            label="Instance shutdown timeout"
+            key-path="instances.shutdownTimeoutSeconds"
+            help="How long the daemon waits for a graceful shutdown before SIGKILL."
+          >
             <NumInput v-model="wiz.instancesShutdownTimeoutSeconds" suffix="s" />
           </Field>
-          <Field label="Console rate cap (lines/s)" key-path="instances.maxConsoleOutputLinesPerSecond" help="Prevents a chatty server from flooding the dashboard SSE stream.">
+          <Field
+            label="Console rate cap (lines/s)"
+            key-path="instances.maxConsoleOutputLinesPerSecond"
+            help="Prevents a chatty server from flooding the dashboard SSE stream."
+          >
             <NumInput v-model="wiz.instancesMaxConsoleOutputLinesPerSecond" />
           </Field>
         </Collapsible>
@@ -349,7 +500,10 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             key-path="maintenance.enabled"
             help="Globally pause scheduling + reject non-admin player joins."
           >
-            <ToggleInput v-model="wiz.maintenanceEnabled" :label="wiz.maintenanceEnabled ? 'on' : 'off'" />
+            <ToggleInput
+              v-model="wiz.maintenanceEnabled"
+              :label="wiz.maintenanceEnabled ? 'on' : 'off'"
+            />
           </Field>
           <Field
             v-if="wiz.maintenanceEnabled"
@@ -376,19 +530,42 @@ const logFormatOpts = ['HUMAN', 'JSON'] as const;
             <ToggleInput v-model="wiz.shareEnabled" :label="wiz.shareEnabled ? 'on' : 'off'" />
           </Field>
           <template v-if="wiz.shareEnabled">
-            <Field label="Paste URL" key-path="share.pasteUrl" help="Pastebin endpoint. pste.dev is the default.">
+            <Field
+              label="Paste URL"
+              key-path="share.pasteUrl"
+              help="Pastebin endpoint. pste.dev is the default."
+            >
               <TextInput v-model="wiz.sharePasteUrl" placeholder="https://pste.dev" />
             </Field>
-            <Field label="Paste token" key-path="share.pasteToken" help="Optional auth token for the pastebin.">
+            <Field
+              label="Paste token"
+              key-path="share.pasteToken"
+              help="Optional auth token for the pastebin."
+            >
               <TextInput v-model="wiz.sharePasteToken" type="password" />
             </Field>
-            <Field label="Default expiry" key-path="share.defaultExpiry" help="pste.dev expiry shorthand (1h, 1d, 7d, 30d).">
+            <Field
+              label="Default expiry"
+              key-path="share.defaultExpiry"
+              help="pste.dev expiry shorthand (1h, 1d, 7d, 30d)."
+            >
               <TextInput v-model="wiz.shareDefaultExpiry" placeholder="1d" />
             </Field>
-            <Field label="Default private" key-path="share.defaultPrivate" help="Default visibility of shares. Override per call.">
-              <ToggleInput v-model="wiz.shareDefaultPrivate" :label="wiz.shareDefaultPrivate ? 'on' : 'off'" />
+            <Field
+              label="Default private"
+              key-path="share.defaultPrivate"
+              help="Default visibility of shares. Override per call."
+            >
+              <ToggleInput
+                v-model="wiz.shareDefaultPrivate"
+                :label="wiz.shareDefaultPrivate ? 'on' : 'off'"
+              />
             </Field>
-            <Field label="End-to-end encryption" key-path="share.e2e" help="Encrypt body client-side before upload (paste service never sees plaintext).">
+            <Field
+              label="End-to-end encryption"
+              key-path="share.e2e"
+              help="Encrypt body client-side before upload (paste service never sees plaintext)."
+            >
               <ToggleInput v-model="wiz.shareE2E" :label="wiz.shareE2E ? 'on' : 'off'" />
             </Field>
           </template>

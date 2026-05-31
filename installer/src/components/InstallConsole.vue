@@ -140,12 +140,7 @@ onBeforeUnmount(() => {
     <div class="ic-grid">
       <!-- Phase timeline -->
       <ol class="ic-timeline">
-        <li
-          v-for="(p, i) in wiz.installPhases"
-          :key="i"
-          class="ic-phase"
-          :class="p.status"
-        >
+        <li v-for="(p, i) in wiz.installPhases" :key="i" class="ic-phase" :class="p.status">
           <span class="ic-marker">
             <span v-if="p.status === 'active'" class="ic-spinner sm" />
             <span v-else-if="p.status === 'done'">✓</span>
@@ -153,7 +148,9 @@ onBeforeUnmount(() => {
           </span>
           <span class="ic-phase-label">
             {{ p.label }}
-            <span v-if="p.status === 'failed' && p.detail" class="ic-phase-detail">{{ p.detail }}</span>
+            <span v-if="p.status === 'failed' && p.detail" class="ic-phase-detail">
+              {{ p.detail }}
+            </span>
           </span>
           <span class="ic-phase-dur mono">{{ phaseDuration(p) }}</span>
         </li>
@@ -166,7 +163,11 @@ onBeforeUnmount(() => {
       <!-- Live VPS terminal -->
       <div class="ic-term-wrap">
         <div class="ic-term-bar">
-          <span class="ic-dots"><i /><i /><i /></span>
+          <span class="ic-dots">
+            <i />
+            <i />
+            <i />
+          </span>
           <span class="mono">root@vps · live console</span>
         </div>
         <div ref="termHost" class="ic-term" />

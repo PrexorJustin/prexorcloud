@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isCidr,
-  isEmail,
-  isHttpUrl,
-  isMongoOrRedis,
-  isPort,
-  portConflict,
-} from './validators';
+import { isCidr, isEmail, isHttpUrl, isMongoOrRedis, isPort, portConflict } from './validators';
 
 describe('isPort', () => {
   it.each([

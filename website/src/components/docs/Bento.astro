@@ -31,10 +31,16 @@ const { columns = 3 } = Astro.props as { columns?: 2 | 3 | 4 };
     margin: 1.5rem 0;
   }
 
-  .pc-bento[data-columns='2'] { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-  .pc-bento[data-columns='4'] { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .pc-bento[data-columns='2'] {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  }
+  .pc-bento[data-columns='4'] {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
 
   @media (max-width: 640px) {
-    .pc-bento { grid-template-columns: 1fr; }
+    .pc-bento {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

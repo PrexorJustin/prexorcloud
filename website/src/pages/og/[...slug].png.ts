@@ -38,12 +38,12 @@ const fontPromise = (async () => {
   const css = await fetch(
     'https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=JetBrains+Mono:wght@500&display=swap',
     { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AstroOG)' } },
-  ).then(r => r.text());
-  const urls = [...css.matchAll(/url\((https:[^)]+\.(?:woff2|ttf|otf))\)/g)].map(m => m[1]);
+  ).then((r) => r.text());
+  const urls = [...css.matchAll(/url\((https:[^)]+\.(?:woff2|ttf|otf))\)/g)].map((m) => m[1]);
   const [interReg, interBold, interBlack, monoMed] = await Promise.all([
     fetchFont(urls[0]!).catch(() => fetchFont(urls[1]!)),
-    fetchFont(urls.find(u => /Inter[^/]*7\d\d/.test(u)) ?? urls[1]!),
-    fetchFont(urls.find(u => /Inter[^/]*8\d\d/.test(u)) ?? urls[urls.length - 3]!),
+    fetchFont(urls.find((u) => /Inter[^/]*7\d\d/.test(u)) ?? urls[1]!),
+    fetchFont(urls.find((u) => /Inter[^/]*8\d\d/.test(u)) ?? urls[urls.length - 3]!),
     fetchFont(urls[urls.length - 1]!),
   ]);
   return [
@@ -171,7 +171,13 @@ function template({ title, description, section }: Pageish) {
             },
             children: [
               { type: 'div', props: { children: 'prexor.cloud' } },
-              { type: 'div', props: { style: { color: COLORS.muted }, children: 'Self-hosted Minecraft cloud orchestrator' } },
+              {
+                type: 'div',
+                props: {
+                  style: { color: COLORS.muted },
+                  children: 'Self-hosted Minecraft cloud orchestrator',
+                },
+              },
             ],
           },
         },
@@ -182,7 +188,7 @@ function template({ title, description, section }: Pageish) {
 
 export async function getStaticPaths() {
   const entries = await getCollection('docs');
-  const paths = entries.map(e => {
+  const paths = entries.map((e) => {
     const slug = e.id.replace(/\.(md|mdx)$/i, '');
     return {
       params: { slug },
@@ -196,7 +202,8 @@ export async function getStaticPaths() {
     params: { slug: 'default' },
     props: {
       title: 'PrexorCloud',
-      description: 'Self-hosted, OSS Minecraft cloud orchestrator. Deploy, scale, and manage with zero-trust security.',
+      description:
+        'Self-hosted, OSS Minecraft cloud orchestrator. Deploy, scale, and manage with zero-trust security.',
     },
   });
   return paths;

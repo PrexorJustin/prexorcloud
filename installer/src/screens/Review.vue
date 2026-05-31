@@ -11,7 +11,9 @@ const wiz = useWizardStore();
 const files = computed<YamlFilename[]>(() => wiz.filesForMode);
 const active = computed<YamlFilename>(() => {
   const f = files.value;
-  return (f.includes(wiz.activeReviewTab as YamlFilename) ? wiz.activeReviewTab : f[0]) as YamlFilename;
+  return (
+    f.includes(wiz.activeReviewTab as YamlFilename) ? wiz.activeReviewTab : f[0]
+  ) as YamlFilename;
 });
 const yaml = computed(() => yamlFor(wiz.$state, active.value));
 const lines = computed(() => yaml.value.split('\n').length);
@@ -58,8 +60,14 @@ const copyLabel = computed(() => (copyState.value.file === active.value ? '✓ C
   <div class="body">
     <div class="content-pane">
       <div class="screen-head">
-        <span class="screen-eyebrow"><span class="dot"></span>Step 4 of 4</span>
-        <h2 class="screen-title">Your <em class="accent-serif">configuration.</em></h2>
+        <span class="screen-eyebrow">
+          <span class="dot"></span>
+          Step 4 of 4
+        </span>
+        <h2 class="screen-title">
+          Your
+          <em class="accent-serif">configuration.</em>
+        </h2>
         <p class="screen-sub">{{ subtitle }}</p>
       </div>
       <div class="screen-body">
@@ -71,12 +79,21 @@ const copyLabel = computed(() => (copyState.value.file === active.value ? '✓ C
             :class="{ active: active === f }"
             type="button"
             @click="selectTab(f)"
-          >{{ f }}</button>
+          >
+            {{ f }}
+          </button>
         </div>
         <div class="term-card">
           <div class="term-head">
-            <div class="term-dots"><span class="d1"></span><span class="d2"></span><span class="d3"></span></div>
-            <span class="term-name">{{ active }} <span class="lines">· {{ lines }} lines</span></span>
+            <div class="term-dots">
+              <span class="d1"></span>
+              <span class="d2"></span>
+              <span class="d3"></span>
+            </div>
+            <span class="term-name">
+              {{ active }}
+              <span class="lines">· {{ lines }} lines</span>
+            </span>
             <div class="term-actions">
               <button class="btn ghost" type="button" @click="doCopy">{{ copyLabel }}</button>
               <button class="btn tinted" type="button" @click="doDownload">Download</button>
@@ -89,48 +106,93 @@ const copyLabel = computed(() => (copyState.value.file === active.value ? '✓ C
           <div class="next-eyebrow">Next</div>
           <div v-if="isNative" class="next-cmd">
             <template v-if="wiz.mode === 'dashboard'">
-              <div><span class="pr">$</span>systemctl status {{ wiz.webServer }} --no-pager</div>
-              <div><span class="pr">$</span>open {{ wiz.dashboardPublicUrl || 'https://dash.example.com' }}</div>
+              <div>
+                <span class="pr">$</span>
+                systemctl status {{ wiz.webServer }} --no-pager
+              </div>
+              <div>
+                <span class="pr">$</span>
+                open {{ wiz.dashboardPublicUrl || 'https://dash.example.com' }}
+              </div>
             </template>
             <template v-else>
-              <div><span class="pr">$</span>systemctl status prexorcloud-{{ wiz.mode === 'daemon' ? 'daemon' : 'controller' }} --no-pager</div>
-              <div v-if="wiz.mode !== 'daemon'"><span class="pr">$</span>cat /opt/prexorcloud/controller/config/.initial-admin-password   # if auto-generated</div>
-              <div><span class="pr">$</span>prexorctl login                  # CLI is auto-linked</div>
+              <div>
+                <span class="pr">$</span>
+                systemctl status prexorcloud-{{ wiz.mode === 'daemon' ? 'daemon' : 'controller' }}
+                --no-pager
+              </div>
+              <div v-if="wiz.mode !== 'daemon'">
+                <span class="pr">$</span>
+                cat /opt/prexorcloud/controller/config/.initial-admin-password # if auto-generated
+              </div>
+              <div>
+                <span class="pr">$</span>
+                prexorctl login # CLI is auto-linked
+              </div>
             </template>
           </div>
           <div v-else class="next-cmd">
             <template v-if="wiz.mode === 'dashboard'">
-              <div><span class="pr">$</span>cd /opt/prexorcloud/dashboard</div>
-              <div><span class="pr">$</span>docker compose up -d</div>
-              <div><span class="pr">$</span>open {{ wiz.dashboardPublicUrl || 'https://dash.example.com' }}</div>
+              <div>
+                <span class="pr">$</span>
+                cd /opt/prexorcloud/dashboard
+              </div>
+              <div>
+                <span class="pr">$</span>
+                docker compose up -d
+              </div>
+              <div>
+                <span class="pr">$</span>
+                open {{ wiz.dashboardPublicUrl || 'https://dash.example.com' }}
+              </div>
             </template>
             <template v-else>
-              <div><span class="pr">$</span>cd /opt/prexorcloud/{{ wiz.mode === 'daemon' ? 'daemon' : 'controller' }}</div>
-              <div><span class="pr">$</span>docker compose up -d</div>
-              <div v-if="wiz.mode !== 'daemon'"><span class="pr">$</span>cat config/.initial-admin-password   # if you let it auto-generate</div>
-              <div><span class="pr">$</span>prexorctl login                  # CLI is auto-linked after compose-up</div>
+              <div>
+                <span class="pr">$</span>
+                cd /opt/prexorcloud/{{ wiz.mode === 'daemon' ? 'daemon' : 'controller' }}
+              </div>
+              <div>
+                <span class="pr">$</span>
+                docker compose up -d
+              </div>
+              <div v-if="wiz.mode !== 'daemon'">
+                <span class="pr">$</span>
+                cat config/.initial-admin-password # if you let it auto-generate
+              </div>
+              <div>
+                <span class="pr">$</span>
+                prexorctl login # CLI is auto-linked after compose-up
+              </div>
             </template>
           </div>
 
           <div v-if="wiz.initialAdminPassword" class="next-pwd-callout">
-            <strong>SAVE THIS NOW</strong> — the admin password is not stored anywhere recoverable. <br>
+            <strong>SAVE THIS NOW</strong>
+            — the admin password is not stored anywhere recoverable.
+            <br />
             <code>{{ wiz.initialAdminPassword }}</code>
           </div>
 
-          <div style="margin-top:14px;display:flex;gap:8px;align-items:center;">
+          <div style="margin-top: 14px; display: flex; gap: 8px; align-items: center">
             <span
               v-if="wiz.installDone"
-              style="color:var(--success);font-weight:600;font-size:13px;"
-            >✓ Installed</span>
+              style="color: var(--success); font-weight: 600; font-size: 13px"
+            >
+              ✓ Installed
+            </span>
             <button
               v-else
               class="btn primary"
               type="button"
               :disabled="wiz.busy"
               @click="wiz.doInstall()"
-            >{{ wiz.busy ? 'Installing…' : 'Install now' }}</button>
-            <span class="mono" style="color:var(--muted-foreground);font-size:11.5px;">
-              <template v-if="isNative">→ installs host services (systemd) + starts them on this VPS</template>
+            >
+              {{ wiz.busy ? 'Installing…' : 'Install now' }}
+            </button>
+            <span class="mono" style="color: var(--muted-foreground); font-size: 11.5px">
+              <template v-if="isNative">
+                → installs host services (systemd) + starts them on this VPS
+              </template>
               <template v-else>→ writes config + starts the compose project on this VPS</template>
             </span>
           </div>
@@ -150,8 +212,9 @@ const copyLabel = computed(() => (copyState.value.file === active.value ? '✓ C
             <div class="install-error-head">
               <span class="install-error-icon" aria-hidden="true">⚠</span>
               <span class="install-error-title">
-                controller.yml failed pre-flight validation
-                ({{ wiz.installValidationErrors.length }}
+                controller.yml failed pre-flight validation ({{
+                  wiz.installValidationErrors.length
+                }}
                 {{ wiz.installValidationErrors.length === 1 ? 'issue' : 'issues' }})
               </span>
             </div>
@@ -170,13 +233,17 @@ const copyLabel = computed(() => (copyState.value.file === active.value ? '✓ C
               target="_blank"
               rel="noopener"
               class="install-error-docs"
-            >Open the troubleshooting docs →</a>
+            >
+              Open the troubleshooting docs →
+            </a>
           </div>
           <div v-else-if="wiz.installError" class="install-error-block generic">
             <div class="install-error-head">
               <span class="install-error-icon" aria-hidden="true">✗</span>
               <span class="install-error-title">Install failed</span>
-              <span v-if="wiz.installErrorCode" class="install-error-code mono">{{ wiz.installErrorCode }}</span>
+              <span v-if="wiz.installErrorCode" class="install-error-code mono">
+                {{ wiz.installErrorCode }}
+              </span>
             </div>
             <div class="install-error-msg">{{ wiz.installError }}</div>
             <a
@@ -185,7 +252,9 @@ const copyLabel = computed(() => (copyState.value.file === active.value ? '✓ C
               target="_blank"
               rel="noopener"
               class="install-error-docs"
-            >Open the troubleshooting docs →</a>
+            >
+              Open the troubleshooting docs →
+            </a>
           </div>
         </div>
       </div>

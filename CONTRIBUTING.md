@@ -66,11 +66,29 @@ cd dashboard && pnpm lint && pnpm test
 cd cli && go vet ./... && go test ./...
 ```
 
-For the website:
+For installer and website:
 
 ```bash
-cd website && pnpm check && pnpm check:links && pnpm build
+cd installer && pnpm format:check && pnpm typecheck && pnpm test
+cd website   && pnpm format:check && pnpm check && pnpm check:links && pnpm build
 ```
+
+### Pre-commit hooks (optional)
+
+The repo ships a [`lefthook.yml`](lefthook.yml) that runs Spotless on staged
+Java files and Prettier on staged installer/website files. Enable it once:
+
+```bash
+# install lefthook itself (one of):
+brew install lefthook            # macOS
+go install github.com/evilmartians/lefthook@latest
+
+# then in the repo root:
+lefthook install
+```
+
+Hooks are advisory — CI runs the same gates regardless of whether
+lefthook is installed locally.
 
 ## Code conventions
 

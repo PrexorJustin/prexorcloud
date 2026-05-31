@@ -14,7 +14,11 @@
  * command output. Both use JetBrains Mono per the design-system type
  * scale. Reference: design-system/SKILL.md (CLI section) + cli/internal/tui/.
  */
-const { command, title = 'prexorctl', host = 'cluster' } = Astro.props as {
+const {
+  command,
+  title = 'prexorctl',
+  host = 'cluster',
+} = Astro.props as {
   command?: string;
   title?: string;
   host?: string;
@@ -28,9 +32,18 @@ const { command, title = 'prexorctl', host = 'cluster' } = Astro.props as {
     <span class="pc-terminal-dot pc-terminal-dot-g" aria-hidden="true"></span>
     <span class="pc-terminal-title">{host} — {title}</span>
   </div>
-  {command && (
-    <pre class="pc-terminal-body pc-terminal-prompt-line"><code><span class="pc-terminal-prompt">$ </span><span class="pc-terminal-cmd">{command}</span></code></pre>
-  )}
+  {
+    command && (
+      <pre class="pc-terminal-body pc-terminal-prompt-line">
+        <code>
+          <>
+            <span class="pc-terminal-prompt">$ </span>
+            <span class="pc-terminal-cmd">{command}</span>
+          </>
+        </code>
+      </pre>
+    )
+  }
   <pre class="pc-terminal-body"><code><slot /></code></pre>
 </figure>
 
@@ -59,9 +72,15 @@ const { command, title = 'prexorctl', host = 'cluster' } = Astro.props as {
     border-radius: 9999px;
     display: inline-block;
   }
-  .pc-terminal-dot-r { background: hsl(var(--destructive)); }
-  .pc-terminal-dot-y { background: hsl(var(--warning)); }
-  .pc-terminal-dot-g { background: hsl(var(--success)); }
+  .pc-terminal-dot-r {
+    background: hsl(var(--destructive));
+  }
+  .pc-terminal-dot-y {
+    background: hsl(var(--warning));
+  }
+  .pc-terminal-dot-g {
+    background: hsl(var(--success));
+  }
 
   .pc-terminal-title {
     margin-left: 0.5rem;
@@ -82,9 +101,17 @@ const { command, title = 'prexorctl', host = 'cluster' } = Astro.props as {
     overflow-x: auto;
   }
 
-  .pc-terminal-prompt-line { padding-bottom: 0.2rem; }
-  .pc-terminal-prompt-line + .pc-terminal-body { padding-top: 0.2rem; }
+  .pc-terminal-prompt-line {
+    padding-bottom: 0.2rem;
+  }
+  .pc-terminal-prompt-line + .pc-terminal-body {
+    padding-top: 0.2rem;
+  }
 
-  .pc-terminal-prompt { color: hsl(var(--primary)); }
-  .pc-terminal-cmd    { color: hsl(var(--slate-12, 210 40% 98%)); }
+  .pc-terminal-prompt {
+    color: hsl(var(--primary));
+  }
+  .pc-terminal-cmd {
+    color: hsl(var(--slate-12, 210 40% 98%));
+  }
 </style>

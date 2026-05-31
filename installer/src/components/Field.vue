@@ -30,7 +30,9 @@ function toggleHelp() {
           :class="{ active: helpOpen }"
           type="button"
           @click="toggleHelp"
-        >?</button>
+        >
+          ?
+        </button>
       </span>
       <span class="key">{{ keyPath }}</span>
       <div v-if="help && helpOpen" class="field-tooltip" v-html="help" />

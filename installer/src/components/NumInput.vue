@@ -25,17 +25,8 @@ const proxy = computed({
 
 <template>
   <div v-if="suffix" class="input-suffix">
-    <input
-      v-model="proxy"
-      :class="['input', invalid ? 'invalid' : '']"
-      inputmode="numeric"
-    />
+    <input v-model="proxy" :class="['input', invalid ? 'invalid' : '']" inputmode="numeric" />
     <span class="suffix">{{ suffix }}</span>
   </div>
-  <input
-    v-else
-    v-model="proxy"
-    :class="['input', invalid ? 'invalid' : '']"
-    inputmode="numeric"
-  />
+  <input v-else v-model="proxy" :class="['input', invalid ? 'invalid' : '']" inputmode="numeric" />
 </template>

@@ -8,10 +8,10 @@ import '../styles/tokens.css';
 import '../styles/starlight.css';
 
 const title = 'Page not found — PrexorCloud';
-const description = 'That page doesn\'t exist (yet). Try one of the suggestions below.';
+const description = "That page doesn't exist (yet). Try one of the suggestions below.";
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
@@ -33,9 +33,7 @@ const description = 'That page doesn\'t exist (yet). Try one of the suggestions 
       <div class="pc-404-card glass-card bg-dot-pattern">
         <p class="eyebrow">404 · route not found</p>
         <h1 class="pc-404-title text-gradient-title">This page doesn't exist.</h1>
-        <p class="pc-404-lead">
-          The link you followed is broken, or the page hasn't shipped yet.
-        </p>
+        <p class="pc-404-lead">The link you followed is broken, or the page hasn't shipped yet.</p>
 
         <ul class="pc-404-links">
           <li><a href="/">→ Marketing landing</a></li>
@@ -48,7 +46,11 @@ const description = 'That page doesn\'t exist (yet). Try one of the suggestions 
     </main>
 
     <style is:global>
-      html, body { height: 100%; margin: 0; }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
       .pc-404-body {
         background: hsl(var(--background));
         color: hsl(var(--foreground));
@@ -59,7 +61,10 @@ const description = 'That page doesn\'t exist (yet). Try one of the suggestions 
         justify-content: center;
         padding: 2rem;
       }
-      .pc-404-main { max-width: 38rem; width: 100%; }
+      .pc-404-main {
+        max-width: 38rem;
+        width: 100%;
+      }
       .pc-404-card {
         padding: var(--space-8, 2rem);
         background: hsl(var(--glass));
@@ -80,8 +85,13 @@ const description = 'That page doesn\'t exist (yet). Try one of the suggestions 
         line-height: var(--leading-relaxed);
         margin: 0 0 1.5rem;
       }
-      .pc-404-lead a { color: hsl(var(--primary)); text-decoration: none; }
-      .pc-404-lead a:hover { text-decoration: underline; }
+      .pc-404-lead a {
+        color: hsl(var(--primary));
+        text-decoration: none;
+      }
+      .pc-404-lead a:hover {
+        text-decoration: underline;
+      }
       .pc-404-links {
         list-style: none;
         padding: 0;
@@ -95,7 +105,9 @@ const description = 'That page doesn\'t exist (yet). Try one of the suggestions 
         color: hsl(var(--foreground));
         text-decoration: none;
       }
-      .pc-404-links a:hover { color: hsl(var(--primary)); }
+      .pc-404-links a:hover {
+        color: hsl(var(--primary));
+      }
     </style>
   </body>
 </html>

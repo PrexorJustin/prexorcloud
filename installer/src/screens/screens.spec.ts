@@ -73,7 +73,13 @@ describe('Mode.vue', () => {
     const disabledIds = cards
       .filter((c) => c.attributes('disabled') !== undefined)
       .map((c) => c.attributes('data-mode'));
-    expect(disabledIds.sort()).toEqual(['all', 'controller', 'controller-join', 'daemon', 'dashboard']);
+    expect(disabledIds.sort()).toEqual([
+      'all',
+      'controller',
+      'controller-join',
+      'daemon',
+      'dashboard',
+    ]);
     const cliCard = cards.find((c) => c.attributes('data-mode') === 'cli');
     expect(cliCard?.attributes('disabled')).toBeUndefined();
   });

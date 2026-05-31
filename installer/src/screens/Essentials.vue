@@ -11,8 +11,8 @@ import NavBar from '@/components/NavBar.vue';
 
 const wiz = useWizardStore();
 
-const showCtrl = computed(() =>
-  wiz.mode === 'all' || wiz.mode === 'controller' || wiz.mode === 'controller-join',
+const showCtrl = computed(
+  () => wiz.mode === 'all' || wiz.mode === 'controller' || wiz.mode === 'controller-join',
 );
 const showCtrlJoin = computed(() => wiz.mode === 'controller-join');
 const showDaemon = computed(() => wiz.mode === 'all' || wiz.mode === 'daemon');
@@ -22,7 +22,9 @@ const redisRequired = computed(() => wiz.profile === 'production');
 const isNative = computed(() => wiz.installMode === 'native');
 // "Install locally" means a sidecar container under compose, but a host
 // package under native — the button/callout copy reflects whichever path.
-const localLabel = computed(() => (isNative.value ? 'Install locally (host)' : 'Install locally (docker)'));
+const localLabel = computed(() =>
+  isNative.value ? 'Install locally (host)' : 'Install locally (docker)',
+);
 
 function setProfile(p: Profile) {
   wiz.profile = p;
@@ -45,45 +47,65 @@ function generateJoinToken() {
   <div class="body">
     <div class="content-pane">
       <div class="screen-head">
-        <span class="screen-eyebrow"><span class="dot"></span>Step 2 of 4</span>
-        <h2 class="screen-title">The <em class="accent-serif">essentials.</em></h2>
-        <p class="screen-sub">The minimum each component needs to start. Defaults are from the post-audit schema — every key shown here actually drives behaviour in the controller / daemon.</p>
+        <span class="screen-eyebrow">
+          <span class="dot"></span>
+          Step 2 of 4
+        </span>
+        <h2 class="screen-title">
+          The
+          <em class="accent-serif">essentials.</em>
+        </h2>
+        <p class="screen-sub">
+          The minimum each component needs to start. Defaults are from the post-audit schema — every
+          key shown here actually drives behaviour in the controller / daemon.
+        </p>
       </div>
       <div class="screen-body">
         <!-- Install path -->
-        <div class="profile-card" style="margin-bottom:12px;">
+        <div class="profile-card" style="margin-bottom: 12px">
           <div class="eyebrow">Install path</div>
           <div class="segmented" role="tablist" aria-label="Install path">
             <button
-              type="button" role="tab"
+              type="button"
+              role="tab"
               :aria-selected="wiz.installMode === 'compose'"
               :class="wiz.installMode === 'compose' ? 'on' : ''"
               @click="wiz.setInstallMode('compose')"
-            >Docker (compose)</button>
+            >
+              Docker (compose)
+            </button>
             <button
-              type="button" role="tab"
+              type="button"
+              role="tab"
               :aria-selected="wiz.installMode === 'native'"
               :class="wiz.installMode === 'native' ? 'on' : ''"
               :disabled="!wiz.nativeAllowed"
               :title="wiz.nativeAllowed ? '' : wiz.nativeReason"
               @click="wiz.setInstallMode('native')"
-            >Native (systemd)</button>
+            >
+              Native (systemd)
+            </button>
           </div>
           <div class="hint">
             <template v-if="isNative">
-              Installs onto this host via systemd + the package manager — no Docker needed. MongoDB/Redis/JRE are installed as host services.
+              Installs onto this host via systemd + the package manager — no Docker needed.
+              MongoDB/Redis/JRE are installed as host services.
             </template>
             <template v-else>
-              Runs every component as a Docker container. Works anywhere Docker + Compose v2 are present.
+              Runs every component as a Docker container. Works anywhere Docker + Compose v2 are
+              present.
             </template>
             <template v-if="!wiz.nativeAllowed">
-              <br><span style="opacity:.8;">Native unavailable: {{ wiz.nativeReason || 'requires Linux + root.' }}</span>
+              <br />
+              <span style="opacity: 0.8">
+                Native unavailable: {{ wiz.nativeReason || 'requires Linux + root.' }}
+              </span>
             </template>
           </div>
         </div>
 
         <!-- Profile + UUID top bar -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:22px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px">
           <div class="profile-card">
             <div class="eyebrow">Runtime profile</div>
             <div class="twobtn">
@@ -92,13 +114,17 @@ function generateJoinToken() {
                 data-profile="development"
                 :class="wiz.profile === 'development' ? 'on dev' : ''"
                 @click="setProfile('development')"
-              >development</button>
+              >
+                development
+              </button>
               <button
                 type="button"
                 data-profile="production"
                 :class="wiz.profile === 'production' ? 'on prod' : ''"
                 @click="setProfile('production')"
-              >production</button>
+              >
+                production
+              </button>
             </div>
             <div class="hint">
               <template v-if="wiz.profile === 'production'">
@@ -116,14 +142,31 @@ function generateJoinToken() {
             </div>
             <div class="row">
               <code>{{ wiz.uuid }}</code>
-              <button class="icon-btn" type="button" title="Regenerate" @click="wiz.regenerateUuid()">↻</button>
+              <button
+                class="icon-btn"
+                type="button"
+                title="Regenerate"
+                @click="wiz.regenerateUuid()"
+              >
+                ↻
+              </button>
             </div>
           </div>
         </div>
 
         <!-- System requirements info -->
         <div v-if="showCtrl || showDaemon" class="system-info">
-          <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            class="ico"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <circle cx="12" cy="12" r="10" />
             <line x1="12" y1="16" x2="12" y2="12" />
             <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -131,19 +174,59 @@ function generateJoinToken() {
           <div v-if="isNative" class="text">
             <strong>What runs on this host.</strong>
             <ul>
-              <li>The installer is running <strong>as root</strong> and will install components as <strong>systemd services</strong> — no Docker required.</li>
-              <li>A managed <strong>Eclipse Temurin JRE 25</strong> is installed to <code class="mono">/opt/prexorcloud/jre</code> if a suitable Java isn't already present.</li>
-              <li v-if="showCtrl">Selecting <strong>Install locally</strong> for MongoDB or Redis installs them via your distro's package manager (MongoDB 8.0 / Redis) and enables them as services on <code class="mono">localhost</code>.</li>
-              <li v-if="showDaemon">The daemon is registered as <code class="mono">prexorcloud-daemon.service</code> and started immediately.</li>
+              <li>
+                The installer is running
+                <strong>as root</strong>
+                and will install components as
+                <strong>systemd services</strong>
+                — no Docker required.
+              </li>
+              <li>
+                A managed
+                <strong>Eclipse Temurin JRE 25</strong>
+                is installed to
+                <code class="mono">/opt/prexorcloud/jre</code>
+                if a suitable Java isn't already present.
+              </li>
+              <li v-if="showCtrl">
+                Selecting
+                <strong>Install locally</strong>
+                for MongoDB or Redis installs them via your distro's package manager (MongoDB 8.0 /
+                Redis) and enables them as services on
+                <code class="mono">localhost</code>
+                .
+              </li>
+              <li v-if="showDaemon">
+                The daemon is registered as
+                <code class="mono">prexorcloud-daemon.service</code>
+                and started immediately.
+              </li>
             </ul>
           </div>
           <div v-else class="text">
             <strong>What runs on this host.</strong>
             <ul>
-              <li><strong>Docker (24+) and Compose v2</strong> must already be installed — the installer uses them to start the stack.</li>
-              <li v-if="showCtrl">Selecting <strong>Install locally</strong> for MongoDB or Redis spawns them as containers (<code class="mono">mongo:8</code>, <code class="mono">redis:7-alpine</code>) inside the same Compose project — nothing is installed on the host.</li>
-              <li v-if="showCtrl"><strong>Cosign</strong> ships inside the controller image; you do not need it on the host to enable signed-module enforcement later.</li>
-              <li v-if="showDaemon">The daemon runs as a container too — no additional host packages are needed.</li>
+              <li>
+                <strong>Docker (24+) and Compose v2</strong>
+                must already be installed — the installer uses them to start the stack.
+              </li>
+              <li v-if="showCtrl">
+                Selecting
+                <strong>Install locally</strong>
+                for MongoDB or Redis spawns them as containers (
+                <code class="mono">mongo:8</code>
+                ,
+                <code class="mono">redis:7-alpine</code>
+                ) inside the same Compose project — nothing is installed on the host.
+              </li>
+              <li v-if="showCtrl">
+                <strong>Cosign</strong>
+                ships inside the controller image; you do not need it on the host to enable
+                signed-module enforcement later.
+              </li>
+              <li v-if="showDaemon">
+                The daemon runs as a container too — no additional host packages are needed.
+              </li>
             </ul>
           </div>
         </div>
@@ -166,8 +249,9 @@ function generateJoinToken() {
               placeholder="prexor-jt:v1:..."
               :invalid="!wiz.controllerJoinToken.trim().startsWith('prexor-jt:v1:')"
             />
-            <div class="hint" style="margin-top:6px;">
-              The token's HMAC is checked against the cluster seed; an unrecognised or rotated token is refused at first start.
+            <div class="hint" style="margin-top: 6px">
+              The token's HMAC is checked against the cluster seed; an unrecognised or rotated token
+              is refused at first start.
             </div>
           </Field>
         </div>
@@ -185,14 +269,32 @@ function generateJoinToken() {
             required
             help="HTTP port serves the REST API + dashboard SPA. gRPC port accepts daemon registrations and mTLS streams. They must differ."
           >
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
               <div>
                 <NumInput v-model="wiz.httpPort" :invalid="conflict" />
-                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted-foreground);margin-top:4px;">HTTP</div>
+                <div
+                  style="
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 10.5px;
+                    color: var(--muted-foreground);
+                    margin-top: 4px;
+                  "
+                >
+                  HTTP
+                </div>
               </div>
               <div>
                 <NumInput v-model="wiz.grpcPort" :invalid="conflict" />
-                <div style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--muted-foreground);margin-top:4px;">gRPC · for daemons</div>
+                <div
+                  style="
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 10.5px;
+                    color: var(--muted-foreground);
+                    margin-top: 4px;
+                  "
+                >
+                  gRPC · for daemons
+                </div>
               </div>
             </div>
             <div v-if="conflict" class="field-error">HTTP and gRPC ports must differ.</div>
@@ -208,17 +310,23 @@ function generateJoinToken() {
             </template>
             <div class="segmented" role="tablist" aria-label="MongoDB source">
               <button
-                type="button" role="tab"
+                type="button"
+                role="tab"
                 :aria-selected="wiz.mongoMode === 'local'"
                 :class="wiz.mongoMode === 'local' ? 'on' : ''"
                 @click="wiz.setMongoMode('local')"
-              >{{ localLabel }}</button>
+              >
+                {{ localLabel }}
+              </button>
               <button
-                type="button" role="tab"
+                type="button"
+                role="tab"
                 :aria-selected="wiz.mongoMode === 'remote'"
                 :class="wiz.mongoMode === 'remote' ? 'on' : ''"
                 @click="wiz.setMongoMode('remote')"
-              >Use existing URI</button>
+              >
+                Use existing URI
+              </button>
             </div>
             <TextInput
               v-if="wiz.mongoMode === 'remote'"
@@ -227,8 +335,22 @@ function generateJoinToken() {
               :invalid="!isMongoOrRedis(wiz.databaseUri)"
             />
             <div v-else class="service-callout">
-              <div v-if="isNative">Installs <code class="mono">mongodb-org</code> 8.0 from the official repo and enables <code class="mono">mongod</code> on <code class="mono">localhost:27017</code>. Requires a distro with a native MongoDB package (Debian/Ubuntu/RHEL family).</div>
-              <div v-else>Spawns a <code class="mono">mongo:8</code> service alongside the controller. Data persists to the <code class="mono">mongo-data</code> volume.</div>
+              <div v-if="isNative">
+                Installs
+                <code class="mono">mongodb-org</code>
+                8.0 from the official repo and enables
+                <code class="mono">mongod</code>
+                on
+                <code class="mono">localhost:27017</code>
+                . Requires a distro with a native MongoDB package (Debian/Ubuntu/RHEL family).
+              </div>
+              <div v-else>
+                Spawns a
+                <code class="mono">mongo:8</code>
+                service alongside the controller. Data persists to the
+                <code class="mono">mongo-data</code>
+                volume.
+              </div>
             </div>
           </Field>
           <Field
@@ -243,17 +365,23 @@ function generateJoinToken() {
             </template>
             <div class="segmented" role="tablist" aria-label="Redis source">
               <button
-                type="button" role="tab"
+                type="button"
+                role="tab"
                 :aria-selected="wiz.redisMode === 'local'"
                 :class="wiz.redisMode === 'local' ? 'on' : ''"
                 @click="wiz.setRedisMode('local')"
-              >{{ localLabel }}</button>
+              >
+                {{ localLabel }}
+              </button>
               <button
-                type="button" role="tab"
+                type="button"
+                role="tab"
                 :aria-selected="wiz.redisMode === 'remote'"
                 :class="wiz.redisMode === 'remote' ? 'on' : ''"
                 @click="wiz.setRedisMode('remote')"
-              >Use existing URI</button>
+              >
+                Use existing URI
+              </button>
             </div>
             <TextInput
               v-if="wiz.redisMode === 'remote'"
@@ -262,8 +390,20 @@ function generateJoinToken() {
               :invalid="redisRequired && !isMongoOrRedis(wiz.redisUri)"
             />
             <div v-else class="service-callout">
-              <div v-if="isNative">Installs <code class="mono">redis</code> from your distro's package manager and enables it on <code class="mono">localhost:6379</code>.</div>
-              <div v-else>Spawns a <code class="mono">redis:7-alpine</code> service alongside the controller. Data persists to the <code class="mono">redis-data</code> volume.</div>
+              <div v-if="isNative">
+                Installs
+                <code class="mono">redis</code>
+                from your distro's package manager and enables it on
+                <code class="mono">localhost:6379</code>
+                .
+              </div>
+              <div v-else>
+                Spawns a
+                <code class="mono">redis:7-alpine</code>
+                service alongside the controller. Data persists to the
+                <code class="mono">redis-data</code>
+                volume.
+              </div>
             </div>
           </Field>
           <Field
@@ -275,7 +415,10 @@ function generateJoinToken() {
               <span class="badge badge-auto">generated</span>
             </template>
             <div class="input-row">
-              <TextInput v-model="wiz.initialAdminPassword" placeholder="leave blank to auto-generate" />
+              <TextInput
+                v-model="wiz.initialAdminPassword"
+                placeholder="leave blank to auto-generate"
+              />
               <button class="inline-btn" type="button" @click="generatePassword">Generate</button>
             </div>
           </Field>
@@ -335,7 +478,9 @@ function generateJoinToken() {
             >
               <div class="input-row">
                 <TextInput v-model="wiz.joinToken" placeholder="pcjt_..." />
-                <button class="inline-btn" type="button" @click="generateJoinToken">Mock token</button>
+                <button class="inline-btn" type="button" @click="generateJoinToken">
+                  Mock token
+                </button>
               </div>
             </Field>
           </template>
@@ -395,7 +540,11 @@ function generateJoinToken() {
           <Field
             label="Local host port"
             key-path="dashboardListenPort"
-            :help="isNative ? 'Where the web server binds on the host (nginx). With Caddy on an https:// URL, ports 80+443 are used for ACME + HTTPS.' : 'Where the nginx container binds on the host. 80 / 443 / 3000 are typical.'"
+            :help="
+              isNative
+                ? 'Where the web server binds on the host (nginx). With Caddy on an https:// URL, ports 80+443 are used for ACME + HTTPS.'
+                : 'Where the nginx container binds on the host. 80 / 443 / 3000 are typical.'
+            "
           >
             <NumInput v-model="wiz.dashboardListenPort" />
           </Field>
@@ -407,17 +556,23 @@ function generateJoinToken() {
           >
             <div class="segmented" role="tablist" aria-label="Web server">
               <button
-                type="button" role="tab"
+                type="button"
+                role="tab"
                 :aria-selected="wiz.webServer === 'caddy'"
                 :class="wiz.webServer === 'caddy' ? 'on' : ''"
                 @click="wiz.webServer = 'caddy'"
-              >Caddy (auto-HTTPS)</button>
+              >
+                Caddy (auto-HTTPS)
+              </button>
               <button
-                type="button" role="tab"
+                type="button"
+                role="tab"
                 :aria-selected="wiz.webServer === 'nginx'"
                 :class="wiz.webServer === 'nginx' ? 'on' : ''"
                 @click="wiz.webServer = 'nginx'"
-              >nginx (plain HTTP)</button>
+              >
+                nginx (plain HTTP)
+              </button>
             </div>
           </Field>
           <Field
@@ -439,15 +594,28 @@ function generateJoinToken() {
 
         <!-- Production checklist -->
         <div v-if="wiz.profile === 'production'" class="prod-callout">
-          <svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <svg
+            class="ico"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           <div class="text">
-            <strong>Production checklist.</strong> Tighten <code class="mono">network.allowedSubnets</code> away from 0.0.0.0/0,
-            rotate the auto-generated JWT secret, set <code class="mono">modules.signing.required: true</code>, and configure SMTP
-            if you want password reset.
+            <strong>Production checklist.</strong>
+            Tighten
+            <code class="mono">network.allowedSubnets</code>
+            away from 0.0.0.0/0, rotate the auto-generated JWT secret, set
+            <code class="mono">modules.signing.required: true</code>
+            , and configure SMTP if you want password reset.
           </div>
         </div>
       </div>

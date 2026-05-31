@@ -23,22 +23,73 @@ const STORAGE_KEY = 'starlight-theme';
 <pc-theme-slider class="pc-theme" role="radiogroup" aria-label="Color theme">
   <span class="pc-theme-thumb" aria-hidden="true"></span>
 
-  <button type="button" class="pc-theme-option" data-theme="light" role="radio" aria-checked="false" aria-label="Light theme">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <button
+    type="button"
+    class="pc-theme-option"
+    data-theme="light"
+    role="radio"
+    aria-checked="false"
+    aria-label="Light theme"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="4"></circle>
-      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+      <path
+        d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+      >
+      </path>
     </svg>
   </button>
 
-  <button type="button" class="pc-theme-option" data-theme="auto" role="radio" aria-checked="true" aria-label="System theme">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <button
+    type="button"
+    class="pc-theme-option"
+    data-theme="auto"
+    role="radio"
+    aria-checked="true"
+    aria-label="System theme"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <rect x="2" y="3" width="20" height="14" rx="2"></rect>
       <path d="M8 21h8M12 17v4"></path>
     </svg>
   </button>
 
-  <button type="button" class="pc-theme-option" data-theme="dark" role="radio" aria-checked="false" aria-label="Dark theme">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <button
+    type="button"
+    class="pc-theme-option"
+    data-theme="dark"
+    role="radio"
+    aria-checked="false"
+    aria-label="Dark theme"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
     </svg>
   </button>
@@ -54,7 +105,11 @@ const STORAGE_KEY = 'starlight-theme';
       connectedCallback() {
         this.options = Array.from(this.querySelectorAll('.pc-theme-option'));
         const stored = (() => {
-          try { return localStorage.getItem(STORAGE_KEY) ?? ''; } catch { return ''; }
+          try {
+            return localStorage.getItem(STORAGE_KEY) ?? '';
+          } catch {
+            return '';
+          }
         })();
         const initial = PcThemeSlider.THEMES.includes(stored) ? stored : 'auto';
         this.setActive(initial, /* persist */ false);
@@ -97,14 +152,18 @@ const STORAGE_KEY = 'starlight-theme';
         this.applyResolved(theme);
 
         if (persist) {
-          try { localStorage.setItem(STORAGE_KEY, theme === 'auto' ? '' : theme); } catch {}
+          try {
+            localStorage.setItem(STORAGE_KEY, theme === 'auto' ? '' : theme);
+          } catch {}
         }
       }
 
       applyResolved(theme) {
         const resolved =
           theme === 'auto'
-            ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            ? window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark'
             : theme;
         document.documentElement.dataset.theme = resolved;
       }
@@ -115,7 +174,7 @@ const STORAGE_KEY = 'starlight-theme';
 
 <style>
   .pc-theme {
-    --pc-theme-index: 1;            /* 0=light, 1=auto, 2=dark */
+    --pc-theme-index: 1; /* 0=light, 1=auto, 2=dark */
     --pc-theme-cell: 32px;
     position: relative;
     display: inline-grid;
@@ -161,9 +220,11 @@ const STORAGE_KEY = 'starlight-theme';
     color: hsl(var(--muted-foreground));
     transition: color 120ms ease-out;
   }
-  .pc-theme-option:hover { color: hsl(var(--foreground)); }
+  .pc-theme-option:hover {
+    color: hsl(var(--foreground));
+  }
   .pc-theme-option.is-active {
-    color: hsl(var(--primary-foreground));   /* white on cyan thumb */
+    color: hsl(var(--primary-foreground)); /* white on cyan thumb */
   }
   .pc-theme-option svg {
     width: 14px;
@@ -177,6 +238,8 @@ const STORAGE_KEY = 'starlight-theme';
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .pc-theme-thumb { transition: none; }
+    .pc-theme-thumb {
+      transition: none;
+    }
   }
 </style>

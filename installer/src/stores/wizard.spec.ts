@@ -19,10 +19,14 @@ describe('wizard navigation', () => {
 
   it('advance() walks mode → essentials → security → review', () => {
     const wiz = useWizardStore();
-    wiz.advance(); expect(wiz.step).toBe('essentials');
-    wiz.advance(); expect(wiz.step).toBe('security');
-    wiz.advance(); expect(wiz.step).toBe('review');
-    wiz.advance(); expect(wiz.step).toBe('review'); // terminal — no further advance
+    wiz.advance();
+    expect(wiz.step).toBe('essentials');
+    wiz.advance();
+    expect(wiz.step).toBe('security');
+    wiz.advance();
+    expect(wiz.step).toBe('review');
+    wiz.advance();
+    expect(wiz.step).toBe('review'); // terminal — no further advance
   });
 
   it('advance() from mode jumps to cli-login when mode is "cli"', () => {

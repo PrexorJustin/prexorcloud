@@ -20,21 +20,23 @@ const { type = 'note', title } = Astro.props as {
 };
 
 const variants = {
-  note:    { color: 'var(--primary)',     glow: 'var(--primary-glow)',     glyph: 'i' },
-  success: { color: 'var(--success)',     glow: 'var(--success-glow)',     glyph: '✓' },
-  warn:    { color: 'var(--warning)',     glow: 'var(--warning-glow)',     glyph: '!' },
-  danger:  { color: 'var(--destructive)', glow: 'var(--destructive-glow)', glyph: '✗' },
-  tip:     { color: 'var(--secondary)',   glow: 'var(--primary-glow)',     glyph: '◆' },
+  note: { color: 'var(--primary)', glow: 'var(--primary-glow)', glyph: 'i' },
+  success: { color: 'var(--success)', glow: 'var(--success-glow)', glyph: '✓' },
+  warn: { color: 'var(--warning)', glow: 'var(--warning-glow)', glyph: '!' },
+  danger: { color: 'var(--destructive)', glow: 'var(--destructive-glow)', glyph: '✗' },
+  tip: { color: 'var(--secondary)', glow: 'var(--primary-glow)', glyph: '◆' },
 } as const;
 
 const v = variants[type];
-const heading = title ?? {
-  note: 'Note',
-  success: 'Success',
-  warn: 'Warning',
-  danger: 'Danger',
-  tip: 'Tip',
-}[type];
+const heading =
+  title ??
+  {
+    note: 'Note',
+    success: 'Success',
+    warn: 'Warning',
+    danger: 'Danger',
+    tip: 'Tip',
+  }[type];
 ---
 
 <aside class={`pc-callout pc-callout-${type}`} role="note" aria-label={heading}>
@@ -76,7 +78,10 @@ const heading = title ?? {
     line-height: 1;
   }
 
-  .pc-callout-body { flex: 1; min-width: 0; }
+  .pc-callout-body {
+    flex: 1;
+    min-width: 0;
+  }
 
   .pc-callout-title {
     margin: 0 0 0.35rem;
@@ -87,8 +92,12 @@ const heading = title ?? {
     letter-spacing: var(--tracking-widest, 0.12em);
   }
 
-  .pc-callout-content :global(p:first-child) { margin-top: 0; }
-  .pc-callout-content :global(p:last-child)  { margin-bottom: 0; }
+  .pc-callout-content :global(p:first-child) {
+    margin-top: 0;
+  }
+  .pc-callout-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
   .pc-callout-content :global(code) {
     font-family: var(--font-mono);
     font-size: 0.875em;

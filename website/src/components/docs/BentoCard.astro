@@ -22,7 +22,13 @@ const Tag = href ? 'a' : 'div';
 <Tag href={href} class="pc-bento-card" data-accent={accent}>
   <h3 class="pc-bento-title">{title}</h3>
   <div class="pc-bento-body"><slot /></div>
-  {href && <span class="pc-bento-arrow" aria-hidden="true">→</span>}
+  {
+    href && (
+      <span class="pc-bento-arrow" aria-hidden="true">
+        →
+      </span>
+    )
+  }
 </Tag>
 
 <style define:vars={{ accentVar }}>
@@ -38,7 +44,9 @@ const Tag = href ? 'a' : 'div';
     text-decoration: none;
     color: inherit;
     overflow: hidden;
-    transition: background 200ms ease, border-color 200ms ease;
+    transition:
+      background 200ms ease,
+      border-color 200ms ease;
   }
 
   .pc-bento-card::before {
@@ -68,8 +76,12 @@ const Tag = href ? 'a' : 'div';
     font-size: var(--text-sm);
     line-height: var(--leading-normal);
   }
-  .pc-bento-body :global(p:first-child) { margin-top: 0; }
-  .pc-bento-body :global(p:last-child)  { margin-bottom: 0; }
+  .pc-bento-body :global(p:first-child) {
+    margin-top: 0;
+  }
+  .pc-bento-body :global(p:last-child) {
+    margin-bottom: 0;
+  }
 
   .pc-bento-arrow {
     position: absolute;

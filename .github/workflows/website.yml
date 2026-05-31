@@ -51,6 +51,10 @@ jobs:
         working-directory: website
         run: pnpm install --frozen-lockfile
 
+      - name: format:check
+        working-directory: website
+        run: pnpm format:check
+
       - name: typecheck
         working-directory: website
         run: pnpm check

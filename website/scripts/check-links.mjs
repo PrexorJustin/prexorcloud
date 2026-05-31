@@ -11,15 +11,10 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const docsRoot = resolve(here, '../../docs/public/en');
 
-const knownRoutes = new Set([
-  '/',
-  '/playground/',
-]);
+const knownRoutes = new Set(['/', '/playground/']);
 
 // Auto-gen prefixes — matches starlight-openapi output under /reference/rest-api/operations/.
-const autogenPrefixes = [
-  '/reference/rest-api/',
-];
+const autogenPrefixes = ['/reference/rest-api/'];
 
 function listMd(dir, out = []) {
   for (const ent of readdirSync(dir, { withFileTypes: true })) {
@@ -61,12 +56,12 @@ for (const f of files) {
   let m;
   while ((m = linkRe.exec(txt))) {
     let href = m[1];
-    if (!href.startsWith('/')) continue;          // skip external/relative
-    if (href.startsWith('//')) continue;          // protocol-relative
+    if (!href.startsWith('/')) continue; // skip external/relative
+    if (href.startsWith('//')) continue; // protocol-relative
     href = href.split('#')[0].split('?')[0];
     if (!href.endsWith('/')) href += '/';
     if (slugSet.has(href)) continue;
-    if (autogenPrefixes.some(p => href.startsWith(p))) continue;
+    if (autogenPrefixes.some((p) => href.startsWith(p))) continue;
     issues.push({ file: f.slice(docsRoot.length), href });
   }
 }

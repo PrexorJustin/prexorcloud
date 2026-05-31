@@ -4,7 +4,13 @@
 // byte-for-byte identical so existing operator muscle-memory keeps working.
 import type { WizardState, WizardMode } from '@/stores/wizard';
 
-export type YamlFilename = 'controller.yml' | 'daemon.yml' | 'docker-compose.yml' | 'nginx.conf' | 'Caddyfile' | 'pending-join-token';
+export type YamlFilename =
+  | 'controller.yml'
+  | 'daemon.yml'
+  | 'docker-compose.yml'
+  | 'nginx.conf'
+  | 'Caddyfile'
+  | 'pending-join-token';
 
 function nowIso(): string {
   return new Date().toISOString().slice(0, 19) + 'Z';
@@ -23,11 +29,16 @@ export function filesForMode(
   webServer: 'nginx' | 'caddy' = 'nginx',
 ): YamlFilename[] {
   switch (mode) {
-    case 'all': return ['controller.yml', 'daemon.yml'];
-    case 'controller': return ['controller.yml'];
-    case 'controller-join': return ['controller.yml', 'pending-join-token'];
-    case 'daemon': return ['daemon.yml'];
-    case 'cli': return [];
+    case 'all':
+      return ['controller.yml', 'daemon.yml'];
+    case 'controller':
+      return ['controller.yml'];
+    case 'controller-join':
+      return ['controller.yml', 'pending-join-token'];
+    case 'daemon':
+      return ['daemon.yml'];
+    case 'cli':
+      return [];
     case 'dashboard':
       // Native serves the SPA from a host web server (no compose project): the
       // generated artifact is that server's vhost config, not docker-compose.
@@ -40,12 +51,18 @@ export function filesForMode(
 
 export function modeLabel(mode: WizardMode): string {
   switch (mode) {
-    case 'all': return 'Controller + Daemon (all-in-one)';
-    case 'controller': return 'Controller only';
-    case 'controller-join': return 'Add controller to existing cluster';
-    case 'daemon': return 'Daemon only';
-    case 'dashboard': return 'Dashboard standalone';
-    case 'cli': return 'CLI login';
+    case 'all':
+      return 'Controller + Daemon (all-in-one)';
+    case 'controller':
+      return 'Controller only';
+    case 'controller-join':
+      return 'Add controller to existing cluster';
+    case 'daemon':
+      return 'Daemon only';
+    case 'dashboard':
+      return 'Dashboard standalone';
+    case 'cli':
+      return 'CLI login';
   }
 }
 
@@ -152,7 +169,7 @@ export function controllerYaml(s: WizardState): string {
   L.push(`  dataDirectory: ${q(s.modulesDataDirectory)}`);
   L.push(`  signing:`);
   // null means "derive from runtime profile" — production = required, dev = optional.
-  const signingRequiredEffective = s.modulesSigningRequired ?? (s.profile === 'production');
+  const signingRequiredEffective = s.modulesSigningRequired ?? s.profile === 'production';
   L.push(`    required: ${signingRequiredEffective}`);
   L.push(`    mode: ${s.modulesSigningMode}`);
   // Always emit a trustRoot when signing is required. The Java validator
@@ -235,7 +252,8 @@ export function daemonYaml(s: WizardState): string {
     L.push(`  signing:`);
     L.push(`    required: true`);
     L.push(`    mode: ${s.daemonModulesSigningMode}`);
-    if (s.daemonModulesSigningTrustRoot) L.push(`    trustRoot: ${q(s.daemonModulesSigningTrustRoot)}`);
+    if (s.daemonModulesSigningTrustRoot)
+      L.push(`    trustRoot: ${q(s.daemonModulesSigningTrustRoot)}`);
   }
   return L.join('\n');
 }
@@ -388,17 +406,22 @@ ${site} {
 
 export function yamlFor(state: WizardState, filename: YamlFilename | string): string {
   switch (filename) {
-    case 'controller.yml': return controllerYaml(state);
-    case 'daemon.yml': return daemonYaml(state);
-    case 'docker-compose.yml': return dashboardCompose(state);
+    case 'controller.yml':
+      return controllerYaml(state);
+    case 'daemon.yml':
+      return daemonYaml(state);
+    case 'docker-compose.yml':
+      return dashboardCompose(state);
     case 'nginx.conf':
       return state.installMode === 'native' ? dashboardNginxNative(state) : dashboardNginx(state);
-    case 'Caddyfile': return dashboardCaddyfile(state);
+    case 'Caddyfile':
+      return dashboardCaddyfile(state);
     case 'pending-join-token':
       // What the controller would persist at config/security/pending-join-token —
       // shown in the preview pane verbatim. The wizard server writes it for real
       // via setupweb's writePendingJoinToken.
       return state.controllerJoinToken.trim() + '\n';
-    default: return '';
+    default:
+      return '';
   }
 }

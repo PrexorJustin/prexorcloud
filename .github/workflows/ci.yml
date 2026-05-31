@@ -84,6 +84,12 @@ jobs:
       - name: Run pnpm lint (soft)
         run: pnpm lint || echo "::warning::eslint reported issues — see logs (non-fatal in v1.0)"
         working-directory: dashboard
+      # Prettier check runs as a soft signal — dashboard hasn't had a full
+      # normalize pass yet (571 source files). Hard gate once the tree is
+      # uniformly formatted.
+      - name: Run pnpm format:check (soft)
+        run: pnpm format:check || echo "::warning::prettier reported formatting issues — run \`pnpm --filter dashboard format\` (non-fatal until dashboard normalize pass)"
+        working-directory: dashboard
       # Voice / brand-guard lint — bans Title Case headings, emoji in product
       # UI strings, and "magical/blazing-fast/supercharged" filler.
       - name: Install ripgrep (required by lint-voice.sh)
@@ -120,6 +126,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: installer/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        working-directory: installer
+      - run: pnpm format:check
         working-directory: installer
       - run: pnpm typecheck
         working-directory: installer

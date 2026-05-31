@@ -19,8 +19,8 @@ interface BlogData {
 export async function GET(context: APIContext) {
   const all = await getCollection('docs');
   const posts = all
-    .filter(e => e.id.startsWith('blog/') && !/^blog\/(index)\b/.test(e.id))
-    .map(e => {
+    .filter((e) => e.id.startsWith('blog/') && !/^blog\/(index)\b/.test(e.id))
+    .map((e) => {
       const data = e.data as BlogData;
       const slug = e.id.replace(/\.(md|mdx)$/i, '');
       return {

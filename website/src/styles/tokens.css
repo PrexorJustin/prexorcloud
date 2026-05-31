@@ -16,118 +16,118 @@
    */
 
   /* Reef — softened cyan. Dark token brighter, light token darker. */
-  --reef-dark:       188 58% 57%;     /* #4ec5d4 */
-  --reef-light:      192 86% 35%;     /* #0c8aa8 */
-  --reef-soft-dark:  189 58% 30%;     /* #1f6a78 */
-  --reef-soft-light: 192 60% 78%;     /* #a5dfe9 */
+  --reef-dark: 188 58% 57%; /* #4ec5d4 */
+  --reef-light: 192 86% 35%; /* #0c8aa8 */
+  --reef-soft-dark: 189 58% 30%; /* #1f6a78 */
+  --reef-soft-light: 192 60% 78%; /* #a5dfe9 */
 
   /* Ink — dark theme spine. */
-  --ink-1: 240 22% 5%;     /* #0a0a10 */
-  --ink-2: 240 20% 6%;     /* #0c0c12 */
-  --ink-3: 240 16% 10%;    /* #14141d */
-  --ink-4: 235 16% 14%;    /* #1d1d28 */
-  --ink-5: 235 13% 19%;    /* #2a2a36 */
-  --ink-6: 235 9%  31%;    /* #4a4a55 */
-  --ink-7: 235 6%  51%;    /* #7c7c8a */
-  --ink-8: 235 9%  79%;    /* #c5c5cf */
-  --ink-9: 240 11% 94%;    /* #ededf2 */
+  --ink-1: 240 22% 5%; /* #0a0a10 */
+  --ink-2: 240 20% 6%; /* #0c0c12 */
+  --ink-3: 240 16% 10%; /* #14141d */
+  --ink-4: 235 16% 14%; /* #1d1d28 */
+  --ink-5: 235 13% 19%; /* #2a2a36 */
+  --ink-6: 235 9% 31%; /* #4a4a55 */
+  --ink-7: 235 6% 51%; /* #7c7c8a */
+  --ink-8: 235 9% 79%; /* #c5c5cf */
+  --ink-9: 240 11% 94%; /* #ededf2 */
 
   /* Sand — light theme spine. */
-  --sand-1: 47 31% 95%;    /* #f5f3ed */
-  --sand-2: 41 27% 89%;    /* #ebe7dc */
-  --sand-3: 0 0% 100%;     /* #ffffff */
-  --sand-4: 44 56% 97%;    /* #fbf9f3 */
-  --sand-5: 45 38% 87%;    /* #e6e1d3 */
-  --sand-6: 35 9% 63%;     /* #a8a399 */
-  --sand-7: 39 6% 41%;     /* #6e6a62 */
-  --sand-8: 240 9% 25%;    /* #3a3a45 */
-  --sand-9: 240 13% 9%;    /* #14141a */
+  --sand-1: 47 31% 95%; /* #f5f3ed */
+  --sand-2: 41 27% 89%; /* #ebe7dc */
+  --sand-3: 0 0% 100%; /* #ffffff */
+  --sand-4: 44 56% 97%; /* #fbf9f3 */
+  --sand-5: 45 38% 87%; /* #e6e1d3 */
+  --sand-6: 35 9% 63%; /* #a8a399 */
+  --sand-7: 39 6% 41%; /* #6e6a62 */
+  --sand-8: 240 9% 25%; /* #3a3a45 */
+  --sand-9: 240 13% 9%; /* #14141a */
 
   /* State colors — same hue in both themes, dark/light tuned for contrast. */
-  --success-dark:  160 84% 39%;     /* #10b981 */
-  --success-light: 142 46% 34%;     /* #2f7d4a */
-  --warning-dark:  38 92% 50%;      /* #f59e0b */
-  --warning-light: 28 70% 38%;      /* #a8651e */
-  --danger-dark:   349 89% 60%;     /* #f43f5e */
-  --danger-light:  0 56% 40%;       /* #a02d2d */
+  --success-dark: 160 84% 39%; /* #10b981 */
+  --success-light: 142 46% 34%; /* #2f7d4a */
+  --warning-dark: 38 92% 50%; /* #f59e0b */
+  --warning-light: 28 70% 38%; /* #a8651e */
+  --danger-dark: 349 89% 60%; /* #f43f5e */
+  --danger-light: 0 56% 40%; /* #a02d2d */
 
   /* Starlight-Tailwind accent ramp (Reef-tinted). */
-  --accent-50:  192 60% 95%;
+  --accent-50: 192 60% 95%;
   --accent-100: 192 60% 88%;
   --accent-200: 190 56% 78%;
   --accent-300: 188 58% 67%;
-  --accent-400: 188 58% 57%;        /* reef-dark */
+  --accent-400: 188 58% 57%; /* reef-dark */
   --accent-500: 190 70% 47%;
-  --accent-600: 192 86% 35%;        /* reef-light */
+  --accent-600: 192 86% 35%; /* reef-light */
   --accent-700: 192 86% 28%;
   --accent-800: 191 80% 22%;
   --accent-900: 190 78% 16%;
   --accent-950: 192 76% 12%;
 
   /* ── 2. TYPE TOKENS ──────────────────────────────────────────────────── */
-  --font-sans:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-accent:  'Instrument Serif', Georgia, 'Times New Roman', serif;
-  --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-accent: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  --text-xs:    0.75rem;     /* 12px */
-  --text-sm:    0.8125rem;   /* 13px */
-  --text-base:  0.9375rem;   /* 15px */
-  --text-lg:    1.0625rem;   /* 17px */
-  --text-xl:    1.3125rem;   /* 21px */
-  --text-2xl:   1.625rem;    /* 26px */
-  --text-3xl:   2rem;        /* 32px */
-  --text-4xl:   2.625rem;    /* 42px */
-  --text-5xl:   3.5rem;      /* 56px */
-  --text-hero:  4.5rem;      /* 72px */
+  --text-xs: 0.75rem; /* 12px */
+  --text-sm: 0.8125rem; /* 13px */
+  --text-base: 0.9375rem; /* 15px */
+  --text-lg: 1.0625rem; /* 17px */
+  --text-xl: 1.3125rem; /* 21px */
+  --text-2xl: 1.625rem; /* 26px */
+  --text-3xl: 2rem; /* 32px */
+  --text-4xl: 2.625rem; /* 42px */
+  --text-5xl: 3.5rem; /* 56px */
+  --text-hero: 4.5rem; /* 72px */
 
-  --leading-tight:   1.15;
-  --leading-snug:    1.3;
-  --leading-normal:  1.5;
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
   --leading-relaxed: 1.65;
 
   --tracking-tighter: -0.035em;
-  --tracking-tight:   -0.025em;
-  --tracking-normal:   0em;
-  --tracking-wide:     0.06em;
-  --tracking-widest:   0.16em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.06em;
+  --tracking-widest: 0.16em;
 
-  --weight-regular:  400;
-  --weight-medium:   500;
+  --weight-regular: 400;
+  --weight-medium: 500;
   --weight-semibold: 600;
-  --weight-bold:     700;
+  --weight-bold: 700;
 
   /* ── 3. SPACING / RADIUS / SHADOW / ELEVATION ──────────────────────── */
-  --space-0:  0;
-  --space-1:  0.25rem;
-  --space-2:  0.5rem;
-  --space-3:  0.75rem;
-  --space-4:  1rem;
-  --space-5:  1.25rem;
-  --space-6:  1.5rem;
-  --space-8:  2rem;
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
   --space-24: 6rem;
 
-  --radius-xs:  0.25rem;
-  --radius-sm:  0.375rem;    /* 6px — kbd chips, code blocks */
-  --radius-md:  0.5rem;      /* 8px — buttons, inputs */
-  --radius-lg:  0.75rem;     /* 12px — tiles, stat cards */
-  --radius-xl:  1rem;        /* 16px — larger cards */
-  --radius-2xl: 1.25rem;     /* 20px — hero preview tile */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem; /* 6px — kbd chips, code blocks */
+  --radius-md: 0.5rem; /* 8px — buttons, inputs */
+  --radius-lg: 0.75rem; /* 12px — tiles, stat cards */
+  --radius-xl: 1rem; /* 16px — larger cards */
+  --radius-2xl: 1.25rem; /* 20px — hero preview tile */
   --radius-full: 9999px;
 
   /* shadcn legacy alias used by Starlight overrides. */
   --radius: 0.5rem;
 
-  --z-base:    0;
-  --z-raised:  10;
-  --z-sticky:  20;
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
   --z-overlay: 40;
-  --z-dialog:  50;
-  --z-toast:   60;
+  --z-dialog: 50;
+  --z-toast: 60;
   --z-tooltip: 70;
 }
 
@@ -135,60 +135,60 @@
 :root,
 :root[data-theme='dark'],
 .dark {
-  --bg:      var(--ink-1);
-  --bg-alt:  var(--ink-2);
+  --bg: var(--ink-1);
+  --bg-alt: var(--ink-2);
   --surface: var(--ink-3);
-  --raised:  var(--ink-4);
+  --raised: var(--ink-4);
 
-  --text:       var(--ink-9);
-  --text-soft:  var(--ink-8);
-  --faint:      var(--ink-6);
+  --text: var(--ink-9);
+  --text-soft: var(--ink-8);
+  --faint: var(--ink-6);
 
-  --background:           var(--ink-1);
-  --foreground:           var(--ink-9);
+  --background: var(--ink-1);
+  --foreground: var(--ink-9);
 
-  --card:                 var(--ink-3);
-  --card-foreground:      var(--ink-9);
+  --card: var(--ink-3);
+  --card-foreground: var(--ink-9);
 
-  --popover:              var(--ink-3);
-  --popover-foreground:   var(--ink-9);
+  --popover: var(--ink-3);
+  --popover-foreground: var(--ink-9);
 
-  --primary:              var(--reef-dark);
-  --primary-foreground:   240 22% 5%;     /* ink-1 on accent */
-  --primary-glow:         188 58% 57% / 0.25;
+  --primary: var(--reef-dark);
+  --primary-foreground: 240 22% 5%; /* ink-1 on accent */
+  --primary-glow: 188 58% 57% / 0.25;
 
-  --secondary:            258 90% 66%;
+  --secondary: 258 90% 66%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted:                var(--ink-4);
-  --muted-foreground:     var(--ink-7);
+  --muted: var(--ink-4);
+  --muted-foreground: var(--ink-7);
 
-  --accent:               var(--reef-dark);
-  --accent-foreground:    var(--ink-9);
-  --accent-soft:          var(--reef-soft-dark);
-  --accent-glow:          188 58% 57% / 0.20;
+  --accent: var(--reef-dark);
+  --accent-foreground: var(--ink-9);
+  --accent-soft: var(--reef-soft-dark);
+  --accent-glow: 188 58% 57% / 0.2;
 
-  --destructive:          var(--danger-dark);
+  --destructive: var(--danger-dark);
   --destructive-foreground: 0 0% 100%;
-  --destructive-glow:     349 89% 60% / 0.25;
+  --destructive-glow: 349 89% 60% / 0.25;
 
-  --success:              var(--success-dark);
-  --success-glow:         160 84% 39% / 0.25;
+  --success: var(--success-dark);
+  --success-glow: 160 84% 39% / 0.25;
 
-  --warning:              var(--warning-dark);
-  --warning-glow:         38 92% 50% / 0.25;
+  --warning: var(--warning-dark);
+  --warning-glow: 38 92% 50% / 0.25;
 
-  --info:                 var(--reef-dark);
+  --info: var(--reef-dark);
 
-  --border:               0 0% 100% / 0.06;
-  --border-hover:         0 0% 100% / 0.12;
-  --input:                0 0% 100% / 0.06;
-  --ring:                 var(--reef-dark);
+  --border: 0 0% 100% / 0.06;
+  --border-hover: 0 0% 100% / 0.12;
+  --input: 0 0% 100% / 0.06;
+  --ring: var(--reef-dark);
 
-  --glass:                var(--ink-3);
-  --glass-hover:          var(--ink-4);
-  --glass-border:         0 0% 100% / 0.06;
-  --glass-border-hover:   0 0% 100% / 0.12;
+  --glass: var(--ink-3);
+  --glass-hover: var(--ink-4);
+  --glass-border: 0 0% 100% / 0.06;
+  --glass-border-hover: 0 0% 100% / 0.12;
 
   --chart-1: var(--reef-dark);
   --chart-2: 258 90% 66%;
@@ -196,78 +196,78 @@
   --chart-4: var(--warning-dark);
   --chart-5: var(--danger-dark);
 
-  --sidebar:                    var(--ink-1);
-  --sidebar-foreground:         var(--ink-7);
-  --sidebar-primary:            var(--reef-dark);
+  --sidebar: var(--ink-1);
+  --sidebar-foreground: var(--ink-7);
+  --sidebar-primary: var(--reef-dark);
   --sidebar-primary-foreground: 240 22% 5%;
-  --sidebar-accent:             var(--ink-3);
-  --sidebar-accent-foreground:  var(--ink-9);
-  --sidebar-border:             0 0% 100% / 0.06;
-  --sidebar-ring:               var(--reef-dark);
+  --sidebar-accent: var(--ink-3);
+  --sidebar-accent-foreground: var(--ink-9);
+  --sidebar-border: 0 0% 100% / 0.06;
+  --sidebar-ring: var(--reef-dark);
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.30);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
   --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.35);
-  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.45), 0 4px 8px -4px rgb(0 0 0 / 0.30);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.45), 0 4px 8px -4px rgb(0 0 0 / 0.3);
   --shadow-xl: 0 24px 64px -16px rgb(0 0 0 / 0.55), 0 8px 16px -8px rgb(0 0 0 / 0.35);
 }
 
 /* ── 4b. SEMANTIC TOKENS — LIGHT ──────────────────────────────────────── */
 :root[data-theme='light'],
 .light {
-  --bg:      var(--sand-1);
-  --bg-alt:  var(--sand-2);
+  --bg: var(--sand-1);
+  --bg-alt: var(--sand-2);
   --surface: var(--sand-3);
-  --raised:  var(--sand-4);
+  --raised: var(--sand-4);
 
-  --text:       var(--sand-9);
-  --text-soft:  var(--sand-8);
-  --faint:      var(--sand-6);
+  --text: var(--sand-9);
+  --text-soft: var(--sand-8);
+  --faint: var(--sand-6);
 
-  --background:           var(--sand-1);
-  --foreground:           var(--sand-9);
+  --background: var(--sand-1);
+  --foreground: var(--sand-9);
 
-  --card:                 var(--sand-3);
-  --card-foreground:      var(--sand-9);
+  --card: var(--sand-3);
+  --card-foreground: var(--sand-9);
 
-  --popover:              var(--sand-3);
-  --popover-foreground:   var(--sand-9);
+  --popover: var(--sand-3);
+  --popover-foreground: var(--sand-9);
 
-  --primary:              var(--reef-light);
-  --primary-foreground:   0 0% 100%;
-  --primary-glow:         192 86% 35% / 0.18;
+  --primary: var(--reef-light);
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: 192 86% 35% / 0.18;
 
-  --secondary:            262 84% 58%;
+  --secondary: 262 84% 58%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted:                var(--sand-5);
-  --muted-foreground:     var(--sand-7);
+  --muted: var(--sand-5);
+  --muted-foreground: var(--sand-7);
 
-  --accent:               var(--reef-light);
-  --accent-foreground:    0 0% 100%;
-  --accent-soft:          var(--reef-soft-light);
-  --accent-glow:          192 86% 35% / 0.22;
+  --accent: var(--reef-light);
+  --accent-foreground: 0 0% 100%;
+  --accent-soft: var(--reef-soft-light);
+  --accent-glow: 192 86% 35% / 0.22;
 
-  --destructive:          var(--danger-light);
+  --destructive: var(--danger-light);
   --destructive-foreground: 0 0% 100%;
-  --destructive-glow:     0 56% 40% / 0.18;
+  --destructive-glow: 0 56% 40% / 0.18;
 
-  --success:              var(--success-light);
-  --success-glow:         142 46% 34% / 0.18;
+  --success: var(--success-light);
+  --success-glow: 142 46% 34% / 0.18;
 
-  --warning:              var(--warning-light);
-  --warning-glow:         28 70% 38% / 0.18;
+  --warning: var(--warning-light);
+  --warning-glow: 28 70% 38% / 0.18;
 
-  --info:                 var(--reef-light);
+  --info: var(--reef-light);
 
-  --border:               20 30% 6% / 0.07;
-  --border-hover:         20 30% 6% / 0.16;
-  --input:                20 30% 6% / 0.10;
-  --ring:                 var(--reef-light);
+  --border: 20 30% 6% / 0.07;
+  --border-hover: 20 30% 6% / 0.16;
+  --input: 20 30% 6% / 0.1;
+  --ring: var(--reef-light);
 
-  --glass:                var(--sand-3);
-  --glass-hover:          var(--sand-4);
-  --glass-border:         20 30% 6% / 0.07;
-  --glass-border-hover:   20 30% 6% / 0.16;
+  --glass: var(--sand-3);
+  --glass-hover: var(--sand-4);
+  --glass-border: 20 30% 6% / 0.07;
+  --glass-border-hover: 20 30% 6% / 0.16;
 
   --chart-1: var(--reef-light);
   --chart-2: 262 84% 58%;
@@ -275,17 +275,17 @@
   --chart-4: var(--warning-light);
   --chart-5: var(--danger-light);
 
-  --sidebar:                    var(--sand-2);
-  --sidebar-foreground:         var(--sand-7);
-  --sidebar-primary:            var(--reef-light);
+  --sidebar: var(--sand-2);
+  --sidebar-foreground: var(--sand-7);
+  --sidebar-primary: var(--reef-light);
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent:             var(--sand-3);
-  --sidebar-accent-foreground:  var(--sand-9);
-  --sidebar-border:             20 30% 6% / 0.07;
-  --sidebar-ring:               var(--reef-light);
+  --sidebar-accent: var(--sand-3);
+  --sidebar-accent-foreground: var(--sand-9);
+  --sidebar-border: 20 30% 6% / 0.07;
+  --sidebar-ring: var(--reef-light);
 
   --shadow-sm: 0 1px 2px rgb(20 12 4 / 0.04), 0 1px 3px rgb(20 12 4 / 0.05);
   --shadow-md: 0 1px 3px rgb(20 12 4 / 0.05), 0 8px 24px -10px rgb(20 12 4 / 0.12);
-  --shadow-lg: 0 1px 3px rgb(20 12 4 / 0.06), 0 24px 64px -20px rgb(20 12 4 / 0.20);
+  --shadow-lg: 0 1px 3px rgb(20 12 4 / 0.06), 0 24px 64px -20px rgb(20 12 4 / 0.2);
   --shadow-xl: 0 1px 3px rgb(20 12 4 / 0.06), 0 32px 80px -24px rgb(20 12 4 / 0.25);
 }

@@ -19,7 +19,7 @@ const description =
   'Interactive REST API explorer (Scalar). Try endpoints live and copy code samples in curl, JS, Python, Go, and Java.';
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
@@ -50,14 +50,17 @@ const description =
           description,
         },
       })}
-    ></script>
-    <script
-      is:inline
-      src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1"
-    ></script>
+    >
+    </script>
+    <script is:inline src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1"></script>
 
     <style is:global>
-      html, body { height: 100%; margin: 0; padding: 0; }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
       body {
         background: hsl(var(--background));
         color: hsl(var(--foreground));
@@ -79,7 +82,9 @@ const description =
         border: 1px solid hsl(var(--glass-border));
         backdrop-filter: blur(8px);
       }
-      .pg-back:hover { color: hsl(var(--foreground)); }
+      .pg-back:hover {
+        color: hsl(var(--foreground));
+      }
     </style>
   </body>
 </html>

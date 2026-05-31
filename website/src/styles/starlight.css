@@ -88,11 +88,7 @@
 
   /* Subtle dot pattern — used inside hero cards / dialog headers. */
   .bg-dot-pattern {
-    background-image: radial-gradient(
-      circle,
-      hsl(var(--foreground) / 0.08) 1px,
-      transparent 1px
-    );
+    background-image: radial-gradient(circle, hsl(var(--foreground) / 0.08) 1px, transparent 1px);
     background-size: 16px 16px;
   }
 
@@ -109,7 +105,7 @@
     box-shadow: 0 0 60px 20px hsl(var(--primary) / 0.15);
   }
   .glow-primary-lg {
-    box-shadow: 0 0 120px 40px hsl(var(--primary) / 0.10);
+    box-shadow: 0 0 120px 40px hsl(var(--primary) / 0.1);
   }
 
   /* All-caps eyebrow label. Branded (accent) by default; pair with
@@ -121,7 +117,9 @@
     letter-spacing: var(--tracking-widest);
     color: hsl(var(--accent));
   }
-  .eyebrow-muted { color: hsl(var(--muted-foreground)); }
+  .eyebrow-muted {
+    color: hsl(var(--muted-foreground));
+  }
 
   /* The signature serif-italic accent — ONE or two words per heading. */
   .accent-serif {
@@ -138,8 +136,14 @@
 }
 
 @keyframes blink {
-  0%, 50%   { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 /* Mermaid diagram frame — wraps `.mermaid` SVGs in a glass card so they
@@ -171,8 +175,13 @@
  * every render, so the pre is only visible during the brief window
  * between page-paint and JS execution. Suppressing it avoids the
  * raw-source flash. */
-.mermaid-wrapper pre.mermaid { display: none; }
-.mermaid-wrapper svg { max-width: 100%; height: auto; }
+.mermaid-wrapper pre.mermaid {
+  display: none;
+}
+.mermaid-wrapper svg {
+  max-width: 100%;
+  height: auto;
+}
 
 /* Reduced motion — kill every animation in the product surface. */
 @media (prefers-reduced-motion: reduce) {

@@ -18,7 +18,9 @@ const dst = resolve(here, '../public/openapi.json');
 
 if (!existsSync(src)) {
   console.error(`[sync-openapi] source missing: ${src}`);
-  console.error(`[sync-openapi] run \`./gradlew :cloud-controller:syncOpenApi\` from java/ to publish the generated spec.`);
+  console.error(
+    `[sync-openapi] run \`./gradlew :cloud-controller:syncOpenApi\` from java/ to publish the generated spec.`,
+  );
   process.exit(1);
 }
 mkdirSync(dirname(dst), { recursive: true });

@@ -8,9 +8,7 @@ import { docsSchema } from '@astrojs/starlight/schema';
 // them on `entry.data` while still validating the rest with Starlight.
 const blogExtras = z.object({
   date: z.coerce.date().optional(),
-  authors: z
-    .array(z.object({ name: z.string(), url: z.string().url().optional() }))
-    .optional(),
+  authors: z.array(z.object({ name: z.string(), url: z.string().url().optional() })).optional(),
   tags: z.array(z.string()).optional(),
 });
 

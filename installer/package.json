@@ -10,7 +10,9 @@
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,vue,css,html,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,vue,css,html,json}\""
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -25,6 +27,7 @@
     "@vue/language-core": "^3.2.6",
     "@vue/test-utils": "^2.4.6",
     "happy-dom": "^20.8.9",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
     "vite": "^7.1.0",

@@ -533,7 +533,10 @@ export const useWizardStore = defineStore('wizard', {
       this.mongoMode = m;
       if (m === 'local') {
         this.databaseUri = this.localMongoUri();
-      } else if (this.databaseUri === 'mongodb://mongo:27017' || this.databaseUri === 'mongodb://localhost:27017') {
+      } else if (
+        this.databaseUri === 'mongodb://mongo:27017' ||
+        this.databaseUri === 'mongodb://localhost:27017'
+      ) {
         this.databaseUri = '';
       }
     },
@@ -541,7 +544,10 @@ export const useWizardStore = defineStore('wizard', {
       this.redisMode = m;
       if (m === 'local') {
         this.redisUri = this.localRedisUri();
-      } else if (this.redisUri === 'redis://redis:6379' || this.redisUri === 'redis://localhost:6379') {
+      } else if (
+        this.redisUri === 'redis://redis:6379' ||
+        this.redisUri === 'redis://localhost:6379'
+      ) {
         this.redisUri = '';
       }
     },
@@ -603,8 +609,7 @@ export const useWizardStore = defineStore('wizard', {
             // the controller's bootstrap picks it up on first start and
             // runs ClusterControlService.startInJoinMode against the
             // existing cluster.
-            joinToken:
-              this.mode === 'controller-join' ? this.controllerJoinToken.trim() : '',
+            joinToken: this.mode === 'controller-join' ? this.controllerJoinToken.trim() : '',
           });
         }
         if (this.mode === 'all' || this.mode === 'daemon') {

@@ -29,7 +29,9 @@ function restart() {
       type="button"
       :disabled="disableNext"
       @click="go(props.next)"
-    >Continue →</button>
+    >
+      Continue →
+    </button>
     <button v-if="hideNext" class="btn ghost" type="button" @click="restart">Start over</button>
   </div>
 </template>

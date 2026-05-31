@@ -45,40 +45,40 @@ function configFor(isLight: boolean) {
     // give the wireframe-y "kubernetes diagram" feel from the brief.
     themeVariables: isLight
       ? {
-          background: '#d8d5cd',          /* sand-4 */
-          primaryColor: '#eeede8',        /* sand-2 — node fill */
-          primaryTextColor: '#2c3027',    /* sand-12 */
-          primaryBorderColor: '#0c8aa8',  /* cyan-8 — accent border */
+          background: '#d8d5cd' /* sand-4 */,
+          primaryColor: '#eeede8' /* sand-2 — node fill */,
+          primaryTextColor: '#2c3027' /* sand-12 */,
+          primaryBorderColor: '#0c8aa8' /* cyan-8 — accent border */,
           secondaryColor: '#e4e3dc',
           secondaryTextColor: '#2c3027',
           secondaryBorderColor: '#aba8a0',
           tertiaryColor: '#eeede8',
           tertiaryTextColor: '#2c3027',
           tertiaryBorderColor: '#aba8a0',
-          lineColor: '#6b7265',           /* sand-10 */
+          lineColor: '#6b7265' /* sand-10 */,
           textColor: '#2c3027',
           mainBkg: '#eeede8',
-          clusterBkg: '#f5f4f0',          /* sand-1 — subgraph fill */
-          clusterBorder: '#0c8aa8',       /* cyan-8 — subgraph border */
+          clusterBkg: '#f5f4f0' /* sand-1 — subgraph fill */,
+          clusterBorder: '#0c8aa8' /* cyan-8 — subgraph border */,
           edgeLabelBackground: '#d8d5cd',
           fontSize: '14px',
         }
       : {
-          background: '#0a0a12',          /* slate-1 */
-          primaryColor: '#14142b',        /* slate-3 — node fill */
-          primaryTextColor: '#f8fafc',    /* slate-12 */
-          primaryBorderColor: '#06b6d4',  /* cyan-9 — accent border */
-          secondaryColor: '#1e1e36',      /* slate-4 */
+          background: '#0a0a12' /* slate-1 */,
+          primaryColor: '#14142b' /* slate-3 — node fill */,
+          primaryTextColor: '#f8fafc' /* slate-12 */,
+          primaryBorderColor: '#06b6d4' /* cyan-9 — accent border */,
+          secondaryColor: '#1e1e36' /* slate-4 */,
           secondaryTextColor: '#f8fafc',
-          secondaryBorderColor: '#3a445e', /* slate-7 */
+          secondaryBorderColor: '#3a445e' /* slate-7 */,
           tertiaryColor: '#14142b',
           tertiaryTextColor: '#f8fafc',
           tertiaryBorderColor: '#3a445e',
-          lineColor: '#64748b',           /* slate-9 — arrows */
+          lineColor: '#64748b' /* slate-9 — arrows */,
           textColor: '#f8fafc',
           mainBkg: '#14142b',
-          clusterBkg: '#0e0e1a',          /* slate-2 — subgraph fill */
-          clusterBorder: '#06b6d4',       /* cyan-9 — subgraph border */
+          clusterBkg: '#0e0e1a' /* slate-2 — subgraph fill */,
+          clusterBorder: '#06b6d4' /* cyan-9 — subgraph border */,
           edgeLabelBackground: '#0a0a12',
           fontSize: '14px',
         },
@@ -97,10 +97,7 @@ function renderError(wrapper: HTMLElement, source: string, err: unknown): void {
 }
 
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 let renderToken = 0;
@@ -108,9 +105,7 @@ let renderToken = 0;
 async function render(): Promise<void> {
   const myToken = ++renderToken;
 
-  const wrappers = Array.from(
-    document.querySelectorAll<HTMLElement>('.mermaid-wrapper'),
-  );
+  const wrappers = Array.from(document.querySelectorAll<HTMLElement>('.mermaid-wrapper'));
   if (wrappers.length === 0) return;
 
   let mermaid: MermaidApi;
@@ -121,7 +116,7 @@ async function render(): Promise<void> {
     for (const w of wrappers) renderError(w, w.dataset.mermaidSource ?? '', err);
     return;
   }
-  if (myToken !== renderToken) return;       /* stale — newer render started */
+  if (myToken !== renderToken) return; /* stale — newer render started */
 
   mermaid.initialize(configFor(isLightTheme()));
   initialized = true;
