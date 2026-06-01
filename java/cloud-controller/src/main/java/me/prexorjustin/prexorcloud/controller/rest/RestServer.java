@@ -279,6 +279,11 @@ public final class RestServer {
                 installHttpMetricsHandlers(config.routes);
             }
 
+            // Per-request server span + inbound W3C trace-context (only when tracing is enabled).
+            if (controller.telemetry() != null && controller.telemetry().isEnabled()) {
+                installHttpTracingHandlers(config.routes);
+            }
+
             // Clear MDC after each request
             config.routes.after(RequestIdMiddleware::clearMdc);
 
@@ -532,6 +537,38 @@ public final class RestServer {
             java.time.Duration duration = start == null ? null : java.time.Duration.ofNanos(System.nanoTime() - start);
             controller.metricsCollector().recordHttpRequest(ctx.method().name(), ctx.statusCode(), duration);
         });
+    }
+
+    private static final String TRACE_INFLIGHT_ATTR = "prexor.trace.inflight";
+
+    /**
+     * Open a SERVER span per request (continuing any inbound W3C trace) and make it current for the
+     * request thread, so domain spans created in the handler nest underneath. Skips long-lived SSE
+     * streams — their span would never end and the cross-filter scope wouldn't close on one thread.
+     * The before→handler→after sequence runs on a single thread for synchronous handlers (the only
+     * ones reaching here), which is the standard OTel servlet-filter assumption.
+     */
+    private void installHttpTracingHandlers(io.javalin.config.RoutesConfig routes) {
+        var tracing = new me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing(
+                controller.telemetry().openTelemetry());
+        routes.before(ctx -> {
+            if (isStreamingPath(ctx.path())) {
+                return;
+            }
+            ctx.attribute(TRACE_INFLIGHT_ATTR, tracing.start(ctx.method().name(), ctx.path(), ctx::header));
+        });
+        routes.after(ctx -> {
+            me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing.Inflight inflight =
+                    ctx.attribute(TRACE_INFLIGHT_ATTR);
+            if (inflight != null) {
+                tracing.end(inflight, ctx.statusCode());
+            }
+        });
+    }
+
+    /** SSE / long-poll endpoints whose connection outlives the request — never span them. */
+    private static boolean isStreamingPath(String path) {
+        return path != null && (path.contains("stream") || path.contains("/console"));
     }
 
     /**

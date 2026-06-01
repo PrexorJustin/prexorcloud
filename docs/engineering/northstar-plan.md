@@ -311,13 +311,14 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 
 **Ziel:** Verteilte Traces über Controller → Daemon → MC-Plugin. Heute fehlt das komplett.
 
-### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation shipped; Auto-Instrumentation offen**
+### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation + HTTP-Instrumentation shipped; gRPC/Mongo/Lettuce-Auto-Instrumentation offen**
 
 - ✅ `io.opentelemetry:opentelemetry-bom` (1.45.0) + `-api`/`-sdk`/`-exporter-otlp` (okhttp-Sender, kein gRPC-Konflikt) im `libs.versions.toml` + `cloud-controller`-Build; `-sdk-testing` als testImplementation.
 - ✅ `TelemetryConfig` (`controller.yml` → `telemetry`: `enabled`/`otlpEndpoint`/`serviceName`/`samplerRatio`, Ratio auf `[0,1]` geklammert). Top-level statt `clusterConfig.telemetry`, da Tracing keine Raft-replizierte State ist (analog `modules.signing`).
 - ✅ `Telemetry` (`controller/observability/telemetry/`): baut bei `enabled` ein `OpenTelemetrySdk` (BatchSpanProcessor → OTLP/gRPC, `parentBased(traceIdRatio)`-Sampler, `service.name`-Resource, W3C-Propagation); sonst `OpenTelemetry.noop()` → **Null-Overhead by default**. `tracer()`/`flush()`/`close()` (Flush+Shutdown im Shutdown-Hook, vor dem Quota-Enforcer). Exporter-Seam `fromExporter(...)` für Tests. Verdrahtet in `PrexorCloudBootstrap` → `controller.telemetry()`.
 - ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
-- ⏳ **Offen:** Auto-Instrumentation für Javalin-HTTP / gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst aus diesem Foundation-Increment ausgeklammert.
+- ✅ **Javalin-HTTP-Instrumentation** (manuell, ohne Javaagent): `HttpServerTracing` (`controller/observability/telemetry/`) öffnet pro Request eine SERVER-Span (`HTTP <method>`, Attribute `http.request.method`/`url.path`/`http.response.status_code`, 5xx → ERROR), **extrahiert eingehenden W3C-`traceparent`** (inbound-Hälfte von D.3 — externe Traces / Dashboard laufen durch) und macht die Span für den Request-Thread current, sodass Domain-Spans (`auth.login` …) darunter nisten. Verdrahtet im `RestServer`-before/after-Filter, nur wenn `telemetry.enabled`; SSE/Stream-Pfade (`*stream*`, `/console`) werden übersprungen (deren Span würde nie enden). Tests: `HttpServerTracingTest` (2, inkl. Inbound-Trace-Continuation + 5xx-Status).
+- ⏳ **Offen:** Auto-Instrumentation für gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst ausgeklammert.
 
 ### D.2 Eigene Spans für Domain-Flows (~3 d) — ⏳ **weitgehend shipped**
 
