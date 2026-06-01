@@ -27,10 +27,12 @@ public final class RateLimitMiddleware implements Handler {
 
     private static final long WINDOW_MS = RedisKeys.rateLimitWindow().toMillis();
 
-    private final int perIpLimit;
-    private final int perUserLimit;
+    // Operator-tunable limits are volatile so the cluster_config live-reload can
+    // swap them in atomically while requests are in flight (see reconfigure()).
+    private volatile int perIpLimit;
+    private volatile int perUserLimit;
+    private volatile boolean failOpenOnRedisError;
     private final int loginLimit;
-    private final boolean failOpenOnRedisError;
 
     private final Map<String, WindowCounter> ipCounters = new ConcurrentHashMap<>();
     private final Map<String, WindowCounter> userCounters = new ConcurrentHashMap<>();
@@ -49,6 +51,24 @@ public final class RateLimitMiddleware implements Handler {
         this.loginLimit = 10; // Stricter limit for login attempts
         this.failOpenOnRedisError = config.failOpenOnRedisError();
         this.runtime = java.util.Objects.requireNonNull(runtime, "runtime");
+    }
+
+    /**
+     * Apply new operator-tunable limits from a cluster_config reload. The active
+     * sliding-window counters are intentionally left intact — only the thresholds
+     * the next request is checked against change. Returns true if any threshold
+     * actually changed.
+     */
+    public boolean reconfigure(RateLimitingConfig config) {
+        boolean changed = perIpLimit != config.perIpPerMinute()
+                || perUserLimit != config.perUserPerMinute()
+                || failOpenOnRedisError != config.failOpenOnRedisError();
+        if (changed) {
+            this.perIpLimit = config.perIpPerMinute();
+            this.perUserLimit = config.perUserPerMinute();
+            this.failOpenOnRedisError = config.failOpenOnRedisError();
+        }
+        return changed;
     }
 
     @Override

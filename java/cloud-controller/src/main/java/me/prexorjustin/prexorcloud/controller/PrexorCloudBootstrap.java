@@ -147,6 +147,7 @@ public final class PrexorCloudBootstrap {
     private NodeDrainManager drainManager;
     private ShutdownManager shutdownManager;
     private ClusterControlService clusterControlService;
+    private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -203,6 +204,7 @@ public final class PrexorCloudBootstrap {
         lifecycleManager.attachHealingWorkflow(controller.workflowStateStore(), scheduler, healingLeaseManager);
         initGrpc(controller, security.caPassword());
         initRestServer(controller);
+        initClusterConfigReload(controller);
         reconcileDurableWorkflows(controller);
 
         registerShutdownHooks(controller, modules);
@@ -677,6 +679,9 @@ public final class PrexorCloudBootstrap {
     private void registerShutdownHooks(PrexorController controller, ModuleRegistry modules) {
         shutdownManager = new ShutdownManager();
         shutdownManager.register("platform modules", modules.platformManager()::close);
+        shutdownManager.register("cluster_config reload", () -> {
+            if (clusterConfigReload != null) clusterConfigReload.close();
+        });
         shutdownManager.register("event bus", controller.eventBus()::shutdown);
         shutdownManager.register("REST server", () -> {
             if (restServer != null) restServer.stop();
@@ -1152,6 +1157,24 @@ public final class PrexorCloudBootstrap {
         restServer = new RestServer(
                 controller, runtime, createReadinessProbe(controller), backupServices, moduleRouteRegistry);
         restServer.start();
+    }
+
+    /**
+     * Phase-7 (Track A.5): wire the cluster_config live-reload fan-out. Each
+     * subscriber holds a live, mutable subsystem and re-reads its slice of the
+     * folded config when a config version is committed through Raft. Runs after
+     * {@link #initRestServer} so the rate-limit middleware instance exists.
+     */
+    private void initClusterConfigReload(PrexorController controller) {
+        clusterConfigReload = new me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator(
+                        clusterControlService.controlPlane()::effectiveConfig, controller.eventBus())
+                .register(new me.prexorjustin.prexorcloud.controller.cluster.reload.CorsAllowListReloader(
+                        controller.corsAllowList()))
+                .register(new me.prexorjustin.prexorcloud.controller.cluster.reload.RateLimitReloader(
+                        restServer.rateLimitMiddleware()))
+                .register(new me.prexorjustin.prexorcloud.controller.cluster.reload.JwtSecretReloader(
+                        controller.jwtManager(), controller.config().security().jwtSecret()));
+        clusterConfigReload.start();
     }
 
     private ControllerReadinessProbe createReadinessProbe(PrexorController controller) {

@@ -61,6 +61,19 @@ public final class ClusterControlPlane {
         return sm.listConfigVersions();
     }
 
+    /**
+     * The effective cluster-shared config: the active version's patch folded onto
+     * its parent chain back to the root (see {@link
+     * me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigProjection}).
+     * Returns an empty map when no version is active. Values are cleartext — this
+     * is the in-process projection the live-reload subscribers read, not the
+     * masked REST surface.
+     */
+    public Map<String, Object> effectiveConfig() {
+        return me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigProjection.fold(
+                sm.listConfigVersions(), sm.getActiveConfigVersion());
+    }
+
     public List<Member> listMembers() {
         return sm.listMembers();
     }

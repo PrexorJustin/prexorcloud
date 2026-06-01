@@ -52,6 +52,22 @@ public final class CorsAllowList {
         return true;
     }
 
+    /**
+     * Replace the entire allow-list with {@code next} (blank entries dropped,
+     * de-duplicated). Used by the cluster_config live-reload to make the
+     * cluster-authoritative origin set take effect — including removals — without
+     * a restart. Returns true if the resulting set differs from the previous one.
+     */
+    public synchronized boolean replaceAll(List<String> next) {
+        List<String> sanitized = (next == null ? List.<String>of() : next)
+                .stream().filter(o -> o != null && !o.isBlank()).distinct().toList();
+        if (sanitized.equals(origins)) {
+            return false;
+        }
+        this.origins = List.copyOf(sanitized);
+        return true;
+    }
+
     /** Snapshot of the current allow-list. Returned list is immutable. */
     public List<String> snapshot() {
         return origins;

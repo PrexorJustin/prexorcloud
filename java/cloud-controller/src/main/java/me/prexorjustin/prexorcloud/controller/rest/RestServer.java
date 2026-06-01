@@ -49,6 +49,7 @@ public final class RestServer {
     private final BackupServices backupServices;
     private final ModuleRouteRegistry moduleRouteRegistry;
     private Javalin app;
+    private RateLimitMiddleware rateLimitMiddleware;
 
     /**
      * Thrown by {@link #requireFound} when an entity is not present. Caught by the
@@ -108,6 +109,15 @@ public final class RestServer {
         return app;
     }
 
+    /**
+     * The live rate-limit middleware, available after {@link #start()}. Exposed so
+     * the cluster_config live-reload coordinator can push updated limits into the
+     * same instance the request pipeline uses.
+     */
+    public RateLimitMiddleware rateLimitMiddleware() {
+        return rateLimitMiddleware;
+    }
+
     public void start() {
         HttpConfig httpConfig = controller.config().http();
         CorsConfig corsConfig = httpConfig.cors();
@@ -118,7 +128,7 @@ public final class RestServer {
 
         var jwtMiddleware = new JwtAuthMiddleware(controller.jwtManager(), controller.revocationStore());
         var requestIdMiddleware = new RequestIdMiddleware();
-        var rateLimitMiddleware =
+        rateLimitMiddleware =
                 new RateLimitMiddleware(controller.config().security().rateLimiting(), runtime);
 
         // Bootstrap the live CORS allow-list from controller.yml — admin routes
