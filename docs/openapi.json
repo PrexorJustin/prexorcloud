@@ -3706,6 +3706,41 @@
         ]
       }
     },
+    "/api/v1/modules/platform/{moduleId}/resources": {
+      "get": {
+        "tags": [
+          "Modules"
+        ],
+        "summary": "Per-module resource usage (CPU, allocation, threads)",
+        "operationId": "getPlatformModuleResources",
+        "parameters": [
+          {
+            "name": "moduleId",
+            "in": "path",
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resource snapshot"
+          },
+          "404": {
+            "description": "Module not found"
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/modules/platform/{moduleId}/storage": {
       "delete": {
         "tags": [

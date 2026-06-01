@@ -133,6 +133,7 @@ public final class PrexorController {
     private me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetManager passwordResetManager;
     private me.prexorjustin.prexorcloud.controller.share.ShareService shareService;
     private me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane;
+    private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileTreeService instanceFileTreeService;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileContentService instanceFileContentService;
 
@@ -408,6 +409,16 @@ public final class PrexorController {
     public me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane() {
         if (clusterControlPlane == null) throw new IllegalStateException("ClusterControlPlane not initialized");
         return clusterControlPlane;
+    }
+
+    /** Per-module resource tracker. Wired in bootstrap alongside the module context factory; may be null in tests. */
+    public void setModuleResourceTracker(
+            me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker tracker) {
+        this.moduleResourceTracker = tracker;
+    }
+
+    public me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker() {
+        return moduleResourceTracker;
     }
 
     /** Set the instance-filetree service. Wired in bootstrap once the NodeMessageDispatcher exists. */

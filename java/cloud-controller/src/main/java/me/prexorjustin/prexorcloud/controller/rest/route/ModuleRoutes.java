@@ -111,6 +111,7 @@ public final class ModuleRoutes {
                 get("/registry", this::listRegistry);
                 post("/registry/install", this::installFromRegistry);
                 post("/upload", this::uploadPlatformModule);
+                get("/{moduleId}/resources", this::getPlatformModuleResources);
                 post("/{moduleId}/upgrade", this::upgradePlatformModule);
                 post("/{moduleId}/frontend/reload", this::reloadPlatformModuleFrontend);
                 delete("/{moduleId}", this::deletePlatformModule);
@@ -969,6 +970,45 @@ public final class ModuleRoutes {
             security = {@OpenApiSecurity(name = "bearerAuth")},
             queryParams = {@OpenApiParam(name = "q", description = "Substring filter over moduleId and tags")},
             responses = {@OpenApiResponse(status = "200", description = "Aggregated registry module list")})
+    @OpenApi(
+            path = "/api/v1/modules/platform/{moduleId}/resources",
+            methods = {HttpMethod.GET},
+            operationId = "getPlatformModuleResources",
+            summary = "Per-module resource usage (CPU, allocation, threads)",
+            tags = {"Modules"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            pathParams = {@OpenApiParam(name = "moduleId", required = true)},
+            responses = {
+                @OpenApiResponse(status = "200", description = "Resource snapshot"),
+                @OpenApiResponse(status = "404", description = "Module not found")
+            })
+    private void getPlatformModuleResources(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.MODULES_VIEW);
+        String moduleId = ctx.pathParam("moduleId");
+        if (platformManager.snapshot(moduleId).isEmpty()) {
+            ctx.status(404);
+            ctx.json(errorResponse("NOT_FOUND", "Platform module not found: " + moduleId, 404));
+            return;
+        }
+        var tracker = controller.moduleResourceTracker();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("moduleId", moduleId);
+        if (tracker == null) {
+            body.put("trackingEnabled", false);
+            ctx.status(200);
+            ctx.json(body);
+            return;
+        }
+        var snapshot = tracker.snapshot(moduleId);
+        body.put("trackingEnabled", true);
+        body.put("cpuMillis", snapshot.cpuMillis());
+        body.put("allocatedBytes", snapshot.allocatedBytes());
+        body.put("liveThreads", snapshot.liveThreads());
+        body.put("sampledAt", snapshot.sampledAt().toString());
+        ctx.status(200);
+        ctx.json(body);
+    }
+
     private void listRegistry(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.MODULES_VIEW);
         ModuleRegistryClient client = registryClient();

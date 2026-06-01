@@ -148,6 +148,7 @@ public final class PrexorCloudBootstrap {
     private ShutdownManager shutdownManager;
     private ClusterControlService clusterControlService;
     private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
+    private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -678,6 +679,9 @@ public final class PrexorCloudBootstrap {
      */
     private void registerShutdownHooks(PrexorController controller, ModuleRegistry modules) {
         shutdownManager = new ShutdownManager();
+        shutdownManager.register("module resource tracker", () -> {
+            if (moduleResourceTracker != null) moduleResourceTracker.close();
+        });
         shutdownManager.register("platform modules", modules.platformManager()::close);
         shutdownManager.register("cluster_config reload", () -> {
             if (clusterConfigReload != null) clusterConfigReload.close();
@@ -848,13 +852,17 @@ public final class PrexorCloudBootstrap {
      * their lifecycle hooks. Must run before {@link PlatformModuleManager#loadStoredModules}.
      */
     private void wireProductionModuleContext(PrexorController controller, PlatformModuleManager platformManager) {
-        var moduleScheduler = java.util.concurrent.Executors.newScheduledThreadPool(2, r -> {
-            Thread t = new Thread(r, "prexor-module-scheduler");
-            t.setDaemon(true);
-            return t;
-        });
-        var taskScheduler =
-                new me.prexorjustin.prexorcloud.controller.module.platform.ControllerTaskScheduler(moduleScheduler);
+        // Each module gets its OWN named scheduler via the resource tracker (C.2 stage 1),
+        // so its controller-side work is attributable: threads carry the module id and the
+        // tracker samples per-module CPU / allocation. The reconcile supplier lets the
+        // sampler shut down schedulers for modules that have been uninstalled.
+        moduleResourceTracker = new me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker(
+                () -> platformManager.listModules().stream()
+                        .map(PlatformModuleManager.ManagedPlatformModule::moduleId)
+                        .collect(java.util.stream.Collectors.toSet()),
+                10_000L);
+        moduleResourceTracker.start();
+        controller.setModuleResourceTracker(moduleResourceTracker);
         platformManager.setContextFactory((manifest, jarPath, previousVersion, capabilities, storage) ->
                 new me.prexorjustin.prexorcloud.controller.module.platform.ControllerModuleContext(
                         manifest,
@@ -863,7 +871,7 @@ public final class PrexorCloudBootstrap {
                         capabilities,
                         storage,
                         controller.eventBus(),
-                        taskScheduler));
+                        moduleResourceTracker.schedulerFor(manifest.id())));
     }
 
     private PrexorController.ObservabilityServices initObservability(
