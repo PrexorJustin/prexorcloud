@@ -152,6 +152,7 @@ public final class PrexorCloudBootstrap {
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
     private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
+    private me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry telemetry;
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -179,6 +180,9 @@ public final class PrexorCloudBootstrap {
 
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
         controller.setClusterControlPlane(clusterControlService.controlPlane());
+        // Distributed tracing (Track D). No-op unless telemetry.enabled — see TelemetryConfig.
+        telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
+        controller.setTelemetry(telemetry);
         var pasteClient = new me.prexorjustin.prexorcloud.controller.share.PasteClient(config.share());
         controller.setShareService(new me.prexorjustin.prexorcloud.controller.share.ShareService(
                 config.share(),
@@ -682,6 +686,9 @@ public final class PrexorCloudBootstrap {
      */
     private void registerShutdownHooks(PrexorController controller, ModuleRegistry modules) {
         shutdownManager = new ShutdownManager();
+        shutdownManager.register("telemetry", () -> {
+            if (telemetry != null) telemetry.close();
+        });
         shutdownManager.register("module quota enforcer", () -> {
             if (moduleQuotaEnforcer != null) moduleQuotaEnforcer.close();
         });

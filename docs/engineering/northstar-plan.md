@@ -311,12 +311,13 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 
 **Ziel:** Verteilte Traces über Controller → Daemon → MC-Plugin. Heute fehlt das komplett.
 
-### D.1 OpenTelemetry-SDK einziehen (~3 d)
+### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation shipped; Auto-Instrumentation offen**
 
-- `io.opentelemetry:opentelemetry-bom` ins `libs.versions.toml`.
-- Auto-Instrumentation für: Javalin-HTTP, gRPC-Calls, MongoDB-Driver, Lettuce-Redis.
-- OTLP-Exporter mit konfigurierbarem Endpoint (`clusterConfig.telemetry.otlpEndpoint`).
-- Fallback: Jaeger / Tempo / Honeycomb / Datadog — alles OTLP-kompatibel.
+- ✅ `io.opentelemetry:opentelemetry-bom` (1.45.0) + `-api`/`-sdk`/`-exporter-otlp` (okhttp-Sender, kein gRPC-Konflikt) im `libs.versions.toml` + `cloud-controller`-Build; `-sdk-testing` als testImplementation.
+- ✅ `TelemetryConfig` (`controller.yml` → `telemetry`: `enabled`/`otlpEndpoint`/`serviceName`/`samplerRatio`, Ratio auf `[0,1]` geklammert). Top-level statt `clusterConfig.telemetry`, da Tracing keine Raft-replizierte State ist (analog `modules.signing`).
+- ✅ `Telemetry` (`controller/observability/telemetry/`): baut bei `enabled` ein `OpenTelemetrySdk` (BatchSpanProcessor → OTLP/gRPC, `parentBased(traceIdRatio)`-Sampler, `service.name`-Resource, W3C-Propagation); sonst `OpenTelemetry.noop()` → **Null-Overhead by default**. `tracer()`/`flush()`/`close()` (Flush+Shutdown im Shutdown-Hook, vor dem Quota-Enforcer). Exporter-Seam `fromExporter(...)` für Tests. Verdrahtet in `PrexorCloudBootstrap` → `controller.telemetry()`.
+- ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
+- ⏳ **Offen:** Auto-Instrumentation für Javalin-HTTP / gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst aus diesem Foundation-Increment ausgeklammert.
 
 ### D.2 Eigene Spans für Domain-Flows (~3 d)
 

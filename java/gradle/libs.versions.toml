@@ -22,6 +22,7 @@ logback = "1.5.32"
 micrometer = "1.14.5"
 mockito = "5.23.0"
 mongodb = "5.6.5"
+opentelemetry = "1.45.0"
 oshi = "6.11.1"
 paperApi120 = "1.20.4-R0.1-SNAPSHOT"
 paperApi121 = "1.21.4-R0.1-SNAPSHOT"
@@ -85,6 +86,12 @@ micrometer-core = { module = "io.micrometer:micrometer-core", version.ref = "mic
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
 mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+# OpenTelemetry (distributed tracing) — versions aligned by the BOM
+opentelemetry-bom = { module = "io.opentelemetry:opentelemetry-bom", version.ref = "opentelemetry" }
+opentelemetry-api = { module = "io.opentelemetry:opentelemetry-api" }
+opentelemetry-sdk = { module = "io.opentelemetry:opentelemetry-sdk" }
+opentelemetry-exporter-otlp = { module = "io.opentelemetry:opentelemetry-exporter-otlp" }
+opentelemetry-sdk-testing = { module = "io.opentelemetry:opentelemetry-sdk-testing" }
 # Database
 mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version.ref = "mongodb" }
 oshi-core-java25 = { module = "com.github.oshi:oshi-core-java25", version.ref = "oshi" }

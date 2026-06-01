@@ -35,6 +35,13 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.micrometer.core)
     implementation(libs.micrometer.registry.prometheus)
+
+    // OpenTelemetry — distributed tracing (northstar-plan Track D). SDK + OTLP exporter;
+    // disabled by default, so this is dormant unless `telemetry.enabled` is set.
+    implementation(platform(libs.opentelemetry.bom))
+    implementation(libs.opentelemetry.api)
+    implementation(libs.opentelemetry.sdk)
+    implementation(libs.opentelemetry.exporter.otlp)
     implementation(libs.commons.compress)
     implementation(libs.lettuce.core)
     implementation(libs.jakarta.mail.api)
@@ -61,6 +68,7 @@ dependencies {
     testImplementation(libs.mockito.junit.jupiter)
     testImplementation(libs.grpc.testing)
     testImplementation(libs.grpc.inprocess)
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
 
 // Exclude long-running Ratis spike tests from the default test task. Invoke them

@@ -114,6 +114,16 @@ modules:
   #     maxAllocatedMbPerMinute: 512
   #     maxThreads: 8
 
+# Distributed tracing (OpenTelemetry). Disabled by default — a no-op tracer is
+# installed and the SDK never starts, so there is zero overhead until enabled.
+# When on, spans are batch-exported over OTLP/gRPC to any compatible collector
+# (Jaeger, Tempo, Honeycomb, Datadog, …).
+telemetry:
+  enabled: false
+  otlpEndpoint: "http://localhost:4317"
+  serviceName: "prexorcloud-controller"
+  samplerRatio: 1.0
+
 # Dashboard static files
 dashboard:
   enabled: true

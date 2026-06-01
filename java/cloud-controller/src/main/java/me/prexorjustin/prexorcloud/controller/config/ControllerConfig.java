@@ -30,9 +30,11 @@ public record ControllerConfig(
         @JsonProperty("events") List<EventChoreography> events,
         @JsonProperty("redis") RedisConfig redis,
         @JsonProperty("cluster") ClusterConfig cluster,
-        @JsonProperty("raft") RaftConfig raft) {
+        @JsonProperty("raft") RaftConfig raft,
+        @JsonProperty("telemetry") TelemetryConfig telemetry) {
 
     public ControllerConfig {
+        if (telemetry == null) telemetry = new TelemetryConfig();
         if (uuid == null) uuid = java.util.UUID.randomUUID().toString();
         if (cluster == null) cluster = new ClusterConfig();
         if (raft == null) raft = new RaftConfig();
@@ -99,6 +101,60 @@ public record ControllerConfig(
                 List.of(),
                 redis,
                 null,
-                null);
+                null,
+                new TelemetryConfig());
+    }
+
+    /**
+     * Backwards-compatible canonical-shape constructor for call sites that predate the
+     * {@code telemetry} field (everything up to {@code raft}). Defaults telemetry to disabled.
+     */
+    public ControllerConfig(
+            String uuid,
+            HttpConfig http,
+            GrpcConfig grpc,
+            NetworkConfig network,
+            DatabaseConfig database,
+            LoggingConfig logging,
+            SchedulerConfig scheduler,
+            HeartbeatConfig heartbeat,
+            RuntimeConfig runtime,
+            SecurityControllerConfig security,
+            CrashConfig crashes,
+            MetricsConfig metrics,
+            ModulesConfig modules,
+            MaintenanceConfig maintenance,
+            DashboardConfig dashboard,
+            BackupConfig backup,
+            ShareConfig share,
+            List<NetworkComposition> networks,
+            List<EventChoreography> events,
+            RedisConfig redis,
+            ClusterConfig cluster,
+            RaftConfig raft) {
+        this(
+                uuid,
+                http,
+                grpc,
+                network,
+                database,
+                logging,
+                scheduler,
+                heartbeat,
+                runtime,
+                security,
+                crashes,
+                metrics,
+                modules,
+                maintenance,
+                dashboard,
+                backup,
+                share,
+                networks,
+                events,
+                redis,
+                cluster,
+                raft,
+                new TelemetryConfig());
     }
 }

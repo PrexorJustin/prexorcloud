@@ -136,6 +136,7 @@ public final class PrexorController {
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
     private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
+    private me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry telemetry;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileTreeService instanceFileTreeService;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileContentService instanceFileContentService;
 
@@ -441,6 +442,15 @@ public final class PrexorController {
 
     public me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor() {
         return moduleHealthMonitor;
+    }
+
+    /** Distributed-tracing pipeline (Track D). Wired in bootstrap; never null (no-op when disabled). */
+    public void setTelemetry(me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry telemetry) {
+        this.telemetry = telemetry;
+    }
+
+    public me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry telemetry() {
+        return telemetry;
     }
 
     /** Set the instance-filetree service. Wired in bootstrap once the NodeMessageDispatcher exists. */
