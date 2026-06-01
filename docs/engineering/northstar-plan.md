@@ -221,7 +221,7 @@ Top-Level-Dirs ohne README → je ein 8–15-Zeilen-README mit Zweck, Layout, �
 
 **Ziel:** PrexorCloud-Module sind heute schon **konzeptionell besser** als CloudNet/SimpleCloud — aber als Plattform fehlen drei Dinge zur Reife: Registry, Sandboxing, und Lifecycle-UX.
 
-### C.1 Modul-Registry mit signierter Distribution (~10 d) — ⏳ **Backend + CLI shipped; Dashboard-UI offen**
+### C.1 Modul-Registry mit signierter Distribution (~10 d) — ⏳ **Backend + CLI + Dashboard-UI shipped; Registry-Hosting + `module upgrade` offen**
 
 **Geliefert (Backend + CLI):**
 - `modules.registries` (Liste von Index-URLs) in `ModulesConfig` — abwärtskompatibel (3-arg-Ctor für Alt-Call-Sites).
@@ -232,7 +232,9 @@ Top-Level-Dirs ohne README → je ein 8–15-Zeilen-README mit Zweck, Layout, �
 - **CLI:** `prexorctl module search [query]` und `prexorctl module install <id>[@<version>]` (auto-detektiert lokale Datei vs. Registry-Spec; `--registry` pinnt eine Quelle).
 - **Tests:** `ModuleRegistryClientTest` (8), `ModulesConfigRegistriesTest` (2), CLI `module_registry_install_test.go` (Detection + Spec-Parsing).
 
-**Offen (Follow-up):** Dashboard-Browse-View + Install-Button + „Updates verfügbar"-Badge (REST liefert die Daten bereits). First-Party-Registry `registry.prexorcloud.dev` (Hosting). `prexorctl module upgrade` (Convenience über install@latest). ADR-Eintrag (G.1 ADR-007).
+**Dashboard-UI (geliefert):** Seite `/modules/registry` (`dashboard/app/pages/modules/registry.vue`) — Browse-Grid aus den konfigurierten Registries, Suche, Signed/Unsigned-Indikator, Install-Button mit Per-Eintrag-Loading, „Update verfügbar"-Badge (vergleicht `installedVersion` ≠ Registry-Version), No-Registries-Empty-State. Store-Methoden `fetchRegistryCatalog`/`installFromRegistry` (`stores/modules.ts`), Nav-Eintrag unter Configuration (perm `modules.view`), i18n en/de. Tests in `stores/__tests__/modules.test.ts`.
+
+**Offen (Follow-up):** First-Party-Registry `registry.prexorcloud.dev` (Hosting). `prexorctl module upgrade` (Convenience über install@latest). ADR-Eintrag (G.1 ADR-007).
 
 ---
 

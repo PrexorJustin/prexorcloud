@@ -299,4 +299,49 @@ describe('useModuleStore', () => {
 
     expect(document.querySelector('link[data-module="gone"]')).toBeNull()
   })
+
+  it('fetchRegistryCatalog populates registries + modules and encodes the query', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      registries: ['https://reg.example/index.json'],
+      modules: [{ moduleId: 'foo', version: '1.2.0', installed: false }],
+    }))
+    const store = useModuleStore()
+    await store.fetchRegistryCatalog('foo bar')
+    expect(store.registries).toEqual(['https://reg.example/index.json'])
+    expect(store.registryModules).toHaveLength(1)
+    const [url] = fetchMock.mock.calls[0]!
+    expect(url).toBe('http://localhost:8080/api/v1/modules/platform/registry?q=foo%20bar')
+  })
+
+  it('fetchRegistryCatalog surfaces failure into registryError', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: 'registry down' } }), {
+        status: 502,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const store = useModuleStore()
+    await store.fetchRegistryCatalog()
+    expect(store.registryModules).toEqual([])
+    expect(store.registryError).toBe('registry down')
+  })
+
+  it('installFromRegistry POSTs moduleId/version/registryUrl as JSON', async () => {
+    mockGET.mockResolvedValue({ data: { data: [] } })
+    fetchMock.mockResolvedValue(jsonResponse({}))
+    const store = useModuleStore()
+    await store.installFromRegistry('foo', '1.2.0', 'https://reg.example/index.json')
+
+    const installCall = fetchMock.mock.calls.find(
+      ([url]) => url === 'http://localhost:8080/api/v1/modules/platform/registry/install',
+    )
+    expect(installCall).toBeDefined()
+    const init = installCall![1] as RequestInit
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body as string)).toEqual({
+      moduleId: 'foo',
+      version: '1.2.0',
+      registryUrl: 'https://reg.example/index.json',
+    })
+  })
 })

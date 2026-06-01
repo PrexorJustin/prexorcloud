@@ -8,6 +8,8 @@ import type {
   PlatformModuleOverviewResponse,
   PlatformResolvedExtension,
   PlatformResolvedExtensionResponse,
+  RegistryListResponse,
+  RegistryModuleEntry,
 } from '~/types/api'
 import type { CloudEvent } from '~/types/events'
 import { getAuthToken } from '~/lib/auth-storage'
@@ -28,6 +30,9 @@ export const useModuleStore = defineStore('modules', () => {
   const platformExtensions = ref<PlatformExtension[]>([])
   const resolvedExtensions = ref<PlatformResolvedExtension[]>([])
   const platformError = ref<string | null>(null)
+  const registryModules = ref<RegistryModuleEntry[]>([])
+  const registries = ref<string[]>([])
+  const registryError = ref<string | null>(null)
   const loadedModules = new Map<string, Record<string, Component>>()
   const loadingModules = new Set<string>()
   const loadingWaiters = new Map<string, Array<{ resolve: (v: Record<string, Component>) => void; reject: (e: Error) => void }>>()
@@ -165,6 +170,34 @@ export const useModuleStore = defineStore('modules', () => {
     await refreshPlatformState()
   }
 
+  /** Browse the configured registries' aggregated index, optionally filtered by query. */
+  async function fetchRegistryCatalog(query?: string) {
+    const q = query && query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ''
+    try {
+      const res = await moduleApiFetch<RegistryListResponse>(`/api/v1/modules/platform/registry${q}`)
+      registries.value = res.registries ?? []
+      registryModules.value = res.modules ?? []
+      registryError.value = null
+    }
+    catch (e) {
+      registryModules.value = []
+      registryError.value = e instanceof Error ? e.message : 'Failed to load module registry'
+    }
+  }
+
+  /** Pull and install a module from a configured registry. Refreshes installed state on success. */
+  async function installFromRegistry(moduleId: string, version?: string, registryUrl?: string) {
+    const body: Record<string, string> = { moduleId }
+    if (version) body.version = version
+    if (registryUrl) body.registryUrl = registryUrl
+    await moduleApiFetch<unknown>('/api/v1/modules/platform/registry/install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    await Promise.all([refreshPlatformState(), fetchRegistryCatalog()])
+  }
+
   /**
    * Resolves a URL slug to a module name + component export name + route metadata.
    * e.g. "announcements" -> { moduleName: "announcements", componentName: "AnnouncementsPage" }
@@ -278,7 +311,9 @@ export const useModuleStore = defineStore('modules', () => {
   return {
     modules, modulesWithFrontend, frontendByModuleId,
     platformModules, capabilityGraph, platformExtensions, resolvedExtensions, platformError,
+    registryModules, registries, registryError,
     fetchRegistry, fetchPlatformOverview, fetchCapabilityGraph, fetchPlatformExtensions, resolvePlatformExtensions,
+    fetchRegistryCatalog, installFromRegistry,
     refreshPlatformState, uninstallPlatformModule,
     resolveRoute, ensureLoaded, invalidate,
     connectSse, disconnectSse,

@@ -12,6 +12,7 @@ import {
   Layers,
   Network,
   Package,
+  PackageSearch,
   Puzzle,
   Rocket,
   ScrollText,
@@ -85,7 +86,8 @@ export const navigation: NavGroup[] = [
     items: [
       { title: 'Templates', titleKey: 'nav.items.templates', url: '/templates', icon: FileCode },
       { title: 'Catalog',   titleKey: 'nav.items.catalog',   url: '/catalog',   icon: Package },
-      { title: 'Modules',   titleKey: 'nav.items.modules',   url: '/modules',   icon: Puzzle },
+      { title: 'Modules',   titleKey: 'nav.items.modules',   url: '/modules',          icon: Puzzle },
+      { title: 'Registry',  titleKey: 'nav.items.moduleRegistry', url: '/modules/registry', icon: PackageSearch, permission: 'modules.view' },
     ],
   },
   {

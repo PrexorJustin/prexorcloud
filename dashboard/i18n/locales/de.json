@@ -24,6 +24,7 @@
       "templates": "Templates",
       "catalog": "Katalog",
       "modules": "Module",
+      "moduleRegistry": "Registry",
       "crashes": "Abstürze",
       "activity": "Aktivität",
       "logs": "Logs",

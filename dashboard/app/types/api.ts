@@ -166,6 +166,18 @@ export interface PlatformCloudModule {
   extensions: PlatformExtension[]
   unresolvedRequirements: PlatformUnresolvedRequirement[]
 }
+// Module registry (signed index — GET /api/v1/modules/platform/registry)
+export interface RegistryModuleEntry {
+  registryUrl: string; registryName: string | null
+  moduleId: string; version: string; sha256: string | null
+  tags: string[]; compatibleControllerVersions: string[]
+  readme: string | null; signed: boolean
+  installed: boolean; installedVersion?: string
+}
+export interface RegistryListResponse {
+  registries: string[]; modules: RegistryModuleEntry[]
+}
+
 export interface PlatformCapabilityGraphModule {
   moduleId: string; state: string
   provides: PlatformCapabilityProvide[]
