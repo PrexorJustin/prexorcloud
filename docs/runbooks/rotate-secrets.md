@@ -151,6 +151,11 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 
 ## Controller CA
 
+> For the full v1.1 procedure — including the two distinct CAs (daemon
+> mTLS vs. the Raft cluster CA) and the exact on-disk material — see the
+> dedicated [`ca-rotation.md`](ca-rotation.md). The steps below are the
+> short version.
+
 Rotating the CA invalidates every existing daemon certificate. Plan
 for a maintenance window proportional to the number of daemons.
 
@@ -184,6 +189,11 @@ The controller does not need a graceful "two-credential" window —
 restarts under HA are zero-downtime.
 
 ## Module Trust Root
+
+> Full procedure (overlap rotation, emergency revocation, the cluster-
+> config PATCH path, and why a restart is required) lives in
+> [`module-trust-root-rotation.md`](module-trust-root-rotation.md). Short
+> version below.
 
 The signature verifier supports two formats:
 
