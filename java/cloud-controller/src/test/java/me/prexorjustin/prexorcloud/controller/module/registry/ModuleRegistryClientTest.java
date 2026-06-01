@@ -144,6 +144,35 @@ class ModuleRegistryClientTest {
     }
 
     @Test
+    @DisplayName("provides round-trips through the index JSON for dependency-resolution hints")
+    void providesRoundTrips() throws Exception {
+        var withProvides = new RegistryModuleEntry(
+                "journey",
+                "1.0.0",
+                "https://reg2.example/journey.jar",
+                sha256(fooJar),
+                "https://reg1.example/foo.cosign.bundle",
+                null,
+                List.of(),
+                List.of(),
+                "readme",
+                List.of(new RegistryModuleEntry.Capability("prexor.player.journey", "1.0.0")));
+        served.put(URI.create(REG2), MAPPER.writeValueAsBytes(new RegistryIndex("reg2", 1, List.of(withProvides))));
+
+        var resolved = client(REG2).resolve("journey", null, null);
+        assertEquals(1, resolved.entry().provides().size());
+        assertEquals("prexor.player.journey", resolved.entry().provides().get(0).id());
+        assertEquals("1.0.0", resolved.entry().provides().get(0).version());
+    }
+
+    @Test
+    @DisplayName("an index entry without provides parses to an empty list, never null")
+    void providesDefaultsEmpty() {
+        var entry = client(REG1).resolve("bar", null, null).entry();
+        assertTrue(entry.provides().isEmpty());
+    }
+
+    @Test
     @DisplayName("compareSemver orders numerically, not lexically")
     void semver() {
         assertTrue(ModuleRegistryClient.compareSemver("1.2.10", "1.2.9") > 0);

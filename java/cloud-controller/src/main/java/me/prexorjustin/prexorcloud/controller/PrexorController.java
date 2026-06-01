@@ -134,6 +134,8 @@ public final class PrexorController {
     private me.prexorjustin.prexorcloud.controller.share.ShareService shareService;
     private me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
+    private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
+    private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileTreeService instanceFileTreeService;
     private me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileContentService instanceFileContentService;
 
@@ -419,6 +421,26 @@ public final class PrexorController {
 
     public me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker() {
         return moduleResourceTracker;
+    }
+
+    /** Per-module soft-quota enforcer. Wired in bootstrap alongside the tracker; may be null in tests or when no quota is configured. */
+    public void setModuleQuotaEnforcer(
+            me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer enforcer) {
+        this.moduleQuotaEnforcer = enforcer;
+    }
+
+    public me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer() {
+        return moduleQuotaEnforcer;
+    }
+
+    /** Per-module health monitor. Wired in bootstrap alongside the module poller; may be null in tests. */
+    public void setModuleHealthMonitor(
+            me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor monitor) {
+        this.moduleHealthMonitor = monitor;
+    }
+
+    public me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor() {
+        return moduleHealthMonitor;
     }
 
     /** Set the instance-filetree service. Wired in bootstrap once the NodeMessageDispatcher exists. */

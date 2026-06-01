@@ -153,6 +153,23 @@ public final class MetricsCollector {
         }
     }
 
+    /**
+     * Register a gauge per health status counting active modules currently reporting it
+     * (Track C.3 — Health-Checks). Bounded cardinality: one series per {@code ModuleHealth.Status}.
+     * Wired in bootstrap once the health monitor exists.
+     */
+    public void registerModuleHealthMetrics(
+            me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor monitor) {
+        if (monitor == null) return;
+        for (me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth.Status status :
+                me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth.Status.values()) {
+            Gauge.builder("prexorcloud.module.health", monitor, m -> m.countByStatus(status))
+                    .description("Active platform modules by self-reported health status")
+                    .tag("status", status.name().toLowerCase(Locale.ROOT))
+                    .register(registry);
+        }
+    }
+
     public void registerDaemonSessionMetrics(NodeSessionManager sessionManager) {
         if (sessionManager == null) return;
         Gauge.builder("prexorcloud.grpc.daemon.sessions.active", sessionManager, NodeSessionManager::sessionCount)
@@ -190,6 +207,18 @@ public final class MetricsCollector {
 
     public void recordJwtRevocation() {
         jwtRevocations.increment();
+    }
+
+    /**
+     * Record that a platform module overshot one of its soft resource quotas (Track C.2 stage 2).
+     * Tagged by module id and the breached {@code resource} dimension (cpu / allocation / threads),
+     * both bounded-cardinality. Advisory only — the module keeps running.
+     */
+    public void recordModuleQuotaExceeded(String moduleId, String resource) {
+        registry.counter(
+                        "prexorcloud.module.quota.exceeded",
+                        Tags.of("module", normalizeTag(moduleId), "resource", normalizeTag(resource)))
+                .increment();
     }
 
     /**

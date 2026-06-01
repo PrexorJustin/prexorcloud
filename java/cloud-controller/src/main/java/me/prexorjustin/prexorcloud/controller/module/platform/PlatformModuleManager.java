@@ -334,6 +334,15 @@ public final class PlatformModuleManager implements AutoCloseable {
                 .toList();
     }
 
+    /**
+     * Poll the liveness probe of every active module. Delegates to
+     * {@link ModuleLifecycleManager#pollHealth()}, which invokes module code outside the lifecycle
+     * lock so a slow check can't stall installs. Driven by the controller's health monitor.
+     */
+    public Map<String, me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth> pollHealth() {
+        return lifecycleManager.pollHealth();
+    }
+
     public synchronized Optional<ManagedPlatformModule> snapshot(String moduleId) {
         ModuleLifecycleManager.ManagedModule managed =
                 lifecycleManager.find(moduleId).orElse(null);

@@ -103,6 +103,16 @@ modules:
   # verified against modules.signing.trustRoot before install.
   # registries:
   #   - "https://registry.prexorcloud.dev/index.json"
+  # Per-module soft resource quotas (Track C.2 stage 2). Keyed by module id.
+  # The enforcer derives per-minute CPU / allocation rates from the resource
+  # tracker and compares them against these limits; a breach is advisory only —
+  # it raises a WARN and the `prexorcloud.module.quota.exceeded` metric, nothing
+  # is throttled. Each limit treats 0 (the default) as unlimited.
+  # quotas:
+  #   stats-aggregator:
+  #     maxCpuMillisPerMinute: 30000   # 30 CPU-seconds per wall-clock minute
+  #     maxAllocatedMbPerMinute: 512
+  #     maxThreads: 8
 
 # Dashboard static files
 dashboard:

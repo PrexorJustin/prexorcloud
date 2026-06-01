@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import me.prexorjustin.prexorcloud.api.module.platform.CapabilityDeclaration;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
+import me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleStorage;
@@ -380,6 +381,34 @@ public final class ModuleLifecycleManager {
 
     public synchronized List<ManagedModule> listModules() {
         return List.copyOf(modules.values());
+    }
+
+    /**
+     * Poll {@link PlatformModule#healthCheck()} on every currently-{@code ACTIVE} module and return
+     * the results keyed by module id. The active set is snapshotted under the lock via
+     * {@link #listModules()}, then the module code is invoked <em>outside</em> the lock — a slow or
+     * misbehaving health check must not stall install / reconcile / uninstall. A check that throws
+     * is reported as {@link ModuleHealth#unhealthy}. Modules that don't override {@code healthCheck}
+     * report {@link ModuleHealth.Status#UNKNOWN}.
+     */
+    public Map<String, ModuleHealth> pollHealth() {
+        Map<String, ModuleHealth> result = new LinkedHashMap<>();
+        for (ManagedModule module : listModules()) {
+            if (module.state() != ModuleState.ACTIVE) {
+                continue;
+            }
+            result.put(module.moduleId(), pollHealth(module));
+        }
+        return result;
+    }
+
+    private ModuleHealth pollHealth(ManagedModule module) {
+        try (var ignored = moduleScope(module.manifest())) {
+            ModuleHealth health = module.entrypoint().healthCheck();
+            return health != null ? health : ModuleHealth.unknown();
+        } catch (Exception e) {
+            return ModuleHealth.unhealthy("healthCheck threw: " + e.getClass().getSimpleName());
+        }
     }
 
     private void requireInstallable(Path jarPath, PlatformModuleManifest manifest, PlatformModule entrypoint) {

@@ -3706,6 +3706,41 @@
         ]
       }
     },
+    "/api/v1/modules/platform/{moduleId}/health": {
+      "get": {
+        "tags": [
+          "Modules"
+        ],
+        "summary": "Latest self-reported health of a platform module",
+        "operationId": "getPlatformModuleHealth",
+        "parameters": [
+          {
+            "name": "moduleId",
+            "in": "path",
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Health status"
+          },
+          "404": {
+            "description": "Module not found"
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/modules/platform/{moduleId}/resources": {
       "get": {
         "tags": [

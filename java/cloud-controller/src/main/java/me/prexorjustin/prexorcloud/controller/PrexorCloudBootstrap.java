@@ -141,6 +141,7 @@ public final class PrexorCloudBootstrap {
     private ScheduledExecutorService heartbeatScheduler;
     private ScheduledExecutorService auditRotationExecutor;
     private ScheduledExecutorService platformModuleReconcileExecutor;
+    private ScheduledExecutorService moduleHealthExecutor;
     private ScheduledExecutorService pendingRequestScheduler;
     private me.prexorjustin.prexorcloud.controller.grpc.PendingRequestRegistry pendingRequests;
     private InstanceLifecycleManager lifecycleManager;
@@ -149,6 +150,8 @@ public final class PrexorCloudBootstrap {
     private ClusterControlService clusterControlService;
     private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
+    private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
+    private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -679,6 +682,9 @@ public final class PrexorCloudBootstrap {
      */
     private void registerShutdownHooks(PrexorController controller, ModuleRegistry modules) {
         shutdownManager = new ShutdownManager();
+        shutdownManager.register("module quota enforcer", () -> {
+            if (moduleQuotaEnforcer != null) moduleQuotaEnforcer.close();
+        });
         shutdownManager.register("module resource tracker", () -> {
             if (moduleResourceTracker != null) moduleResourceTracker.close();
         });
@@ -697,6 +703,9 @@ public final class PrexorCloudBootstrap {
         shutdownManager.register(
                 "platform module reconcile",
                 () -> ShutdownManager.awaitExecutor(platformModuleReconcileExecutor, "platform-module-reconcile"));
+        shutdownManager.register(
+                "module health monitor",
+                () -> ShutdownManager.awaitExecutor(moduleHealthExecutor, "module-health-monitor"));
         shutdownManager.register("pending-request scheduler", () -> {
             if (pendingRequestScheduler != null) {
                 ShutdownManager.awaitExecutor(pendingRequestScheduler, "pending-request-timeouts");
@@ -781,11 +790,13 @@ public final class PrexorCloudBootstrap {
 
     private void bootPlatformModules(PrexorController controller, ModuleRegistry modules) {
         wireProductionModuleContext(controller, modules.platformManager());
+        wireModuleQuotaEnforcer(controller);
         wireCapabilityEventPublishing(controller, modules.platformManager());
         registerBuiltinCapabilities(controller, modules.platformManager());
         modules.platformManager().loadStoredModules();
         refreshPlatformFrontends(modules.frontendManager(), modules.platformManager());
         startPlatformModuleReconciler(modules.frontendManager(), modules.platformManager());
+        startModuleHealthMonitor(controller, modules.platformManager());
     }
 
     /**
@@ -872,6 +883,27 @@ public final class PrexorCloudBootstrap {
                         storage,
                         controller.eventBus(),
                         moduleResourceTracker.schedulerFor(manifest.id())));
+    }
+
+    /**
+     * Stand up the soft-quota enforcer (Track C.2 stage 2) on top of the stage-1 tracker. Runs
+     * after {@link #wireProductionModuleContext} (so {@code moduleResourceTracker} exists) and once
+     * the controller — hence its {@code MetricsCollector} — is built. A no-op unless at least one
+     * module declares an enforceable quota under {@code modules.quotas.<id>}; the enforcer's own
+     * {@code start()} is idempotent and bails when nothing is configured.
+     */
+    private void wireModuleQuotaEnforcer(PrexorController controller) {
+        if (moduleResourceTracker == null) {
+            return;
+        }
+        var metrics = controller.metricsCollector();
+        me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer.BreachSink sink = metrics != null
+                ? (moduleId, resource) -> metrics.recordModuleQuotaExceeded(moduleId, resource.tag())
+                : (moduleId, resource) -> {};
+        moduleQuotaEnforcer = new me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer(
+                moduleResourceTracker, config.modules().quotas(), sink);
+        moduleQuotaEnforcer.start();
+        controller.setModuleQuotaEnforcer(moduleQuotaEnforcer);
     }
 
     private PrexorController.ObservabilityServices initObservability(
@@ -1256,6 +1288,37 @@ public final class PrexorCloudBootstrap {
                     }
                 },
                 1,
+                intervalSeconds,
+                TimeUnit.SECONDS);
+    }
+
+    /**
+     * Stand up the per-module health poller (Track C.3 — Health-Checks) on its own executor, kept
+     * separate from the reconciler so a slow {@code healthCheck()} can't delay reconciliation. Each
+     * tick polls every active module and folds the result into the {@link ModuleHealthMonitor} that
+     * backs the REST endpoint and the {@code prexorcloud.module.health} metric.
+     */
+    private void startModuleHealthMonitor(PrexorController controller, PlatformModuleManager platformManager) {
+        moduleHealthMonitor = new me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor();
+        controller.setModuleHealthMonitor(moduleHealthMonitor);
+        if (controller.metricsCollector() != null) {
+            controller.metricsCollector().registerModuleHealthMetrics(moduleHealthMonitor);
+        }
+        moduleHealthExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "module-health-monitor");
+            t.setDaemon(true);
+            return t;
+        });
+        long intervalSeconds = Math.max(5L, config.scheduler().evaluationIntervalSeconds());
+        moduleHealthExecutor.scheduleAtFixedRate(
+                () -> {
+                    try {
+                        moduleHealthMonitor.record(platformManager.pollHealth());
+                    } catch (Exception e) {
+                        logger.warn("Module health poll failed: {}", e.getMessage());
+                    }
+                },
+                intervalSeconds,
                 intervalSeconds,
                 TimeUnit.SECONDS);
     }

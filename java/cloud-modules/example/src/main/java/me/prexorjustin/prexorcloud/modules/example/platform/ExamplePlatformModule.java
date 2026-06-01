@@ -6,6 +6,7 @@ import java.util.function.ToLongFunction;
 
 import me.prexorjustin.prexorcloud.api.module.platform.CapabilityHandle;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
+import me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
 import me.prexorjustin.prexorcloud.api.module.rest.RouteRegistrar;
 import me.prexorjustin.prexorcloud.modules.example.config.Config;
@@ -61,6 +62,22 @@ public final class ExamplePlatformModule implements PlatformModule {
         }
         ToLongFunction<UUID> totalPlaytimeQuery = queryService::totalMs;
         return List.of(CapabilityHandle.of(QUERY_CAPABILITY_ID, (Class) ToLongFunction.class, totalPlaytimeQuery));
+    }
+
+    /**
+     * Reference implementation of the optional liveness probe: cheap, non-blocking, reports
+     * {@code HEALTHY} once started and degraded if the repository handle was lost. The controller
+     * polls this and surfaces it under {@code /api/v1/modules/platform/example/health}.
+     */
+    @Override
+    public ModuleHealth healthCheck() {
+        if (!started) {
+            return ModuleHealth.unhealthy("not started");
+        }
+        if (repository == null) {
+            return ModuleHealth.degraded("storage handle unavailable");
+        }
+        return ModuleHealth.healthy();
     }
 
     public boolean started() {

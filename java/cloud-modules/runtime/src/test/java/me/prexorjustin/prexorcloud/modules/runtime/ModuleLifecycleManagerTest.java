@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import me.prexorjustin.prexorcloud.api.module.platform.CapabilityDeclaration;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
+import me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleStorage;
@@ -211,6 +213,50 @@ class ModuleLifecycleManagerTest {
         assertEquals(
                 "platform_chat_", module.startContext().requireMongoStorage().collectionPrefix());
         assertEquals(redisPrefix, module.startContext().requireRedisStorage().keyPrefix());
+    }
+
+    @Test
+    @DisplayName("pollHealth returns each active module's self-reported health, default UNKNOWN")
+    void pollHealthReportsActiveModules() {
+        ModuleLifecycleManager manager = new ModuleLifecycleManager(manifest -> true);
+        manager.install(Path.of("modules/chat.jar"), manifest("chat"), new PlatformModule() {
+            @Override
+            public ModuleHealth healthCheck() {
+                return ModuleHealth.degraded("queue backlog");
+            }
+        });
+        // A module that doesn't override healthCheck reports UNKNOWN.
+        manager.install(Path.of("modules/quiet.jar"), manifest("quiet"), new RecordingModule());
+
+        Map<String, ModuleHealth> health = manager.pollHealth();
+
+        assertEquals(ModuleHealth.Status.DEGRADED, health.get("chat").status());
+        assertEquals("queue backlog", health.get("chat").detail());
+        assertEquals(ModuleHealth.Status.UNKNOWN, health.get("quiet").status());
+    }
+
+    @Test
+    @DisplayName("pollHealth maps a throwing healthCheck to UNHEALTHY and skips non-active modules")
+    void pollHealthHandlesThrowAndInactiveModules() {
+        CapabilityRegistry capabilityRegistry = new CapabilityRegistry();
+        ModuleLifecycleManager manager = new ModuleLifecycleManager(capabilityRegistry);
+        // An ACTIVE module whose probe throws.
+        manager.install(Path.of("modules/boom.jar"), manifest("boom"), new PlatformModule() {
+            @Override
+            public ModuleHealth healthCheck() {
+                throw new IllegalStateException("backend unreachable");
+            }
+        });
+        // A WAITING module (unsatisfied requirement) must NOT be polled.
+        manager.install(Path.of("modules/queue.jar"), consumerManifest("queue"), new RecordingModule());
+
+        Map<String, ModuleHealth> health = manager.pollHealth();
+
+        assertEquals(
+                ModuleLifecycleManager.ModuleState.WAITING,
+                manager.find("queue").orElseThrow().state());
+        assertEquals(ModuleHealth.Status.UNHEALTHY, health.get("boom").status());
+        assertFalse(health.containsKey("queue"), "non-active modules are not polled");
     }
 
     private static PlatformModuleManifest manifest(String id) {

@@ -112,6 +112,7 @@ public final class ModuleRoutes {
                 post("/registry/install", this::installFromRegistry);
                 post("/upload", this::uploadPlatformModule);
                 get("/{moduleId}/resources", this::getPlatformModuleResources);
+            get("/{moduleId}/health", this::getPlatformModuleHealth);
                 post("/{moduleId}/upgrade", this::upgradePlatformModule);
                 post("/{moduleId}/frontend/reload", this::reloadPlatformModuleFrontend);
                 delete("/{moduleId}", this::deletePlatformModule);
@@ -1005,6 +1006,83 @@ public final class ModuleRoutes {
         body.put("allocatedBytes", snapshot.allocatedBytes());
         body.put("liveThreads", snapshot.liveThreads());
         body.put("sampledAt", snapshot.sampledAt().toString());
+        addQuotaInfo(body, moduleId);
+        ctx.status(200);
+        ctx.json(body);
+    }
+
+    /**
+     * Append the configured soft quota and the latest enforcer evaluation (Track C.2 stage 2),
+     * when present. Absent both → nothing is added, so a module without a quota looks exactly as
+     * it did before quotas existed.
+     */
+    private void addQuotaInfo(Map<String, Object> body, String moduleId) {
+        var enforcer = controller.moduleQuotaEnforcer();
+        if (enforcer == null) {
+            return;
+        }
+        enforcer.quotaFor(moduleId).ifPresent(quota -> {
+            Map<String, Object> quotaBody = new LinkedHashMap<>();
+            quotaBody.put("maxCpuMillisPerMinute", quota.maxCpuMillisPerMinute());
+            quotaBody.put("maxAllocatedMbPerMinute", quota.maxAllocatedMbPerMinute());
+            quotaBody.put("maxThreads", quota.maxThreads());
+            body.put("quota", quotaBody);
+        });
+        enforcer.evaluation(moduleId).ifPresent(eval -> {
+            Map<String, Object> evalBody = new LinkedHashMap<>();
+            evalBody.put("cpuMillisPerMinute", eval.cpuMillisPerMinute());
+            evalBody.put("allocatedMbPerMinute", eval.allocatedMbPerMinute());
+            evalBody.put("liveThreads", eval.liveThreads());
+            evalBody.put("cpuExceeded", eval.cpuExceeded());
+            evalBody.put("allocationExceeded", eval.allocationExceeded());
+            evalBody.put("threadsExceeded", eval.threadsExceeded());
+            evalBody.put("anyExceeded", eval.anyExceeded());
+            evalBody.put("evaluatedAt", eval.evaluatedAt().toString());
+            body.put("quotaEvaluation", evalBody);
+        });
+    }
+
+    @OpenApi(
+            path = "/api/v1/modules/platform/{moduleId}/health",
+            methods = {HttpMethod.GET},
+            operationId = "getPlatformModuleHealth",
+            summary = "Latest self-reported health of a platform module",
+            tags = {"Modules"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            pathParams = {@OpenApiParam(name = "moduleId", required = true)},
+            responses = {
+                @OpenApiResponse(status = "200", description = "Health status"),
+                @OpenApiResponse(status = "404", description = "Module not found")
+            })
+    private void getPlatformModuleHealth(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.MODULES_VIEW);
+        String moduleId = ctx.pathParam("moduleId");
+        if (platformManager.snapshot(moduleId).isEmpty()) {
+            ctx.status(404);
+            ctx.json(errorResponse("NOT_FOUND", "Platform module not found: " + moduleId, 404));
+            return;
+        }
+        var monitor = controller.moduleHealthMonitor();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("moduleId", moduleId);
+        if (monitor == null) {
+            body.put("monitoringEnabled", false);
+            ctx.status(200);
+            ctx.json(body);
+            return;
+        }
+        body.put("monitoringEnabled", true);
+        var snapshot = monitor.snapshot(moduleId).orElse(null);
+        if (snapshot == null) {
+            // Active-but-not-yet-polled, or not currently active — no health reading on file.
+            body.put("status", "UNKNOWN");
+            body.put("detail", "");
+            body.put("checkedAt", null);
+        } else {
+            body.put("status", snapshot.status().name());
+            body.put("detail", snapshot.detail());
+            body.put("checkedAt", snapshot.checkedAt().toString());
+        }
         ctx.status(200);
         ctx.json(body);
     }
@@ -1133,6 +1211,11 @@ public final class ModuleRoutes {
         out.put("tags", entry.tags());
         out.put("compatibleControllerVersions", entry.compatibleControllerVersions());
         out.put("readme", entry.readme());
+        out.put(
+                "provides",
+                entry.provides().stream()
+                        .map(capability -> Map.of("id", capability.id(), "version", capability.version()))
+                        .toList());
         out.put("signed", entry.hasCosignBundle() || entry.hasSig());
         // "update available" hint for the dashboard: is this module already installed,
         // and at what version?

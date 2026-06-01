@@ -60,4 +60,20 @@ public interface PlatformModule {
     default List<CapabilityHandle<?>> capabilityHandles() {
         return List.of();
     }
+
+    /**
+     * Optional liveness probe. The controller polls this on a fixed cadence for every
+     * {@code ACTIVE} module and surfaces the latest result over REST
+     * ({@code GET /api/v1/modules/platform/{id}/health}) and as the
+     * {@code prexorcloud.module.health} metric.
+     *
+     * <p>Implementations must be cheap and non-blocking — check a cached liveness flag or a
+     * last-success timestamp rather than performing a live round-trip on the polling thread. A
+     * health check that throws is recorded as {@link ModuleHealth.Status#UNHEALTHY}. The default
+     * returns {@link ModuleHealth#unknown()}, so a module that doesn't opt in reports
+     * {@link ModuleHealth.Status#UNKNOWN} rather than a false-positive {@code HEALTHY}.
+     */
+    default ModuleHealth healthCheck() {
+        return ModuleHealth.unknown();
+    }
 }
