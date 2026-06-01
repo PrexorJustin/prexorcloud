@@ -319,14 +319,16 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 - ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
 - ⏳ **Offen:** Auto-Instrumentation für Javalin-HTTP / gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst aus diesem Foundation-Increment ausgeklammert.
 
-### D.2 Eigene Spans für Domain-Flows (~3 d) — ⏳ **begonnen**
+### D.2 Eigene Spans für Domain-Flows (~3 d) — ⏳ **weitgehend shipped**
 
-Manuelle Span-Instrumentierung an den interessanten Stellen:
-- ✅ Scheduler-Tick (`scheduler.tick`) — umschließt `Scheduler.evaluate()`, Attribut `scheduler.groups_evaluated`, Status OK/ERROR + `recordException`. Tracer per `Scheduler.setTracer()` aus `controller.telemetry().tracer()` injiziert (Default no-op, keine Konstruktor-Änderung → keine Test-Brüche). Integration-Level (kein eigener Unit-Test; die Span-Pipeline ist über `TelemetryTest` abgedeckt, Regression über `SchedulerStartRetryTest`).
-- ⏳ Instance-Placement (`placement.evaluate`, `placement.dispatch`) — offen
-- ⏳ Deployment-Reconcile (`deployment.reconcile`) — offen
-- ⏳ Modul-`apply()` für Raft-Entries (`raft.apply.<entry-type>`) — offen
-- ⏳ Auth-Flows (`auth.login`, `auth.token-verify`) — offen
+Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/Spans.java`): startet+aktiviert eine Span, setzt `ERROR`+`recordException` bei `RuntimeException` (rethrow), beendet immer. Getestet via `SpansTest` (3, `InMemorySpanExporter`). Tracer wird in jede Komponente per `setTracer()` aus `controller.telemetry().tracer()` injiziert (Default no-op → keine Konstruktor-Änderung, keine Test-Brüche, Null-Overhead wenn Telemetry aus). Lange Methoden via Extract-and-wrap (`doXxx`-Body unverändert) → minimaler Diff.
+
+- ✅ Scheduler-Tick (`scheduler.tick`) — umschließt `Scheduler.evaluate()`, Attribut `scheduler.groups_evaluated`, Status OK/ERROR (inline, vor dem Helper).
+- ✅ Instance-Placement (`placement.evaluate` = `placeResolvedInstance`, `placement.dispatch` = `dispatchStartMessage`) — `InstancePlacementCoordinator`; dispatch nistet unter evaluate, wenn evaluate dispatcht.
+- ✅ Deployment-Reconcile (`deployment.reconcile` = `rollingRestart(_, stepGuard)`) — `DeploymentReconciler`.
+- ✅ Auth-Login (`auth.login` = `AuthManager.login`) — Tracer nach Telemetry-Bau über `controller.authManager().setTracer()` injiziert (AuthManager wird vor dem Controller gebaut).
+- ⏳ Modul-`apply()` für Raft-Entries (`raft.apply.<entry-type>`) — offen.
+- ⏳ `auth.token-verify` (per-Request im `JwtAuthMiddleware`) — bewusst zurückgestellt: Hot-Path, gehört zur HTTP-Request-Span + Trace-Propagation (D.3).
 
 ### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d)
 

@@ -183,6 +183,9 @@ public final class PrexorCloudBootstrap {
         // Distributed tracing (Track D). No-op unless telemetry.enabled — see TelemetryConfig.
         telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         controller.setTelemetry(telemetry);
+        if (controller.authManager() != null) {
+            controller.authManager().setTracer(telemetry.tracer());
+        }
         var pasteClient = new me.prexorjustin.prexorcloud.controller.share.PasteClient(config.share());
         controller.setShareService(new me.prexorjustin.prexorcloud.controller.share.ShareService(
                 config.share(),
@@ -1195,7 +1198,10 @@ public final class PrexorCloudBootstrap {
                 controller.eventChoreographer(),
                 controller.metricsCollector());
         if (controller.telemetry() != null) {
-            scheduler.setTracer(controller.telemetry().tracer());
+            var tracer = controller.telemetry().tracer();
+            scheduler.setTracer(tracer);
+            placementCoordinator.setTracer(tracer);
+            deploymentReconciler.setTracer(tracer);
         }
         return scheduler;
     }

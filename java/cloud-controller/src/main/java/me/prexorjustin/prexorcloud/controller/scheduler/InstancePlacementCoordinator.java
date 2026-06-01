@@ -54,6 +54,9 @@ public final class InstancePlacementCoordinator {
     private final InstanceCompositionPlanner compositionPlanner;
     private final NodeMessageDispatcher nodeMessageDispatcher;
     private final String controllerHttpUrl;
+    // Tracer for placement spans (Track D.2); no-op default, swapped in by bootstrap when on.
+    private io.opentelemetry.api.trace.Tracer tracer =
+            io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
 
     /**
      * Test-only checkpoint between composition-plan persistence and dispatch. Fires once
@@ -80,7 +83,26 @@ public final class InstancePlacementCoordinator {
         this.controllerHttpUrl = controllerHttpUrl;
     }
 
+    /** Swap in the real OpenTelemetry tracer (Track D.2). Null restores the no-op default. */
+    public void setTracer(io.opentelemetry.api.trace.Tracer tracer) {
+        this.tracer = tracer != null
+                ? tracer
+                : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    }
+
     public boolean placeResolvedInstance(
+            GroupConfig resolved,
+            String instanceId,
+            me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager.Lease lease,
+            LeaseGuard leaseGuard,
+            Consumer<String> clearStartRetryBudget) {
+        return me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.call(
+                tracer,
+                "placement.evaluate",
+                () -> doPlaceResolvedInstance(resolved, instanceId, lease, leaseGuard, clearStartRetryBudget));
+    }
+
+    private boolean doPlaceResolvedInstance(
             GroupConfig resolved,
             String instanceId,
             me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager.Lease lease,
@@ -236,6 +258,11 @@ public final class InstancePlacementCoordinator {
     }
 
     public boolean dispatchStartMessage(String nodeId, String instanceId, ControllerMessage startMessage) {
+        return me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.call(
+                tracer, "placement.dispatch", () -> doDispatchStartMessage(nodeId, instanceId, startMessage));
+    }
+
+    private boolean doDispatchStartMessage(String nodeId, String instanceId, ControllerMessage startMessage) {
         if (!nodeMessageDispatcher.dispatch(nodeId, startMessage)) {
             return false;
         }

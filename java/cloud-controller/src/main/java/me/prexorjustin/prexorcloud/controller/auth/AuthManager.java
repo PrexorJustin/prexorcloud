@@ -29,6 +29,9 @@ public final class AuthManager {
     private final JwtManager jwtManager;
     private final LoginAttemptStore attemptStore;
     private final LockoutConfig lockout;
+    // Tracer for the auth.login span (Track D.2); no-op default until bootstrap injects.
+    private io.opentelemetry.api.trace.Tracer tracer =
+            io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
 
     public AuthManager(UserStore userConfigLoader, JwtManager jwtManager) {
         this(userConfigLoader, jwtManager, new InMemoryLoginAttemptStore(), disabledLockout());
@@ -105,7 +108,19 @@ public final class AuthManager {
      * {@link LoginOutcome} so callers must handle invalid-credentials and
      * locked-account cases distinctly.
      */
+    /** Swap in the real OpenTelemetry tracer (Track D.2). Null restores the no-op default. */
+    public void setTracer(io.opentelemetry.api.trace.Tracer tracer) {
+        this.tracer = tracer != null
+                ? tracer
+                : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    }
+
     public LoginOutcome login(String username, String password) {
+        return me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.call(
+                tracer, "auth.login", () -> doLogin(username, password));
+    }
+
+    private LoginOutcome doLogin(String username, String password) {
         String normalized = username == null ? "" : username.toLowerCase();
         if (lockout.isEnabled()) {
             Optional<Instant> lockedUntil = attemptStore.lockedUntil(normalized);

@@ -34,6 +34,9 @@ public final class DeploymentReconciler {
     private final EventBus eventBus;
     private final long evaluationIntervalSeconds;
     private final StopInstanceAction stopInstanceAction;
+    // Tracer for the deployment.reconcile span (Track D.2); no-op default until bootstrap injects.
+    private io.opentelemetry.api.trace.Tracer tracer =
+            io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
 
     public DeploymentReconciler(
             ClusterState clusterState,
@@ -52,11 +55,23 @@ public final class DeploymentReconciler {
      * Execute a rolling restart for all RUNNING instances of a group. Stops each instance
      * sequentially, lets placement replace it, and persists deployment progress.
      */
+    /** Swap in the real OpenTelemetry tracer (Track D.2). Null restores the no-op default. */
+    public void setTracer(io.opentelemetry.api.trace.Tracer tracer) {
+        this.tracer = tracer != null
+                ? tracer
+                : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    }
+
     public void rollingRestart(DeploymentRecord deployment) {
         rollingRestart(deployment, action -> true);
     }
 
     public void rollingRestart(DeploymentRecord deployment, StepGuard stepGuard) {
+        me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.run(
+                tracer, "deployment.reconcile", () -> doRollingRestart(deployment, stepGuard));
+    }
+
+    private void doRollingRestart(DeploymentRecord deployment, StepGuard stepGuard) {
         int total = deployment.totalInstances() > 0
                 ? deployment.totalInstances()
                 : clusterState.getInstancesByGroup(deployment.groupName()).size();
