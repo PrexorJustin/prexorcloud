@@ -3424,6 +3424,112 @@
         ]
       }
     },
+    "/api/v1/modules/platform/registry": {
+      "get": {
+        "tags": [
+          "Modules"
+        ],
+        "summary": "Browse modules offered by the configured registries",
+        "description": "Aggregates every configured module registry\u0027s index. Optional ?q\u003d filters by case-insensitive substring of moduleId or tags.",
+        "operationId": "listRegistryModules",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring filter over moduleId and tags",
+            "required": false,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated registry module list"
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/modules/platform/registry/install": {
+      "post": {
+        "tags": [
+          "Modules"
+        ],
+        "summary": "Install a module pulled from a configured registry",
+        "description": "Resolves {moduleId, version?} against the configured registries, downloads the signed JAR, verifies its sha256 against the index and its signature against the controller trust root, then installs it. Optional registryUrl must be one of the configured registries.",
+        "operationId": "installModuleFromRegistry",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Module installed"
+          },
+          "400": {
+            "description": "Missing moduleId or unconfigured registryUrl",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Module/version not found in any registry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No registries configured or install conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "sha256/signature/validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Registry fetch/download failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/modules/platform/upload": {
       "post": {
         "tags": [

@@ -97,6 +97,12 @@ maintenance:
 modules:
   directory: "modules"
   dataDirectory: "modules/data"
+  # Trusted module registries (signed JSON indexes) for `prexorctl module
+  # search` / `install <id>[@<version>]`. Empty by default — registry install
+  # is opt-in. Downloads are sha256-pinned against the index and signature-
+  # verified against modules.signing.trustRoot before install.
+  # registries:
+  #   - "https://registry.prexorcloud.dev/index.json"
 
 # Dashboard static files
 dashboard:

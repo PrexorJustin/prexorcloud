@@ -149,8 +149,20 @@ metrics:
 
 ```yaml
 modules:
-  directory: "modules"   # Path to module JAR directory
+  directory: "modules"       # Path to module JAR directory
+  dataDirectory: "modules/data"
+  registries:                # Trusted module registries (signed JSON indexes)
+    - "https://registry.prexorcloud.dev/index.json"
 ```
+
+`registries` powers `prexorctl module search` and `prexorctl module install
+<id>[@<version>]`. Each entry is the URL of a registry index — a static JSON
+file listing `{moduleId, version, jarUrl, sha256, cosignBundleUrl, tags,
+readme, …}`. On install the controller downloads the JAR, checks its SHA-256
+against the index, and verifies the cosign/sig sidecar against
+`modules.signing.trustRoot` — the registry is a discovery convenience, never a
+trust anchor. Empty by default (registry install is opt-in); only configured
+registry URLs are ever fetched.
 
 ### Maintenance
 

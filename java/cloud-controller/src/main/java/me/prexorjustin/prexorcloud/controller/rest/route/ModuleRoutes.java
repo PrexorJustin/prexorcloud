@@ -33,6 +33,9 @@ import me.prexorjustin.prexorcloud.controller.module.platform.ExtensionRegistry;
 import me.prexorjustin.prexorcloud.controller.module.platform.ExtensionRegistryException;
 import me.prexorjustin.prexorcloud.controller.module.platform.ModuleClassLoaderTracker;
 import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleManager;
+import me.prexorjustin.prexorcloud.controller.module.registry.ModuleRegistryClient;
+import me.prexorjustin.prexorcloud.controller.module.registry.ModuleRegistryException;
+import me.prexorjustin.prexorcloud.controller.module.registry.RegistryFetcher;
 import me.prexorjustin.prexorcloud.controller.rest.ApiResponse;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ErrorResponse;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ModuleDtoMapper;
@@ -70,15 +73,31 @@ public final class ModuleRoutes {
             ".woff", "font/woff",
             ".map", "application/json");
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper REGISTRY_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final PrexorController controller;
     private final ModuleFrontendManager frontendManager;
     private final PlatformModuleManager platformManager;
+    private final RegistryFetcher registryFetcher;
 
     public ModuleRoutes(PrexorController controller) {
+        this(controller, RegistryFetcher.httpDefault());
+    }
+
+    /** Test seam — inject an in-memory registry fetcher instead of the real HTTP one. */
+    public ModuleRoutes(PrexorController controller, RegistryFetcher registryFetcher) {
         this.controller = controller;
         var modules = controller.moduleRegistry();
         this.frontendManager = modules.frontendManager();
         this.platformManager = modules.platformManager();
+        this.registryFetcher = registryFetcher;
+    }
+
+    /** Built per request so it always reflects the currently-configured registry URLs. */
+    private ModuleRegistryClient registryClient() {
+        return new ModuleRegistryClient(
+                controller.config().modules().registries(), registryFetcher, REGISTRY_MAPPER);
     }
 
     public void register() {
@@ -89,6 +108,8 @@ public final class ModuleRoutes {
                 get("/{moduleId}/artifacts/<artifactPath>", this::getPlatformModuleArtifact);
                 get("", this::listPlatformModules);
                 get("/manifests", this::listPlatformModuleManifests);
+                get("/registry", this::listRegistry);
+                post("/registry/install", this::installFromRegistry);
                 post("/upload", this::uploadPlatformModule);
                 post("/{moduleId}/upgrade", this::upgradePlatformModule);
                 post("/{moduleId}/frontend/reload", this::reloadPlatformModuleFrontend);
@@ -853,9 +874,41 @@ public final class ModuleRoutes {
                 }
             }
 
-            PlatformModuleManifest manifest = readPlatformModuleManifest(tempFile);
+            installPreparedModule(ctx, controller, platformManager, frontendManager, expectedModuleId, tempFile,
+                    auditAction, conflictCode, successStatus);
+        } finally {
+            Files.deleteIfExists(tempFile);
+            if (sidecarFile != null) {
+                Files.deleteIfExists(sidecarFile);
+            }
+        }
+    }
+
+    /**
+     * Shared install pipeline for a JAR already on disk (with its signature sidecar
+     * adjacent, discovered by suffix): parse manifest → compatibility check →
+     * {@code platformManager.install} (which runs signature verification) → frontend
+     * sync, audit, event. Used by both the multipart upload and the registry-pull
+     * install so the two paths can never drift in what they verify.
+     *
+     * <p>Owns its error responses but not the temp-file lifecycle — the caller
+     * created the JAR and is responsible for cleaning it up.
+     */
+    private void installPreparedModule(
+            io.javalin.http.Context ctx,
+            PrexorController controller,
+            PlatformModuleManager platformManager,
+            ModuleFrontendManager frontendManager,
+            String expectedModuleId,
+            Path jarPath,
+            String auditAction,
+            String conflictCode,
+            int successStatus)
+            throws IOException {
+        try {
+            PlatformModuleManifest manifest = readPlatformModuleManifest(jarPath);
             if (expectedModuleId != null && !expectedModuleId.equals(manifest.id())) {
-                throw new IllegalArgumentException("uploaded module id '" + manifest.id()
+                throw new IllegalArgumentException("module id '" + manifest.id()
                         + "' does not match requested module '" + expectedModuleId + "'");
             }
 
@@ -875,7 +928,7 @@ public final class ModuleRoutes {
                         compatibilityReport);
             }
 
-            PlatformModuleManager.ManagedPlatformModule managed = platformManager.install(tempFile);
+            PlatformModuleManager.ManagedPlatformModule managed = platformManager.install(jarPath);
             syncFrontend(frontendManager, managed);
             audit(ctx, controller.stateStore(), auditAction, "module", managed.moduleId());
             controller
@@ -902,11 +955,174 @@ public final class ModuleRoutes {
         } catch (IllegalStateException e) {
             ctx.status(409);
             ctx.json(errorResponse(conflictCode, e.getMessage(), 409));
+        }
+    }
+
+    @OpenApi(
+            path = "/api/v1/modules/platform/registry",
+            methods = {HttpMethod.GET},
+            operationId = "listRegistryModules",
+            summary = "Browse modules offered by the configured registries",
+            description = "Aggregates every configured module registry's index. Optional ?q= filters by "
+                    + "case-insensitive substring of moduleId or tags.",
+            tags = {"Modules"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            queryParams = {@OpenApiParam(name = "q", description = "Substring filter over moduleId and tags")},
+            responses = {@OpenApiResponse(status = "200", description = "Aggregated registry module list")})
+    private void listRegistry(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.MODULES_VIEW);
+        ModuleRegistryClient client = registryClient();
+        String query = ctx.queryParam("q");
+        List<ModuleRegistryClient.ResolvedEntry> entries =
+                query == null ? client.aggregate() : client.search(query);
+        List<Map<String, Object>> rows =
+                entries.stream().map(this::registryEntryToJson).toList();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("registries", client.configuredRegistries());
+        body.put("modules", rows);
+        ctx.status(200);
+        ctx.json(body);
+    }
+
+    @OpenApi(
+            path = "/api/v1/modules/platform/registry/install",
+            methods = {HttpMethod.POST},
+            operationId = "installModuleFromRegistry",
+            summary = "Install a module pulled from a configured registry",
+            description = "Resolves {moduleId, version?} against the configured registries, downloads the signed "
+                    + "JAR, verifies its sha256 against the index and its signature against the controller trust "
+                    + "root, then installs it. Optional registryUrl must be one of the configured registries.",
+            tags = {"Modules"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            responses = {
+                @OpenApiResponse(status = "201", description = "Module installed"),
+                @OpenApiResponse(
+                        status = "400",
+                        description = "Missing moduleId or unconfigured registryUrl",
+                        content = {@OpenApiContent(from = ErrorResponse.class)}),
+                @OpenApiResponse(
+                        status = "404",
+                        description = "Module/version not found in any registry",
+                        content = {@OpenApiContent(from = ErrorResponse.class)}),
+                @OpenApiResponse(
+                        status = "409",
+                        description = "No registries configured or install conflict",
+                        content = {@OpenApiContent(from = ErrorResponse.class)}),
+                @OpenApiResponse(
+                        status = "422",
+                        description = "sha256/signature/validation failure",
+                        content = {@OpenApiContent(from = ErrorResponse.class)}),
+                @OpenApiResponse(
+                        status = "502",
+                        description = "Registry fetch/download failure",
+                        content = {@OpenApiContent(from = ErrorResponse.class)})
+            })
+    private void installFromRegistry(Context ctx) throws IOException {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.MODULES_MANAGE);
+        Map<String, Object> body;
+        try {
+            body = ctx.bodyAsClass(Map.class);
+        } catch (Exception e) {
+            ctx.status(400);
+            ctx.json(errorResponse("BAD_BODY", "request body must be a JSON object", 400));
+            return;
+        }
+        String moduleId = stringField(body.get("moduleId"));
+        if (moduleId == null) {
+            ctx.status(400);
+            ctx.json(errorResponse("MISSING_MODULE_ID", "moduleId is required", 400));
+            return;
+        }
+        String version = stringField(body.get("version"));
+        String registryUrl = stringField(body.get("registryUrl"));
+
+        ModuleRegistryClient client = registryClient();
+        if (client.configuredRegistries().isEmpty()) {
+            ctx.status(409);
+            ctx.json(errorResponse(
+                    "NO_REGISTRIES_CONFIGURED", "no module registries are configured (modules.registries)", 409));
+            return;
+        }
+        if (registryUrl != null && !client.configuredRegistries().contains(registryUrl)) {
+            // SSRF guard: never fetch from a registry the operator didn't configure.
+            ctx.status(400);
+            ctx.json(errorResponse(
+                    "UNCONFIGURED_REGISTRY", "registryUrl is not in the configured modules.registries list", 400));
+            return;
+        }
+
+        Path tempDir = Files.createTempDirectory("module-registry-install-");
+        try {
+            ModuleRegistryClient.ResolvedEntry resolved = client.resolve(moduleId, version, registryUrl);
+            Path jar = client.download(resolved.entry(), tempDir);
+            installPreparedModule(
+                    ctx,
+                    controller,
+                    platformManager,
+                    frontendManager,
+                    moduleId,
+                    jar,
+                    "platform-module.install-from-registry",
+                    "PLATFORM_INSTALL_FAILED",
+                    201);
+        } catch (ModuleRegistryException e) {
+            int status = registryErrorStatus(e.code());
+            ctx.status(status);
+            ctx.json(errorResponse(e.code(), e.getMessage(), status));
         } finally {
-            Files.deleteIfExists(tempFile);
-            if (sidecarFile != null) {
-                Files.deleteIfExists(sidecarFile);
-            }
+            deleteRecursively(tempDir);
+        }
+    }
+
+    private static int registryErrorStatus(String code) {
+        return switch (code) {
+            case "MODULE_NOT_FOUND" -> 404;
+            case "SHA256_MISMATCH", "BAD_URL", "MISSING_JAR_URL", "MISSING_SHA256", "INDEX_PARSE_FAILED" -> 422;
+            default -> 502; // FETCH_FAILED, DOWNLOAD_WRITE_FAILED — upstream/network
+        };
+    }
+
+    private Map<String, Object> registryEntryToJson(ModuleRegistryClient.ResolvedEntry resolved) {
+        var entry = resolved.entry();
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("registryUrl", resolved.registryUrl());
+        out.put("registryName", resolved.registryName());
+        out.put("moduleId", entry.moduleId());
+        out.put("version", entry.version());
+        out.put("sha256", entry.sha256());
+        out.put("tags", entry.tags());
+        out.put("compatibleControllerVersions", entry.compatibleControllerVersions());
+        out.put("readme", entry.readme());
+        out.put("signed", entry.hasCosignBundle() || entry.hasSig());
+        // "update available" hint for the dashboard: is this module already installed,
+        // and at what version?
+        platformManager.snapshot(entry.moduleId()).ifPresent(installed -> {
+            out.put("installed", true);
+            out.put("installedVersion", installed.version());
+        });
+        out.putIfAbsent("installed", false);
+        return out;
+    }
+
+    private static String stringField(Object value) {
+        if (value instanceof String s && !s.isBlank()) {
+            return s;
+        }
+        return null;
+    }
+
+    private static void deleteRecursively(Path dir) throws IOException {
+        if (!Files.exists(dir)) {
+            return;
+        }
+        try (var paths = Files.walk(dir)) {
+            paths.sorted((a, b) -> b.getNameCount() - a.getNameCount()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {
+                    // best-effort temp cleanup
+                }
+            });
         }
     }
 

@@ -19,21 +19,27 @@ import (
 var (
 	moduleInstallSignaturePath string
 	moduleInstallCheckRequires bool
+	moduleInstallRegistry      string
 )
 
 var moduleInstallCmd = &cobra.Command{
-	Use:   "install <jar|bundle.tar>",
-	Short: "Install a signed module bundle",
-	Long: `Install a platform module via signed bundle.
+	Use:   "install <jar|bundle.tar | id[@version]>",
+	Short: "Install a signed module — from a local bundle or a configured registry",
+	Long: `Install a platform module.
 
-Accepts either:
-  • a .jar file — sidecar is auto-detected as <jar>.cosign.bundle or <jar>.sig
-    next to the jar, or supplied explicitly via --signature
-  • a .tar / .tar.gz / .tgz containing exactly one .jar and one .sig or
-    .cosign.bundle file
+Two sources, auto-detected from the argument:
 
-The signature is uploaded alongside the jar so the controller's signature
-verifier can validate it before installing the module.`,
+  • Local bundle — a .jar (sidecar auto-detected as <jar>.cosign.bundle or
+    <jar>.sig, or via --signature) or a .tar/.tar.gz/.tgz containing one jar
+    and one sidecar. The signature is uploaded so the controller can verify
+    it before installing.
+
+  • Registry — a module spec like "stats-aggregator" or
+    "stats-aggregator@1.2.0". The controller pulls the signed jar from a
+    configured registry (modules.registries), checks its sha256 against the
+    index, and verifies the signature against its own trust root. Omit the
+    version (or use @latest) for the newest. Use --registry to pin one of the
+    configured registries.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runModuleInstall,
 }
@@ -44,7 +50,12 @@ func runModuleInstall(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	jarPath, sigPath, cleanup, err := resolveModuleInstallInputs(args[0], moduleInstallSignaturePath)
+	source := args[0]
+	if !isLocalModuleSource(source) {
+		return runRegistryInstall(client, source)
+	}
+
+	jarPath, sigPath, cleanup, err := resolveModuleInstallInputs(source, moduleInstallSignaturePath)
 	if cleanup != nil {
 		defer cleanup()
 	}
@@ -122,6 +133,53 @@ func isTarBundle(path string) bool {
 	return strings.HasSuffix(lower, ".tar") ||
 		strings.HasSuffix(lower, ".tar.gz") ||
 		strings.HasSuffix(lower, ".tgz")
+}
+
+// isLocalModuleSource decides whether the argument names a file on disk (or a
+// jar/tar bundle) versus a registry module spec. A real file always wins; an
+// "id" or "id@version" string that isn't a path is treated as a registry spec.
+func isLocalModuleSource(source string) bool {
+	if isTarBundle(source) || strings.HasSuffix(strings.ToLower(source), ".jar") {
+		return true
+	}
+	if _, err := os.Stat(source); err == nil {
+		return true
+	}
+	return false
+}
+
+// runRegistryInstall asks the controller to pull "id" or "id@version" from a
+// configured registry. The controller does the sha256 + signature verification;
+// the CLI just relays the request and prints the result.
+func runRegistryInstall(client *api.Client, spec string) error {
+	moduleID, version := spec, ""
+	if at := strings.IndexByte(spec, '@'); at >= 0 {
+		moduleID, version = spec[:at], spec[at+1:]
+	}
+	if moduleID == "" {
+		return fmt.Errorf("invalid module spec %q (expected id or id@version)", spec)
+	}
+
+	body := map[string]any{"moduleId": moduleID}
+	if version != "" {
+		body["version"] = version
+	}
+	if moduleInstallRegistry != "" {
+		body["registryUrl"] = moduleInstallRegistry
+	}
+
+	var result map[string]any
+	if err := client.Post("/api/v1/modules/platform/registry/install", body, &result); err != nil {
+		return err
+	}
+
+	if flagJSON {
+		return theme.PrintJSON(result)
+	}
+	installed := str(result, "moduleId")
+	installedVersion := str(result, "version")
+	theme.PrintSuccess(fmt.Sprintf("Module %q installed from registry (version %s)", installed, installedVersion))
+	return nil
 }
 
 // extractTarBundle reads source and writes the jar + sidecar entries to a temp
@@ -299,5 +357,8 @@ func init() {
 	moduleInstallCmd.Flags().BoolVar(&moduleInstallCheckRequires, "check-requires", false,
 		"Before uploading, read module.yaml from the jar and warn for any "+
 			"required capability that no installed controller module provides.")
+	moduleInstallCmd.Flags().StringVar(&moduleInstallRegistry, "registry", "",
+		"For a registry install (id[@version]), pin one of the configured "+
+			"registry URLs instead of searching all of them.")
 	moduleCmd.AddCommand(moduleInstallCmd)
 }
