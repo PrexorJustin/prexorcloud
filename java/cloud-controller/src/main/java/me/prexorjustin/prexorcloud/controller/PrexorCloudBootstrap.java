@@ -186,6 +186,7 @@ public final class PrexorCloudBootstrap {
         if (controller.authManager() != null) {
             controller.authManager().setTracer(telemetry.tracer());
         }
+        clusterControlService.attachTracer(telemetry.tracer());
         var pasteClient = new me.prexorjustin.prexorcloud.controller.share.PasteClient(config.share());
         controller.setShareService(new me.prexorjustin.prexorcloud.controller.share.ShareService(
                 config.share(),

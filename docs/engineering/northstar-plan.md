@@ -327,7 +327,7 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 - ✅ Instance-Placement (`placement.evaluate` = `placeResolvedInstance`, `placement.dispatch` = `dispatchStartMessage`) — `InstancePlacementCoordinator`; dispatch nistet unter evaluate, wenn evaluate dispatcht.
 - ✅ Deployment-Reconcile (`deployment.reconcile` = `rollingRestart(_, stepGuard)`) — `DeploymentReconciler`.
 - ✅ Auth-Login (`auth.login` = `AuthManager.login`) — Tracer nach Telemetry-Bau über `controller.authManager().setTracer()` injiziert (AuthManager wird vor dem Controller gebaut).
-- ⏳ Modul-`apply()` für Raft-Entries (`raft.apply.<entry-type>`) — offen.
+- ✅ Raft-`apply()` (`raft.apply`, Attribut `raft.entry_type`) — `ClusterControlStateMachine.applyTransaction` umschließt jeden committed Entry; Tracer lazy via `ClusterControlService.attachTracer()` (Catch-up-Applies vor dem Telemetry-Bau bleiben no-op). Status ERROR wenn `!reply.ok()`.
 - ⏳ `auth.token-verify` (per-Request im `JwtAuthMiddleware`) — bewusst zurückgestellt: Hot-Path, gehört zur HTTP-Request-Span + Trace-Propagation (D.3).
 
 ### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d)

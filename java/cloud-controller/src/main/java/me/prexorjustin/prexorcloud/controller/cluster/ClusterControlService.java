@@ -503,6 +503,14 @@ public final class ClusterControlService implements AutoCloseable {
      * / lease entries can grow their own events as subscribers materialise
      * (phases 8, 9, 10 of cluster-join-plan.md).
      */
+    /** Inject the OpenTelemetry tracer into the state machine so committed entries get a span. */
+    public void attachTracer(io.opentelemetry.api.trace.Tracer tracer) {
+        if (tracer == null || stateMachine == null) {
+            return;
+        }
+        stateMachine.setTracer(tracer);
+    }
+
     public void attachEventBus(EventBus eventBus) {
         if (eventBus == null || stateMachine == null) {
             return;

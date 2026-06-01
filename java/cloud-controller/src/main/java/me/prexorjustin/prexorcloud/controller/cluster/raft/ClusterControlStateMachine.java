@@ -85,6 +85,20 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         this.commitListener = listener;
     }
 
+    /**
+     * Tracer for the {@code raft.apply} span (Track D.2). No-op until {@code ClusterControlService}
+     * injects the real one once telemetry exists — early-bootstrap catch-up applies (which run
+     * before telemetry is built) are intentionally untraced.
+     */
+    private volatile io.opentelemetry.api.trace.Tracer tracer =
+            io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+
+    public void setTracer(io.opentelemetry.api.trace.Tracer tracer) {
+        this.tracer = tracer != null
+                ? tracer
+                : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    }
+
     @Override
     public void initialize(RaftServer server, RaftGroupId groupId, RaftStorage raftStorage) throws IOException {
         super.initialize(server, groupId, raftStorage);
@@ -129,7 +143,7 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         try {
             ClusterEntry entry =
                     ClusterEntry.decode(trx.getStateMachineLogEntry().getLogData());
-            ClusterEntry.Reply reply = apply(entry);
+            ClusterEntry.Reply reply = applyTraced(entry);
             if (reply.ok()) {
                 notifyCommit(entry);
             }
@@ -152,6 +166,25 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         } catch (RuntimeException ex) {
             // A faulty subscriber must not break the Raft apply loop — log and continue.
             logger.warn("commit listener threw on {}: {}", entry.getClass().getSimpleName(), ex.getMessage(), ex);
+        }
+    }
+
+    /** Wrap {@link #apply} in a {@code raft.apply} span tagged with the entry type (Track D.2). */
+    private ClusterEntry.Reply applyTraced(ClusterEntry entry) {
+        io.opentelemetry.api.trace.Span span = tracer.spanBuilder("raft.apply").startSpan();
+        span.setAttribute("raft.entry_type", entry.getClass().getSimpleName());
+        try (io.opentelemetry.context.Scope ignored = span.makeCurrent()) {
+            ClusterEntry.Reply reply = apply(entry);
+            if (!reply.ok()) {
+                span.setStatus(io.opentelemetry.api.trace.StatusCode.ERROR);
+            }
+            return reply;
+        } catch (RuntimeException e) {
+            span.setStatus(io.opentelemetry.api.trace.StatusCode.ERROR);
+            span.recordException(e);
+            throw e;
+        } finally {
+            span.end();
         }
     }
 
