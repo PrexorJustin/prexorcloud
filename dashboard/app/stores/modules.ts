@@ -1,6 +1,8 @@
 import type { Component } from 'vue'
 import type {
   CloudModule,
+  ModuleHealthInfo,
+  ModuleResourceInfo,
   PlatformCapabilityGraph,
   PlatformCloudModule,
   PlatformExtension,
@@ -33,6 +35,9 @@ export const useModuleStore = defineStore('modules', () => {
   const registryModules = ref<RegistryModuleEntry[]>([])
   const registries = ref<string[]>([])
   const registryError = ref<string | null>(null)
+  // Per-module diagnostics, keyed by moduleId. Populated lazily for ACTIVE modules.
+  const moduleHealth = ref<Record<string, ModuleHealthInfo>>({})
+  const moduleResources = ref<Record<string, ModuleResourceInfo>>({})
   const loadedModules = new Map<string, Record<string, Component>>()
   const loadingModules = new Set<string>()
   const loadingWaiters = new Map<string, Array<{ resolve: (v: Record<string, Component>) => void; reject: (e: Error) => void }>>()
@@ -168,6 +173,44 @@ export const useModuleStore = defineStore('modules', () => {
     await moduleApiFetch<void>(`/api/v1/modules/platform/${encodeURIComponent(moduleId)}`, { method: 'DELETE' })
     invalidate(moduleId)
     await refreshPlatformState()
+  }
+
+  /** Latest self-reported health for one module (green/amber/red dot on the card). */
+  async function fetchModuleHealth(moduleId: string) {
+    try {
+      const res = await moduleApiFetch<ModuleHealthInfo>(
+        `/api/v1/modules/platform/${encodeURIComponent(moduleId)}/health`,
+      )
+      moduleHealth.value = { ...moduleHealth.value, [moduleId]: res }
+    }
+    catch {
+      // Leave any prior reading in place; a transient fetch error shouldn't blank the dot.
+    }
+  }
+
+  /** Per-module CPU / allocation / thread usage plus the configured soft quota and breach flags. */
+  async function fetchModuleResources(moduleId: string) {
+    try {
+      const res = await moduleApiFetch<ModuleResourceInfo>(
+        `/api/v1/modules/platform/${encodeURIComponent(moduleId)}/resources`,
+      )
+      moduleResources.value = { ...moduleResources.value, [moduleId]: res }
+    }
+    catch {
+      // Leave any prior reading in place.
+    }
+  }
+
+  /**
+   * Refresh health + resource diagnostics for every currently-ACTIVE module. Cheap fan-out of
+   * small GETs; only active modules are polled by the controller, so there's nothing to show for
+   * the others. Call after {@link refreshPlatformState} once {@link platformModules} is populated.
+   */
+  async function fetchModuleDiagnostics() {
+    const active = platformModules.value.filter(mod => mod.state === 'ACTIVE')
+    await Promise.all(
+      active.flatMap(mod => [fetchModuleHealth(mod.moduleId), fetchModuleResources(mod.moduleId)]),
+    )
   }
 
   /** Browse the configured registries' aggregated index, optionally filtered by query. */
@@ -312,7 +355,9 @@ export const useModuleStore = defineStore('modules', () => {
     modules, modulesWithFrontend, frontendByModuleId,
     platformModules, capabilityGraph, platformExtensions, resolvedExtensions, platformError,
     registryModules, registries, registryError,
+    moduleHealth, moduleResources,
     fetchRegistry, fetchPlatformOverview, fetchCapabilityGraph, fetchPlatformExtensions, resolvePlatformExtensions,
+    fetchModuleHealth, fetchModuleResources, fetchModuleDiagnostics,
     fetchRegistryCatalog, installFromRegistry,
     refreshPlatformState, uninstallPlatformModule,
     resolveRoute, ensureLoaded, invalidate,

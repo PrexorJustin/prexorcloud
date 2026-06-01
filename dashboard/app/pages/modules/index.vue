@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import {
+  Activity,
   AlertTriangle,
   Boxes,
   CheckCircle2,
   Database,
+  Download,
   ExternalLink,
   GitBranch,
   PackageSearch,
@@ -16,11 +18,12 @@ import {
 } from 'lucide-vue-next'
 import { Badge } from '~/components/ui/badge'
 import { StatusBadge } from '~/components/ui/status-badge'
+import { StatusDot } from '~/components/ui/status-dot'
 import type { StatusDotTone } from '~/components/ui/status-dot'
 import { Button } from '~/components/ui/button'
 import { toast } from 'vue-sonner'
 import { resolveIcon } from '~/lib/icons'
-import type { PlatformCloudModule } from '~/types/api'
+import type { ModuleHealthInfo, ModuleResourceInfo, PlatformCloudModule, RegistryModuleEntry } from '~/types/api'
 import { getAuthToken } from '~/lib/auth-storage'
 
 const moduleStore = useModuleStore()
@@ -28,6 +31,7 @@ const moduleStore = useModuleStore()
 const uploading = ref(false)
 const refreshing = ref(false)
 const deleting = ref(false)
+const installingDep = ref<string | null>(null)
 const deleteTarget = ref<PlatformCloudModule | null>(null)
 const showDeleteDialog = ref(false)
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -108,6 +112,9 @@ async function refreshAll() {
   refreshing.value = true
   try {
     await moduleStore.refreshPlatformState()
+    // The registry catalog backs the dependency-resolution hint: when a module has an
+    // unresolved requirement, we look for a catalog module that provides that capability.
+    await Promise.all([moduleStore.fetchModuleDiagnostics(), moduleStore.fetchRegistryCatalog()])
   }
   finally {
     refreshing.value = false
@@ -208,6 +215,60 @@ function stateTone(state: string): StatusDotTone {
 
 function stateLabel(state: string): string {
   return state.charAt(0) + state.slice(1).toLowerCase()
+}
+
+function healthFor(moduleId: string): ModuleHealthInfo | undefined {
+  return moduleStore.moduleHealth[moduleId]
+}
+
+function resourcesFor(moduleId: string): ModuleResourceInfo | undefined {
+  return moduleStore.moduleResources[moduleId]
+}
+
+// Only show a health dot when the module reports an actual signal — a module that doesn't
+// implement healthCheck() reports UNKNOWN, which we suppress to avoid a sea of grey dots.
+function showHealthDot(moduleId: string): boolean {
+  const health = healthFor(moduleId)
+  return !!health && health.monitoringEnabled && health.status !== 'UNKNOWN'
+}
+
+function healthTone(status?: string): StatusDotTone {
+  if (status === 'HEALTHY') return 'success'
+  if (status === 'DEGRADED') return 'warning'
+  if (status === 'UNHEALTHY') return 'destructive'
+  return 'muted'
+}
+
+function healthTitle(moduleId: string): string {
+  const health = healthFor(moduleId)
+  if (!health) return ''
+  const label = health.status.charAt(0) + health.status.slice(1).toLowerCase()
+  const detail = health.detail ? ` — ${health.detail}` : ''
+  return `Health: ${label}${detail}`
+}
+
+// Dependency resolution: find a not-yet-installed catalog module that provides the missing
+// capability. Best-effort matching by capability id — the controller's resolver decides the
+// actual version compatibility once the suggested module is installed.
+function providerFor(capabilityId: string): RegistryModuleEntry | undefined {
+  return moduleStore.registryModules.find(
+    entry => !entry.installed && (entry.provides ?? []).some(capability => capability.id === capabilityId),
+  )
+}
+
+async function installDependency(capabilityId: string, provider: RegistryModuleEntry) {
+  installingDep.value = capabilityId
+  try {
+    await moduleStore.installFromRegistry(provider.moduleId, undefined, provider.registryUrl)
+    toast.success(`Installing "${provider.moduleId}"`, { description: `Provides ${capabilityId}` })
+    await refreshAll()
+  }
+  catch (e) {
+    toast.error('Install failed', { description: e instanceof Error ? e.message : "Couldn't install the providing module." })
+  }
+  finally {
+    installingDep.value = null
+  }
 }
 </script>
 
@@ -320,7 +381,17 @@ function stateLabel(state: string): string {
                 <p class="truncate text-xs text-muted-foreground font-mono">{{ mod.moduleId }}@{{ mod.version }}</p>
               </div>
             </div>
-            <StatusBadge :tone="stateTone(mod.state)" :label="stateLabel(mod.state)" :pulse="mod.state === 'ACTIVE'" />
+            <div class="flex shrink-0 items-center gap-2">
+              <span
+                v-if="showHealthDot(mod.moduleId)"
+                :title="healthTitle(mod.moduleId)"
+                :aria-label="healthTitle(mod.moduleId)"
+                class="inline-flex"
+              >
+                <StatusDot :tone="healthTone(healthFor(mod.moduleId)?.status)" />
+              </span>
+              <StatusBadge :tone="stateTone(mod.state)" :label="stateLabel(mod.state)" :pulse="mod.state === 'ACTIVE'" />
+            </div>
           </div>
 
           <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
@@ -344,6 +415,39 @@ function stateLabel(state: string): string {
             </div>
           </div>
 
+          <div
+            v-if="resourcesFor(mod.moduleId)?.trackingEnabled"
+            class="mt-3 rounded-md border border-glass-border bg-background/20 px-3 py-2 text-xs"
+          >
+            <div class="flex items-center justify-between">
+              <span class="flex items-center gap-1.5 text-muted-foreground">
+                <Activity class="size-3.5" /> Resources
+              </span>
+              <Badge
+                v-if="resourcesFor(mod.moduleId)?.quotaEvaluation?.anyExceeded"
+                variant="destructive"
+                class="gap-1"
+              >
+                <AlertTriangle class="size-3" /> Quota exceeded
+              </Badge>
+            </div>
+            <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
+              <span>
+                <span class="text-foreground">{{ resourcesFor(mod.moduleId)?.liveThreads ?? 0 }}</span> threads
+              </span>
+              <template v-if="resourcesFor(mod.moduleId)?.quotaEvaluation">
+                <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.cpuExceeded ? 'text-destructive' : ''">
+                  <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.cpuExceeded ? 'text-destructive font-medium' : 'text-foreground'">{{ resourcesFor(mod.moduleId)?.quotaEvaluation?.cpuMillisPerMinute }}</span>
+                  ms CPU/min
+                </span>
+                <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.allocationExceeded ? 'text-destructive' : ''">
+                  <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.allocationExceeded ? 'text-destructive font-medium' : 'text-foreground'">{{ resourcesFor(mod.moduleId)?.quotaEvaluation?.allocatedMbPerMinute }}</span>
+                  MB/min
+                </span>
+              </template>
+            </div>
+          </div>
+
           <div class="mt-4 space-y-2">
             <div class="flex flex-wrap gap-1.5">
               <Badge v-for="capability in mod.capabilities.provides" :key="`p-${capability.id}`" variant="outline">
@@ -357,10 +461,30 @@ function stateLabel(state: string): string {
               <div
                 v-for="requirement in mod.unresolvedRequirements"
                 :key="requirement.capabilityId"
-                class="flex items-center gap-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive"
+                class="rounded-md bg-destructive/10 px-2 py-1 text-xs"
               >
-                <XCircle class="size-3.5" />
-                {{ requirement.capabilityId }}: {{ requirement.reason }}
+                <div class="flex items-center gap-2 text-destructive">
+                  <XCircle class="size-3.5 shrink-0" />
+                  <span class="min-w-0 truncate">{{ requirement.capabilityId }}: {{ requirement.reason }}</span>
+                </div>
+                <div
+                  v-if="providerFor(requirement.capabilityId)"
+                  class="mt-1 flex items-center justify-between gap-2 pl-5"
+                >
+                  <span class="min-w-0 truncate text-[11px] text-muted-foreground">
+                    <span class="font-mono text-foreground">{{ providerFor(requirement.capabilityId)!.moduleId }}</span> provides this
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    class="h-6 shrink-0 px-2 text-[11px]"
+                    :disabled="installingDep === requirement.capabilityId"
+                    @click="installDependency(requirement.capabilityId, providerFor(requirement.capabilityId)!)"
+                  >
+                    <Download class="mr-1 size-3" :class="installingDep === requirement.capabilityId ? 'animate-pulse' : ''" />
+                    Install
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

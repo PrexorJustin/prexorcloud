@@ -172,6 +172,7 @@ export interface RegistryModuleEntry {
   moduleId: string; version: string; sha256: string | null
   tags: string[]; compatibleControllerVersions: string[]
   readme: string | null; signed: boolean
+  provides: { id: string; version: string }[]
   installed: boolean; installedVersion?: string
 }
 export interface RegistryListResponse {
@@ -208,6 +209,41 @@ export interface PlatformResolvedExtension {
 export interface PlatformModuleOverviewResponse {
   modules: PlatformCloudModule[]
   capabilityMetrics: PlatformCapabilityMetrics
+}
+// Module health (GET /api/v1/modules/platform/{moduleId}/health)
+export type ModuleHealthStatus = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'UNKNOWN'
+export interface ModuleHealthInfo {
+  moduleId: string
+  monitoringEnabled: boolean
+  status: ModuleHealthStatus
+  detail: string
+  checkedAt: string | null
+}
+// Module resources + soft quota (GET /api/v1/modules/platform/{moduleId}/resources)
+export interface ModuleResourceQuota {
+  maxCpuMillisPerMinute: number
+  maxAllocatedMbPerMinute: number
+  maxThreads: number
+}
+export interface ModuleQuotaEvaluation {
+  cpuMillisPerMinute: number
+  allocatedMbPerMinute: number
+  liveThreads: number
+  cpuExceeded: boolean
+  allocationExceeded: boolean
+  threadsExceeded: boolean
+  anyExceeded: boolean
+  evaluatedAt: string
+}
+export interface ModuleResourceInfo {
+  moduleId: string
+  trackingEnabled: boolean
+  cpuMillis?: number
+  allocatedBytes?: number
+  liveThreads?: number
+  sampledAt?: string
+  quota?: ModuleResourceQuota
+  quotaEvaluation?: ModuleQuotaEvaluation
 }
 export interface PlatformExtensionResponse {
   target?: string

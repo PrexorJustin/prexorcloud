@@ -344,4 +344,56 @@ describe('useModuleStore', () => {
       registryUrl: 'https://reg.example/index.json',
     })
   })
+
+  it('fetchModuleHealth stores the reading keyed by moduleId', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      moduleId: 'stats', monitoringEnabled: true, status: 'DEGRADED', detail: 'redis fallback', checkedAt: '2026-06-01T12:00:00Z',
+    }))
+    const store = useModuleStore()
+    await store.fetchModuleHealth('stats')
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/v1/modules/platform/stats/health')
+    expect(store.moduleHealth.stats?.status).toBe('DEGRADED')
+    expect(store.moduleHealth.stats?.detail).toBe('redis fallback')
+  })
+
+  it('fetchModuleHealth keeps a prior reading on fetch error', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      moduleId: 'stats', monitoringEnabled: true, status: 'HEALTHY', detail: '', checkedAt: '2026-06-01T12:00:00Z',
+    }))
+    const store = useModuleStore()
+    await store.fetchModuleHealth('stats')
+    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 500 }))
+    await store.fetchModuleHealth('stats')
+    expect(store.moduleHealth.stats?.status).toBe('HEALTHY')
+  })
+
+  it('fetchModuleResources stores tracking + quota evaluation keyed by moduleId', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      moduleId: 'stats', trackingEnabled: true, cpuMillis: 1200, allocatedBytes: 4096, liveThreads: 3, sampledAt: '2026-06-01T12:00:00Z',
+      quota: { maxCpuMillisPerMinute: 2000, maxAllocatedMbPerMinute: 0, maxThreads: 0 },
+      quotaEvaluation: { cpuMillisPerMinute: 5000, allocatedMbPerMinute: 0, liveThreads: 3, cpuExceeded: true, allocationExceeded: false, threadsExceeded: false, anyExceeded: true, evaluatedAt: '2026-06-01T12:00:00Z' },
+    }))
+    const store = useModuleStore()
+    await store.fetchModuleResources('stats')
+    expect(fetchMock.mock.calls[0]![0]).toBe('http://localhost:8080/api/v1/modules/platform/stats/resources')
+    expect(store.moduleResources.stats?.trackingEnabled).toBe(true)
+    expect(store.moduleResources.stats?.quotaEvaluation?.anyExceeded).toBe(true)
+  })
+
+  it('fetchModuleDiagnostics polls health + resources only for ACTIVE modules', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ modules: [
+      { moduleId: 'a', state: 'ACTIVE' },
+      { moduleId: 'b', state: 'WAITING' },
+    ] }))
+    const store = useModuleStore()
+    await store.fetchPlatformOverview()
+    fetchMock.mockResolvedValue(jsonResponse({ moduleId: 'a', monitoringEnabled: true, status: 'HEALTHY', detail: '', checkedAt: null }))
+
+    await store.fetchModuleDiagnostics()
+
+    const diagUrls = fetchMock.mock.calls.slice(1).map(([url]) => url as string)
+    expect(diagUrls).toContain('http://localhost:8080/api/v1/modules/platform/a/health')
+    expect(diagUrls).toContain('http://localhost:8080/api/v1/modules/platform/a/resources')
+    expect(diagUrls.some(u => u.includes('/b/'))).toBe(false)
+  })
 })
