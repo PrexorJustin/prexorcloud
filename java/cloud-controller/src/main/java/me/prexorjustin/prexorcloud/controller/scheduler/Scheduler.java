@@ -53,6 +53,10 @@ public final class Scheduler implements LeaseGate {
     private final StartRetryWakeupQueue startRetryWakeupQueue; // nullable — null when Redis unavailable
     private final EventChoreographer eventChoreographer; // nullable
     private final MetricsCollector metricsCollector; // nullable
+    // Tracer for the scheduler.tick span (Track D.2). Defaults to no-op; bootstrap swaps in the
+    // real tracer when telemetry is enabled, so tests and telemetry-off deployments cost nothing.
+    private io.opentelemetry.api.trace.Tracer tracer =
+            io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
     private final StartRetryOrchestrator startRetry;
     private final RecoveryOrchestrator recovery;
     private final Set<String> activeDeployments = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -220,6 +224,13 @@ public final class Scheduler implements LeaseGate {
         return placementCoordinator;
     }
 
+    /** Swap in the real OpenTelemetry tracer (Track D.2). Null restores the no-op default. */
+    public void setTracer(io.opentelemetry.api.trace.Tracer tracer) {
+        this.tracer = tracer != null
+                ? tracer
+                : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    }
+
     /**
      * Evaluate all groups in dependency order using topological sort. Groups within
      * the same dependency tier are evaluated concurrently via
@@ -230,6 +241,9 @@ public final class Scheduler implements LeaseGate {
         long startNanos = System.nanoTime();
         boolean success = false;
         int groupsEvaluated = 0;
+        io.opentelemetry.api.trace.Span span =
+                tracer.spanBuilder("scheduler.tick").startSpan();
+        io.opentelemetry.context.Scope spanScope = span.makeCurrent();
         try {
             try (var ignored = CorrelationContext.open("schedulerRunId", schedulerRunId)) {
                 if (eventChoreographer != null) {
@@ -264,7 +278,15 @@ public final class Scheduler implements LeaseGate {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             logger.error("Scheduler evaluation failed: {}", e.getMessage(), e);
+            span.recordException(e);
         } finally {
+            spanScope.close();
+            span.setAttribute("scheduler.groups_evaluated", (long) groupsEvaluated);
+            span.setStatus(
+                    success
+                            ? io.opentelemetry.api.trace.StatusCode.OK
+                            : io.opentelemetry.api.trace.StatusCode.ERROR);
+            span.end();
             if (metricsCollector != null) {
                 metricsCollector.recordSchedulerTick(
                         java.time.Duration.ofNanos(System.nanoTime() - startNanos), success, groupsEvaluated);

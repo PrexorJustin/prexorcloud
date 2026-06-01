@@ -1178,7 +1178,7 @@ public final class PrexorCloudBootstrap {
                 controller.eventBus(),
                 config.scheduler().evaluationIntervalSeconds(),
                 (instanceId, force) -> controller.scheduler().stopInstance(instanceId, force));
-        return new Scheduler(
+        Scheduler scheduler = new Scheduler(
                 controller.groupManager(),
                 controller.clusterState(),
                 scalingEvaluator,
@@ -1194,6 +1194,10 @@ public final class PrexorCloudBootstrap {
                 nodeMessageDispatcher,
                 controller.eventChoreographer(),
                 controller.metricsCollector());
+        if (controller.telemetry() != null) {
+            scheduler.setTracer(controller.telemetry().tracer());
+        }
+        return scheduler;
     }
 
     private void initRestServer(PrexorController controller) throws Exception {

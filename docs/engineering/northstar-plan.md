@@ -319,14 +319,14 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 - ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
 - ⏳ **Offen:** Auto-Instrumentation für Javalin-HTTP / gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst aus diesem Foundation-Increment ausgeklammert.
 
-### D.2 Eigene Spans für Domain-Flows (~3 d)
+### D.2 Eigene Spans für Domain-Flows (~3 d) — ⏳ **begonnen**
 
 Manuelle Span-Instrumentierung an den interessanten Stellen:
-- Scheduler-Tick (`scheduler.tick`)
-- Instance-Placement (`placement.evaluate`, `placement.dispatch`)
-- Deployment-Reconcile (`deployment.reconcile`)
-- Modul-`apply()` für Raft-Entries (`raft.apply.<entry-type>`)
-- Auth-Flows (`auth.login`, `auth.token-verify`)
+- ✅ Scheduler-Tick (`scheduler.tick`) — umschließt `Scheduler.evaluate()`, Attribut `scheduler.groups_evaluated`, Status OK/ERROR + `recordException`. Tracer per `Scheduler.setTracer()` aus `controller.telemetry().tracer()` injiziert (Default no-op, keine Konstruktor-Änderung → keine Test-Brüche). Integration-Level (kein eigener Unit-Test; die Span-Pipeline ist über `TelemetryTest` abgedeckt, Regression über `SchedulerStartRetryTest`).
+- ⏳ Instance-Placement (`placement.evaluate`, `placement.dispatch`) — offen
+- ⏳ Deployment-Reconcile (`deployment.reconcile`) — offen
+- ⏳ Modul-`apply()` für Raft-Entries (`raft.apply.<entry-type>`) — offen
+- ⏳ Auth-Flows (`auth.login`, `auth.token-verify`) — offen
 
 ### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d)
 
