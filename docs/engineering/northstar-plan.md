@@ -459,6 +459,7 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 ### H.3 i18n-Coverage (~3 d)
 
 - Dashboard: 100 % der UI-Strings extrahiert in `i18n/en.json`, `i18n/de.json`.
+  - **Gemessene Lücke (2026-06-02):** ~119 hardcodete user-facing Attribute (`placeholder`/`aria-label`/`title`) + grob ~250 Text-Node-Literale, verteilt über **44+ Komponenten** — viele davon (z.B. `CommandPalette`, `NotificationsPanel`, `InstanceConsole`) importieren `useI18n` noch gar nicht, d.h. Extraktion heißt nicht nur String→`t()`, sondern auch Composable-Verdrahtung + ~300 neue Keys × 2 Locales. Bewusst **nicht** als autonomer Einzel-Pass gemacht (zu groß, pro-String-Risiko, nicht runtime-verifizierbar ohne laufende App) — eigener gescopeter Pass, danach kann der `i18n:check`-Gate um eine „keine hardcodeten Strings"-Lint erweitert werden.
 - Website: Übersetzung der `docs/public/`-Inhalte ins Deutsche.
 
 **Track-H-Gesamt: ~10 eng-days. Vor v1.3-Release.**
