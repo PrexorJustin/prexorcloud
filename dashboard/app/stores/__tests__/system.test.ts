@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 import { useSystemStore } from '../system'
+import { lastTraceId } from '~/lib/trace-context'
 
 const mockGET = vi.fn()
 vi.mock('~/composables/useApiClient', () => ({
@@ -78,5 +79,33 @@ describe('useSystemStore', () => {
     await store.fetchAll()
     expect(store.diagnostics).toEqual([])
     expect(store.redisSchema).toEqual([])
+  })
+
+  it('derives tracing state and a deep link from settings + the captured trace id', async () => {
+    lastTraceId.value = ''
+    mockGET.mockImplementation((path: string) =>
+      path === '/api/v1/system/settings'
+        ? Promise.resolve({ data: { tracingEnabled: true, traceUiTemplate: 'http://jaeger/trace/{traceId}' } })
+        : Promise.resolve({ data: {} }),
+    )
+
+    const store = useSystemStore()
+    await store.fetchAll()
+
+    expect(store.tracingEnabled).toBe(true)
+    expect(store.traceUrl('abc123')).toBe('http://jaeger/trace/abc123')
+    // No trace captured yet → no last-trace link.
+    expect(store.lastTraceUrl).toBeNull()
+    // Once a response carried X-Trace-Id, the link resolves.
+    lastTraceId.value = 'feed42'
+    expect(store.lastTraceUrl).toBe('http://jaeger/trace/feed42')
+  })
+
+  it('reports tracing disabled when settings omit it', async () => {
+    mockGET.mockResolvedValue({ data: {} })
+    const store = useSystemStore()
+    await store.fetchAll()
+    expect(store.tracingEnabled).toBe(false)
+    expect(store.traceUrl('abc123')).toBeNull()
   })
 })

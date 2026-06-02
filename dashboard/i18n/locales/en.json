@@ -761,7 +761,12 @@
       "withTtl": "With TTL",
       "avgTtl": "Avg TTL",
       "byPrefix": "By prefix",
-      "settings": "Settings"
+      "settings": "Settings",
+      "tracing": "Tracing",
+      "tracingEnabled": "Distributed tracing is enabled.",
+      "tracingDisabled": "Distributed tracing is disabled.",
+      "viewLastTrace": "View last trace",
+      "noTraceYet": "Perform an action to capture a trace."
     },
     "users": {
       "title": "Users",

@@ -1,5 +1,6 @@
 import { createApiClient, type ApiClient, type Middleware } from '@prexorcloud/api-sdk'
 import { clearAuthToken, getAuthToken, setAuthToken } from '~/lib/auth-storage'
+import { recordTraceId } from '~/lib/trace-context'
 
 let redirecting = false
 let refreshPromise: Promise<string | null> | null = null
@@ -20,7 +21,7 @@ export function useApiClient(): ApiClient {
 
   // Middleware: handle 401 → try refresh → retry or logout
   const refreshMiddleware: Middleware = {
-    async onResponse({ response, request, options }) {
+    async onResponse({ response, request }) {
       if (response.status !== 401 || redirecting) return response
 
       const url = new URL(request.url)
@@ -47,6 +48,16 @@ export function useApiClient(): ApiClient {
     },
   }
 
+  // Middleware: capture the controller's X-Trace-Id so the UI can deep-link to the trace of the
+  // action just performed (Track D.3). Registered before throwOnError so it still records on the
+  // 2xx responses that matter; runs harmlessly when tracing is off (header simply absent).
+  const traceMiddleware: Middleware = {
+    async onResponse({ response }) {
+      recordTraceId(response.headers.get('X-Trace-Id'))
+      return response
+    },
+  }
+
   // Middleware: throw on non-2xx so existing try/catch patterns work
   const throwOnErrorMiddleware: Middleware = {
     async onResponse({ response }) {
@@ -58,6 +69,7 @@ export function useApiClient(): ApiClient {
   }
 
   client.use(refreshMiddleware)
+  client.use(traceMiddleware)
   client.use(throwOnErrorMiddleware)
   _client = client
   return client

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, computed } from "vue"
-import { HeartPulse, Database, Server, Settings as SettingsIcon, GitCommit, Share2 } from "lucide-vue-next"
-import { Callout, CalloutTitle, CalloutBody } from "~/components/ui/callout"
+import { HeartPulse, Database, Settings as SettingsIcon, GitCommit, Share2, Waypoints } from "lucide-vue-next"
+import { Callout, CalloutTitle } from "~/components/ui/callout"
 import { StatusBadge } from "~/components/ui/status-badge"
 import type { StatusDotTone } from "~/components/ui/status-dot"
 import { Eyebrow } from "~/components/ui/eyebrow"
@@ -150,6 +150,27 @@ const settingsAsJson = computed(() => JSON.stringify(store.settings, null, 2))
         </div>
       </section>
     </div>
+
+    <!-- Tracing (Track D.3) -->
+    <section class="space-y-3">
+      <Eyebrow><Waypoints class="mr-1 inline size-3" /> {{ t('pages.system.tracing') }}</Eyebrow>
+      <div class="flex items-center justify-between gap-4 rounded-2xl border border-glass-border bg-glass/60 p-5 backdrop-blur-xl">
+        <span class="text-sm text-muted-foreground">
+          {{ store.tracingEnabled ? t('pages.system.tracingEnabled') : t('pages.system.tracingDisabled') }}
+        </span>
+        <a
+          v-if="store.tracingEnabled && store.lastTraceUrl"
+          :href="store.lastTraceUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-glass-border bg-glass/60 px-3 py-1.5 text-sm backdrop-blur-xl transition-colors hover:bg-glass-hover"
+        >
+          <Waypoints class="size-4" />
+          {{ t('pages.system.viewLastTrace') }}
+        </a>
+        <span v-else-if="store.tracingEnabled" class="shrink-0 text-xs text-muted-foreground">{{ t('pages.system.noTraceYet') }}</span>
+      </div>
+    </section>
 
     <!-- Settings -->
     <section class="space-y-3">

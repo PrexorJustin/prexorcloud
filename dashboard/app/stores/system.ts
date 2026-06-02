@@ -1,7 +1,8 @@
 import { defineStore } from "pinia"
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { toast } from "vue-sonner"
 import { t } from "~/lib/translate"
+import { buildTraceUrl, lastTraceId } from "~/lib/trace-context"
 
 export interface SystemHealth {
   status: "UP" | "DOWN" | "DEGRADED"
@@ -39,6 +40,16 @@ export const useSystemStore = defineStore("system", () => {
   const settings = ref<Record<string, unknown>>({})
   const loading = ref(false)
 
+  // Track D.3 — distributed-tracing surface derived from /system/settings + the captured X-Trace-Id.
+  const tracingEnabled = computed(() => (settings.value as { tracingEnabled?: boolean }).tracingEnabled === true)
+  const traceUiTemplate = computed(() => String((settings.value as { traceUiTemplate?: string }).traceUiTemplate ?? ""))
+  /** Deep link to a specific trace in the operator's trace UI, or null if no template/id. */
+  function traceUrl(traceId: string): string | null {
+    return buildTraceUrl(traceUiTemplate.value, traceId)
+  }
+  /** Deep link to the most recently captured trace, or null when none is available yet. */
+  const lastTraceUrl = computed(() => traceUrl(lastTraceId.value))
+
   function loose(): LooseClient {
     return useApiClient() as unknown as LooseClient
   }
@@ -67,5 +78,19 @@ export const useSystemStore = defineStore("system", () => {
     }
   }
 
-  return { health, version, diagnostics, keyspace, redisSchema, settings, loading, fetchAll }
+  return {
+    health,
+    version,
+    diagnostics,
+    keyspace,
+    redisSchema,
+    settings,
+    loading,
+    tracingEnabled,
+    traceUiTemplate,
+    traceUrl,
+    lastTraceId,
+    lastTraceUrl,
+    fetchAll,
+  }
 })

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vite
 import type { Middleware } from '@prexorcloud/api-sdk'
 
 import { useApiClient } from '../useApiClient'
+import { lastTraceId } from '~/lib/trace-context'
 
 const {
   mockGetAuthToken, mockSetAuthToken, mockClearAuthToken,
@@ -34,13 +35,15 @@ vi.stubGlobal('fetch', fetchMock)
 
 // useApiClient is a module-level singleton — capture its middlewares once.
 let refreshMiddleware: Middleware
+let traceMiddleware: Middleware
 let throwMiddleware: Middleware
 
 beforeAll(() => {
   useApiClient()
-  const [first, second] = clientUse.mock.calls
+  const [first, second, third] = clientUse.mock.calls
   refreshMiddleware = first![0] as Middleware
-  throwMiddleware = second![0] as Middleware
+  traceMiddleware = second![0] as Middleware
+  throwMiddleware = third![0] as Middleware
 })
 
 beforeEach(() => {
@@ -74,8 +77,24 @@ describe('useApiClient', () => {
     })
   })
 
-  it('registers exactly two middlewares (refresh, throw-on-error)', () => {
-    expect(clientUse).toHaveBeenCalledTimes(2)
+  it('registers exactly three middlewares (refresh, trace, throw-on-error)', () => {
+    expect(clientUse).toHaveBeenCalledTimes(3)
+  })
+
+  describe('trace middleware', () => {
+    it('records the X-Trace-Id header so the UI can deep-link to the trace', async () => {
+      lastTraceId.value = ''
+      const res = new Response('ok', { status: 200, headers: { 'X-Trace-Id': 'cafef00d' } })
+      const out = await traceMiddleware.onResponse!(ctx(res))
+      expect(out).toBe(res)
+      expect(lastTraceId.value).toBe('cafef00d')
+    })
+
+    it('leaves the last trace id untouched when the header is absent', async () => {
+      lastTraceId.value = 'previous'
+      await traceMiddleware.onResponse!(ctx(new Response('ok', { status: 200 })))
+      expect(lastTraceId.value).toBe('previous')
+    })
   })
 
   describe('refresh middleware', () => {
