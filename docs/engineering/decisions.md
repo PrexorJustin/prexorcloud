@@ -535,3 +535,23 @@ When enabled, spans are batch-exported over OTLP to any compatible collector (Ja
 
 **Trade-off.** A modest amount of resolve/download/verify code in the controller and three CLI verbs. We accept that for discovery + signed one-command install, having kept every cost ADR 14 worried about out of scope. See `docs/engineering/northstar-plan.md` Track C.1.
 
+---
+
+## ADR 32: Design tokens stay mirrored and CI-guarded, not imported as a package
+
+> Resolves the open "NPM-Workspace" question in **`docs/engineering/northstar-plan.md` Track E.1**. The earlier framing assumed surfaces would eventually `import` a `@prexorcloud/design-system` package; this records why the guarded-mirror approach is the chosen steady state instead.
+
+**Decision.** `design-system/` is the canonical token source. `tokens.json` is the machine source of truth; a zero-dependency generator (`build-tokens.mjs`) emits committed `dist/tokens.{css,ts,json}`, and `colors_and_type.css` is the human-readable mirror that CI proves is in lockstep. Each surface — website (Tailwind/HSL), dashboard (Nuxt/Tailwind), installer (Vite), CLI (ANSI) — continues to **reimplement** the tokens in its own stack rather than importing the package. A CI parity suite (`design-system/__tests__/`) pins what must not drift: the raw colour scales (reef/ink/sand/state) and the `--text-*` size scale, across all three frontends, against the canon. The one programmatic consumer — the website's Mermaid docs palette — reads the generated `dist/tokens.json` through a build-time Node script (the same pattern as `sync-openapi.mjs`), not an npm import.
+
+**Why mirror + guard, not package import.**
+- The real problem was **silent drift**, not duplication: the canon (saturated cyan-9/slate) and the shipped surfaces (softened "Quiet Studio" reef/ink/sand) diverged for weeks because nothing checked them against each other. A drift guard closes that directly and mechanically — a surface that re-tunes a pinned token fails CI — which removes most of the value the heavier migration was meant to deliver.
+- The four surfaces are **independent pnpm projects** with separate lockfiles; there is no monorepo-wide workspace. Package imports would mean either a root workspace (restructuring every surface's install + CI) or per-surface `file:` deps (lockfile churn under `--frozen-lockfile`, plus Vite externalisation for the `.ts`/HSL forms). Real cost, for a single-operator project.
+- Surfaces legitimately need **different forms** of the same tokens: the website needs HSL triplets (Tailwind alpha syntax `bg-primary/20`), the CLI needs ANSI-256 approximations, and each keeps surface-specific semantic aliases (`--bg`/`--surface` vs shadcn's `--background`/`--card`). A single imported CSS artifact wouldn't serve them without per-surface transforms anyway — so "implement the tokens, don't import them" is a deliberate fit, not just inertia.
+
+**Boundary — what this is not.**
+- **Not a ban on consumption.** `dist/` is real and importable; the Mermaid palette already consumes it. A future surface needing token *values* in JS/TS can read `dist/tokens.{ts,json}` via a build script, or import the package if a workspace is later introduced.
+- **Not unguarded mirroring.** Colour raw scales and the `--text-*` scale are pinned across all three frontends. Semantic aliases and radius are intentionally *not* pinned — semantics are surface-specific by design, and radius uses divergent var names (`--radius-*` vs `--r-*`), so only its values were reconciled.
+- **Not Style-Dictionary.** The generator is deliberately zero-dependency (a cosign/Rekor-hardened project does not want a token toolchain in its supply chain). Revisit only if multi-platform export (Figma sync, Android) becomes a real need.
+
+**Trade-off.** Each surface keeps a hand-maintained token block that must be updated alongside `tokens.json` — but the guard tells you exactly when one drifts, and each copy is in the form its stack actually needs. We accept N guarded copies over a workspace + package import + per-surface build transforms, which is more moving parts than a single-operator project with an already-closed drift risk can justify. See `docs/engineering/northstar-plan.md` Track E.
+

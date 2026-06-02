@@ -361,7 +361,7 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
   CI-Job `design-system` erzwingt Parität (`tokens.json` ↔ `colors_and_type.css`)
   und dist-Frische. Dabei zwei echte Drifts gefixt: Light-Primary `#0891b2`→`#0c8aa8`
   (cyan-8, wie alle Surfaces), Light-`glass-border-hover` `#a8a59c`→`#aba8a0` (sand-8).
-- **NPM-Workspace:** _(offen)_ `@prexorcloud/design-system` als pnpm-Workspace-Package — Dashboard, Installer, Website importieren von dort. Package-Stub (`design-system/package.json`, `exports`) steht; Consumer-Wiring fehlt noch.
+- **NPM-Workspace:** _(entschieden gegen — siehe ADR 32.)_ Statt Surfaces auf ein `@prexorcloud/design-system`-Package zu migrieren, bleiben sie ge-mirror-t und werden per CI-Drift-Guard an den Canon gepinnt (`design-system/__tests__/surface-drift.test.mjs`). Das löste das eigentliche Problem (stilles Drift) zu einem Bruchteil der Kosten. Package-Stub + `dist/` stehen falls ein echter Consumer-Bedarf entsteht; die Mermaid-Palette konsumiert `dist/` bereits.
 - **Komponenten-Library:** Erweiterung des Design-Systems um echte Komponenten (Button, Input, Card, Modal, Toast, Table). Headless-Pattern (Radix-Vue oder eigenes) damit Styling nur über Tokens kommt.
 - **Histoire-Stories** für jede Komponente in `design-system/stories/`.
 
