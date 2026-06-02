@@ -10,6 +10,7 @@ import { Eyebrow } from "~/components/ui/eyebrow"
 import type { NotificationTone } from "~/stores/notifications"
 import { timeAgo } from "~/lib/utils"
 
+const { t } = useI18n()
 const store = useNotificationsStore()
 const open = ref(false)
 
@@ -43,14 +44,14 @@ function onItemClick(id: string, route?: string) {
     <PopoverTrigger as-child>
       <button
         type="button"
-        aria-label="Notifications"
+        :aria-label="t('components.notifications.label')"
         class="relative inline-flex size-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <Bell class="size-4" />
         <span
           v-if="store.unreadCount > 0"
           class="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular"
-          aria-label="Unread count"
+          :aria-label="t('components.notifications.unreadCount')"
         >
           {{ store.unreadCount > 99 ? '99+' : store.unreadCount }}
         </span>
@@ -59,7 +60,7 @@ function onItemClick(id: string, route?: string) {
 
     <PopoverContent align="end" class="w-96 p-0">
       <header class="flex items-center justify-between border-b border-glass-border px-4 py-3">
-        <Eyebrow>Notifications</Eyebrow>
+        <Eyebrow>{{ t('components.notifications.label') }}</Eyebrow>
         <div class="flex items-center gap-1">
           <button
             v-if="store.unreadCount > 0"
@@ -67,16 +68,16 @@ function onItemClick(id: string, route?: string) {
             class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground"
             @click="store.markAllRead()"
           >
-            <Check class="size-3" /> Mark all read
+            <Check class="size-3" /> {{ t('components.notifications.markAllRead') }}
           </button>
           <button
             v-if="store.items.length > 0"
             type="button"
-            aria-label="Clear all"
+            :aria-label="t('components.notifications.clearAll')"
             class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-glass-hover hover:text-destructive"
             @click="store.clear()"
           >
-            <Trash2 class="size-3" /> Clear
+            <Trash2 class="size-3" /> {{ t('components.notifications.clear') }}
           </button>
         </div>
       </header>
@@ -84,8 +85,8 @@ function onItemClick(id: string, route?: string) {
       <div class="max-h-96 overflow-y-auto styled-scrollbar">
         <div v-if="store.items.length === 0" class="px-4 py-12 text-center">
           <Bell class="mx-auto mb-2 size-8 text-muted-foreground/30" />
-          <p class="text-sm text-muted-foreground">No notifications.</p>
-          <p class="mt-1 text-xs text-muted-foreground/60">Crashes, deployments and node events will appear here.</p>
+          <p class="text-sm text-muted-foreground">{{ t('components.notifications.empty') }}</p>
+          <p class="mt-1 text-xs text-muted-foreground/60">{{ t('components.notifications.emptyHint') }}</p>
         </div>
         <button
           v-for="n in store.items"

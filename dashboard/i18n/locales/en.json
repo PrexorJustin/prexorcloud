@@ -814,5 +814,16 @@
         "create": "Create"
       }
     }
+  },
+  "components": {
+    "notifications": {
+      "label": "Notifications",
+      "unreadCount": "Unread count",
+      "markAllRead": "Mark all read",
+      "clearAll": "Clear all",
+      "clear": "Clear",
+      "empty": "No notifications.",
+      "emptyHint": "Crashes, deployments and node events will appear here."
+    }
   }
 }

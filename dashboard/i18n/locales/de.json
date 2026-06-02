@@ -814,5 +814,16 @@
         "actions": "Aktionen"
       }
     }
+  },
+  "components": {
+    "notifications": {
+      "label": "Benachrichtigungen",
+      "unreadCount": "Anzahl ungelesen",
+      "markAllRead": "Alle als gelesen markieren",
+      "clearAll": "Alle löschen",
+      "clear": "Löschen",
+      "empty": "Keine Benachrichtigungen.",
+      "emptyHint": "Abstürze, Deployments und Node-Ereignisse erscheinen hier."
+    }
   }
 }
