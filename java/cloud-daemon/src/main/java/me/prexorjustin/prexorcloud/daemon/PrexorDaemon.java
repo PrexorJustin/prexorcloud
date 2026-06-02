@@ -114,6 +114,7 @@ public final class PrexorDaemon {
         // --- gRPC client ---
         var resourceMonitor = new ResourceMonitor(instancesDir);
         var dispatcher = new MessageDispatcher();
+        dispatcher.setTracer(telemetry.tracer()); // continues the controller's trace (Track D.3)
 
         grpcClient = new DaemonGrpcClient(
                 config.controller().host(),

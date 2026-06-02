@@ -53,6 +53,10 @@ message ControllerMessage {
     WalkInstanceFiles walk_instance_files = 15; // Request a structure-only filetree of an instance dir
     ReadInstanceFile read_instance_file = 16;   // Request the bytes of a single file under an instance dir
   }
+  // W3C traceparent of the controller span that produced this message (Track D.3). Empty when
+  // tracing is off or no span is active. Additive scalar (not a payload variant), so old daemons
+  // ignore it and no PROTOCOL_VERSION bump is needed.
+  string traceparent = 17;
 }
 
 // === Daemon -> Controller messages ===

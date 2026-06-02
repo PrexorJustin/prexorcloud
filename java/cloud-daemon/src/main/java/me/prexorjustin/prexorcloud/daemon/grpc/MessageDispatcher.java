@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.daemon.grpc;
 
 import java.time.Instant;
+import java.util.Map;
 
 import me.prexorjustin.prexorcloud.daemon.event.DaemonEventBus;
 import me.prexorjustin.prexorcloud.daemon.module.DaemonModuleManager;
@@ -13,6 +14,16 @@ import me.prexorjustin.prexorcloud.daemon.template.PaperBootstrapCache;
 import me.prexorjustin.prexorcloud.daemon.template.TemplateCache;
 import me.prexorjustin.prexorcloud.protocol.*;
 
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import io.opentelemetry.context.propagation.TextMapPropagator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +34,21 @@ public final class MessageDispatcher {
 
     private static final Logger logger = LoggerFactory.getLogger(MessageDispatcher.class);
 
+    private static final TextMapPropagator PROPAGATOR = W3CTraceContextPropagator.getInstance();
+    private static final TextMapGetter<Map<String, String>> GETTER = new TextMapGetter<>() {
+        @Override
+        public Iterable<String> keys(Map<String, String> carrier) {
+            return carrier.keySet();
+        }
+
+        @Override
+        public String get(Map<String, String> carrier, String key) {
+            return carrier == null ? null : carrier.get(key);
+        }
+    };
+
+    private Tracer tracer = OpenTelemetry.noop().getTracer("prexorcloud-daemon");
+
     private DaemonGrpcClient client;
     private ProcessManager processManager;
     private TemplateCache templateCache;
@@ -31,6 +57,11 @@ public final class MessageDispatcher {
     private PaperBootstrapCache paperBootstrapCache;
     private DaemonModuleManager daemonModuleManager;
     private DaemonEventBus daemonEventBus;
+
+    /** Swap in the real OpenTelemetry tracer (Track D.3). Null restores the no-op default. */
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer != null ? tracer : OpenTelemetry.noop().getTracer("prexorcloud-daemon");
+    }
 
     public void setClient(DaemonGrpcClient client) {
         this.client = client;
@@ -64,7 +95,41 @@ public final class MessageDispatcher {
         this.shutdownCallback = shutdownCallback;
     }
 
+    /**
+     * Entry point for every controller→daemon message. When the message carries a W3C
+     * {@code traceparent} (i.e. the controller produced it inside an active span, Track D.3), the
+     * synchronous dispatch is wrapped in a {@code daemon.command} CONSUMER span that continues that
+     * trace, so the controller's trace visibly reaches this node. Untraced messages (heartbeats,
+     * pings — sent by the controller with no active span) skip the span entirely to avoid noise.
+     *
+     * <p>Scope note: several handlers off-load the actual work to virtual threads; the span ends
+     * when the synchronous hand-off returns, so it captures command receipt/acceptance, not the
+     * downstream async work. Tracing that deeper work is a follow-up.
+     */
     public void dispatch(ControllerMessage message) {
+        String traceparent = message.getTraceparent();
+        if (traceparent.isEmpty()) {
+            dispatchPayload(message);
+            return;
+        }
+        Context parent = PROPAGATOR.extract(Context.root(), Map.of("traceparent", traceparent), GETTER);
+        Span span = tracer.spanBuilder("daemon.command")
+                .setParent(parent)
+                .setSpanKind(SpanKind.CONSUMER)
+                .setAttribute("rpc.command", message.getPayloadCase().name())
+                .startSpan();
+        try (Scope ignored = span.makeCurrent()) {
+            dispatchPayload(message);
+        } catch (RuntimeException e) {
+            span.setStatus(StatusCode.ERROR);
+            span.recordException(e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    private void dispatchPayload(ControllerMessage message) {
         switch (message.getPayloadCase()) {
             case HANDSHAKE_ACK -> handleHandshakeAck(message.getHandshakeAck());
             case PING -> handlePing(message.getPing());
