@@ -123,6 +123,8 @@ A note on tone: these aren't tablets from a mountain. They reflect what fits the
 
 ## ADR 9: Prometheus only, no OpenTelemetry
 
+> **Superseded in part (v1.2) by [ADR 30](#adr-30-opentelemetry-tracing-opt-in-alongside-prometheus).** Prometheus stays the metrics surface. The "no OTel SDK, no distributed tracing" stance is reversed: opt-in OpenTelemetry tracing now ships, off by default and a no-op when disabled. The reasoning below is preserved for v1.0/v1.1 context and still explains why tracing is *opt-in* rather than always-on.
+
 **Decision.** The controller exposes Prometheus metrics on `/metrics`. There is no OTel SDK, no W3C trace-context propagation, no distributed tracing.
 
 **Why.**
@@ -188,6 +190,8 @@ A note on tone: these aren't tablets from a mountain. They reflect what fits the
 ---
 
 ## ADR 14: No marketplace, no central index
+
+> **Superseded in part (v1.2) by [ADR 31](#adr-31-a-signed-module-index-but-not-a-marketplace).** The *marketplace* rejection stands — no hosted server, no accounts, no ranking/takedowns/payments. But the blanket "no central index" is relaxed: an optional, signed, **static** index (discovery only, never a trust anchor) now ships. The reasoning below still explains why we refuse a *marketplace*.
 
 **Decision.** Module install is `prexorctl module install <bundle>` against a local file or URL. Authors host their own bundles. There is no PrexorCloud-hosted index.
 
@@ -486,4 +490,48 @@ If either check fails, or the module simply does not set the flag, the existing 
 - Live config reload is the Raft `apply()` itself — see Phase 7 of `docs/engineering/cluster-join-plan.md`. Subscribers (CorsAllowList, JwtManager, RateLimiter, SigningPolicyManager) react to a typed `ClusterConfigChangedEvent` on the controller's local EventBus. No Redis round-trip for config.
 
 **Scope of the implementing track.** See `docs/engineering/cluster-join-plan.md` (phases 1–11) and `docs/engineering/northstar-plan.md` (Track A). Phases 1, 2, 3, 6, 7 shipped in the foundation commits. Phases 4 (gRPC membership + TLS bootstrap), 5 (REST + prexorctl), 8 (leader leases), 9 (wizard token branch), 10 (dashboard /cluster), 11 (recovery tooling) remain.
+
+---
+
+## ADR 30: OpenTelemetry tracing, opt-in alongside Prometheus
+
+> Reverses, in part, **[ADR 9](#adr-9-prometheus-only-no-opentelemetry)** — read that first for the original "no tracing" reasoning, which still explains why this is opt-in.
+
+**Decision.** PrexorCloud ships OpenTelemetry distributed tracing, **off by default**. Prometheus stays the metrics surface; structured JSON stays the log surface. Tracing is a third, optional signal: enable it with `telemetry.enabled=true` (controller and daemon each have their own block). When disabled, a no-op tracer is installed, the SDK is never built, and there is effectively zero runtime cost.
+
+When enabled, spans are batch-exported over OTLP to any compatible collector (Jaeger, Tempo, Honeycomb, Datadog). The controller traces its HTTP server requests (continuing an inbound W3C `traceparent`), `auth.login` / `auth.token-verify`, `scheduler.tick`, instance placement, deployment reconcile, and each committed `raft.apply`. Trace context propagates Controller → Daemon over the existing gRPC command stream (a `traceparent` field on `ControllerMessage`), where the daemon continues it with a `daemon.command` span.
+
+**Why reverse ADR 9.**
+- ADR 9's "two services, one gRPC contract, the trace tells you nothing the log doesn't" held at v1.0. It is weaker now: a start command crosses controller → daemon → server process with async hand-offs and lease-holder indirection, and "where did this go / why was it slow" is a genuine cross-process question a trace answers and correlated logs answer poorly.
+- The cost objection is addressed by construction: disabled is a no-op tracer with no SDK, so operators who don't want tracing pay nothing. This is strictly additive — Prometheus and logs are untouched.
+- Operators increasingly already run Tempo/Jaeger and would rather point PrexorCloud at it than reconstruct call chains from logs.
+
+**Boundary — what this is not.**
+- **Not on by default.** No behavioural or cost change unless explicitly enabled.
+- **Not metrics or logs.** Prometheus stays the metrics surface (ADR 9's metrics half is unchanged); logs stay structured JSON — there is no OTel logs/metrics pipeline.
+- **No javaagent.** Spans are placed by hand at meaningful boundaries; there is no auto-instrumentation agent and no gRPC/Mongo/Valkey auto-spans.
+- **MC-plugin hop not yet traced.** The chain reaches the daemon; pushing it into the Bukkit/Velocity plugin is a later step.
+
+**Trade-off.** A dependency surface (the OTel SDK + OTLP exporter) and a pair of config blocks that sit dormant unless enabled. We accept that for a signal that is increasingly expected of a control plane and costs nothing when off. See `docs/engineering/northstar-plan.md` Track D.
+
+---
+
+## ADR 31: A signed module index, but not a marketplace
+
+> Relaxes, in part, **[ADR 14](#adr-14-no-marketplace-no-central-index)** — the marketplace rejection there still stands; this only adds a static, signed *index* for discovery.
+
+**Decision.** PrexorCloud supports optional module **registries**: a registry is a static JSON index file (hosted by anyone on GitHub Pages, S3, a plain web server) listing modules with `moduleId`, `version`, `jarUrl`, `sha256`, signature sidecar URL, and metadata. Operators configure a list of index URLs in `modules.registries`. The controller can then browse/search them, and resolve + download + install a module by id — but **the registry is discovery only, never a trust anchor**. Every install passes the same two gates as a manual upload: sha256 pinned against the index, and signature verified against the controller's **own** configured trust root. `prexorctl module {search,install,upgrade}` and a dashboard browse page sit on top.
+
+**Why relax ADR 14.**
+- ADR 14 rejected "a marketplace **and** a central index" because running a registry is a startup: accounts, abuse handling, takedowns, ranking, GDPR. Every one of those costs is a property of a *hosted, mutable, social* registry — **a marketplace**. A static signed index has none of them: it is a file. There is nothing to moderate, rank, or take down on our side; an operator who distrusts an index simply doesn't configure it.
+- The discovery gap ADR 14 accepted ("operators know the author or read READMEs") is real friction once there is more than a handful of first-party modules. A signed index closes it with one-command install/upgrade while keeping the trust story identical.
+- Differentiation: a *signed* module index is something no other Minecraft-cloud system offers. Doing it without becoming a marketplace is the whole point.
+
+**Boundary — what this is not.**
+- **Not a marketplace.** No PrexorCloud-hosted server, no accounts, no uploads-to-us, no ranking/popularity/payments. ADR 14's marketplace rejection is intact.
+- **Not a trust anchor.** The index can claim anything; trust is the controller's own cosign/Rekor trust root. Fail-closed: an unverifiable module does not install.
+- **SSRF-bounded.** The registry-install REST route only accepts a `registryUrl` already in the configured list.
+- **No first-party hosted registry yet.** `registry.prexorcloud.dev` is a follow-up; the mechanism works against any operator-provided index today.
+
+**Trade-off.** A modest amount of resolve/download/verify code in the controller and three CLI verbs. We accept that for discovery + signed one-command install, having kept every cost ADR 14 worried about out of scope. See `docs/engineering/northstar-plan.md` Track C.1.
 
