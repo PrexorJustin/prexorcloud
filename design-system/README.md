@@ -399,9 +399,13 @@ We do **not** generate marketing hero illustrations with AI. Diagrams only.
   enforces that `tokens.json` and `colors_and_type.css` never drift. Each surface
   still *reimplements* the tokens in its own stack (Tailwind v4 in `dashboard/` +
   `website/`, ANSI in `cli/`) rather than importing `@prexorcloud/design-system`.
-  Wiring the surfaces onto `dist/` (the npm-workspace import + the Mermaid palette
-  in `website/src/scripts/mermaid.ts`) is the remaining E.1 work. Until then, this
-  folder is canonical: if a surface drifts, reconcile it here.
+  Wiring the surfaces onto `dist/` (the npm-workspace import) is the remaining
+  E.1 work. Until then this folder is canonical — and that is now **enforced**:
+  `__tests__/surface-drift.test.mjs` asserts every raw scale (reef/ink/sand/state)
+  in `website/`, `dashboard/` and `installer/` equals the canon, so a surface that
+  re-tunes a colour fails CI until `tokens.json` is updated to match. (Semantic
+  tokens stay surface-specific aliases; only the raw scales are pinned.) The
+  Mermaid docs palette already consumes the generated tokens (§4).
 - **The voxel-cloud logo is proposed, not produced** (see §8). Only
   `website/public/favicon.svg` exists today.
 - **Fonts**: Inter / Inter Tight / JetBrains Mono. Self-host the `.woff2` files
