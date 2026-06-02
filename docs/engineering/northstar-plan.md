@@ -320,7 +320,7 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 - ✅ **Javalin-HTTP-Instrumentation** (manuell, ohne Javaagent): `HttpServerTracing` (`controller/observability/telemetry/`) öffnet pro Request eine SERVER-Span (`HTTP <method>`, Attribute `http.request.method`/`url.path`/`http.response.status_code`, 5xx → ERROR), **extrahiert eingehenden W3C-`traceparent`** (inbound-Hälfte von D.3 — externe Traces / Dashboard laufen durch) und macht die Span für den Request-Thread current, sodass Domain-Spans (`auth.login` …) darunter nisten. Verdrahtet im `RestServer`-before/after-Filter, nur wenn `telemetry.enabled`; SSE/Stream-Pfade (`*stream*`, `/console`) werden übersprungen (deren Span würde nie enden). Tests: `HttpServerTracingTest` (2, inkl. Inbound-Trace-Continuation + 5xx-Status).
 - ⏳ **Offen:** Auto-Instrumentation für gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst ausgeklammert.
 
-### D.2 Eigene Spans für Domain-Flows (~3 d) — ⏳ **weitgehend shipped**
+### D.2 Eigene Spans für Domain-Flows (~3 d) — ✅ **shipped**
 
 Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/Spans.java`): startet+aktiviert eine Span, setzt `ERROR`+`recordException` bei `RuntimeException` (rethrow), beendet immer. Getestet via `SpansTest` (3, `InMemorySpanExporter`). Tracer wird in jede Komponente per `setTracer()` aus `controller.telemetry().tracer()` injiziert (Default no-op → keine Konstruktor-Änderung, keine Test-Brüche, Null-Overhead wenn Telemetry aus). Lange Methoden via Extract-and-wrap (`doXxx`-Body unverändert) → minimaler Diff.
 
@@ -329,7 +329,7 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 - ✅ Deployment-Reconcile (`deployment.reconcile` = `rollingRestart(_, stepGuard)`) — `DeploymentReconciler`.
 - ✅ Auth-Login (`auth.login` = `AuthManager.login`) — Tracer nach Telemetry-Bau über `controller.authManager().setTracer()` injiziert (AuthManager wird vor dem Controller gebaut).
 - ✅ Raft-`apply()` (`raft.apply`, Attribut `raft.entry_type`) — `ClusterControlStateMachine.applyTransaction` umschließt jeden committed Entry; Tracer lazy via `ClusterControlService.attachTracer()` (Catch-up-Applies vor dem Telemetry-Bau bleiben no-op). Status ERROR wenn `!reply.ok()`.
-- ⏳ `auth.token-verify` (per-Request im `JwtAuthMiddleware`) — bewusst zurückgestellt: Hot-Path, gehört zur HTTP-Request-Span + Trace-Propagation (D.3).
+- ✅ `auth.token-verify` (per-Request im `JwtAuthMiddleware`) — wrappt JWT-Validierung + Revocation-Check. Auth-Fehlschläge sind ein Client-Outcome (401), kein Server-Fault, daher als `auth.outcome`-Attribut (`valid`/`invalid`/`revoked`) statt ERROR-Status — analog zur HTTP-Server-Span, die nur 5xx als ERROR markiert. Damit das nesten kann, wurde die HTTP-Server-Span-`before`-Registrierung an den **Anfang** der Filter-Kette gezogen (vorher als letzter `before` registriert, lief also *nach* dem Auth-Filter): die Server-Span umschließt jetzt CORS/Subnet/Rate-Limit/Auth, OPTIONS-Preflight wird übersprungen (CORS bleibt effektiv zuerst). Tests: `JwtAuthMiddlewareTracingTest` (3, inkl. Nesting-Assertion).
 
 ### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d)
 

@@ -127,6 +127,10 @@ public final class RestServer {
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
         var jwtMiddleware = new JwtAuthMiddleware(controller.jwtManager(), controller.revocationStore());
+        // Token validation gets its own span under the HTTP server span (Track D.2); no-op when
+        // telemetry is disabled (tracer() returns a no-op tracer).
+        jwtMiddleware.setTracer(
+                controller.telemetry() != null ? controller.telemetry().tracer() : null);
         var requestIdMiddleware = new RequestIdMiddleware();
         rateLimitMiddleware =
                 new RateLimitMiddleware(controller.config().security().rateLimiting(), runtime);
@@ -182,9 +186,30 @@ public final class RestServer {
             config.jetty.multipartConfig.maxInMemoryFileSize(2, io.javalin.config.SizeUnit.MB);
             config.jetty.multipartConfig.maxTotalRequestSize(50, io.javalin.config.SizeUnit.MB);
 
-            // CORS is handled by DynamicCorsHandler (registered as the first before-handler
-            // below) instead of Javalin's bundled CORS plugin, so origins added at runtime
-            // via PATCH /api/v1/admin/cors/origins take effect on the next request.
+            // CORS is handled by DynamicCorsHandler (registered as the first functional
+            // before-handler below) instead of Javalin's bundled CORS plugin, so origins added at
+            // runtime via PATCH /api/v1/admin/cors/origins take effect on the next request.
+
+            // Per-request HTTP server span (Track D.1 + the inbound half of D.3), registered as the
+            // very first before-handler so it wraps the whole filter chain (CORS, subnet guard,
+            // rate-limiting, auth) — domain spans like auth.token-verify / auth.login then nest
+            // underneath it. Transparent when not spanning: skips OPTIONS preflight (so CORS still
+            // effectively runs first) and long-lived SSE streams (whose span would never end). Only
+            // installed when telemetry is enabled; otherwise no handler is registered at all.
+            final var httpTracing =
+                    controller.telemetry() != null && controller.telemetry().isEnabled()
+                            ? new me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing(
+                                    controller.telemetry().openTelemetry())
+                            : null;
+            if (httpTracing != null) {
+                config.routes.before(ctx -> {
+                    if (ctx.method().name().equals("OPTIONS") || isStreamingPath(ctx.path())) {
+                        return;
+                    }
+                    ctx.attribute(
+                            TRACE_INFLIGHT_ATTR, httpTracing.start(ctx.method().name(), ctx.path(), ctx::header));
+                });
+            }
 
             // Routes
             config.routes.apiBuilder(() -> {
@@ -279,9 +304,16 @@ public final class RestServer {
                 installHttpMetricsHandlers(config.routes);
             }
 
-            // Per-request server span + inbound W3C trace-context (only when tracing is enabled).
-            if (controller.telemetry() != null && controller.telemetry().isEnabled()) {
-                installHttpTracingHandlers(config.routes);
+            // Close the per-request server span opened by the first before-handler. Registered here
+            // (after the metrics after-handler) so the span ends last and captures the full request.
+            if (httpTracing != null) {
+                config.routes.after(ctx -> {
+                    me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing.Inflight inflight =
+                            ctx.attribute(TRACE_INFLIGHT_ATTR);
+                    if (inflight != null) {
+                        httpTracing.end(inflight, ctx.statusCode());
+                    }
+                });
             }
 
             // Clear MDC after each request
@@ -540,31 +572,6 @@ public final class RestServer {
     }
 
     private static final String TRACE_INFLIGHT_ATTR = "prexor.trace.inflight";
-
-    /**
-     * Open a SERVER span per request (continuing any inbound W3C trace) and make it current for the
-     * request thread, so domain spans created in the handler nest underneath. Skips long-lived SSE
-     * streams — their span would never end and the cross-filter scope wouldn't close on one thread.
-     * The before→handler→after sequence runs on a single thread for synchronous handlers (the only
-     * ones reaching here), which is the standard OTel servlet-filter assumption.
-     */
-    private void installHttpTracingHandlers(io.javalin.config.RoutesConfig routes) {
-        var tracing = new me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing(
-                controller.telemetry().openTelemetry());
-        routes.before(ctx -> {
-            if (isStreamingPath(ctx.path())) {
-                return;
-            }
-            ctx.attribute(TRACE_INFLIGHT_ATTR, tracing.start(ctx.method().name(), ctx.path(), ctx::header));
-        });
-        routes.after(ctx -> {
-            me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing.Inflight inflight =
-                    ctx.attribute(TRACE_INFLIGHT_ATTR);
-            if (inflight != null) {
-                tracing.end(inflight, ctx.statusCode());
-            }
-        });
-    }
 
     /** SSE / long-poll endpoints whose connection outlives the request — never span them. */
     private static boolean isStreamingPath(String path) {

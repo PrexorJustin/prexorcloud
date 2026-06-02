@@ -11,6 +11,11 @@ import io.javalin.http.Context;
 import io.javalin.http.ForbiddenResponse;
 import io.javalin.http.Handler;
 import io.javalin.http.UnauthorizedResponse;
+import io.jsonwebtoken.Claims;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Scope;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -38,6 +43,7 @@ public final class JwtAuthMiddleware implements Handler {
 
     private final JwtManager jwtManager;
     private final JwtRevocationStore revocationStore;
+    private Tracer tracer = OpenTelemetry.noop().getTracer("prexorcloud-controller");
 
     public JwtAuthMiddleware(JwtManager jwtManager, JwtRevocationStore revocationStore) {
         this.jwtManager = jwtManager;
@@ -46,6 +52,11 @@ public final class JwtAuthMiddleware implements Handler {
 
     public JwtAuthMiddleware(JwtManager jwtManager) {
         this(jwtManager, null);
+    }
+
+    /** Swap in the real OpenTelemetry tracer (Track D.2). Null restores the no-op default. */
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer != null ? tracer : OpenTelemetry.noop().getTracer("prexorcloud-controller");
     }
 
     @Override
@@ -104,19 +115,38 @@ public final class JwtAuthMiddleware implements Handler {
             throw new UnauthorizedResponse("Missing or invalid Authorization header");
         }
 
-        String token = authHeader.substring(7);
-        var claimsOpt = jwtManager.validate(token);
-        if (claimsOpt.isEmpty()) {
-            throw new UnauthorizedResponse("Invalid or expired token");
-        }
-
-        var claims = claimsOpt.get();
-        String jti = claims.getId();
-        if (jti != null && revocationStore != null && revocationStore.isRevoked(jti)) {
-            throw new UnauthorizedResponse("Token has been revoked");
-        }
+        Claims claims = verifyToken(authHeader.substring(7));
         ctx.attribute("username", claims.getSubject());
         ctx.attribute("role", claims.get("role", String.class));
+    }
+
+    /**
+     * Validate a bearer token and return its claims, throwing {@link UnauthorizedResponse} when the
+     * token is invalid, expired, or revoked. Wrapped in an {@code auth.token-verify} span so the
+     * per-request token check shows up under the HTTP server span (Track D.2). A failed check is a
+     * client outcome (401), not a server fault, so it is recorded as an {@code auth.outcome}
+     * attribute rather than an ERROR status — mirroring how the server span only flags 5xx.
+     */
+    public Claims verifyToken(String token) {
+        Span span = tracer.spanBuilder("auth.token-verify").startSpan();
+        try (Scope ignored = span.makeCurrent()) {
+            var claimsOpt = jwtManager.validate(token);
+            if (claimsOpt.isEmpty()) {
+                span.setAttribute("auth.outcome", "invalid");
+                throw new UnauthorizedResponse("Invalid or expired token");
+            }
+
+            Claims claims = claimsOpt.get();
+            String jti = claims.getId();
+            if (jti != null && revocationStore != null && revocationStore.isRevoked(jti)) {
+                span.setAttribute("auth.outcome", "revoked");
+                throw new UnauthorizedResponse("Token has been revoked");
+            }
+            span.setAttribute("auth.outcome", "valid");
+            return claims;
+        } finally {
+            span.end();
+        }
     }
 
     /**
