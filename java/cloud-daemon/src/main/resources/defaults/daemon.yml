@@ -46,3 +46,14 @@ reconnect:
   initialDelayMs: 1000
   maxDelayMs: 60000
   multiplier: 2.0
+
+# Distributed tracing (OpenTelemetry). Disabled by default — a no-op tracer is
+# installed and the SDK never starts, so there is zero overhead until enabled.
+# When on, spans are batch-exported over OTLP/gRPC to any compatible collector
+# (Jaeger, Tempo, Honeycomb, Datadog, …). Keep samplerRatio aligned with the
+# controller so a sampled trace stays sampled across the Controller → Daemon hop.
+telemetry:
+  enabled: false
+  otlpEndpoint: "http://localhost:4317"
+  serviceName: "prexorcloud-daemon"
+  samplerRatio: 1.0

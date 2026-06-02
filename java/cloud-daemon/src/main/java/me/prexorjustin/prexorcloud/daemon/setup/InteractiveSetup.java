@@ -67,6 +67,7 @@ public final class InteractiveSetup {
                 null, // logging -- use defaults
                 new ReconnectConfig(),
                 null, // modules -- use defaults
+                null, // telemetry -- use defaults (disabled)
                 null // labels -- use defaults
                 );
 

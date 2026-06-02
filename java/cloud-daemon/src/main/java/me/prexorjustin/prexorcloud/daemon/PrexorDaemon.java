@@ -53,6 +53,7 @@ public final class PrexorDaemon {
     private HealthServer healthServer;
     private DaemonModuleManager daemonModuleManager;
     private java.util.concurrent.ScheduledExecutorService daemonModuleScheduler;
+    private me.prexorjustin.prexorcloud.daemon.observability.DaemonTelemetry telemetry;
 
     public PrexorDaemon(DaemonConfig config) {
         this.config = config;
@@ -69,6 +70,11 @@ public final class PrexorDaemon {
                 config.nodeId());
 
         long maxMemory = config.resources().effectiveMaxMemoryMb();
+
+        // --- Telemetry (Track D) --- no-op unless telemetry.enabled; built early so any later
+        // component can be handed the tracer. Flushed and closed in shutdown().
+        telemetry = me.prexorjustin.prexorcloud.daemon.observability.DaemonTelemetry.create(
+                config.telemetry(), config.nodeId());
 
         // --- Bootstrap ---
         var bootstrapManager = new BootstrapManager(
@@ -251,6 +257,10 @@ public final class PrexorDaemon {
         }
         try {
             if (healthServer != null) healthServer.close();
+        } catch (Throwable _) {
+        }
+        try {
+            if (telemetry != null) telemetry.close();
         } catch (Throwable _) {
         }
         shutdownLatch.countDown();

@@ -331,11 +331,12 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 - ✅ Raft-`apply()` (`raft.apply`, Attribut `raft.entry_type`) — `ClusterControlStateMachine.applyTransaction` umschließt jeden committed Entry; Tracer lazy via `ClusterControlService.attachTracer()` (Catch-up-Applies vor dem Telemetry-Bau bleiben no-op). Status ERROR wenn `!reply.ok()`.
 - ✅ `auth.token-verify` (per-Request im `JwtAuthMiddleware`) — wrappt JWT-Validierung + Revocation-Check. Auth-Fehlschläge sind ein Client-Outcome (401), kein Server-Fault, daher als `auth.outcome`-Attribut (`valid`/`invalid`/`revoked`) statt ERROR-Status — analog zur HTTP-Server-Span, die nur 5xx als ERROR markiert. Damit das nesten kann, wurde die HTTP-Server-Span-`before`-Registrierung an den **Anfang** der Filter-Kette gezogen (vorher als letzter `before` registriert, lief also *nach* dem Auth-Filter): die Server-Span umschließt jetzt CORS/Subnet/Rate-Limit/Auth, OPTIONS-Preflight wird übersprungen (CORS bleibt effektiv zuerst). Tests: `JwtAuthMiddlewareTracingTest` (3, inkl. Nesting-Assertion).
 
-### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d)
+### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d) — ⏳ **Daemon-OTel-Foundation shipped; Propagation offen**
 
-- gRPC-Trace-Context propagieren (W3C-Traceparent).
-- Plugin-Token-Calls vom MC-Plugin tragen Trace-Context im Header.
-- Dashboard zeigt „Trace ansehen"-Button auf Instance-Detailseite (Deep-Link zu Jaeger/Tempo).
+- ✅ **Daemon-OTel-Foundation:** `cloud-daemon` hatte bisher kein OTel — Voraussetzung für die Daemon-Hälfte. Analog zur Controller-D.1-Foundation (Commit 61255d0) gebaut: OTel-Deps (`bom`/`api`/`sdk`/`exporter-otlp`, `sdk-testing` als testImpl), `TelemetryDaemonConfig` (`daemon/config/`, top-level `telemetry`-Block in `daemon.yml`, serviceName `prexorcloud-daemon`, samplerRatio geklammert), `DaemonTelemetry` (`daemon/observability/`): baut bei `enabled` ein `OpenTelemetrySdk` (BatchSpanProcessor → OTLP, `parentBased(traceIdRatio)`-Sampler, W3C-Propagation, `service.name` + `node.id`-Resource-Attribut); sonst `OpenTelemetry.noop()` → **Null-Overhead by default**. Verdrahtet in `PrexorDaemon.start()` (früh gebaut), Flush+Close im Shutdown. Tests: `TelemetryDaemonConfigTest` (3), `DaemonTelemetryTest` (2, inkl. `node.id`-Resource + InMemory-Span-Roundtrip).
+- ⏳ gRPC-Trace-Context propagieren (W3C-Traceparent) — Controller stempelt `traceparent` in die `ControllerMessage` (Proto-Feld, additiv), Daemon extrahiert in `MessageDispatcher` und öffnet eine Command-Handling-Span.
+- ⏳ Plugin-Token-Calls vom MC-Plugin tragen Trace-Context im Header (die Controller-seitige Inbound-Extraktion steht bereits über `HttpServerTracing`).
+- ⏳ Dashboard zeigt „Trace ansehen"-Button auf Instance-Detailseite (Deep-Link zu Jaeger/Tempo).
 
 **Track-D-Gesamt: ~8 eng-days. Unabhängig von Track A, kann parallel.**
 

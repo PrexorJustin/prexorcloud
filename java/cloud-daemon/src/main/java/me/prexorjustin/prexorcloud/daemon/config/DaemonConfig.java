@@ -17,6 +17,7 @@ public record DaemonConfig(
         @JsonProperty("logging") LoggingConfig logging,
         @JsonProperty("reconnect") ReconnectConfig reconnect,
         @JsonProperty("modules") ModulesDaemonConfig modules,
+        @JsonProperty("telemetry") TelemetryDaemonConfig telemetry,
         @JsonProperty("labels") Map<String, String> labels) {
 
     public DaemonConfig {
@@ -30,6 +31,7 @@ public record DaemonConfig(
         if (logging == null) logging = new LoggingConfig();
         if (reconnect == null) reconnect = new ReconnectConfig();
         if (modules == null) modules = new ModulesDaemonConfig();
+        if (telemetry == null) telemetry = new TelemetryDaemonConfig();
         if (labels == null) labels = Map.of();
     }
 

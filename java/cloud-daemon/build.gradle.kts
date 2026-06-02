@@ -15,6 +15,13 @@ dependencies {
     implementation(libs.grpc.protobuf)
     implementation(libs.grpc.stub)
     implementation(libs.protobuf.java)
+
+    // OpenTelemetry — distributed tracing (northstar-plan Track D). SDK + OTLP exporter;
+    // disabled by default, so this is dormant unless `telemetry.enabled` is set.
+    implementation(platform(libs.opentelemetry.bom))
+    implementation(libs.opentelemetry.api)
+    implementation(libs.opentelemetry.sdk)
+    implementation(libs.opentelemetry.exporter.otlp)
     implementation(libs.jackson.databind)
     implementation(libs.jackson.dataformat.yaml)
     implementation(libs.jackson.datatype.jsr310)
@@ -26,6 +33,7 @@ dependencies {
     testImplementation(project(":cloud-controller"))
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
+    testImplementation(libs.opentelemetry.sdk.testing)
 }
 
 tasks.build {
