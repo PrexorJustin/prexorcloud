@@ -79,6 +79,12 @@ jobs:
           cache-dependency-path: dashboard/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
         working-directory: dashboard
+      # Hard gate (zero-dep, independent of the soft vitest below): en.json and
+      # de.json must have the identical key set, so a string can't ship
+      # translated in one locale and missing in the other.
+      - name: i18n locale parity
+        run: pnpm i18n:check
+        working-directory: dashboard
       # ESLint runs as a soft signal — pre-existing debt surfaces as a
       # GH Actions warning but does not fail the run. Track via v1.0.1.
       - name: Run pnpm lint (soft)

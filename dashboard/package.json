@@ -10,6 +10,7 @@
     "openapi:validate": "redocly lint ../docs/openapi.json",
     "sdk:check": "pnpm openapi:validate && pnpm --filter @prexorcloud/api-sdk check",
     "test": "vitest run",
+    "i18n:check": "node i18n/check-locale-parity.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "nuxt typecheck",

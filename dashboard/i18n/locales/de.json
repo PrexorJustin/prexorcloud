@@ -37,7 +37,8 @@
       "certificates": "Zertifikate",
       "backups": "Backups",
       "maintenance": "Wartung",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "shares": "Freigaben"
     }
   },
   "common": {
@@ -388,7 +389,11 @@
       "loadFailed": "Aktivität kann nicht geladen werden"
     },
     "crashes": {
-      "loadFailed": "Abstürze konnten nicht geladen werden"
+      "loadFailed": "Abstürze konnten nicht geladen werden",
+      "shareSuccess": "Absturz geteilt: {url}",
+      "shareRevokeHint": "Widerrufen: {url}",
+      "shareFailed": "Teilen des Absturzes fehlgeschlagen",
+      "shareDisabled": "Teilen ist auf diesem Controller deaktiviert."
     },
     "audit": {
       "loadFailed": "Audit-Log konnte nicht geladen werden"
@@ -411,6 +416,20 @@
       "newVariablesFound": "{count} neue Variable gefunden | {count} neue Variablen gefunden",
       "noNewVariables": "Keine neuen Variablen gefunden",
       "scanFilesFailed": "Dateien konnten nicht gescannt werden"
+    },
+    "share": {
+      "logsSuccess": "Logs geteilt: {url}",
+      "logsFailed": "Teilen der Logs fehlgeschlagen",
+      "diagnosticsSuccess": "Diagnose geteilt: {url}",
+      "diagnosticsFailed": "Teilen der Diagnose fehlgeschlagen",
+      "revokeHint": "Widerrufen: {url}",
+      "disabled": "Teilen ist auf diesem Controller deaktiviert.",
+      "upstream": "Paste-Dienst nicht erreichbar.",
+      "listFailed": "Laden der letzten Freigaben fehlgeschlagen",
+      "revoked": "Freigabe {id} widerrufen",
+      "revokeFailed": "Widerrufen der Freigabe fehlgeschlagen",
+      "alreadyRevoked": "Freigabe ist bereits widerrufen.",
+      "notRevocable": "Freigabe hat kein Lösch-Token und kann nicht widerrufen werden."
     }
   },
   "errorHandler": {
@@ -646,7 +665,8 @@
         "signatureTooltip": "Abstürze mit derselben Signatur teilen diese Grundursache"
       },
       "logTail": "Log-Ende",
-      "loadingLogTail": "Log-Ende wird geladen…"
+      "loadingLogTail": "Log-Ende wird geladen…",
+      "share": "Teilen"
     },
     "audit": {
       "title": "Audit-Log",
@@ -691,7 +711,8 @@
       "followTail": "Tail folgen",
       "statusPaused": "Pausiert",
       "statusConnected": "Verbunden",
-      "statusDisconnected": "Getrennt"
+      "statusDisconnected": "Getrennt",
+      "share": "Teilen"
     },
     "system": {
       "title": "Systemstatus",
@@ -720,7 +741,8 @@
       "tracingEnabled": "Distributed Tracing ist aktiviert.",
       "tracingDisabled": "Distributed Tracing ist deaktiviert.",
       "viewLastTrace": "Letzten Trace ansehen",
-      "noTraceYet": "Führe eine Aktion aus, um einen Trace zu erfassen."
+      "noTraceYet": "Führe eine Aktion aus, um einen Trace zu erfassen.",
+      "shareDiagnostics": "Diagnose teilen"
     },
     "users": {
       "title": "Benutzer",
@@ -766,6 +788,30 @@
         "cancel": "Abbrechen",
         "creating": "Wird erstellt…",
         "create": "Erstellen"
+      }
+    },
+    "shares": {
+      "title": "Letzte Freigaben",
+      "description": "Paste-Freigaben dieses Controllers prüfen und widerrufen.",
+      "filterKind": "Art",
+      "kindAll": "Alle",
+      "activeOnly": "Nur aktive",
+      "revoke": "Widerrufen",
+      "revoked": "Widerrufen",
+      "notRevocable": "—",
+      "revokeConfirm": "{kind}-Freigabe {id} widerrufen? Das ruft pste DELETE auf und kann nicht rückgängig gemacht werden.",
+      "justNow": "jetzt",
+      "emptyTitle": "Noch keine Freigaben",
+      "emptyHint": "Nutze die Teilen-Schaltflächen bei einem Absturz, auf der Diagnose-Seite oder in einem Konsolen-Viewer, um eine zu erstellen.",
+      "pageInfo": "Seite {page} von {total} · {count} gesamt",
+      "columns": {
+        "kind": "Art",
+        "resource": "Ressource",
+        "sharedBy": "Geteilt von",
+        "size": "Bytes",
+        "age": "Alter",
+        "url": "URL",
+        "actions": "Aktionen"
       }
     }
   }

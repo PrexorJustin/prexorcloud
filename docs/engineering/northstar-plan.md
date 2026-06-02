@@ -370,7 +370,7 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 - **Optional, bewusst:** Bleibt auf Nuxt 4, importiert Design-System-Komponenten statt eigener Implementierungen.
 - Komponenten-Migration: Buttons, Inputs, Cards überall durch Design-System-Versionen ersetzen.
 - A11y-Pass: ARIA-Labels, Keyboard-Navigation, Color-Contrast-Audit (axe-core in CI).
-- i18n-Foundation: Strings in `i18n/`-Files extrahieren, `vue-i18n`. Default `en`, `de`.
+- i18n-Foundation: ✅ **bereits vorhanden** (`@nuxtjs/i18n`, `i18n/locales/{en,de}.json`, 646 Keys). ⏳ Coverage-Lücke geschlossen: 40 untranslatete `de`-Keys (das komplette „shares"-Feature — Seite + Store-Messages) nachgezogen, und ein **harter CI-Gate** `pnpm i18n:check` (`i18n/check-locale-parity.mjs`, zero-dep) erzwingt jetzt identische Key-Sets en↔de, damit kein String mehr nur in einer Sprache landet. Offen: Voll-Audit auf noch hardcodete UI-Strings (vgl. Track H.3).
 
 ### E.3 Installer-Wizard auf gleichen Stack (~3 d)
 
