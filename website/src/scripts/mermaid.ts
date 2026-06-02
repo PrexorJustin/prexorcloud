@@ -14,6 +14,8 @@
  * on `data-theme` attribute change so light/dark toggles repaint.
  */
 
+import { mermaidFontFamily, mermaidThemeDark, mermaidThemeLight } from './mermaid-theme.generated';
+
 type MermaidApi = typeof import('mermaid').default;
 
 let mermaidPromise: Promise<MermaidApi> | null = null;
@@ -38,50 +40,12 @@ function configFor(isLight: boolean) {
     startOnLoad: false,
     theme: 'base' as const,
     securityLevel: 'loose' as const,
-    fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
+    fontFamily: mermaidFontFamily,
     flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' as const },
-    // Palette pulled from design-system/colors_and_type.css. Cyan-9 is
-    // the single accent (node borders); slate fills and slate borders
-    // give the wireframe-y "kubernetes diagram" feel from the brief.
-    themeVariables: isLight
-      ? {
-          background: '#d8d5cd' /* sand-4 */,
-          primaryColor: '#eeede8' /* sand-2 — node fill */,
-          primaryTextColor: '#2c3027' /* sand-12 */,
-          primaryBorderColor: '#0c8aa8' /* cyan-8 — accent border */,
-          secondaryColor: '#e4e3dc',
-          secondaryTextColor: '#2c3027',
-          secondaryBorderColor: '#aba8a0',
-          tertiaryColor: '#eeede8',
-          tertiaryTextColor: '#2c3027',
-          tertiaryBorderColor: '#aba8a0',
-          lineColor: '#6b7265' /* sand-10 */,
-          textColor: '#2c3027',
-          mainBkg: '#eeede8',
-          clusterBkg: '#f5f4f0' /* sand-1 — subgraph fill */,
-          clusterBorder: '#0c8aa8' /* cyan-8 — subgraph border */,
-          edgeLabelBackground: '#d8d5cd',
-          fontSize: '14px',
-        }
-      : {
-          background: '#0a0a12' /* slate-1 */,
-          primaryColor: '#14142b' /* slate-3 — node fill */,
-          primaryTextColor: '#f8fafc' /* slate-12 */,
-          primaryBorderColor: '#06b6d4' /* cyan-9 — accent border */,
-          secondaryColor: '#1e1e36' /* slate-4 */,
-          secondaryTextColor: '#f8fafc',
-          secondaryBorderColor: '#3a445e' /* slate-7 */,
-          tertiaryColor: '#14142b',
-          tertiaryTextColor: '#f8fafc',
-          tertiaryBorderColor: '#3a445e',
-          lineColor: '#64748b' /* slate-9 — arrows */,
-          textColor: '#f8fafc',
-          mainBkg: '#14142b',
-          clusterBkg: '#0e0e1a' /* slate-2 — subgraph fill */,
-          clusterBorder: '#06b6d4' /* cyan-9 — subgraph border */,
-          edgeLabelBackground: '#0a0a12',
-          fontSize: '14px',
-        },
+    // Palette is generated from design-system/dist/tokens.json (see
+    // mermaid-theme.generated.ts). Cyan is the single accent (node borders);
+    // slate/sand fills give the wireframe-y "kubernetes diagram" feel (README §10).
+    themeVariables: isLight ? mermaidThemeLight : mermaidThemeDark,
   };
 }
 

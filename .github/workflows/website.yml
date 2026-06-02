@@ -7,12 +7,14 @@ on:
       - 'website/**'
       - 'docs/public/**'
       - 'docs/openapi.json'
+      - 'design-system/dist/**'
       - '.github/workflows/website.yml'
   pull_request:
     paths:
       - 'website/**'
       - 'docs/public/**'
       - 'docs/openapi.json'
+      - 'design-system/dist/**'
       - '.github/workflows/website.yml'
   workflow_dispatch:
 
@@ -50,6 +52,14 @@ jobs:
       - name: install
         working-directory: website
         run: pnpm install --frozen-lockfile
+
+      # Regenerate the Mermaid palette from design-system tokens and fail if the
+      # committed copy drifted (e.g. tokens.json changed without a rebuild).
+      - name: verify generated mermaid theme is fresh
+        working-directory: website
+        run: |
+          pnpm gen:mermaid
+          git diff --exit-code src/scripts/mermaid-theme.generated.ts
 
       - name: format:check
         working-directory: website

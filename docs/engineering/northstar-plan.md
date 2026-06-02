@@ -380,7 +380,7 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 ### E.4 Website-Theme aus Design-System ziehen (~2 d)
 
 - Starlight-Custom-CSS aus `design-system/dist/tokens.css` generieren.
-- Mermaid-Palette nicht hardcoden, sondern aus `tokens.json` ziehen (heute hardcoded in `website/src/scripts/mermaid.ts`).
+- ✅ Mermaid-Palette nicht mehr hardcoded: `website/scripts/gen-mermaid-theme.mjs` generiert sie aus `design-system/dist/tokens.json` (predev/prebuild), `mermaid.ts` konsumiert die generierte Datei. CI-Frische-Guard in `website.yml`. Erster Consumer der E.1-Pipeline (ea223ff).
 
 **Track-E-Gesamt: ~20 eng-days. Parallel zu A/B/C möglich (Frontend-Team separat).**
 
