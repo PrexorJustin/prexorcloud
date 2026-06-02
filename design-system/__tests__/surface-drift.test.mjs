@@ -51,3 +51,22 @@ for (const [surface, rel] of Object.entries(SURFACES)) {
     }
   })
 }
+
+// The --text-* size scale is named identically across all three surfaces (unlike
+// radius, which is --radius-* on website but --r-* on installer/dashboard), so it
+// pins cleanly too.
+const declValue = (css, varName) => {
+  const m = css.match(new RegExp(`${varName}\\s*:\\s*([^;]+);`))
+  return m ? m[1].trim() : null
+}
+
+for (const [surface, rel] of Object.entries(SURFACES)) {
+  test(`${surface} type scale (--text-*) matches the design-system canon`, () => {
+    const css = readFileSync(join(ROOT, rel), 'utf8')
+    for (const [step, want] of Object.entries(tokens.size.text)) {
+      const got = declValue(css, `--text-${step}`)
+      assert.notEqual(got, null, `${surface} is missing --text-${step} (canon ${want})`)
+      assert.equal(got, want, `${surface} --text-${step} drifted from canon`)
+    }
+  })
+}

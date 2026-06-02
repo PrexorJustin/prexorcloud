@@ -141,18 +141,19 @@ export const tokens = {
   "font": {
     "sans": "Inter, ui-sans-serif, system-ui, sans-serif",
     "display": "'Inter Tight', Inter, ui-sans-serif, system-ui, sans-serif",
+    "accent": "'Instrument Serif', Georgia, 'Times New Roman', serif",
     "mono": "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
   },
   "size": {
     "text": {
       "xs": "0.75rem",
-      "sm": "0.875rem",
-      "base": "1rem",
-      "lg": "1.125rem",
-      "xl": "1.25rem",
-      "2xl": "1.5rem",
+      "sm": "0.8125rem",
+      "base": "0.9375rem",
+      "lg": "1.0625rem",
+      "xl": "1.3125rem",
+      "2xl": "1.625rem",
       "3xl": "2rem",
-      "4xl": "2.5rem",
+      "4xl": "2.625rem",
       "5xl": "3.5rem"
     },
     "leading": {
@@ -162,11 +163,11 @@ export const tokens = {
       "relaxed": 1.65
     },
     "tracking": {
-      "tighter": "-0.04em",
-      "tight": "-0.02em",
+      "tighter": "-0.035em",
+      "tight": "-0.025em",
       "normal": "0em",
-      "wide": "0.02em",
-      "widest": "0.12em"
+      "wide": "0.06em",
+      "widest": "0.16em"
     }
   },
   "space": {
@@ -185,11 +186,11 @@ export const tokens = {
   },
   "radius": {
     "xs": "0.25rem",
-    "sm": "0.5rem",
-    "md": "0.75rem",
-    "lg": "1rem",
-    "xl": "1.5rem",
-    "2xl": "2rem",
+    "sm": "0.375rem",
+    "md": "0.5rem",
+    "lg": "0.75rem",
+    "xl": "1rem",
+    "2xl": "1.25rem",
     "full": "9999px"
   },
   "shadow": {

@@ -171,26 +171,28 @@
 /* ── 3. TYPE ───────────────────────────────────────────────────────────────
    - UI:      Inter (variable). The default for everything.
    - Display: Inter Tight (variable). Tight-tracked for marketing hero text.
+   - Accent:  Instrument Serif italic — for ONE or two words per heading.
    - Mono:    JetBrains Mono. Code, terminal, tabular-nums in tables.
 
-   All three are open-source + on Google Fonts. Fonts are imported from
+   All four are open-source + on Google Fonts. Fonts are imported from
    /fonts/ when self-hosting; this file only defines variables + classes.
    ─────────────────────────────────────────────────────────────────────── */
 :root {
   --font-sans:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-accent:  'Instrument Serif', Georgia, 'Times New Roman', serif;
   --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-  /* 8-step modular scale (1.2 ratio). Use these, not raw rem. */
-  --text-xs:   0.75rem;   /* 12px — meta, badge labels, table column heads */
-  --text-sm:   0.875rem;  /* 14px — body in dense UI */
-  --text-base: 1rem;      /* 16px — comfortable body */
-  --text-lg:   1.125rem;  /* 18px — emphasis body, lead */
-  --text-xl:   1.25rem;   /* 20px — card title */
-  --text-2xl:  1.5rem;    /* 24px — page title (h1 in dashboard) */
-  --text-3xl:  2rem;      /* 32px — section heading on marketing */
-  --text-4xl:  2.5rem;    /* 40px — small hero */
-  --text-5xl:  3.5rem;    /* 56px — large hero (clamp on marketing) */
+  /* Quiet Studio scale — Inter reads best around 15px; kept tight, no monsters. */
+  --text-xs:   0.75rem;    /* 12px — meta, badge labels, table column heads */
+  --text-sm:   0.8125rem;  /* 13px — body in dense UI */
+  --text-base: 0.9375rem;  /* 15px — comfortable body */
+  --text-lg:   1.0625rem;  /* 17px — emphasis body, lead */
+  --text-xl:   1.3125rem;  /* 21px — card title */
+  --text-2xl:  1.625rem;   /* 26px — page title (h1 in dashboard) */
+  --text-3xl:  2rem;       /* 32px — section heading on marketing */
+  --text-4xl:  2.625rem;   /* 42px — small hero */
+  --text-5xl:  3.5rem;     /* 56px — large hero (clamp on marketing) */
 
   /* Line heights paired with sizes. */
   --leading-tight:  1.15;   /* display/hero */
@@ -199,11 +201,11 @@
   --leading-relaxed:1.65;   /* docs prose */
 
   /* Letter spacing. */
-  --tracking-tighter: -0.04em; /* hero display */
-  --tracking-tight:   -0.02em; /* headings */
+  --tracking-tighter: -0.035em; /* hero display */
+  --tracking-tight:   -0.025em; /* headings */
   --tracking-normal:  0em;
-  --tracking-wide:    0.02em;
-  --tracking-widest:  0.12em;  /* uppercase eyebrows + table column heads */
+  --tracking-wide:    0.06em;
+  --tracking-widest:  0.16em;  /* uppercase eyebrows + table column heads */
 
   /* Weights. Inter has full range; we use only these four. */
   --weight-regular:  400;
@@ -228,13 +230,13 @@
   --space-16: 4rem;     /* 64px */
   --space-24: 6rem;     /* 96px — marketing section */
 
-  /* Radii. Cards default to lg; pills are full. */
-  --radius-xs:  0.25rem;  /*  4px — input chips */
-  --radius-sm:  0.5rem;   /*  8px — small buttons */
-  --radius-md:  0.75rem;  /* 12px — buttons, inputs */
-  --radius-lg:  1rem;     /* 16px — cards */
-  --radius-xl:  1.5rem;   /* 24px — large cards, dialogs */
-  --radius-2xl: 2rem;     /* 32px — hero containers */
+  /* Radii (Quiet Studio — tighter than before). Surfaces also alias these as --r-*. */
+  --radius-xs:  0.25rem;   /*  4px — input chips */
+  --radius-sm:  0.375rem;  /*  6px — kbd chips, code blocks */
+  --radius-md:  0.5rem;    /*  8px — buttons, inputs */
+  --radius-lg:  0.75rem;   /* 12px — tiles, stat cards */
+  --radius-xl:  1rem;      /* 16px — larger cards */
+  --radius-2xl: 1.25rem;   /* 20px — hero preview tile */
   --radius-full: 9999px;
 
   /* Shadows. Dark theme uses glow-tinted shadows; light uses soft neutral. */

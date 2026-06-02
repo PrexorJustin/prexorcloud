@@ -163,12 +163,14 @@ We sound like an SRE writing for other SREs. Calm, plain, technical.
   meets AAA. Validated using APCA / contrast ratio.
 
 ### Typography
-- **UI**: Inter (variable). 14–16px body, 24px page title.
+- **UI**: Inter (variable). 15px body (`--text-base`), 26px page title (`--text-2xl`).
 - **Display**: Inter Tight (variable). Marketing hero only — never inside dashboard.
+- **Accent**: Instrument Serif *italic* — for one or two words per heading, never
+  a whole heading. The single permitted flourish in an otherwise sober system.
 - **Mono**: JetBrains Mono. Code, terminal, IDs, IP addresses, table numerics.
-- 8-step modular scale, 1.2 ratio. See `colors_and_type.css` `--text-*`.
-- Tracking: tight on display (`-0.02em` to `-0.04em`), normal on body, wide
-  uppercase on eyebrows + table column heads (`0.12em`).
+- Quiet Studio scale (13/15/17/21/26/32/42/56px). See `colors_and_type.css` `--text-*`.
+- Tracking: tight on display (`-0.025em` to `-0.035em`), normal on body, wide
+  uppercase on eyebrows + table column heads (`0.16em`).
 
 ### Backgrounds & texture
 - **Ambient glows**: 2–4 large blurred color blobs (cyan, violet, occasionally
@@ -402,10 +404,12 @@ We do **not** generate marketing hero illustrations with AI. Diagrams only.
   Wiring the surfaces onto `dist/` (the npm-workspace import) is the remaining
   E.1 work. Until then this folder is canonical — and that is now **enforced**:
   `__tests__/surface-drift.test.mjs` asserts every raw scale (reef/ink/sand/state)
-  in `website/`, `dashboard/` and `installer/` equals the canon, so a surface that
-  re-tunes a colour fails CI until `tokens.json` is updated to match. (Semantic
-  tokens stay surface-specific aliases; only the raw scales are pinned.) The
-  Mermaid docs palette already consumes the generated tokens (§4).
+  **and the `--text-*` size scale** in `website/`, `dashboard/` and `installer/`
+  equals the canon, so a surface that re-tunes a colour or font size fails CI until
+  `tokens.json` is updated to match. (Semantic tokens stay surface-specific aliases;
+  radius is only pinned in value since its var name differs per surface — `--radius-*`
+  vs `--r-*`. Only raw scales + type are name-stable enough to pin.) The Mermaid docs
+  palette already consumes the generated tokens (§4).
 - **The voxel-cloud logo is proposed, not produced** (see §8). Only
   `website/public/favicon.svg` exists today.
 - **Fonts**: Inter / Inter Tight / JetBrains Mono. Self-host the `.woff2` files
