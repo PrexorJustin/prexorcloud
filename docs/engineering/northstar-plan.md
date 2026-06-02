@@ -350,11 +350,18 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 
 ### E.1 Design-System operationalisieren (~5 d)
 
-- **Token-Pipeline:** `design-system/tokens.json` als single source of truth. Via [Style-Dictionary](https://amzn.github.io/style-dictionary) generieren:
-  - `design-system/dist/tokens.css` — CSS-Variablen (für alle drei Frontends)
+- **Token-Pipeline:** ✅ `design-system/tokens.json` ist single source of truth.
+  Statt Style-Dictionary ein dependency-freier Node-Generator (`build-tokens.mjs`)
+  — die bespoke Token-Form (geschachtelte dark/light-Semantik + ANSI) bräuchte
+  ohnehin Custom-Formate, und ein cosign/Rekor-gehärtetes Projekt spart sich die
+  Toolchain in der Supply-Chain. Generiert:
+  - `design-system/dist/tokens.css` — CSS-Variablen (`:root` / `.dark` / `.light`)
   - `design-system/dist/tokens.ts` — TypeScript-Constants (für JS-Logik in den Frontends)
-  - `design-system/dist/tokens.json` — Build-Output (für ggf. Figma-Sync)
-- **NPM-Workspace:** `@prexorcloud/design-system` als pnpm-Workspace-Package — Dashboard, Installer, Website importieren von dort.
+  - `design-system/dist/tokens.json` — normalisierter Build-Output (für ggf. Figma-Sync)
+  CI-Job `design-system` erzwingt Parität (`tokens.json` ↔ `colors_and_type.css`)
+  und dist-Frische. Dabei zwei echte Drifts gefixt: Light-Primary `#0891b2`→`#0c8aa8`
+  (cyan-8, wie alle Surfaces), Light-`glass-border-hover` `#a8a59c`→`#aba8a0` (sand-8).
+- **NPM-Workspace:** _(offen)_ `@prexorcloud/design-system` als pnpm-Workspace-Package — Dashboard, Installer, Website importieren von dort. Package-Stub (`design-system/package.json`, `exports`) steht; Consumer-Wiring fehlt noch.
 - **Komponenten-Library:** Erweiterung des Design-Systems um echte Komponenten (Button, Input, Card, Modal, Toast, Table). Headless-Pattern (Radix-Vue oder eigenes) damit Styling nur über Tokens kommt.
 - **Histoire-Stories** für jede Komponente in `design-system/stories/`.
 

@@ -142,7 +142,7 @@
 
   --primary: var(--cyan-8);   /* slightly darker for AA on sand-4 */
   --primary-foreground: #ffffff;
-  --primary-glow: #0891b230;
+  --primary-glow: #0c8aa830;  /* cyan-8 at 30% — matches --primary */
 
   --secondary: #7c3aed;
   --secondary-foreground: #ffffff;

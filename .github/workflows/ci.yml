@@ -136,6 +136,24 @@ jobs:
       - run: pnpm build
         working-directory: installer
 
+  design-system:
+    name: Design-System Token Pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Zero dependencies on purpose — the generator is plain Node, no install.
+      - name: Generate tokens
+        run: node build-tokens.mjs
+        working-directory: design-system
+      - name: Assert dist/ is committed and fresh
+        run: git diff --exit-code design-system/dist
+      - name: Token parity tests (dist freshness + tokens.json ↔ colors_and_type.css)
+        run: node --test
+        working-directory: design-system
+
   cli:
     name: CLI Build, Test & GoReleaser Check
     runs-on: ubuntu-latest

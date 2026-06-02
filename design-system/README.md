@@ -62,17 +62,28 @@ cites this folder as canonical (e.g. `website/src/styles/docs-theme.css`).
 
 ## 4. Index — what lives where
 
-This folder is a **reference spec, not a build dependency** — nothing imports it
-at build time. It holds the canonical written rules plus the token files the
-surfaces mirror:
+This folder holds the canonical written rules, the token source of truth, and a
+small generator that emits machine-consumable artifacts:
 
 ```
 .
 ├── README.md            ← you are here: full voice + visual spec
 ├── SKILL.md             ← agent-skill manifest for generating on-brand artifacts
-├── colors_and_type.css  ← tokens + utility classes (both themes)
-└── tokens.json          ← machine-readable mirror of the tokens
+├── colors_and_type.css  ← canonical, human-edited tokens + utility classes (both themes)
+├── tokens.json          ← machine-readable token source (single source of truth)
+├── build-tokens.mjs     ← zero-dependency generator: tokens.json → dist/
+├── __tests__/           ← freshness + parity guards (run via `node --test`)
+└── dist/                ← GENERATED — do not edit
+    ├── tokens.css       ← CSS custom properties (:root / .dark / .light)
+    ├── tokens.ts        ← typed constants for JS logic (mermaid palette, etc.)
+    └── tokens.json      ← normalized build output (e.g. for Figma sync)
 ```
+
+`tokens.json` is the source of truth; `colors_and_type.css` stays the canonical
+human-edited reference. A CI parity test (`__tests__/tokens.test.mjs`) proves the
+two never drift — every color in `tokens.json` must resolve to the same value in
+`colors_and_type.css`, and the committed `dist/` must match a fresh build. Run
+`node build-tokens.mjs` after editing `tokens.json` and commit `dist/`.
 
 The earlier `ui_kits/` recreations were removed: the real dashboard, website,
 CLI, and installer (see §3) are the live references now. Logo/preview assets
@@ -134,7 +145,7 @@ We sound like an SRE writing for other SREs. Calm, plain, technical.
   Both feel native, not derivative.
 
 ### Color
-- **Primary** is cyan-9 `#06b6d4` (dark) / cyan-8 `#0891b2` (light). One single
+- **Primary** is cyan-9 `#06b6d4` (dark) / cyan-8 `#0c8aa8` (light). One single
   saturated accent across both surfaces. Never two accents in the same screen.
 - **Secondary** is violet-9 `#8b5cf6` — used sparingly for groups/templates and
   chart-2. Avoid as a button background; secondary is a category color, not a CTA.
@@ -379,11 +390,14 @@ We do **not** generate marketing hero illustrations with AI. Diagrams only.
 
 ## 11. Caveats
 
-- **This is a reference spec, not a build dependency.** No surface imports
-  `colors_and_type.css` / `tokens.json` at build time; each reimplements the
-  tokens in its own stack (Tailwind v4 in `dashboard/` + `website/`, ANSI in
-  `cli/`) and treats this folder as canonical. If the two drift, this folder
-  wins and the surface should be reconciled to it.
+- **Tokens are now generated, but surfaces don't import them yet.**
+  `build-tokens.mjs` emits `dist/tokens.{css,ts,json}` from `tokens.json`, and CI
+  enforces that `tokens.json` and `colors_and_type.css` never drift. Each surface
+  still *reimplements* the tokens in its own stack (Tailwind v4 in `dashboard/` +
+  `website/`, ANSI in `cli/`) rather than importing `@prexorcloud/design-system`.
+  Wiring the surfaces onto `dist/` (the npm-workspace import + the Mermaid palette
+  in `website/src/scripts/mermaid.ts`) is the remaining E.1 work. Until then, this
+  folder is canonical: if a surface drifts, reconcile it here.
 - **The voxel-cloud logo is proposed, not produced** (see §8). Only
   `website/public/favicon.svg` exists today.
 - **Fonts**: Inter / Inter Tight / JetBrains Mono. Self-host the `.woff2` files

@@ -125,16 +125,20 @@ Read the real source — these surfaces all live in the monorepo now:
 - `SKILL.md` — this file.
 - `colors_and_type.css` — tokens + utility classes for both themes (the canonical
   values; surfaces reimplement them, see Caveats).
-- `tokens.json` — machine-readable mirror of the tokens.
+- `tokens.json` — machine-readable token source of truth.
+- `build-tokens.mjs` → `dist/tokens.{css,ts,json}` — generated artifacts; a CI
+  parity test keeps `tokens.json` and `colors_and_type.css` in lockstep.
 
 The live surfaces are the real reference for components — `dashboard/`,
 `website/`, `cli/`, `installer/` (see Surfaces above).
 
 ## Caveats
-- This folder is a **reference spec, not a build dependency** — no surface
-  imports the token files at build time. Each reimplements them (Tailwind v4 in
-  `dashboard/` + `website/`, ANSI in `cli/`) and treats this folder as canonical.
-  Reconcile the surface to this folder when they drift.
+- **Tokens are generated, but surfaces don't import them yet.** `tokens.json` →
+  `dist/` via `build-tokens.mjs`, with CI parity against `colors_and_type.css`.
+  Each surface still reimplements the tokens in its own stack (Tailwind v4 in
+  `dashboard/` + `website/`, ANSI in `cli/`); wiring them onto `dist/` is the
+  remaining E.1 work. Until then this folder is canonical — reconcile the surface
+  to it when they drift.
 - The voxel-cloud mark is **proposed, not produced** — only
   `website/public/favicon.svg` exists today (README §8).
 - Fonts (Inter / Inter Tight / JetBrains Mono) should be self-hosted per surface
