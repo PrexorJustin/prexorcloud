@@ -293,7 +293,7 @@ prexorctl module scaffold my-cool-module \
 ### C.5 Erweiterung First-Party-Module (~3 d) — ⏳ **teilweise shipped**
 
 Konkrete Module, die heute fehlen und Differenzierung schaffen:
-- `cloud-module-discord-bridge` — Discord-Webhooks + Slash-Commands → MC, MC-Chat → Discord — **offen**
+- `cloud-module-discord-bridge` — ✅ **shipped (Outbound-Embed-Bridge)**: `java/cloud-modules/discord-bridge/`, abonniert dieselben Cloud-Events wie `webhook-alerts` und postet sie als Discord-Embeds (farb-kodiert nach Severity, strukturierte Fields) an konfigurierte Discord-Incoming-Webhooks (`DiscordTarget`-Repository über Mongo-Storage, Event-Filter pro Target, optionaler Username-Override). Differenzierung zu `webhook-alerts`: Discord-spezifisches Embed-Format statt generischem JSON. Kern ist der **reine** Formatter `DiscordEmbeds` (timestamp-injiziert → voll unit-getestet): `DiscordEmbedsTest` (4), `DiscordTargetTest` (2). **Offen (eigener Pass):** die bidirektionale Hälfte — Discord-Slash-Commands + MC-Chat ↔ Discord — braucht eine Gateway-Bot-Verbindung (JDA); dieses Modul bleibt bewusst ein zustandsloser Webhook-Poster.
 - `cloud-module-grafana-bridge` — Read-only Grafana-Datenquelle — **gestrichen** per ADR 10 (no Grafana dashboard pack)
 - `cloud-module-backup-orchestrator` — ✅ **shipped (config-Snapshot-Scope)**
 

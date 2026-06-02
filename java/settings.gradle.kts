@@ -29,6 +29,7 @@ include(
     "cloud-modules:stats-aggregator",
     "cloud-modules:player-journey",
     "cloud-modules:webhook-alerts",
+    "cloud-modules:discord-bridge",
     "cloud-modules:backup-orchestrator",
     "cloud-modules:tablist",
     "cloud-modules:protocol-tap",
