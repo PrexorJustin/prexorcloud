@@ -70,9 +70,10 @@ small generator that emits machine-consumable artifacts:
 ├── README.md            ← you are here: full voice + visual spec
 ├── SKILL.md             ← agent-skill manifest for generating on-brand artifacts
 ├── colors_and_type.css  ← canonical, human-edited tokens + utility classes (both themes)
+├── components.css       ← token-only component primitives (button/input/badge/card)
 ├── tokens.json          ← machine-readable token source (single source of truth)
 ├── build-tokens.mjs     ← zero-dependency generator: tokens.json → dist/
-├── __tests__/           ← freshness + parity guards (run via `node --test`)
+├── __tests__/           ← freshness + parity + token-only-components guards (`node --test`)
 └── dist/                ← GENERATED — do not edit
     ├── tokens.css       ← CSS custom properties (:root / .dark / .light)
     ├── tokens.ts        ← typed constants for JS logic (mermaid palette, etc.)

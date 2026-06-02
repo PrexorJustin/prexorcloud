@@ -1,0 +1,160 @@
+@charset "UTF-8";
+/* =============================================================================
+ * PrexorCloud — Component primitives ("Quiet Studio")
+ *
+ * Canonical, token-only component classes: button, input, badge, card. Every
+ * colour, size, radius and spacing value is a var(--token) from the token layer
+ * (colors_and_type.css / dist/tokens.css) — nothing is hardcoded, so restyling
+ * happens entirely through tokens (the headless principle). This file codifies
+ * the component rules that README §6 describes in prose.
+ *
+ * Like colors_and_type.css, this is a REFERENCE, not a build dependency
+ * (ADR 32): each surface mirrors these in its own stack (Tailwind/etc.). The
+ * "styling only via tokens" rule is CI-enforced — see __tests__/components.test.mjs.
+ *
+ * Requires the token layer to be loaded first (it provides the --* vars).
+ * ===========================================================================*/
+
+/* ── Button ───────────────────────────────────────────────────────────────
+   Hover darkens the fill via opacity (color-mix to transparent), matching the
+   surfaces' `bg-primary/90`. Press does not shrink; focus shows the ring. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-normal);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition:
+    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.btn:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.btn-primary:hover {
+  background-color: color-mix(in srgb, var(--primary) 90%, transparent);
+}
+
+.btn-secondary {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.btn-secondary:hover {
+  background-color: color-mix(in srgb, var(--secondary) 90%, transparent);
+}
+
+.btn-destructive {
+  background-color: var(--destructive);
+  color: var(--destructive-foreground);
+}
+.btn-destructive:hover {
+  background-color: color-mix(in srgb, var(--destructive) 90%, transparent);
+}
+
+/* Ghost — the only variant carried by border + glass tint rather than a fill. */
+.btn-ghost {
+  background-color: transparent;
+  color: var(--foreground);
+  border-color: var(--glass-border);
+}
+.btn-ghost:hover {
+  background-color: var(--glass-hover);
+  border-color: var(--glass-border-hover);
+}
+
+.btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+.btn-lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-base);
+}
+
+/* ── Input ────────────────────────────────────────────────────────────────── */
+.input {
+  display: block;
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--foreground);
+  background-color: var(--glass);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.input::placeholder {
+  color: var(--muted-foreground);
+}
+.input:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.input:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Badge ──────────────────────────────────────────────────────────────────
+   Status pills: token colour as the foreground + a 15% tint as the fill. Pair
+   with a dot + label in product UI (never colour alone — see README §6). */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-normal);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+}
+.badge-success {
+  color: var(--success);
+  background-color: color-mix(in srgb, var(--success) 15%, transparent);
+}
+.badge-warning {
+  color: var(--warning);
+  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
+}
+.badge-destructive {
+  color: var(--destructive);
+  background-color: color-mix(in srgb, var(--destructive) 15%, transparent);
+}
+.badge-muted {
+  color: var(--muted-foreground);
+  background-color: color-mix(in srgb, var(--muted-foreground) 15%, transparent);
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────────
+   The solid card. For the translucent variant use .glass-card (colors_and_type.css). */
+.card {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+}

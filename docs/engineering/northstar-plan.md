@@ -362,8 +362,8 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
   und dist-Frische. Dabei zwei echte Drifts gefixt: Light-Primary `#0891b2`→`#0c8aa8`
   (cyan-8, wie alle Surfaces), Light-`glass-border-hover` `#a8a59c`→`#aba8a0` (sand-8).
 - **NPM-Workspace:** _(entschieden gegen — siehe ADR 32.)_ Statt Surfaces auf ein `@prexorcloud/design-system`-Package zu migrieren, bleiben sie ge-mirror-t und werden per CI-Drift-Guard an den Canon gepinnt (`design-system/__tests__/surface-drift.test.mjs`). Das löste das eigentliche Problem (stilles Drift) zu einem Bruchteil der Kosten. Package-Stub + `dist/` stehen falls ein echter Consumer-Bedarf entsteht; die Mermaid-Palette konsumiert `dist/` bereits.
-- **Komponenten-Library:** Erweiterung des Design-Systems um echte Komponenten (Button, Input, Card, Modal, Toast, Table). Headless-Pattern (Radix-Vue oder eigenes) damit Styling nur über Tokens kommt.
-- **Histoire-Stories** für jede Komponente in `design-system/stories/`.
+- **Komponenten-Library:** ⏳ _Erste Schicht shipped als **token-only CSS-Layer** (`design-system/components.css`: button/input/badge/card), nicht als Vue/Radix-Komponenten._ Bewusst: Vue+Histoire würde schweres Frontend-Tooling in das absichtlich dependency-freie DS-Package ziehen UND die „importieren vs. mirrorn"-Frage neu öffnen, die ADR 32 für Tokens entschieden hat. Der CSS-Layer ist dieselbe Referenz-Mechanik wie `colors_and_type.css` (Surfaces mirror-n), und ein CI-Test (`__tests__/components.test.mjs`) erzwingt „Styling nur über Tokens" (kein hardcoded Farbwert). Echte Vue-Headless-Komponenten + deren Consumption bleiben an die Workspace-Entscheidung (ADR 32 Boundary) gekoppelt — eigener, bewusst gescopeter Pass (vgl. §14: „Track E vor Start sauber scopen").
+- **Histoire-Stories:** offen — kommt mit den Vue-Komponenten (s.o.), nicht mit dem CSS-Layer.
 
 ### E.2 Dashboard auf konsolidierten Stack (~10 d)
 
