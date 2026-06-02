@@ -824,6 +824,16 @@
       "clear": "Clear",
       "empty": "No notifications.",
       "emptyHint": "Crashes, deployments and node events will appear here."
+    },
+    "bulkActions": {
+      "label": "Bulk actions",
+      "clearSelection": "Clear selection"
+    },
+    "detailSheet": {
+      "close": "Close panel"
+    },
+    "commandPalette": {
+      "placeholder": "Search resources, jump to a page, switch theme…"
     }
   }
 }

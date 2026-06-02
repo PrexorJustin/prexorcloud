@@ -24,6 +24,7 @@ const open = ref(false)
 const query = ref("")
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const isMac = computed(() =>
   typeof navigator !== "undefined" && navigator.userAgent.includes("Mac"),
@@ -93,7 +94,7 @@ function navigate(url: string) {
   </button>
 
   <CommandDialog :open="open" @update:open="open = $event">
-    <CommandInput placeholder="Search resources, jump to a page, switch theme…" />
+    <CommandInput :placeholder="t('components.commandPalette.placeholder')" />
     <CommandQueryProbe @update:query="(v) => query = v" />
 
     <CommandList class="max-h-[480px]">

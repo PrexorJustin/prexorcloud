@@ -23,6 +23,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{ clear: [] }>()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -39,11 +40,11 @@ const emit = defineEmits<{ clear: [] }>()
         props.class,
       )"
       role="region"
-      aria-label="Bulk actions"
+      :aria-label="t('components.bulkActions.label')"
     >
       <button
         type="button"
-        aria-label="Clear selection"
+        :aria-label="t('components.bulkActions.clearSelection')"
         class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         @click="emit('clear')"
       >

@@ -42,6 +42,8 @@ const emit = defineEmits<{
 
 function close() { emit("update:open", false) }
 
+const { t } = useI18n()
+
 const widthClass = {
   default: "sm:max-w-[480px]",
   lg:      "sm:max-w-[640px]",
@@ -75,7 +77,7 @@ const widthClass = {
         </div>
         <button
           type="button"
-          aria-label="Close panel"
+          :aria-label="t('components.detailSheet.close')"
           class="-mr-1.5 -mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-glass-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
           @click="close"
         >

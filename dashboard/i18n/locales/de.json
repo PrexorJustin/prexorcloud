@@ -824,6 +824,16 @@
       "clear": "Löschen",
       "empty": "Keine Benachrichtigungen.",
       "emptyHint": "Abstürze, Deployments und Node-Ereignisse erscheinen hier."
+    },
+    "bulkActions": {
+      "label": "Sammelaktionen",
+      "clearSelection": "Auswahl aufheben"
+    },
+    "detailSheet": {
+      "close": "Panel schließen"
+    },
+    "commandPalette": {
+      "placeholder": "Ressourcen suchen, zu einer Seite springen, Theme wechseln …"
     }
   }
 }
