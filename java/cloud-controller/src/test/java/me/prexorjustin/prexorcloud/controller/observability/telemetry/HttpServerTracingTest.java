@@ -59,6 +59,16 @@ class HttpServerTracingTest {
     }
 
     @Test
+    @DisplayName("exposes the in-flight trace id for the X-Trace-Id response header")
+    void exposesTraceId() {
+        var inflight = tracing.start("GET", "/api/v1/nodes", Map.of("traceparent", TRACEPARENT)::get);
+        assertEquals(TRACE_ID, tracing.traceId(inflight));
+        tracing.end(inflight, 200);
+        // A null in-flight (telemetry disabled / streaming path) yields no header value.
+        assertEquals("", tracing.traceId(null));
+    }
+
+    @Test
     @DisplayName("starts a fresh root trace with no inbound header and marks 5xx as ERROR")
     void freshRootAndErrorStatus() {
         var inflight = tracing.start("POST", "/api/v1/groups", name -> null);

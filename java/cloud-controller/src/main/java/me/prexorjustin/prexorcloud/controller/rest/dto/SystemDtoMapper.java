@@ -25,7 +25,9 @@ public final class SystemDtoMapper {
             int schedulerInterval,
             long heartbeatInterval,
             boolean metricsEnabled,
-            boolean shareEnabled) {
+            boolean shareEnabled,
+            boolean tracingEnabled,
+            String traceUiTemplate) {
         return Map.of(
                 "nodeCount",
                 nodeCount,
@@ -40,6 +42,12 @@ public final class SystemDtoMapper {
                 "metricsEnabled",
                 metricsEnabled,
                 "shareEnabled",
-                shareEnabled);
+                shareEnabled,
+                // Track D.3: lets the dashboard offer a "view trace" deep-link (X-Trace-Id header
+                // + this template). Empty template = tracing off or no UI configured.
+                "tracingEnabled",
+                tracingEnabled,
+                "traceUiTemplate",
+                traceUiTemplate == null ? "" : traceUiTemplate);
     }
 }

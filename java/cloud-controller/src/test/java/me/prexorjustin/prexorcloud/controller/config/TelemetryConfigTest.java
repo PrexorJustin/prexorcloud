@@ -17,6 +17,18 @@ class TelemetryConfigTest {
         assertEquals("http://localhost:4317", config.otlpEndpoint());
         assertEquals("prexorcloud-controller", config.serviceName());
         assertEquals(1.0, config.samplerRatio());
+        assertEquals("", config.traceUiTemplate());
+    }
+
+    @Test
+    @DisplayName("trace-UI template defaults to empty and is otherwise passed through")
+    void traceUiTemplate() {
+        assertEquals("", new TelemetryConfig(true, "x", "y", 1.0, null).traceUiTemplate());
+        assertEquals(
+                "http://localhost:16686/trace/{traceId}",
+                new TelemetryConfig(true, "x", "y", 1.0, "http://localhost:16686/trace/{traceId}").traceUiTemplate());
+        // The back-compat 4-arg constructor yields no deep link.
+        assertEquals("", new TelemetryConfig(true, "x", "y", 1.0).traceUiTemplate());
     }
 
     @Test

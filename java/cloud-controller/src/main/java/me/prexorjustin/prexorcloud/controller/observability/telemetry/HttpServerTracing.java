@@ -62,6 +62,18 @@ public final class HttpServerTracing {
         return new Inflight(span, span.makeCurrent());
     }
 
+    /**
+     * The trace id of an in-flight request, or {@code ""} when the span context is invalid (e.g. a
+     * non-recording no-op span). Surfaced as the {@code X-Trace-Id} response header so the dashboard
+     * can deep-link to the trace (Track D.3).
+     */
+    public String traceId(Inflight inflight) {
+        if (inflight == null || !inflight.span().getSpanContext().isValid()) {
+            return "";
+        }
+        return inflight.span().getSpanContext().getTraceId();
+    }
+
     /** Close the scope and end the span, tagging the response status (5xx → ERROR). */
     public void end(Inflight inflight, int statusCode) {
         if (inflight == null) {

@@ -146,7 +146,9 @@ public final class SystemRoutes {
                 controller.config().scheduler().evaluationIntervalSeconds(),
                 controller.config().heartbeat().intervalMs(),
                 controller.config().metrics().enabled(),
-                controller.config().share().enabled()));
+                controller.config().share().enabled(),
+                controller.config().telemetry().enabled(),
+                controller.config().telemetry().traceUiTemplate()));
     }
 
     @OpenApi(

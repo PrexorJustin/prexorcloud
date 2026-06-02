@@ -123,6 +123,11 @@ telemetry:
   otlpEndpoint: "http://localhost:4317"
   serviceName: "prexorcloud-controller"
   samplerRatio: 1.0
+  # Optional deep-link template for the operator's trace UI. Must contain a
+  # literal {traceId} placeholder. The dashboard combines it with the X-Trace-Id
+  # response header to show a "view trace" link. Empty = no link offered.
+  # Example (Jaeger): "http://localhost:16686/trace/{traceId}"
+  traceUiTemplate: ""
 
 # Dashboard static files
 dashboard:

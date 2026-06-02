@@ -16,7 +16,8 @@ class SystemDtoMapperTest {
     @DisplayName("maps version and system settings payloads")
     void mapsSystemPayloads() {
         Map<String, Object> versionDto = SystemDtoMapper.versionDto(new VersionInfo("1.2.0", "abc1234", "21.0.2"));
-        Map<String, Object> settingsDto = SystemDtoMapper.settingsDto(3, 12, 247, 5, 10_000L, true, true);
+        Map<String, Object> settingsDto = SystemDtoMapper.settingsDto(
+                3, 12, 247, 5, 10_000L, true, true, true, "http://localhost:16686/trace/{traceId}");
 
         assertEquals("1.2.0", versionDto.get("version"));
         assertEquals("abc1234", versionDto.get("gitCommit"));
@@ -24,5 +25,7 @@ class SystemDtoMapperTest {
         assertEquals(10_000L, settingsDto.get("heartbeatInterval"));
         assertEquals(true, settingsDto.get("metricsEnabled"));
         assertEquals(true, settingsDto.get("shareEnabled"));
+        assertEquals(true, settingsDto.get("tracingEnabled"));
+        assertEquals("http://localhost:16686/trace/{traceId}", settingsDto.get("traceUiTemplate"));
     }
 }

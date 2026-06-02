@@ -16,6 +16,8 @@ public final class DynamicCorsHandler implements Handler {
 
     private static final String ALLOWED_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
     private static final String DEFAULT_ALLOWED_HEADERS = "Authorization, Content-Type, X-Requested-With";
+    // Response headers cross-origin dashboard JS is allowed to read (Track D.3 trace deep-link).
+    private static final String EXPOSED_HEADERS = "X-Trace-Id";
 
     private final CorsAllowList allowList;
 
@@ -38,6 +40,7 @@ public final class DynamicCorsHandler implements Handler {
         }
         ctx.header("Access-Control-Allow-Origin", origin);
         ctx.header("Access-Control-Allow-Credentials", "true");
+        ctx.header("Access-Control-Expose-Headers", EXPOSED_HEADERS);
         ctx.header("Vary", "Origin");
 
         if ("OPTIONS".equalsIgnoreCase(ctx.method().name())) {

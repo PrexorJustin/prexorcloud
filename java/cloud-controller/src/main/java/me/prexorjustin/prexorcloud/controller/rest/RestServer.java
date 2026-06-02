@@ -311,6 +311,12 @@ public final class RestServer {
                     me.prexorjustin.prexorcloud.controller.observability.telemetry.HttpServerTracing.Inflight inflight =
                             ctx.attribute(TRACE_INFLIGHT_ATTR);
                     if (inflight != null) {
+                        // Expose the trace id so the dashboard can deep-link to this request's trace
+                        // (CORS-exposed in DynamicCorsHandler for cross-origin reads).
+                        String traceId = httpTracing.traceId(inflight);
+                        if (!traceId.isEmpty()) {
+                            ctx.header("X-Trace-Id", traceId);
+                        }
                         httpTracing.end(inflight, ctx.statusCode());
                     }
                 });
