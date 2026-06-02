@@ -379,7 +379,7 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 
 ### E.4 Website-Theme aus Design-System ziehen (~2 d)
 
-- Starlight-Custom-CSS aus `design-system/dist/tokens.css` generieren.
+- Starlight-Custom-CSS aus `design-system/dist/tokens.css` generieren. _(Jetzt entsperrt: Canon wurde 2026-06-02 auf die Quiet-Studio/Reef-Palette reconciled — 280f44b —, also würde Generieren die Surfaces nicht mehr umfärben. Aber `website/src/styles/tokens.css` ist reicher als das DS-Token-Set (HSL-Tripletts, `--bg`/`--surface`/`--raised`, eigene Type-Scale), daher kein reiner Drop-in — erst das DS-Token-Set angleichen.)_
 - ✅ Mermaid-Palette nicht mehr hardcoded: `website/scripts/gen-mermaid-theme.mjs` generiert sie aus `design-system/dist/tokens.json` (predev/prebuild), `mermaid.ts` konsumiert die generierte Datei. CI-Frische-Guard in `website.yml`. Erster Consumer der E.1-Pipeline (ea223ff).
 
 **Track-E-Gesamt: ~20 eng-days. Parallel zu A/B/C möglich (Frontend-Team separat).**

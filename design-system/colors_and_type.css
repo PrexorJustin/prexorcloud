@@ -1,10 +1,11 @@
 @charset "UTF-8";
 /* =============================================================================
- * PrexorCloud — Color & Type Tokens
+ * PrexorCloud — Color & Type Tokens ("Quiet Studio / Reef" palette)
  * Single source of truth shared by website, dashboard (Nuxt+shadcn-vue) and CLI.
+ * Mirrored by tokens.json (CI-enforced parity); tokens.json drives dist/.
  *
  * Architecture:
- *   1. RAW SCALES (radix-style 12 steps × 7 ramps) — never used directly in UI.
+ *   1. RAW SCALES (reef accent · ink + sand neutral spines · state) — not used directly.
  *   2. SEMANTIC TOKENS (--background, --foreground, --primary, …) — what UI uses.
  *      Light + Dark variants. shadcn-compatible names.
  *   3. TYPE TOKENS — fluid scale, line-heights, families.
@@ -13,181 +14,158 @@
  * ===========================================================================*/
 
 /* ── 1. RAW SCALES ─────────────────────────────────────────────────────────
-   Each ramp is 12 steps. 1–2 = backgrounds, 3–5 = subtle UI, 6–8 = borders,
-   9–10 = solid fills, 11–12 = high-contrast text.
-   Two ramps per scale: dark-mode tuned + light-mode tuned (not just inverted).
+   reef: 2 accent tints (dark/light) + 2 soft variants. ink/sand: 9-step
+   neutral spines (1–2 = backgrounds, 3–4 = surfaces, 6–7 = borders/muted,
+   9 = high-contrast text). state: dark/light-tuned success/warning/danger.
    ─────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Cyan — primary brand. Compute is "kubernetes-y but warmer than blue". */
-  --cyan-1: #06121a;   --cyan-2: #07171f;   --cyan-3: #082431;
-  --cyan-4: #093142;   --cyan-5: #0b3f54;   --cyan-6: #0d5168;
-  --cyan-7: #0e6a85;   --cyan-8: #0c8aa8;   --cyan-9: #06b6d4; /* primary */
-  --cyan-10: #22c5e0;  --cyan-11: #67e2f5;  --cyan-12: #cbf6ff;
+  /* Reef — softened-cyan accent ("Quiet Studio"). Dark brighter, light darker,
+     both AA. This is the single brand accent across all surfaces. */
+  --reef-dark: #4ec5d4;        /* primary (dark)  */
+  --reef-light: #0c8aa8;       /* primary (light) */
+  --reef-soft-dark: #1f6a78;
+  --reef-soft-light: #a5dfe9;
 
-  /* Violet — secondary. Used for groups/templates. Distinct from primary. */
-  --violet-1: #100b1e;  --violet-2: #160f28; --violet-3: #211632;
-  --violet-4: #2b1c41;  --violet-5: #382450; --violet-6: #4a3068;
-  --violet-7: #614085;  --violet-8: #7a4fb0; --violet-9: #8b5cf6; /* secondary */
-  --violet-10: #a07ff8; --violet-11: #c3a8fb; --violet-12: #ece2ff;
+  /* Ink — neutral spine of the dark theme. */
+  --ink-1: #0a0a10;  --ink-2: #0c0c12;  --ink-3: #14141d;
+  --ink-4: #1d1d28;  --ink-5: #2a2a36;  --ink-6: #4a4a55;
+  --ink-7: #7c7c8a;  --ink-8: #c5c5cf;  --ink-9: #ededf2;
 
-  /* Slate — neutral. The background spine of the dark theme. */
-  --slate-1: #0a0a12;   --slate-2: #0e0e1a;  --slate-3: #14142b;
-  --slate-4: #1e1e36;   --slate-5: #1e293b;  --slate-6: #2a3448;
-  --slate-7: #3a445e;   --slate-8: #475569;  --slate-9: #64748b;
-  --slate-10: #94a3b8;  --slate-11: #cbd5e1; --slate-12: #f8fafc;
+  /* Sand — neutral spine of the light theme. Warm Scandinavian, not cold gray. */
+  --sand-1: #f5f3ed;  --sand-2: #ebe7dc;  --sand-3: #ffffff;
+  --sand-4: #fbf9f3;  --sand-5: #e6e1d3;  --sand-6: #a8a399;
+  --sand-7: #6e6a62;  --sand-8: #3a3a45;  --sand-9: #14141a;
 
-  /* Sand — neutral for the light theme. Soft Scandinavian, not cold gray. */
-  --sand-1: #f5f4f0;    --sand-2: #eeede8;   --sand-3: #e4e3dc;
-  --sand-4: #d8d5cd;    --sand-5: #c9c6bd;   --sand-6: #c5c2b8;
-  --sand-7: #b8b5ac;    --sand-8: #aba8a0;   --sand-9: #8b8880;
-  --sand-10: #6b7265;   --sand-11: #4a4f45;  --sand-12: #2c3027;
-
-  /* Green — success. State color for RUNNING / ONLINE. */
-  --green-1: #03130c;   --green-2: #051a10;  --green-3: #07271b;
-  --green-4: #093526;   --green-5: #0c4934;  --green-6: #0f6244;
-  --green-7: #137a55;   --green-8: #0e9268;  --green-9: #10b981; /* success dark */
-  --green-10: #34d39c;  --green-11: #6ee7b7; --green-12: #d1fae5;
-  --green-light-9: #059669; /* success light */
-
-  /* Amber — warning. State color for STARTING / DRAINING / STOPPING. */
-  --amber-1: #160a02;   --amber-2: #1d1004;  --amber-3: #2c1a06;
-  --amber-4: #3a2308;   --amber-5: #4d2f0a;  --amber-6: #6a410d;
-  --amber-7: #8a5410;   --amber-8: #b07013;  --amber-9: #f59e0b; /* warning dark */
-  --amber-10: #fbbf24;  --amber-11: #fcd34d; --amber-12: #fef3c7;
-  --amber-light-9: #d97706; /* warning light */
-
-  /* Red — destructive. State color for CRASHED / UNREACHABLE / errors. */
-  --red-1: #170609;     --red-2: #1f070b;    --red-3: #310a10;
-  --red-4: #420c14;     --red-5: #561019;    --red-6: #701420;
-  --red-7: #8c1a28;     --red-8: #b31f31;    --red-9: #ef4444; /* destructive dark */
-  --red-10: #f87171;    --red-11: #fca5a5;   --red-12: #fee2e2;
-  --red-light-9: #dc2626; /* destructive light */
+  /* State — same hue both themes, dark/light tuned for contrast. */
+  --success-dark: #10b981;  --success-light: #2f7d4a; /* RUNNING / ONLINE */
+  --warning-dark: #f59e0b;  --warning-light: #a8651e; /* STARTING / DRAINING */
+  --danger-dark:  #f43f5e;  --danger-light:  #a02d2d; /* CRASHED / UNREACHABLE */
 }
 
 /* ── 2. SEMANTIC TOKENS (DARK — default) ─────────────────────────────────── */
 :root, .dark {
   /* shadcn surface */
-  --background: var(--slate-1);
-  --foreground: var(--slate-12);
+  --background: var(--ink-1);
+  --foreground: var(--ink-9);
 
-  --card: #ffffff08;          /* semi-transparent glass over background */
-  --card-foreground: var(--slate-12);
+  --card: var(--ink-3);
+  --card-foreground: var(--ink-9);
 
-  --popover: #0f0f1aee;
-  --popover-foreground: var(--slate-12);
+  --popover: var(--ink-3);
+  --popover-foreground: var(--ink-9);
 
-  --primary: var(--cyan-9);
-  --primary-foreground: #ffffff;
-  --primary-glow: #06b6d440;
+  --primary: var(--reef-dark);
+  --primary-foreground: var(--ink-1);
+  --primary-glow: #4ec5d440;
 
-  --secondary: var(--violet-9);
+  --secondary: #8b5cf6;
   --secondary-foreground: #ffffff;
 
-  --muted: var(--slate-5);
-  --muted-foreground: var(--slate-9);
+  --muted: var(--ink-4);
+  --muted-foreground: var(--ink-7);
 
-  --accent: #ffffff08;
-  --accent-foreground: var(--slate-12);
+  --accent: var(--reef-dark);
+  --accent-foreground: var(--ink-9);
 
-  --destructive: var(--red-9);
+  --destructive: var(--danger-dark);
   --destructive-foreground: #ffffff;
-  --destructive-glow: #ef444440;
+  --destructive-glow: #f43f5e40;
 
-  --success: var(--green-9);
+  --success: var(--success-dark);
   --success-glow: #10b98140;
 
-  --warning: var(--amber-9);
+  --warning: var(--warning-dark);
   --warning-glow: #f59e0b40;
 
-  --info: var(--cyan-10);
+  --info: var(--reef-dark);
 
-  --border: #ffffff15;
-  --input: #ffffff10;
-  --ring: var(--cyan-9);
+  --border: #ffffff0f;
+  --input: #ffffff0f;
+  --ring: var(--reef-dark);
 
   /* Glass — translucent surfaces over the background. The spine of the dark UI. */
-  --glass: #ffffff08;
-  --glass-hover: #ffffff12;
-  --glass-border: #ffffff15;
-  --glass-border-hover: #ffffff25;
+  --glass: var(--ink-3);
+  --glass-hover: var(--ink-4);
+  --glass-border: #ffffff0f;
+  --glass-border-hover: #ffffff1f;
 
   /* Charts */
-  --chart-1: var(--cyan-9);
-  --chart-2: var(--violet-9);
-  --chart-3: var(--green-9);
-  --chart-4: var(--amber-9);
-  --chart-5: var(--red-9);
+  --chart-1: var(--reef-dark);
+  --chart-2: #8b5cf6;
+  --chart-3: var(--success-dark);
+  --chart-4: var(--warning-dark);
+  --chart-5: var(--danger-dark);
 
   /* Sidebar (slightly different from main bg for visual separation) */
-  --sidebar: var(--slate-2);
-  --sidebar-foreground: var(--slate-10);
-  --sidebar-primary: var(--cyan-9);
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: var(--slate-5);
-  --sidebar-accent-foreground: var(--slate-12);
-  --sidebar-border: var(--slate-5);
-  --sidebar-ring: var(--cyan-9);
+  --sidebar: var(--ink-1);
+  --sidebar-foreground: var(--ink-7);
+  --sidebar-primary: var(--reef-dark);
+  --sidebar-primary-foreground: var(--ink-1);
+  --sidebar-accent: var(--ink-3);
+  --sidebar-accent-foreground: var(--ink-9);
+  --sidebar-border: #ffffff0f;
+  --sidebar-ring: var(--reef-dark);
 }
 
 /* ── 2b. SEMANTIC TOKENS (LIGHT — Scandinavian) ──────────────────────────── */
 .light {
-  --background: var(--sand-4);
-  --foreground: var(--sand-12);
+  --background: var(--sand-1);
+  --foreground: var(--sand-9);
 
-  --card: var(--sand-1);
-  --card-foreground: var(--sand-12);
+  --card: var(--sand-3);
+  --card-foreground: var(--sand-9);
 
-  --popover: #f2f1ecee;
-  --popover-foreground: var(--sand-12);
+  --popover: var(--sand-3);
+  --popover-foreground: var(--sand-9);
 
-  --primary: var(--cyan-8);   /* slightly darker for AA on sand-4 */
+  --primary: var(--reef-light);   /* darker reef for AA on warm sand */
   --primary-foreground: #ffffff;
-  --primary-glow: #0c8aa830;  /* cyan-8 at 30% — matches --primary */
+  --primary-glow: #0c8aa82e;       /* reef-light at 18% — matches --primary */
 
   --secondary: #7c3aed;
   --secondary-foreground: #ffffff;
 
-  --muted: var(--sand-6);
-  --muted-foreground: var(--sand-10);
+  --muted: var(--sand-5);
+  --muted-foreground: var(--sand-7);
 
-  --accent: var(--sand-6);
-  --accent-foreground: var(--sand-12);
+  --accent: var(--reef-light);
+  --accent-foreground: #ffffff;
 
-  --destructive: var(--red-light-9);
+  --destructive: var(--danger-light);
   --destructive-foreground: #ffffff;
-  --destructive-glow: #dc262630;
+  --destructive-glow: #a02d2d2e;
 
-  --success: var(--green-light-9);
-  --success-glow: #05966930;
+  --success: var(--success-light);
+  --success-glow: #2f7d4a2e;
 
-  --warning: var(--amber-light-9);
-  --warning-glow: #d9770630;
+  --warning: var(--warning-light);
+  --warning-glow: #a8651e2e;
 
-  --info: var(--cyan-8);
+  --info: var(--reef-light);
 
-  --border: var(--sand-7);
-  --input: var(--sand-7);
-  --ring: var(--cyan-8);
+  --border: #140f0812;
+  --input: #140f081a;
+  --ring: var(--reef-light);
 
-  --glass: var(--sand-2);
-  --glass-hover: var(--sand-3);
-  --glass-border: var(--sand-7);
-  --glass-border-hover: var(--sand-8);
+  --glass: var(--sand-3);
+  --glass-hover: var(--sand-4);
+  --glass-border: #140f0812;
+  --glass-border-hover: #140f0829;
 
-  --chart-1: var(--cyan-8);
+  --chart-1: var(--reef-light);
   --chart-2: #7c3aed;
-  --chart-3: var(--green-light-9);
-  --chart-4: var(--amber-light-9);
-  --chart-5: var(--red-light-9);
+  --chart-3: var(--success-light);
+  --chart-4: var(--warning-light);
+  --chart-5: var(--danger-light);
 
-  --sidebar: var(--sand-5);
-  --sidebar-foreground: var(--sand-11);
-  --sidebar-primary: var(--cyan-8);
+  --sidebar: var(--sand-2);
+  --sidebar-foreground: var(--sand-7);
+  --sidebar-primary: var(--reef-light);
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #bbb8ae;
-  --sidebar-accent-foreground: var(--sand-12);
-  --sidebar-border: #aba8a0;
-  --sidebar-ring: var(--cyan-8);
+  --sidebar-accent: var(--sand-3);
+  --sidebar-accent-foreground: var(--sand-9);
+  --sidebar-border: #140f0812;
+  --sidebar-ring: var(--reef-light);
 }
 
 /* ── 3. TYPE ───────────────────────────────────────────────────────────────

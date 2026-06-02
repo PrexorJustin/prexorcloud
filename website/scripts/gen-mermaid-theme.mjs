@@ -16,48 +16,49 @@ const SRC = resolve(here, '../../design-system/dist/tokens.json');
 const DST = resolve(here, '../src/scripts/mermaid-theme.generated.ts');
 
 const tokens = JSON.parse(await readFile(SRC, 'utf8'));
-const { cyan, slate, sand } = tokens.color.scale;
+const { reef, ink, sand } = tokens.color.scale;
 
 // Each palette entry is [mermaid key, token value, token name for the comment].
-// Dark = slate spine + cyan-9 accent; light = sand spine + cyan-8 accent — the
-// "wireframe kubernetes diagram" look from the design-system brief (README §10).
+// Dark = ink spine + reef accent; light = sand spine + reef accent — the
+// "wireframe kubernetes diagram" look (README §10) in the Quiet Studio palette,
+// so the docs diagrams match the docs site's own theme.
 const dark = [
-  ['background', slate['1'], 'slate-1'],
-  ['primaryColor', slate['3'], 'slate-3 — node fill'],
-  ['primaryTextColor', slate['12'], 'slate-12'],
-  ['primaryBorderColor', cyan['9'], 'cyan-9 — accent border'],
-  ['secondaryColor', slate['4'], 'slate-4'],
-  ['secondaryTextColor', slate['12'], 'slate-12'],
-  ['secondaryBorderColor', slate['7'], 'slate-7'],
-  ['tertiaryColor', slate['3'], 'slate-3'],
-  ['tertiaryTextColor', slate['12'], 'slate-12'],
-  ['tertiaryBorderColor', slate['7'], 'slate-7'],
-  ['lineColor', slate['9'], 'slate-9 — arrows'],
-  ['textColor', slate['12'], 'slate-12'],
-  ['mainBkg', slate['3'], 'slate-3'],
-  ['clusterBkg', slate['2'], 'slate-2 — subgraph fill'],
-  ['clusterBorder', cyan['9'], 'cyan-9 — subgraph border'],
-  ['edgeLabelBackground', slate['1'], 'slate-1'],
+  ['background', ink['1'], 'ink-1'],
+  ['primaryColor', ink['3'], 'ink-3 — node fill'],
+  ['primaryTextColor', ink['9'], 'ink-9'],
+  ['primaryBorderColor', reef['dark'], 'reef-dark — accent border'],
+  ['secondaryColor', ink['4'], 'ink-4'],
+  ['secondaryTextColor', ink['9'], 'ink-9'],
+  ['secondaryBorderColor', ink['6'], 'ink-6'],
+  ['tertiaryColor', ink['3'], 'ink-3'],
+  ['tertiaryTextColor', ink['9'], 'ink-9'],
+  ['tertiaryBorderColor', ink['6'], 'ink-6'],
+  ['lineColor', ink['7'], 'ink-7 — arrows'],
+  ['textColor', ink['9'], 'ink-9'],
+  ['mainBkg', ink['3'], 'ink-3'],
+  ['clusterBkg', ink['2'], 'ink-2 — subgraph fill'],
+  ['clusterBorder', reef['dark'], 'reef-dark — subgraph border'],
+  ['edgeLabelBackground', ink['1'], 'ink-1'],
   ['fontSize', '14px', null],
 ];
 
 const light = [
-  ['background', sand['4'], 'sand-4'],
+  ['background', sand['1'], 'sand-1'],
   ['primaryColor', sand['2'], 'sand-2 — node fill'],
-  ['primaryTextColor', sand['12'], 'sand-12'],
-  ['primaryBorderColor', cyan['8'], 'cyan-8 — accent border'],
-  ['secondaryColor', sand['3'], 'sand-3'],
-  ['secondaryTextColor', sand['12'], 'sand-12'],
-  ['secondaryBorderColor', sand['8'], 'sand-8'],
+  ['primaryTextColor', sand['9'], 'sand-9'],
+  ['primaryBorderColor', reef['light'], 'reef-light — accent border'],
+  ['secondaryColor', sand['5'], 'sand-5'],
+  ['secondaryTextColor', sand['9'], 'sand-9'],
+  ['secondaryBorderColor', sand['6'], 'sand-6'],
   ['tertiaryColor', sand['2'], 'sand-2'],
-  ['tertiaryTextColor', sand['12'], 'sand-12'],
-  ['tertiaryBorderColor', sand['8'], 'sand-8'],
-  ['lineColor', sand['10'], 'sand-10'],
-  ['textColor', sand['12'], 'sand-12'],
+  ['tertiaryTextColor', sand['9'], 'sand-9'],
+  ['tertiaryBorderColor', sand['6'], 'sand-6'],
+  ['lineColor', sand['7'], 'sand-7 — arrows'],
+  ['textColor', sand['9'], 'sand-9'],
   ['mainBkg', sand['2'], 'sand-2'],
-  ['clusterBkg', sand['1'], 'sand-1 — subgraph fill'],
-  ['clusterBorder', cyan['8'], 'cyan-8 — subgraph border'],
-  ['edgeLabelBackground', sand['4'], 'sand-4'],
+  ['clusterBkg', sand['4'], 'sand-4 — subgraph fill'],
+  ['clusterBorder', reef['light'], 'reef-light — subgraph border'],
+  ['edgeLabelBackground', sand['1'], 'sand-1'],
   ['fontSize', '14px', null],
 ];
 

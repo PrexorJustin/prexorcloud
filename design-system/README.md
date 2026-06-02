@@ -136,25 +136,29 @@ We sound like an SRE writing for other SREs. Calm, plain, technical.
 
 ## 6. Visual foundations
 
+> **Palette: "Quiet Studio / Reef".** A softened-cyan ("reef") accent over an
+> ink-dark or warm-sand basin — the direction all live surfaces ship today.
+> (The earlier saturated cyan-9/slate canon was reconciled to this in 2026-06.)
+
 ### Two themes, one system
 - **Dark** is the default. Marketing site and dashboard both ship dark-first.
-  Background: `#0a0a12` (slate-1). UI sits on glass panels at `#ffffff08–#ffffff15`
+  Background: `#0a0a10` (ink-1). UI sits on glass panels at `#ffffff0f–#ffffff1f`
   over the base — never solid charcoal cards.
 - **Light** ("Soft Scandinavian") is for docs and dashboard's day-mode.
-  Background: `#D8D5CD` (sand-4) — warm, not gray. Cards lift to `sand-1`.
+  Background: `#f5f3ed` (sand-1) — warm, not gray. Cards lift to `sand-3` (`#ffffff`).
   Both feel native, not derivative.
 
 ### Color
-- **Primary** is cyan-9 `#06b6d4` (dark) / cyan-8 `#0c8aa8` (light). One single
-  saturated accent across both surfaces. Never two accents in the same screen.
-- **Secondary** is violet-9 `#8b5cf6` — used sparingly for groups/templates and
+- **Primary** is reef-dark `#4ec5d4` (dark) / reef-light `#0c8aa8` (light). One
+  single softened-cyan accent across both surfaces. Never two accents in one screen.
+- **Secondary** is violet `#8b5cf6` — used sparingly for groups/templates and
   chart-2. Avoid as a button background; secondary is a category color, not a CTA.
 - **Status colors** are encoded *both* as dot + label (never color alone — colorblind safe):
-  - 🟢 success → green-9 — RUNNING / ONLINE
-  - 🔵 primary → cyan-9 — STARTING / SCHEDULED / PENDING
-  - 🟡 warning → amber-9 — DRAINING / CORDONED / STOPPING
-  - 🔴 destructive → red-9 — CRASHED / UNREACHABLE
-  - ⚪ muted → slate-9 — OFFLINE / STOPPED
+  - 🟢 success → `#10b981` dark / `#2f7d4a` light — RUNNING / ONLINE
+  - 🔵 primary → reef — STARTING / SCHEDULED / PENDING
+  - 🟡 warning → `#f59e0b` dark / `#a8651e` light — DRAINING / CORDONED / STOPPING
+  - 🔴 destructive → `#f43f5e` dark / `#a02d2d` light — CRASHED / UNREACHABLE
+  - ⚪ muted → ink-7 `#7c7c8a` — OFFLINE / STOPPED
 - **All combinations meet WCAG AA** at the body size. The primary on background
   meets AAA. Validated using APCA / contrast ratio.
 
@@ -308,7 +312,7 @@ Proposed file set (only the favicon exists today — see *Status* below):
 ### Usage rules
 - **Clearspace**: at least the height of one wordmark cap (≈ 16px at 24px wordmark).
 - **Minimum size**: 24px for the mark alone, 96px for the lockup.
-- **Backgrounds**: dark variant on `slate-1`, `slate-2`, or `slate-3`. Light variant
+- **Backgrounds**: dark variant on `ink-1`, `ink-2`, or `ink-3`. Light variant
   on `sand-1`–`sand-4`. Never on a saturated color other than the mark's own plate.
 - **Don't**: rotate, recolor the plate, drop-shadow, or extract the cloud onto a
   non-rounded plate. The plate + cloud are one shape.
@@ -379,9 +383,9 @@ size without resampling artifacts.
 
 ### AI-generation prompt prefix
 > *"Technical infrastructure diagram, single-stroke line art, 2px cyan stroke
-> on dark `#0a0a12` background, dot-grid backdrop at 8% opacity, isometric or
+> on dark `#0a0a10` background, dot-grid backdrop at 8% opacity, isometric or
 > top-down boxes connected by arrows, no text labels, no characters, no
-> shading, no fills except `#06b6d4` highlights at 30% opacity. Style: Linear
+> shading, no fills except `#4ec5d4` highlights at 30% opacity. Style: Linear
 > docs / Tailscale architecture diagrams / Vercel system diagrams."*
 
 We do **not** generate marketing hero illustrations with AI. Diagrams only.
@@ -403,6 +407,10 @@ We do **not** generate marketing hero illustrations with AI. Diagrams only.
 - **Fonts**: Inter / Inter Tight / JetBrains Mono. Self-host the `.woff2` files
   in each surface rather than relying on a CDN for production.
 - **WCAG AA** has been validated for body and large text combinations on both
-  themes. The few combinations that fall short of AAA (cyan-9 on slate-1 at
+  themes. The few combinations that fall short of AAA (reef on ink-1 at
   small sizes) are reserved for *non-text* surfaces (button fills, dot
   indicators) where contrast is decorative, not informational.
+- **CLI / ANSI tokens are tracked separately.** `tokens.json`'s `color.ansi`
+  block and §9 below still describe the terminal palette; the CLI uses its own
+  theme system (purple default) and was not part of the Quiet Studio color
+  reconciliation. Revisit if the CLI accent is re-tuned to reef.
