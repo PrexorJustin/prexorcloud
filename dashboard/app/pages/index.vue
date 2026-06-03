@@ -61,14 +61,14 @@ function valueFor(key: StatCard['key']): number {
 type StatePillKey = 'running' | 'starting' | 'draining' | 'crashed' | 'stopped'
 function statePill(state: string | undefined): { key: StatePillKey; label: string } {
   switch (state) {
-    case 'RUNNING':   return { key: 'running',  label: 'Running' }
+    case 'RUNNING':   return { key: 'running',  label: t('pages.overview.state.running') }
     case 'SCHEDULED':
-    case 'STARTING':  return { key: 'starting', label: 'Starting' }
-    case 'STOPPING':  return { key: 'draining', label: 'Stopping' }
-    case 'DRAINING':  return { key: 'draining', label: 'Draining' }
-    case 'CRASHED':   return { key: 'crashed',  label: 'Crashed' }
-    case 'STOPPED':   return { key: 'stopped',  label: 'Stopped' }
-    default:          return { key: 'stopped',  label: state ?? 'Unknown' }
+    case 'STARTING':  return { key: 'starting', label: t('pages.overview.state.starting') }
+    case 'STOPPING':  return { key: 'draining', label: t('pages.overview.state.stopping') }
+    case 'DRAINING':  return { key: 'draining', label: t('pages.overview.state.draining') }
+    case 'CRASHED':   return { key: 'crashed',  label: t('pages.overview.state.crashed') }
+    case 'STOPPED':   return { key: 'stopped',  label: t('pages.overview.state.stopped') }
+    default:          return { key: 'stopped',  label: state ?? t('pages.overview.state.unknown') }
   }
 }
 
@@ -108,16 +108,16 @@ function toneForEvent(e: ActivityEvent): EventTone {
 }
 
 function relativeTime(iso: string): string {
-  const t = Date.parse(iso)
-  if (Number.isNaN(t)) return iso
-  const diff = Math.max(0, Date.now() - t)
+  const parsed = Date.parse(iso)
+  if (Number.isNaN(parsed)) return iso
+  const diff = Math.max(0, Date.now() - parsed)
   const s = Math.floor(diff / 1000)
-  if (s < 60) return `${s}s ago`
+  if (s < 60) return t('pages.overview.ago', { value: `${s}s` })
   const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
+  if (m < 60) return t('pages.overview.ago', { value: `${m}m` })
   const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
+  if (h < 24) return t('pages.overview.ago', { value: `${h}h` })
+  return t('pages.overview.ago', { value: `${Math.floor(h / 24)}d` })
 }
 
 const recentEvents = computed(() => activity.events.slice(0, 6))
@@ -151,17 +151,17 @@ const playersPath = computed(() => {
     <!-- ── Page header ── -->
     <header class="reef-header">
       <div class="breadcrumb">
-        Cluster <span class="breadcrumb__sep">/</span> <span class="breadcrumb__cur">Overview</span>
+        {{ t('pages.overview.breadcrumb.cluster') }} <span class="breadcrumb__sep">/</span> <span class="breadcrumb__cur">{{ t('pages.overview.breadcrumb.overview') }}</span>
       </div>
       <div class="reef-header__row">
         <h1 class="reef-h1">
-          Production <em class="accent-serif">cluster</em>
+          {{ t('pages.overview.heading.lead') }} <em class="accent-serif">{{ t('pages.overview.heading.accent') }}</em>
         </h1>
         <div class="reef-header__actions">
-          <button type="button" class="reef-btn reef-btn--ghost">Filter</button>
+          <button type="button" class="reef-btn reef-btn--ghost">{{ t('pages.overview.filter') }}</button>
           <NuxtLink to="/instances/new" class="reef-btn reef-btn--mono">
             <Plus class="size-3.5" />
-            New instance
+            {{ t('pages.overview.newInstance') }}
           </NuxtLink>
         </div>
       </div>
@@ -187,36 +187,36 @@ const playersPath = computed(() => {
     <section class="reef-card reef-instances">
       <div class="reef-instances__head">
         <div class="reef-instances__title">
-          Instances <em class="accent-serif" style="color: var(--muted-foreground); font-size: 0.9em">· running now</em>
+          {{ t('pages.overview.instances.title') }} <em class="accent-serif" style="color: var(--muted-foreground); font-size: 0.9em">{{ t('pages.overview.instances.runningNow') }}</em>
         </div>
         <div class="reef-pills">
           <button
             class="reef-pill"
             :data-active="activeFilter === 'all'"
             @click="activeFilter = 'all'"
-          >All {{ totalInstances }}</button>
+          >{{ t('pages.overview.filters.all') }} {{ totalInstances }}</button>
           <button
             class="reef-pill"
             :data-active="activeFilter === 'running'"
             @click="activeFilter = 'running'"
-          >Running {{ instanceCountByState.RUNNING ?? 0 }}</button>
+          >{{ t('pages.overview.filters.running') }} {{ instanceCountByState.RUNNING ?? 0 }}</button>
           <button
             class="reef-pill"
             :data-active="activeFilter === 'crashed'"
             @click="activeFilter = 'crashed'"
-          >Crashed {{ instanceCountByState.CRASHED ?? 0 }}</button>
+          >{{ t('pages.overview.filters.crashed') }} {{ instanceCountByState.CRASHED ?? 0 }}</button>
           <button
             class="reef-pill"
             :data-active="activeFilter === 'stopped'"
             @click="activeFilter = 'stopped'"
-          >Stopped {{ instanceCountByState.STOPPED ?? 0 }}</button>
+          >{{ t('pages.overview.filters.stopped') }} {{ instanceCountByState.STOPPED ?? 0 }}</button>
         </div>
       </div>
       <div class="reef-instances__columns">
-        <div>Instance</div><div>Status</div><div>Node</div><div>Group</div><div>Players</div><div>Uptime</div><div></div>
+        <div>{{ t('pages.overview.columns.instance') }}</div><div>{{ t('pages.overview.columns.status') }}</div><div>{{ t('pages.overview.columns.node') }}</div><div>{{ t('pages.overview.columns.group') }}</div><div>{{ t('pages.overview.columns.players') }}</div><div>{{ t('pages.overview.columns.uptime') }}</div><div></div>
       </div>
       <div v-if="previewInstances.length === 0" class="reef-empty">
-        No instances yet. Define a group and the scheduler will spin one up.
+        {{ t('pages.overview.instances.empty') }}
       </div>
       <NuxtLink
         v-for="(inst, i) in previewInstances"
@@ -245,7 +245,7 @@ const playersPath = computed(() => {
     <div class="reef-second-row">
       <section class="reef-card reef-spark">
         <div class="reef-spark__head">
-          <div class="reef-card__title">Players · last 24h</div>
+          <div class="reef-card__title">{{ t('pages.overview.spark.title') }}</div>
           <div class="reef-pills reef-pills--sm">
             <span class="reef-pill" data-active="true">24h</span>
             <span class="reef-pill">7d</span>
@@ -268,17 +268,17 @@ const playersPath = computed(() => {
           <path :d="playersPath.line" fill="none" stroke="var(--brand)" stroke-width="1.5" />
         </svg>
         <div class="reef-spark__ticks mono">
-          <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>now</span>
+          <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>{{ t('pages.overview.spark.now') }}</span>
         </div>
       </section>
 
       <section class="reef-card reef-events">
         <div class="reef-events__head">
-          <div class="reef-card__title">Recent events</div>
-          <span class="reef-events__win">LAST 1h</span>
+          <div class="reef-card__title">{{ t('pages.overview.events.title') }}</div>
+          <span class="reef-events__win">{{ t('pages.overview.events.window') }}</span>
         </div>
         <div v-if="recentEvents.length === 0" class="reef-empty reef-empty--inline">
-          Nothing yet. Events appear here in real time.
+          {{ t('pages.overview.events.empty') }}
         </div>
         <div v-else class="reef-events__list">
           <div v-for="e in recentEvents" :key="e.id" class="reef-events__row">

@@ -41,18 +41,18 @@ async function preWarm() {
     <!-- Cache header -->
     <div class="flex items-center justify-between">
       <div>
-        <h3 class="text-lg font-semibold text-foreground">Node Cache</h3>
+        <h3 class="text-lg font-semibold text-foreground">{{ t('components.nodeCache.title') }}</h3>
         <p class="text-sm text-muted-foreground mt-0.5">
-          Templates, JARs, and bootstrap archives cached on this node
-          <template v-if="cache"> &mdash; {{ formatBytes(cache.totalSizeBytes) }} total</template>
+          {{ t('components.nodeCache.subtitle') }}
+          <template v-if="cache"> &mdash; {{ formatBytes(cache.totalSizeBytes) }} {{ t('components.nodeCache.total') }}</template>
         </p>
       </div>
       <div class="flex items-center gap-2">
         <Button variant="outline" size="sm" class="border-glass-border" @click="refresh">
-          <RefreshCw class="size-3.5 mr-1.5" /> Refresh
+          <RefreshCw class="size-3.5 mr-1.5" /> {{ t('components.nodeCache.refresh') }}
         </Button>
         <Button variant="outline" size="sm" class="border-glass-border" @click="preWarm">
-          <Flame class="size-3.5 mr-1.5" /> Pre-warm
+          <Flame class="size-3.5 mr-1.5" /> {{ t('components.nodeCache.preWarm') }}
         </Button>
       </div>
     </div>
@@ -76,7 +76,7 @@ async function preWarm() {
             <div class="size-10 rounded-xl bg-primary/20 flex items-center justify-center">
               <FileArchive class="size-5 text-primary" />
             </div>
-            <p class="text-sm text-muted-foreground">Templates</p>
+            <p class="text-sm text-muted-foreground">{{ t('components.nodeCache.templates') }}</p>
           </div>
           <p class="text-3xl font-bold text-foreground tabular-nums">{{ cache.templates.length }}</p>
         </div>
@@ -85,7 +85,7 @@ async function preWarm() {
             <div class="size-10 rounded-xl bg-secondary/20 flex items-center justify-center">
               <Package class="size-5 text-secondary" />
             </div>
-            <p class="text-sm text-muted-foreground">JARs</p>
+            <p class="text-sm text-muted-foreground">{{ t('components.nodeCache.jars') }}</p>
           </div>
           <p class="text-3xl font-bold text-foreground tabular-nums">{{ cache.jars.length }}</p>
         </div>
@@ -94,7 +94,7 @@ async function preWarm() {
             <div class="size-10 rounded-xl bg-success/20 flex items-center justify-center">
               <Rocket class="size-5 text-success" />
             </div>
-            <p class="text-sm text-muted-foreground">Bootstraps</p>
+            <p class="text-sm text-muted-foreground">{{ t('components.nodeCache.bootstraps') }}</p>
           </div>
           <p class="text-3xl font-bold text-foreground tabular-nums">{{ cache.bootstraps.length }}</p>
         </div>
@@ -104,15 +104,15 @@ async function preWarm() {
       <div v-if="cache.templates.length > 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
         <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <FileArchive class="size-5 text-muted-foreground" />
-          Templates
+          {{ t('components.nodeCache.templates') }}
         </h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-glass-border text-muted-foreground">
-                <th class="text-left py-2 pr-4 font-medium">Name</th>
-                <th class="text-right py-2 pr-4 font-medium">Size</th>
-                <th class="text-right py-2 font-medium">Last Used</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colName') }}</th>
+                <th class="text-right py-2 pr-4 font-medium">{{ t('components.nodeCache.colSize') }}</th>
+                <th class="text-right py-2 font-medium">{{ t('components.nodeCache.colLastUsed') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -130,17 +130,17 @@ async function preWarm() {
       <div v-if="cache.jars.length > 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
         <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Package class="size-5 text-muted-foreground" />
-          JARs
+          {{ t('components.nodeCache.jars') }}
         </h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-glass-border text-muted-foreground">
-                <th class="text-left py-2 pr-4 font-medium">Platform</th>
-                <th class="text-left py-2 pr-4 font-medium">Version</th>
-                <th class="text-left py-2 pr-4 font-medium">File</th>
-                <th class="text-right py-2 pr-4 font-medium">Size</th>
-                <th class="text-right py-2 font-medium">Cached At</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colPlatform') }}</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colVersion') }}</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colFile') }}</th>
+                <th class="text-right py-2 pr-4 font-medium">{{ t('components.nodeCache.colSize') }}</th>
+                <th class="text-right py-2 font-medium">{{ t('components.nodeCache.colCachedAt') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -162,16 +162,16 @@ async function preWarm() {
       <div v-if="cache.bootstraps.length > 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
         <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
           <Rocket class="size-5 text-muted-foreground" />
-          Bootstraps
+          {{ t('components.nodeCache.bootstraps') }}
         </h3>
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead>
               <tr class="border-b border-glass-border text-muted-foreground">
-                <th class="text-left py-2 pr-4 font-medium">Format</th>
-                <th class="text-left py-2 pr-4 font-medium">Version</th>
-                <th class="text-left py-2 pr-4 font-medium">CDS</th>
-                <th class="text-right py-2 font-medium">Size</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colFormat') }}</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colVersion') }}</th>
+                <th class="text-left py-2 pr-4 font-medium">{{ t('components.nodeCache.colCds') }}</th>
+                <th class="text-right py-2 font-medium">{{ t('components.nodeCache.colSize') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -180,7 +180,7 @@ async function preWarm() {
                 <td class="py-2.5 pr-4 text-foreground">{{ b.version }}</td>
                 <td class="py-2.5 pr-4">
                   <Badge :variant="b.hasCds ? 'default' : 'outline'" :class="b.hasCds ? 'bg-success/20 text-success border-success/30' : ''">
-                    {{ b.hasCds ? 'Yes' : 'No' }}
+                    {{ b.hasCds ? t('components.nodeCache.yes') : t('components.nodeCache.no') }}
                   </Badge>
                 </td>
                 <td class="py-2.5 text-right text-muted-foreground tabular-nums">{{ formatBytes(b.sizeBytes) }}</td>
@@ -196,8 +196,8 @@ v-if="cache.templates.length === 0 && cache.jars.length === 0 && cache.bootstrap
         class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border py-16 flex flex-col items-center justify-center text-center"
       >
         <Database class="size-12 text-muted-foreground/30 mb-3" />
-        <p class="text-foreground font-semibold text-lg">No cached data</p>
-        <p class="text-muted-foreground mt-1">This node hasn't cached any templates, JARs, or bootstraps yet</p>
+        <p class="text-foreground font-semibold text-lg">{{ t('components.nodeCache.emptyTitle') }}</p>
+        <p class="text-muted-foreground mt-1">{{ t('components.nodeCache.emptyDescription') }}</p>
       </div>
     </template>
   </div>

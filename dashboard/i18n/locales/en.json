@@ -465,6 +465,54 @@
         "instancesSubtitle": "Running servers",
         "groups": "Groups",
         "groupsSubtitle": "Configured groups"
+      },
+      "breadcrumb": {
+        "cluster": "Cluster",
+        "overview": "Overview"
+      },
+      "heading": {
+        "lead": "Production",
+        "accent": "cluster"
+      },
+      "filter": "Filter",
+      "newInstance": "New instance",
+      "instances": {
+        "title": "Instances",
+        "runningNow": "· running now",
+        "empty": "No instances yet. Define a group and the scheduler will spin one up."
+      },
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "crashed": "Crashed",
+        "stopped": "Stopped"
+      },
+      "columns": {
+        "instance": "Instance",
+        "status": "Status",
+        "node": "Node",
+        "group": "Group",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "state": {
+        "running": "Running",
+        "starting": "Starting",
+        "stopping": "Stopping",
+        "draining": "Draining",
+        "crashed": "Crashed",
+        "stopped": "Stopped",
+        "unknown": "Unknown"
+      },
+      "ago": "{value} ago",
+      "spark": {
+        "title": "Players · last 24h",
+        "now": "now"
+      },
+      "events": {
+        "title": "Recent events",
+        "window": "LAST 1h",
+        "empty": "Nothing yet. Events appear here in real time."
       }
     },
     "nodes": {
@@ -494,7 +542,20 @@
         "address": "Address"
       },
       "awaitingConnection": "Awaiting connection",
-      "disconnected": "Disconnected"
+      "disconnected": "Disconnected",
+      "drain": "Drain",
+      "cordon": "Cordon",
+      "eyebrow": "Node",
+      "detail": {
+        "address": "Address",
+        "cpu": "CPU",
+        "memory": "Memory",
+        "diskFree": "Disk free",
+        "instances": "Instances",
+        "connectedSince": "Connected since",
+        "awaitingDaemon": "Awaiting daemon connection.",
+        "daemonOffline": "Daemon offline. No live metrics."
+      }
     },
     "groups": {
       "title": "Groups",
@@ -744,7 +805,9 @@
       "followTail": "Follow tail",
       "statusPaused": "Paused",
       "statusConnected": "Connected",
-      "statusDisconnected": "Disconnected"
+      "statusDisconnected": "Disconnected",
+      "historyNote1": "For deeper history, fall back to",
+      "historyNote2": "or the host-side journal until the backend ships a history API (see"
     },
     "system": {
       "title": "System status",
@@ -1793,7 +1856,18 @@
       "openFullPage": "Open full page"
     },
     "commandPalette": {
-      "placeholder": "Search resources, jump to a page, switch theme…"
+      "placeholder": "Search resources, jump to a page, switch theme…",
+      "trigger": "Search…",
+      "noResults": "No results.",
+      "resourcesHeading": "Resources",
+      "themeHeading": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System",
+      "active": "Active",
+      "navigate": "Navigate",
+      "select": "Select",
+      "close": "Close"
     },
     "console": {
       "title": "Console",
@@ -2451,6 +2525,93 @@
       "cancel": "Cancel",
       "uploading": "Uploading...",
       "uploadButton": "Upload {n} file | Upload {n} files"
+    },
+    "addVersion": {
+      "addPlatform": "Add Platform",
+      "add": "Add",
+      "titleAddVersionTo": "Add version to {platform}",
+      "titleNewPlatform": "New platform",
+      "titleAddInitialVersion": "Add initial version",
+      "descRegister": "Register a new version for this platform.",
+      "descConfigure": "Configure the platform identity and type.",
+      "descSetupFirst": "Set up the first version for {platform}.",
+      "stepPlatform": "Platform",
+      "stepVersion": "Version",
+      "platformName": "Platform Name",
+      "platformNamePlaceholder": "e.g. paper, velocity, purpur",
+      "category": "Category",
+      "server": "Server",
+      "gameServers": "Game servers",
+      "proxy": "Proxy",
+      "networkProxies": "Network proxies",
+      "configFormat": "Config Format",
+      "version": "Version",
+      "downloadUrl": "Download URL",
+      "back": "Back",
+      "continue": "Continue",
+      "adding": "Adding...",
+      "addVersion": "Add Version"
+    },
+    "networkDialog": {
+      "newNetwork": "New Network",
+      "createTitle": "Create network",
+      "editTitle": "Edit network {name}",
+      "description": "Lobby + fallback routing for proxies. Read live by Velocity / Bungee plugins.",
+      "nameLabel": "Name",
+      "lobbyGroupLabel": "Lobby group",
+      "descriptionLabel": "Description",
+      "descriptionHint": "(optional, max 256 chars)",
+      "descriptionPlaceholder": "Default lobby + survival routing",
+      "fallbackChainLabel": "Fallback chain",
+      "fallbackChainHint": "Tried in order on join failure / kick. Lobby is always last-resort.",
+      "addBackendGroupPlaceholder": "Add backend group…",
+      "add": "Add",
+      "noFallbackGroups": "No fallback groups configured. Lobby is the only target.",
+      "memberGroupsLabel": "Member backend groups",
+      "memberGroupsHint": "Empty = no restriction.",
+      "proxyGroupsLabel": "Proxy groups",
+      "proxyGroupsHint": "Empty = applies to all proxies.",
+      "addProxyGroupPlaceholder": "Add proxy group…",
+      "kickMessageLabel": "Kick message",
+      "kickMessageHint": "(shown when fallback chain is exhausted, max 256 chars)",
+      "kickMessagePlaceholder": "The network is currently unavailable. Please try again shortly.",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "creating": "Creating...",
+      "saveChanges": "Save changes",
+      "createNetwork": "Create network",
+      "errors": {
+        "nameTooLong": "Max 32 characters",
+        "nameInvalidChars": "Lowercase letters, numbers, underscore, hyphen only",
+        "nameExists": "Network already exists",
+        "lobbyInvalid": "Group does not exist or is a proxy",
+        "fallbackHasLobby": "Fallback chain must not include the lobby group",
+        "duplicateEntries": "Duplicate entries",
+        "notProxyPlatform": "{name} is not a proxy-platform group"
+      }
+    },
+    "nodeCache": {
+      "title": "Node Cache",
+      "subtitle": "Templates, JARs, and bootstrap archives cached on this node",
+      "total": "total",
+      "refresh": "Refresh",
+      "preWarm": "Pre-warm",
+      "templates": "Templates",
+      "jars": "JARs",
+      "bootstraps": "Bootstraps",
+      "colName": "Name",
+      "colSize": "Size",
+      "colLastUsed": "Last Used",
+      "colPlatform": "Platform",
+      "colVersion": "Version",
+      "colFile": "File",
+      "colCachedAt": "Cached At",
+      "colFormat": "Format",
+      "colCds": "CDS",
+      "yes": "Yes",
+      "no": "No",
+      "emptyTitle": "No cached data",
+      "emptyDescription": "This node hasn't cached any templates, JARs, or bootstraps yet"
     }
   }
 }

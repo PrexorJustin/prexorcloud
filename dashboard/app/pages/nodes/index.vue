@@ -225,8 +225,8 @@ async function sheetCordon() {
                   <div class="w-28 shrink-0 text-right text-sm text-muted-foreground">&mdash;</div>
                   <div class="w-20 shrink-0 text-right text-sm text-muted-foreground">&mdash;</div>
                   <div class="flex-1 text-right text-sm text-muted-foreground">
-                    <template v-if="node.type === 'PENDING'">Awaiting connection</template>
-                    <template v-else>Disconnected</template>
+                    <template v-if="node.type === 'PENDING'">{{ t('pages.nodes.awaitingConnection') }}</template>
+                    <template v-else>{{ t('pages.nodes.disconnected') }}</template>
                   </div>
                 </template>
               </div>
@@ -243,17 +243,17 @@ async function sheetCordon() {
       @clear="clearSelection"
     >
       <Button variant="outline" size="sm" :disabled="bulkBusy" class="border-warning/50 text-warning hover:bg-warning/10" @click="bulkDrain">
-        <Power class="mr-1.5 size-3.5" /> Drain
+        <Power class="mr-1.5 size-3.5" /> {{ t('pages.nodes.drain') }}
       </Button>
       <Button variant="outline" size="sm" :disabled="bulkBusy" class="border-warning/50 text-warning hover:bg-warning/10" @click="bulkCordon">
-        <Shield class="mr-1.5 size-3.5" /> Cordon
+        <Shield class="mr-1.5 size-3.5" /> {{ t('pages.nodes.cordon') }}
       </Button>
     </BulkActionBar>
 
     <DetailSheet
       :open="sheetOpen"
       :title="sheetNode?.id"
-      eyebrow="Node"
+      :eyebrow="t('pages.nodes.eyebrow')"
       :full-page-path="sheetNode ? `/nodes/${sheetNode.id}` : undefined"
       @update:open="sheetOpen = $event"
     >
@@ -264,47 +264,47 @@ async function sheetCordon() {
         <Button
 variant="outline" size="sm" :disabled="sheetActing"
           class="border-warning/50 text-warning hover:bg-warning/10" @click="sheetDrain">
-          <Power class="mr-1 size-3.5" /> Drain
+          <Power class="mr-1 size-3.5" /> {{ t('pages.nodes.drain') }}
         </Button>
         <Button
 variant="outline" size="sm" :disabled="sheetActing"
           class="border-warning/50 text-warning hover:bg-warning/10" @click="sheetCordon">
-          <Shield class="mr-1 size-3.5" /> Cordon
+          <Shield class="mr-1 size-3.5" /> {{ t('pages.nodes.cordon') }}
         </Button>
       </template>
 
       <div v-if="sheetNode && sheetNode.type === 'CONNECTED'" class="space-y-4 text-sm">
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Address</span>
+          <span class="text-muted-foreground">{{ t('pages.nodes.detail.address') }}</span>
           <span class="mono text-xs">{{ (sheetNode as ConnectedNode).address }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">CPU</span>
+          <span class="text-muted-foreground">{{ t('pages.nodes.detail.cpu') }}</span>
           <span class="tabular">{{ Math.round((sheetNode as ConnectedNode).cpuUsage * 100) }}%</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Memory</span>
+          <span class="text-muted-foreground">{{ t('pages.nodes.detail.memory') }}</span>
           <span class="tabular">
             {{ formatMemory((sheetNode as ConnectedNode).usedMemoryMb) }} /
             {{ formatMemory((sheetNode as ConnectedNode).totalMemoryMb) }}
           </span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Disk free</span>
+          <span class="text-muted-foreground">{{ t('pages.nodes.detail.diskFree') }}</span>
           <span class="tabular">{{ formatMemory((sheetNode as ConnectedNode).freeDiskMb) }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Instances</span>
+          <span class="text-muted-foreground">{{ t('pages.nodes.detail.instances') }}</span>
           <span class="tabular">{{ (sheetNode as ConnectedNode).instanceCount }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Connected since</span>
+          <span class="text-muted-foreground">{{ t('pages.nodes.detail.connectedSince') }}</span>
           <span class="text-xs">{{ new Date((sheetNode as ConnectedNode).connectedSince).toLocaleString() }}</span>
         </div>
       </div>
       <div v-else-if="sheetNode" class="rounded-md border border-dashed border-glass-border bg-glass/30 px-4 py-6 text-center text-sm text-muted-foreground">
-        <span v-if="sheetNode.type === 'PENDING'">Awaiting daemon connection.</span>
-        <span v-else>Daemon offline. No live metrics.</span>
+        <span v-if="sheetNode.type === 'PENDING'">{{ t('pages.nodes.detail.awaitingDaemon') }}</span>
+        <span v-else>{{ t('pages.nodes.detail.daemonOffline') }}</span>
       </div>
     </DetailSheet>
   </div>

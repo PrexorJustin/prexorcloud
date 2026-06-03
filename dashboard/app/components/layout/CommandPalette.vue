@@ -32,11 +32,11 @@ const isMac = computed(() =>
 
 const colorMode = useColorMode()
 
-const themeItems = [
-  { title: "Light", icon: Sun, value: "light" },
-  { title: "Dark", icon: Moon, value: "dark" },
-  { title: "System", icon: Monitor, value: "system" },
-]
+const themeItems = computed(() => [
+  { title: t("components.commandPalette.themeLight"), icon: Sun, value: "light" },
+  { title: t("components.commandPalette.themeDark"), icon: Moon, value: "dark" },
+  { title: t("components.commandPalette.themeSystem"), icon: Monitor, value: "system" },
+])
 
 function setTheme(value: string) {
   colorMode.preference = value
@@ -87,7 +87,7 @@ function navigate(url: string) {
     @click="open = true"
   >
     <Search class="size-4 shrink-0" />
-    <span class="flex-1 text-left">Search…</span>
+    <span class="flex-1 text-left">{{ t('components.commandPalette.trigger') }}</span>
     <KbdHint class="hidden md:inline-flex">
       {{ isMac ? '⌘' : 'Ctrl' }}+K
     </KbdHint>
@@ -101,12 +101,12 @@ function navigate(url: string) {
       <CommandEmpty>
         <div class="flex flex-col items-center py-6 text-center">
           <Search class="mb-3 size-10 text-muted-foreground/30" />
-          <p class="text-sm text-muted-foreground">No results.</p>
+          <p class="text-sm text-muted-foreground">{{ t('components.commandPalette.noResults') }}</p>
         </div>
       </CommandEmpty>
 
       <!-- Resource hits — shown only when the user has typed something. -->
-      <CommandGroup v-if="query && resourceHits.length > 0" heading="Resources">
+      <CommandGroup v-if="query && resourceHits.length > 0" :heading="t('components.commandPalette.resourcesHeading')">
         <CommandItem
           v-for="hit in resourceHits"
           :key="`${hit.kind}-${hit.id}`"
@@ -146,7 +146,7 @@ function navigate(url: string) {
       </template>
 
       <CommandSeparator />
-      <CommandGroup heading="Theme">
+      <CommandGroup :heading="t('components.commandPalette.themeHeading')">
         <CommandItem
           v-for="item in themeItems"
           :key="item.value"
@@ -158,7 +158,7 @@ function navigate(url: string) {
             <component :is="item.icon" class="size-4 text-muted-foreground" />
           </div>
           <span>{{ item.title }}</span>
-          <span v-if="colorMode.preference === item.value" class="ml-auto text-xs text-primary">Active</span>
+          <span v-if="colorMode.preference === item.value" class="ml-auto text-xs text-primary">{{ t('components.commandPalette.active') }}</span>
         </CommandItem>
       </CommandGroup>
     </CommandList>
@@ -168,15 +168,15 @@ function navigate(url: string) {
         <span class="inline-flex items-center gap-1.5">
           <KbdHint class="size-5 px-0"><ArrowUp class="size-3" /></KbdHint>
           <KbdHint class="size-5 px-0"><ArrowDown class="size-3" /></KbdHint>
-          Navigate
+          {{ t('components.commandPalette.navigate') }}
         </span>
         <span class="inline-flex items-center gap-1.5">
           <KbdHint class="size-5 px-0"><CornerDownLeft class="size-3" /></KbdHint>
-          Select
+          {{ t('components.commandPalette.select') }}
         </span>
         <span class="inline-flex items-center gap-1.5">
           <KbdHint>Esc</KbdHint>
-          Close
+          {{ t('components.commandPalette.close') }}
         </span>
       </div>
     </div>

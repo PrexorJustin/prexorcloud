@@ -465,6 +465,54 @@
         "instancesSubtitle": "Laufende Server",
         "groups": "Gruppen",
         "groupsSubtitle": "Konfigurierte Gruppen"
+      },
+      "breadcrumb": {
+        "cluster": "Cluster",
+        "overview": "Übersicht"
+      },
+      "heading": {
+        "lead": "Produktiv-",
+        "accent": "Cluster"
+      },
+      "filter": "Filter",
+      "newInstance": "Neue Instanz",
+      "instances": {
+        "title": "Instanzen",
+        "runningNow": "· läuft jetzt",
+        "empty": "Noch keine Instanzen. Definiere eine Gruppe und der Scheduler startet eine."
+      },
+      "filters": {
+        "all": "Alle",
+        "running": "Laufend",
+        "crashed": "Abgestürzt",
+        "stopped": "Gestoppt"
+      },
+      "columns": {
+        "instance": "Instanz",
+        "status": "Status",
+        "node": "Node",
+        "group": "Gruppe",
+        "players": "Spieler",
+        "uptime": "Laufzeit"
+      },
+      "state": {
+        "running": "Laufend",
+        "starting": "Startet",
+        "stopping": "Stoppt",
+        "draining": "Wird geleert",
+        "crashed": "Abgestürzt",
+        "stopped": "Gestoppt",
+        "unknown": "Unbekannt"
+      },
+      "ago": "vor {value}",
+      "spark": {
+        "title": "Spieler · letzte 24h",
+        "now": "jetzt"
+      },
+      "events": {
+        "title": "Letzte Ereignisse",
+        "window": "LETZTE 1h",
+        "empty": "Noch nichts. Ereignisse erscheinen hier in Echtzeit."
       }
     },
     "nodes": {
@@ -494,7 +542,20 @@
         "address": "Adresse"
       },
       "awaitingConnection": "Warte auf Verbindung",
-      "disconnected": "Getrennt"
+      "disconnected": "Getrennt",
+      "drain": "Entleeren",
+      "cordon": "Sperren",
+      "eyebrow": "Node",
+      "detail": {
+        "address": "Adresse",
+        "cpu": "CPU",
+        "memory": "Arbeitsspeicher",
+        "diskFree": "Speicher frei",
+        "instances": "Instanzen",
+        "connectedSince": "Verbunden seit",
+        "awaitingDaemon": "Warte auf Daemon-Verbindung.",
+        "daemonOffline": "Daemon offline. Keine Live-Metriken."
+      }
     },
     "groups": {
       "title": "Gruppen",
@@ -720,7 +781,9 @@
       "statusPaused": "Pausiert",
       "statusConnected": "Verbunden",
       "statusDisconnected": "Getrennt",
-      "share": "Teilen"
+      "share": "Teilen",
+      "historyNote1": "Für ältere Historie greife auf",
+      "historyNote2": "oder das Host-seitige Journal zurück, bis das Backend eine History-API bereitstellt (siehe"
     },
     "system": {
       "title": "Systemstatus",
@@ -1793,7 +1856,18 @@
       "openFullPage": "Vollständige Seite öffnen"
     },
     "commandPalette": {
-      "placeholder": "Ressourcen suchen, zu einer Seite springen, Theme wechseln …"
+      "placeholder": "Ressourcen suchen, zu einer Seite springen, Theme wechseln …",
+      "trigger": "Suchen…",
+      "noResults": "Keine Ergebnisse.",
+      "resourcesHeading": "Ressourcen",
+      "themeHeading": "Design",
+      "themeLight": "Hell",
+      "themeDark": "Dunkel",
+      "themeSystem": "System",
+      "active": "Aktiv",
+      "navigate": "Navigieren",
+      "select": "Auswählen",
+      "close": "Schließen"
     },
     "console": {
       "title": "Konsole",
@@ -2451,6 +2525,93 @@
       "cancel": "Abbrechen",
       "uploading": "Wird hochgeladen...",
       "uploadButton": "{n} Datei hochladen | {n} Dateien hochladen"
+    },
+    "addVersion": {
+      "addPlatform": "Plattform hinzufügen",
+      "add": "Hinzufügen",
+      "titleAddVersionTo": "Version zu {platform} hinzufügen",
+      "titleNewPlatform": "Neue Plattform",
+      "titleAddInitialVersion": "Erste Version hinzufügen",
+      "descRegister": "Registriere eine neue Version für diese Plattform.",
+      "descConfigure": "Konfiguriere die Identität und den Typ der Plattform.",
+      "descSetupFirst": "Richte die erste Version für {platform} ein.",
+      "stepPlatform": "Plattform",
+      "stepVersion": "Version",
+      "platformName": "Plattform-Name",
+      "platformNamePlaceholder": "z. B. paper, velocity, purpur",
+      "category": "Kategorie",
+      "server": "Server",
+      "gameServers": "Game-Server",
+      "proxy": "Proxy",
+      "networkProxies": "Netzwerk-Proxys",
+      "configFormat": "Konfigurationsformat",
+      "version": "Version",
+      "downloadUrl": "Download-URL",
+      "back": "Zurück",
+      "continue": "Weiter",
+      "adding": "Wird hinzugefügt...",
+      "addVersion": "Version hinzufügen"
+    },
+    "networkDialog": {
+      "newNetwork": "Neues Netzwerk",
+      "createTitle": "Netzwerk erstellen",
+      "editTitle": "Netzwerk {name} bearbeiten",
+      "description": "Lobby- und Fallback-Routing für Proxys. Wird live von Velocity-/Bungee-Plugins gelesen.",
+      "nameLabel": "Name",
+      "lobbyGroupLabel": "Lobby-Gruppe",
+      "descriptionLabel": "Beschreibung",
+      "descriptionHint": "(optional, max. 256 Zeichen)",
+      "descriptionPlaceholder": "Standard-Lobby- und Survival-Routing",
+      "fallbackChainLabel": "Fallback-Kette",
+      "fallbackChainHint": "Wird der Reihe nach bei Beitrittsfehler / Kick versucht. Die Lobby ist immer die letzte Option.",
+      "addBackendGroupPlaceholder": "Backend-Gruppe hinzufügen…",
+      "add": "Hinzufügen",
+      "noFallbackGroups": "Keine Fallback-Gruppen konfiguriert. Die Lobby ist das einzige Ziel.",
+      "memberGroupsLabel": "Mitglieds-Backend-Gruppen",
+      "memberGroupsHint": "Leer = keine Einschränkung.",
+      "proxyGroupsLabel": "Proxy-Gruppen",
+      "proxyGroupsHint": "Leer = gilt für alle Proxys.",
+      "addProxyGroupPlaceholder": "Proxy-Gruppe hinzufügen…",
+      "kickMessageLabel": "Kick-Nachricht",
+      "kickMessageHint": "(wird angezeigt, wenn die Fallback-Kette erschöpft ist, max. 256 Zeichen)",
+      "kickMessagePlaceholder": "Das Netzwerk ist derzeit nicht verfügbar. Bitte versuche es in Kürze erneut.",
+      "cancel": "Abbrechen",
+      "saving": "Wird gespeichert...",
+      "creating": "Wird erstellt...",
+      "saveChanges": "Änderungen speichern",
+      "createNetwork": "Netzwerk erstellen",
+      "errors": {
+        "nameTooLong": "Maximal 32 Zeichen",
+        "nameInvalidChars": "Nur Kleinbuchstaben, Zahlen, Unterstrich, Bindestrich",
+        "nameExists": "Netzwerk existiert bereits",
+        "lobbyInvalid": "Gruppe existiert nicht oder ist ein Proxy",
+        "fallbackHasLobby": "Die Fallback-Kette darf die Lobby-Gruppe nicht enthalten",
+        "duplicateEntries": "Doppelte Einträge",
+        "notProxyPlatform": "{name} ist keine Proxy-Plattform-Gruppe"
+      }
+    },
+    "nodeCache": {
+      "title": "Node-Cache",
+      "subtitle": "Auf diesem Node zwischengespeicherte Vorlagen, JARs und Bootstrap-Archive",
+      "total": "insgesamt",
+      "refresh": "Aktualisieren",
+      "preWarm": "Vorwärmen",
+      "templates": "Vorlagen",
+      "jars": "JARs",
+      "bootstraps": "Bootstraps",
+      "colName": "Name",
+      "colSize": "Größe",
+      "colLastUsed": "Zuletzt verwendet",
+      "colPlatform": "Plattform",
+      "colVersion": "Version",
+      "colFile": "Datei",
+      "colCachedAt": "Zwischengespeichert am",
+      "colFormat": "Format",
+      "colCds": "CDS",
+      "yes": "Ja",
+      "no": "Nein",
+      "emptyTitle": "Keine zwischengespeicherten Daten",
+      "emptyDescription": "Dieser Node hat noch keine Vorlagen, JARs oder Bootstraps zwischengespeichert"
     }
   }
 }

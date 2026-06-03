@@ -61,25 +61,25 @@ const nameValid = computed(() =>
 )
 const nameError = computed(() => {
   if (!name.value) return null
-  if (name.value.length > 32) return "Max 32 characters"
-  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return "Lowercase letters, numbers, underscore, hyphen only"
-  if (!isEdit.value && store.networks.find(n => n.name === name.value)) return "Network already exists"
+  if (name.value.length > 32) return t("components.networkDialog.errors.nameTooLong")
+  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return t("components.networkDialog.errors.nameInvalidChars")
+  if (!isEdit.value && store.networks.find(n => n.name === name.value)) return t("components.networkDialog.errors.nameExists")
   return null
 })
 
 const lobbyError = computed(() => {
   if (!lobbyGroup.value) return null
-  if (!allServerGroupNames.value.includes(lobbyGroup.value)) return "Group does not exist or is a proxy"
+  if (!allServerGroupNames.value.includes(lobbyGroup.value)) return t("components.networkDialog.errors.lobbyInvalid")
   return null
 })
 const fallbackError = computed(() => {
-  if (fallbackGroups.value.includes(lobbyGroup.value)) return "Fallback chain must not include the lobby group"
-  if (new Set(fallbackGroups.value).size !== fallbackGroups.value.length) return "Duplicate entries"
+  if (fallbackGroups.value.includes(lobbyGroup.value)) return t("components.networkDialog.errors.fallbackHasLobby")
+  if (new Set(fallbackGroups.value).size !== fallbackGroups.value.length) return t("components.networkDialog.errors.duplicateEntries")
   return null
 })
 const proxyError = computed(() => {
   for (const g of proxyGroups.value) {
-    if (!allProxyGroupNames.value.includes(g)) return `"${g}" is not a proxy-platform group`
+    if (!allProxyGroupNames.value.includes(g)) return t("components.networkDialog.errors.notProxyPlatform", { name: `"${g}"` })
   }
   return null
 })
@@ -196,7 +196,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
     <DialogTrigger v-if="!isEdit && props.open === undefined" as-child>
       <Button class="bg-primary hover:bg-primary/90 text-primary-foreground">
         <Plus class="size-5 mr-2" />
-        New Network
+        {{ t('components.networkDialog.newNetwork') }}
       </Button>
     </DialogTrigger>
     <DialogContent class="bg-popover backdrop-blur-xl border-glass-border rounded-2xl sm:max-w-2xl [&>button:last-child]:hidden overflow-hidden p-0">
@@ -208,9 +208,9 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
           <div class="size-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
             <NetworkIcon class="size-5 text-primary" />
           </div>
-          <DialogTitle class="text-base font-bold text-foreground">{{ isEdit ? `Edit network ${props.network?.name}` : 'Create network' }}</DialogTitle>
+          <DialogTitle class="text-base font-bold text-foreground">{{ isEdit ? t('components.networkDialog.editTitle', { name: props.network?.name }) : t('components.networkDialog.createTitle') }}</DialogTitle>
           <DialogDescription class="text-xs text-muted-foreground">
-            Lobby + fallback routing for proxies. Read live by Velocity / Bungee plugins.
+            {{ t('components.networkDialog.description') }}
           </DialogDescription>
         </div>
       </div>
@@ -219,7 +219,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
         <!-- Identity -->
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
-            <Label for="net-name">Name</Label>
+            <Label for="net-name">{{ t('components.networkDialog.nameLabel') }}</Label>
             <Input
               id="net-name"
               v-model="name"
@@ -231,7 +231,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
             <p v-if="nameError" class="text-xs text-destructive">{{ nameError }}</p>
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="net-lobby">Lobby group</Label>
+            <Label for="net-lobby">{{ t('components.networkDialog.lobbyGroupLabel') }}</Label>
             <Input
               id="net-lobby"
               v-model="lobbyGroup"
@@ -248,11 +248,11 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <Label for="net-desc">Description <span class="text-muted-foreground font-normal">(optional, max 256 chars)</span></Label>
+          <Label for="net-desc">{{ t('components.networkDialog.descriptionLabel') }} <span class="text-muted-foreground font-normal">{{ t('components.networkDialog.descriptionHint') }}</span></Label>
           <Input
             id="net-desc"
             v-model="description"
-            placeholder="Default lobby + survival routing"
+            :placeholder="t('components.networkDialog.descriptionPlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
           />
@@ -261,14 +261,14 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
         <!-- Fallback chain (ordered) -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <Label class="flex items-center gap-1.5"><GitBranch class="size-3.5 text-muted-foreground" /> Fallback chain</Label>
-            <span class="text-[11px] text-muted-foreground">Tried in order on join failure / kick. Lobby is always last-resort.</span>
+            <Label class="flex items-center gap-1.5"><GitBranch class="size-3.5 text-muted-foreground" /> {{ t('components.networkDialog.fallbackChainLabel') }}</Label>
+            <span class="text-[11px] text-muted-foreground">{{ t('components.networkDialog.fallbackChainHint') }}</span>
           </div>
           <div class="flex items-center gap-2">
             <Input
               v-model="fallbackPicker"
               list="fallback-options"
-              placeholder="Add backend group…"
+              :placeholder="t('components.networkDialog.addBackendGroupPlaceholder')"
               autocomplete="off"
               class="bg-glass border-glass-border flex-1"
               @keydown.enter.prevent="addFallback"
@@ -276,10 +276,10 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
             <datalist id="fallback-options">
               <option v-for="g in fallbackPickerOptions" :key="g" :value="g" />
             </datalist>
-            <Button variant="outline" class="border-glass-border" :disabled="!fallbackPicker.trim()" @click="addFallback">Add</Button>
+            <Button variant="outline" class="border-glass-border" :disabled="!fallbackPicker.trim()" @click="addFallback">{{ t('components.networkDialog.add') }}</Button>
           </div>
           <p v-if="fallbackError" class="text-xs text-destructive">{{ fallbackError }}</p>
-          <div v-if="fallbackGroups.length === 0" class="text-xs text-muted-foreground py-2 px-3 rounded-lg bg-glass/30 border border-dashed border-glass-border/50">No fallback groups configured. Lobby is the only target.</div>
+          <div v-if="fallbackGroups.length === 0" class="text-xs text-muted-foreground py-2 px-3 rounded-lg bg-glass/30 border border-dashed border-glass-border/50">{{ t('components.networkDialog.noFallbackGroups') }}</div>
           <ol v-else class="flex flex-col gap-1.5">
             <li v-for="(g, i) in fallbackGroups" :key="g" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-glass/40 border border-glass-border/60">
               <span class="text-xs tabular-nums text-muted-foreground w-5 text-right">{{ i + 1 }}.</span>
@@ -294,14 +294,14 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
         <!-- Member groups -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <Label class="flex items-center gap-1.5"><Server class="size-3.5 text-muted-foreground" /> Member backend groups</Label>
-            <span class="text-[11px] text-muted-foreground">Empty = no restriction.</span>
+            <Label class="flex items-center gap-1.5"><Server class="size-3.5 text-muted-foreground" /> {{ t('components.networkDialog.memberGroupsLabel') }}</Label>
+            <span class="text-[11px] text-muted-foreground">{{ t('components.networkDialog.memberGroupsHint') }}</span>
           </div>
           <div class="flex items-center gap-2">
             <Input
               v-model="memberPicker"
               list="member-options"
-              placeholder="Add backend group…"
+              :placeholder="t('components.networkDialog.addBackendGroupPlaceholder')"
               autocomplete="off"
               class="bg-glass border-glass-border flex-1"
               @keydown.enter.prevent="addMember"
@@ -309,7 +309,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
             <datalist id="member-options">
               <option v-for="g in memberPickerOptions" :key="g" :value="g" />
             </datalist>
-            <Button variant="outline" class="border-glass-border" :disabled="!memberPicker.trim()" @click="addMember">Add</Button>
+            <Button variant="outline" class="border-glass-border" :disabled="!memberPicker.trim()" @click="addMember">{{ t('components.networkDialog.add') }}</Button>
           </div>
           <div v-if="memberGroups.length" class="flex flex-wrap gap-1.5">
             <Badge v-for="g in memberGroups" :key="g" variant="outline" class="text-xs pl-2.5 pr-1 py-0 h-6 gap-1.5 border-glass-border bg-glass/40">
@@ -322,14 +322,14 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
         <!-- Proxy groups -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <Label class="flex items-center gap-1.5"><NetworkIcon class="size-3.5 text-muted-foreground" /> Proxy groups</Label>
-            <span class="text-[11px] text-muted-foreground">Empty = applies to all proxies.</span>
+            <Label class="flex items-center gap-1.5"><NetworkIcon class="size-3.5 text-muted-foreground" /> {{ t('components.networkDialog.proxyGroupsLabel') }}</Label>
+            <span class="text-[11px] text-muted-foreground">{{ t('components.networkDialog.proxyGroupsHint') }}</span>
           </div>
           <div class="flex items-center gap-2">
             <Input
               v-model="proxyPicker"
               list="proxy-options"
-              placeholder="Add proxy group…"
+              :placeholder="t('components.networkDialog.addProxyGroupPlaceholder')"
               autocomplete="off"
               class="bg-glass border-glass-border flex-1"
               @keydown.enter.prevent="addProxy"
@@ -337,7 +337,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
             <datalist id="proxy-options">
               <option v-for="g in proxyPickerOptions" :key="g" :value="g" />
             </datalist>
-            <Button variant="outline" class="border-glass-border" :disabled="!proxyPicker.trim()" @click="addProxy">Add</Button>
+            <Button variant="outline" class="border-glass-border" :disabled="!proxyPicker.trim()" @click="addProxy">{{ t('components.networkDialog.add') }}</Button>
           </div>
           <p v-if="proxyError" class="text-xs text-destructive">{{ proxyError }}</p>
           <div v-if="proxyGroups.length" class="flex flex-wrap gap-1.5">
@@ -350,18 +350,18 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
 
         <!-- Kick message -->
         <div class="flex flex-col gap-1.5">
-          <Label for="net-kick">Kick message <span class="text-muted-foreground font-normal">(shown when fallback chain is exhausted, max 256 chars)</span></Label>
+          <Label for="net-kick">{{ t('components.networkDialog.kickMessageLabel') }} <span class="text-muted-foreground font-normal">{{ t('components.networkDialog.kickMessageHint') }}</span></Label>
           <Input
             id="net-kick"
             v-model="kickMessage"
-            placeholder="The network is currently unavailable. Please try again shortly."
+            :placeholder="t('components.networkDialog.kickMessagePlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
           />
         </div>
 
         <DialogFooter class="!flex-row gap-2 mt-2 pt-5 border-t border-glass-border">
-          <Button variant="outline" class="border-glass-border" :disabled="loading" @click="open = false">Cancel</Button>
+          <Button variant="outline" class="border-glass-border" :disabled="loading" @click="open = false">{{ t('components.networkDialog.cancel') }}</Button>
           <div class="flex-1" />
           <Button
             class="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -369,7 +369,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
             @click="submit"
           >
             <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin" />
-            {{ loading ? (isEdit ? 'Saving...' : 'Creating...') : (isEdit ? 'Save changes' : 'Create network') }}
+            {{ loading ? (isEdit ? t('components.networkDialog.saving') : t('components.networkDialog.creating')) : (isEdit ? t('components.networkDialog.saveChanges') : t('components.networkDialog.createNetwork')) }}
           </Button>
         </DialogFooter>
       </div>

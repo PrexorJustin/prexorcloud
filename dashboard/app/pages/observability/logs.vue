@@ -196,7 +196,7 @@ const sourceOptions = computed(() => {
 
     <Callout variant="info">
       <CalloutTitle>{{ t('pages.logs.scrollbackNote') }}</CalloutTitle>
-      <template #next>For deeper history, fall back to <code class="mono">prexorctl logs</code> or the host-side journal until the backend ships a history API (see <code class="mono">docs/dashboard-backend-gaps.md §5</code>).</template>
+      <template #next>{{ t('pages.logs.historyNote1') }} <code class="mono">prexorctl logs</code> {{ t('pages.logs.historyNote2') }} <code class="mono">docs/dashboard-backend-gaps.md §5</code>).</template>
     </Callout>
 
     <div class="flex h-[calc(100vh-260px)] min-h-[420px] flex-col overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">

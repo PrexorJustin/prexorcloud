@@ -132,11 +132,11 @@ function handleOpen(value: boolean) {
     <DialogTrigger v-if="!controlled" as-child>
       <Button v-if="!platform" class="bg-primary hover:bg-primary/90 text-primary-foreground">
         <Plus class="size-5 mr-2"/>
-        Add Platform
+        {{ t('components.addVersion.addPlatform') }}
       </Button>
       <Button v-else variant="ghost" size="sm" class="text-xs text-muted-foreground h-7 px-2">
         <Plus class="size-3 mr-1"/>
-        Add
+        {{ t('components.addVersion.add') }}
       </Button>
     </DialogTrigger>
     <DialogContent
@@ -167,15 +167,15 @@ class="absolute inset-0"
           </div>
           <DialogHeader class="text-center sm:text-center gap-0.5">
             <DialogTitle class="text-base font-bold text-foreground">
-              {{ platform ? `Add version to ${platform}` : currentStep === 1 ? 'New platform' : 'Add initial version' }}
+              {{ platform ? t('components.addVersion.titleAddVersionTo', { platform }) : currentStep === 1 ? t('components.addVersion.titleNewPlatform') : t('components.addVersion.titleAddInitialVersion') }}
             </DialogTitle>
             <DialogDescription class="text-xs text-muted-foreground">
               {{
                 platform
-                    ? 'Register a new version for this platform.'
+                    ? t('components.addVersion.descRegister')
                     : currentStep === 1
-                        ? 'Configure the platform identity and type.'
-                        : `Set up the first version for ${platformName}.`
+                        ? t('components.addVersion.descConfigure')
+                        : t('components.addVersion.descSetupFirst', { platform: platformName })
               }}
             </DialogDescription>
           </DialogHeader>
@@ -204,7 +204,7 @@ class="absolute inset-0"
                 s <= currentStep ? 'text-foreground' : 'text-muted-foreground',
               ]"
               >
-              {{ s === 1 ? 'Platform' : 'Version' }}
+              {{ s === 1 ? t('components.addVersion.stepPlatform') : t('components.addVersion.stepVersion') }}
             </span>
             </div>
             <!-- Connector line between steps -->
@@ -225,11 +225,11 @@ class="absolute inset-0"
             <div v-if="!platform && step === 1" key="step-1" class="flex flex-col gap-4">
               <!-- Platform name -->
               <div class="flex flex-col gap-1.5">
-                <Label for="platform-name" class="uppercase tracking-wider text-xs">Platform Name</Label>
+                <Label for="platform-name" class="uppercase tracking-wider text-xs">{{ t('components.addVersion.platformName') }}</Label>
                 <Input
                     id="platform-name"
                     v-model="platformName"
-                    placeholder="e.g. paper, velocity, purpur"
+                    :placeholder="t('components.addVersion.platformNamePlaceholder')"
                     autocomplete="off"
                     class="bg-glass border-glass-border"
                     @keydown.enter="nextStep"
@@ -238,7 +238,7 @@ class="absolute inset-0"
 
               <!-- Category -->
               <div class="flex flex-col gap-1.5">
-                <Label class="uppercase tracking-wider text-xs">Category</Label>
+                <Label class="uppercase tracking-wider text-xs">{{ t('components.addVersion.category') }}</Label>
                 <div class="grid grid-cols-2 gap-2">
                   <button
                       :class="[
@@ -258,8 +258,8 @@ class="size-4 shrink-0"
                     <div>
                       <p
 class="text-sm font-medium"
-                         :class="category === 'SERVER' ? 'text-foreground' : 'text-muted-foreground'">Server</p>
-                      <p class="text-[10px] text-muted-foreground">Game servers</p>
+                         :class="category === 'SERVER' ? 'text-foreground' : 'text-muted-foreground'">{{ t('components.addVersion.server') }}</p>
+                      <p class="text-[10px] text-muted-foreground">{{ t('components.addVersion.gameServers') }}</p>
                     </div>
                   </button>
                   <button
@@ -280,8 +280,8 @@ class="size-4 shrink-0"
                     <div>
                       <p
 class="text-sm font-medium"
-                         :class="category === 'PROXY' ? 'text-foreground' : 'text-muted-foreground'">Proxy</p>
-                      <p class="text-[10px] text-muted-foreground">Network proxies</p>
+                         :class="category === 'PROXY' ? 'text-foreground' : 'text-muted-foreground'">{{ t('components.addVersion.proxy') }}</p>
+                      <p class="text-[10px] text-muted-foreground">{{ t('components.addVersion.networkProxies') }}</p>
                     </div>
                   </button>
                 </div>
@@ -289,7 +289,7 @@ class="text-sm font-medium"
 
               <!-- Config Format: pill buttons -->
               <div class="flex flex-col gap-1.5">
-                <Label class="uppercase tracking-wider text-xs">Config Format</Label>
+                <Label class="uppercase tracking-wider text-xs">{{ t('components.addVersion.configFormat') }}</Label>
                 <div class="flex flex-wrap items-center gap-2">
                   <button
                       v-for="fmt in configFormatOptions"
@@ -324,7 +324,7 @@ class="size-4 shrink-0"
 
               <!-- Version -->
               <div class="flex flex-col gap-1.5">
-                <Label for="version" class="uppercase tracking-wider text-xs">Version</Label>
+                <Label for="version" class="uppercase tracking-wider text-xs">{{ t('components.addVersion.version') }}</Label>
                 <Input
                     id="version"
                     v-model="version"
@@ -337,7 +337,7 @@ class="size-4 shrink-0"
 
               <!-- Download URL -->
               <div class="flex flex-col gap-1.5">
-                <Label for="download-url" class="uppercase tracking-wider text-xs">Download URL</Label>
+                <Label for="download-url" class="uppercase tracking-wider text-xs">{{ t('components.addVersion.downloadUrl') }}</Label>
                 <Input
                     id="download-url"
                     v-model="downloadUrl"
@@ -361,7 +361,7 @@ class="size-4 shrink-0"
               @click="prevStep"
           >
             <ArrowLeft class="size-4 mr-1.5"/>
-            Back
+            {{ t('components.addVersion.back') }}
           </Button>
 
           <div class="flex-1"/>
@@ -373,7 +373,7 @@ class="size-4 shrink-0"
               :disabled="!stepOneValid"
               @click="nextStep"
           >
-            Continue
+            {{ t('components.addVersion.continue') }}
             <ArrowRight class="size-4 ml-1.5"/>
           </Button>
 
@@ -384,7 +384,7 @@ class="size-4 shrink-0"
               @click="submit"
           >
             <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin"/>
-            {{ loading ? 'Adding...' : 'Add Version' }}
+            {{ loading ? t('components.addVersion.adding') : t('components.addVersion.addVersion') }}
           </Button>
         </DialogFooter>
       </div>
