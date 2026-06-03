@@ -1198,6 +1198,117 @@
         "versions": "Versionen",
         "recommended": "Empfohlen"
       }
+    },
+    "players": {
+      "title": "Spieler",
+      "description": "Verbundene Clients im gesamten Cluster.",
+      "online": "Online",
+      "avgPing": "Ø Ping",
+      "groupsInUse": "Genutzte Gruppen",
+      "searchPlaceholder": "Nach Benutzername, UUID, Instanz oder Gruppe suchen …",
+      "emptyTitle": "Keine Spieler online",
+      "emptyHint": "Neue Verbindungen erscheinen hier, sobald Spieler beitreten.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen oder nach einem anderen Begriff zu suchen.",
+      "truncated": "{shown} von {total} online angezeigt — Liste begrenzt. Verfeinere die Suche, um einen bestimmten Spieler zu finden.",
+      "columns": {
+        "player": "Spieler",
+        "uuid": "UUID",
+        "instance": "Instanz",
+        "ping": "Ping",
+        "connected": "Verbunden"
+      },
+      "playerEyebrow": "Spieler",
+      "identity": "Identität",
+      "details": {
+        "uuid": "UUID",
+        "currentInstance": "Aktuelle Instanz",
+        "group": "Gruppe",
+        "connected": "Verbunden"
+      },
+      "transfer": "Transfer",
+      "targetInstance": "Ziel-Instanz",
+      "pickInstance": "Laufende Instanz auswählen …",
+      "transferring": "Wird übertragen …",
+      "transferAction": "Übertragen",
+      "transferHint": "Es werden nur RUNNING-Instanzen aufgelistet. Der Spieler behält seine Session.",
+      "journey": "Verlauf",
+      "loading": "Wird geladen …",
+      "noJourney": "Keine Bewegungs-Historie.",
+      "journeyJoined": "Beigetreten",
+      "journeyMoved": "Verschoben",
+      "journeyDisconnected": "Getrennt von"
+    },
+    "profile": {
+      "title": "Profil",
+      "description": "Verwalte dein Konto und deine Sicherheit.",
+      "toast": {
+        "linkNotFoundTitle": "Spieler nicht gefunden",
+        "linkNotFoundDesc": "Kein Minecraft-Konto für „{name}“ gefunden",
+        "linkedTitle": "Minecraft-Konto verknüpft",
+        "linkedDesc": "Verknüpft mit {name}",
+        "linkFailedTitle": "Verknüpfung fehlgeschlagen",
+        "linkFailedDesc": "Dein Minecraft-Konto konnte nicht verknüpft werden. Prüfe den Benutzernamen und versuche es erneut.",
+        "unlinkedTitle": "Minecraft-Konto getrennt",
+        "unlinkFailedTitle": "Trennen fehlgeschlagen",
+        "unlinkFailedDesc": "Dein Minecraft-Konto konnte nicht getrennt werden. Versuche es erneut oder prüfe die Controller-Logs.",
+        "passwordFailedTitle": "Passwortänderung fehlgeschlagen",
+        "passwordFailedDesc": "Prüfe, ob dein aktuelles Passwort korrekt ist und das neue mindestens 8 Zeichen hat."
+      },
+      "mc": {
+        "title": "Minecraft-Konto",
+        "subtitle": "Verknüpfe dein Minecraft-Konto für In-Game-Berechtigungen",
+        "unlinking": "Wird getrennt …",
+        "unlink": "Trennen",
+        "usernameLabel": "Minecraft-Benutzername",
+        "usernamePlaceholder": "z. B. Notch",
+        "usernameHint": "Wir prüfen das gegen die Mojang-API, um deine UUID zu erhalten.",
+        "linking": "Wird verknüpft …",
+        "linkAccount": "Konto verknüpfen"
+      },
+      "password": {
+        "title": "Passwort ändern",
+        "subtitle": "Aktualisiere dein Konto-Passwort",
+        "currentLabel": "Aktuelles Passwort",
+        "currentPlaceholder": "Aktuelles Passwort eingeben",
+        "newLabel": "Neues Passwort",
+        "newPlaceholder": "Mindestens 8 Zeichen",
+        "confirmLabel": "Neues Passwort bestätigen",
+        "confirmPlaceholder": "Neues Passwort wiederholen",
+        "mismatch": "Passwörter stimmen nicht überein",
+        "changing": "Wird geändert …"
+      },
+      "signOut": {
+        "title": "Abmelden",
+        "subtitle": "Beende deine aktuelle Session und kehre zur Anmeldeseite zurück."
+      }
+    },
+    "registry": {
+      "title": "Modul-Registry",
+      "description": "Durchsuche und installiere signierte Module aus den konfigurierten Registries.",
+      "refresh": "Aktualisieren",
+      "noRegistriesTitle": "Keine Registries konfiguriert",
+      "noRegistriesSet": "Setze",
+      "noRegistriesIn": "in",
+      "noRegistriesTail": "auf eine signierte Registry-Index-URL und aktualisiere dann.",
+      "registryCount": "{count} Registry | {count} Registries",
+      "updatesAvailable": "{count} Update verfügbar | {count} Updates verfügbar",
+      "searchPlaceholder": "Module, Tags suchen …",
+      "countLabel": "Module",
+      "signed": "signiert",
+      "unsigned": "unsigniert",
+      "installing": "Wird installiert …",
+      "updateTo": "Aktualisieren auf {version}",
+      "installed": "Installiert",
+      "install": "Installieren",
+      "installedLabel": "Installiert:",
+      "noMatches": "Keine Module entsprechen deiner Suche.",
+      "toast": {
+        "installedTitle": "Modul „{id}“ installiert",
+        "installedDesc": "Version {version}",
+        "installFailedTitle": "Installation fehlgeschlagen",
+        "unknownError": "Unbekannter Fehler"
+      }
     }
   },
   "components": {

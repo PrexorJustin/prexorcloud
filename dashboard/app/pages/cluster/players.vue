@@ -14,6 +14,7 @@ import { Eyebrow } from "~/components/ui/eyebrow"
 import { getInitials, timeAgo } from "~/lib/utils"
 import type { Player, PlayerJourneyEntry } from "~/stores/players"
 
+const { t } = useI18n()
 const store = usePlayersStore()
 const instances = useInstancesStore()
 
@@ -107,15 +108,15 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
     class="flex min-h-[420px] flex-col gap-5 overflow-hidden"
     style="height: calc(100svh - 6.5rem)"
   >
-    <PageHeader title="Players" description="Connected clients across the cluster." />
+    <PageHeader :title="t('pages.players.title')" :description="t('pages.players.description')" />
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
-        <p class="eyebrow mb-2">Online</p>
+        <p class="eyebrow mb-2">{{ t('pages.players.online') }}</p>
         <p class="text-2xl font-semibold tabular">{{ store.total || store.players.length }}</p>
       </div>
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
-        <p class="eyebrow mb-2">Avg ping</p>
+        <p class="eyebrow mb-2">{{ t('pages.players.avgPing') }}</p>
         <p class="text-2xl font-semibold tabular">
           {{ store.players.length === 0
               ? '—'
@@ -123,7 +124,7 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
         </p>
       </div>
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
-        <p class="eyebrow mb-2">Groups in use</p>
+        <p class="eyebrow mb-2">{{ t('pages.players.groupsInUse') }}</p>
         <p class="text-2xl font-semibold tabular">{{ new Set(store.players.map(p => p.group).filter(Boolean)).size }}</p>
       </div>
     </div>
@@ -132,7 +133,7 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
       v-model:search="search"
       :filters="[]"
       :active-filters="new Set(['ALL'])"
-      search-placeholder="Search by username, UUID, instance, or group…"
+      :search-placeholder="t('pages.players.searchPlaceholder')"
       :view-mode="viewMode"
       @update:view-mode="viewMode = $event"
     />
@@ -142,8 +143,8 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
     <EmptyState
       v-else-if="filteredPlayers.length === 0"
       :icon="UsersRound"
-      :title="search ? 'No matches' : 'No players online'"
-      :description="search ? 'Try clearing the filter or searching by another term.' : 'New connections will appear here as players join.'"
+      :title="search ? t('pages.players.emptyMatchesTitle') : t('pages.players.emptyTitle')"
+      :description="search ? t('pages.players.emptyMatchesHint') : t('pages.players.emptyHint')"
     />
 
     <template v-else-if="viewMode === 'grid'">
@@ -179,17 +180,17 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
         v-if="store.truncated"
         class="shrink-0 rounded-xl border border-warning/30 bg-warning/5 px-4 py-2 text-xs text-warning"
       >
-        Showing {{ store.players.length.toLocaleString() }} of {{ store.total.toLocaleString() }} online — list capped. Refine with search to find a specific player.
+        {{ t('pages.players.truncated', { shown: store.players.length.toLocaleString(), total: store.total.toLocaleString() }) }}
       </div>
     </template>
 
     <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
       <div class="flex h-10 shrink-0 items-center border-b border-glass-border px-4 eyebrow">
-        <div class="w-64 shrink-0">Player</div>
-        <div class="flex-1">UUID</div>
-        <div class="w-44 shrink-0">Instance</div>
-        <div class="w-32 shrink-0">Ping</div>
-        <div class="w-32 shrink-0 text-right">Connected</div>
+        <div class="w-64 shrink-0">{{ t('pages.players.columns.player') }}</div>
+        <div class="flex-1">{{ t('pages.players.columns.uuid') }}</div>
+        <div class="w-44 shrink-0">{{ t('pages.players.columns.instance') }}</div>
+        <div class="w-32 shrink-0">{{ t('pages.players.columns.ping') }}</div>
+        <div class="w-32 shrink-0 text-right">{{ t('pages.players.columns.connected') }}</div>
       </div>
       <VList
         v-slot="{ item: p }"
@@ -224,14 +225,14 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
         v-if="store.truncated"
         class="shrink-0 border-t border-glass-border bg-warning/5 px-4 py-2 text-xs text-warning"
       >
-        Showing {{ store.players.length.toLocaleString() }} of {{ store.total.toLocaleString() }} online — list capped. Refine with search to find a specific player.
+        {{ t('pages.players.truncated', { shown: store.players.length.toLocaleString(), total: store.total.toLocaleString() }) }}
       </div>
     </div>
 
     <DetailSheet
       :open="sheetOpen"
       :title="sheetPlayer?.username"
-      eyebrow="Player"
+      :eyebrow="t('pages.players.playerEyebrow')"
       size="lg"
       @update:open="sheetOpen = $event"
     >
@@ -241,35 +242,35 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
 
       <div v-if="sheetPlayer" class="space-y-5">
         <section class="space-y-2">
-          <Eyebrow>Identity</Eyebrow>
+          <Eyebrow>{{ t('pages.players.identity') }}</Eyebrow>
           <div class="space-y-2 rounded-xl border border-glass-border bg-glass/40 p-3">
             <div class="flex items-center justify-between text-sm">
-              <span class="text-muted-foreground">UUID</span>
+              <span class="text-muted-foreground">{{ t('pages.players.details.uuid') }}</span>
               <span class="mono text-xs">{{ sheetPlayer.uuid }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-muted-foreground">Current instance</span>
+              <span class="text-muted-foreground">{{ t('pages.players.details.currentInstance') }}</span>
               <NuxtLink :to="`/instances/${sheetPlayer.currentInstance}`" class="mono text-primary hover:underline">{{ sheetPlayer.currentInstance ?? '—' }}</NuxtLink>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-muted-foreground">Group</span>
+              <span class="text-muted-foreground">{{ t('pages.players.details.group') }}</span>
               <span class="mono">{{ sheetPlayer.group ?? '—' }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
-              <span class="text-muted-foreground">Connected</span>
+              <span class="text-muted-foreground">{{ t('pages.players.details.connected') }}</span>
               <span class="tabular">{{ sheetPlayer.connectedAt ? timeAgo(sheetPlayer.connectedAt) : '—' }}</span>
             </div>
           </div>
         </section>
 
         <section class="space-y-2">
-          <Eyebrow>Transfer</Eyebrow>
+          <Eyebrow>{{ t('pages.players.transfer') }}</Eyebrow>
           <div class="flex items-end gap-2">
             <div class="flex-1 space-y-1.5">
-              <Label for="player-transfer">Target instance</Label>
+              <Label for="player-transfer">{{ t('pages.players.targetInstance') }}</Label>
               <Select v-model="transferTarget">
                 <SelectTrigger id="player-transfer">
-                  <SelectValue placeholder="Pick a running instance…" />
+                  <SelectValue :placeholder="t('pages.players.pickInstance')" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem v-for="o in transferOptions" :key="o.id" :value="o.id">{{ o.label }}</SelectItem>
@@ -278,17 +279,17 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
             </div>
             <Button :disabled="!transferTarget || transferring" @click="submitTransfer">
               <ArrowRightLeft class="mr-1.5 size-3.5" />
-              {{ transferring ? 'Transferring…' : 'Transfer' }}
+              {{ transferring ? t('pages.players.transferring') : t('pages.players.transferAction') }}
             </Button>
           </div>
-          <p class="text-xs text-muted-foreground">Only RUNNING instances are listed. The player keeps their session.</p>
+          <p class="text-xs text-muted-foreground">{{ t('pages.players.transferHint') }}</p>
         </section>
 
         <section class="space-y-2">
-          <Eyebrow>Journey</Eyebrow>
-          <p v-if="journeyLoading" class="text-sm text-muted-foreground">Loading…</p>
+          <Eyebrow>{{ t('pages.players.journey') }}</Eyebrow>
+          <p v-if="journeyLoading" class="text-sm text-muted-foreground">{{ t('pages.players.loading') }}</p>
           <div v-else-if="journey.length === 0" class="rounded-xl border border-dashed border-glass-border bg-glass/30 px-4 py-6 text-center text-sm text-muted-foreground">
-            No movement history.
+            {{ t('pages.players.noJourney') }}
           </div>
           <ol v-else class="space-y-2.5 border-l border-glass-border pl-5">
             <li v-for="(j, i) in journey" :key="i" class="relative">
@@ -297,9 +298,9 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
               </span>
               <div class="flex items-center justify-between text-sm">
                 <span class="font-medium">
-                  <template v-if="j.type === 'connected'">Joined <span class="mono text-primary">{{ j.toInstance }}</span></template>
-                  <template v-else-if="j.type === 'transferred'">Moved <span class="mono">{{ j.fromInstance }}</span> → <span class="mono text-primary">{{ j.toInstance }}</span></template>
-                  <template v-else>Disconnected from <span class="mono">{{ j.fromInstance }}</span></template>
+                  <template v-if="j.type === 'connected'">{{ t('pages.players.journeyJoined') }} <span class="mono text-primary">{{ j.toInstance }}</span></template>
+                  <template v-else-if="j.type === 'transferred'">{{ t('pages.players.journeyMoved') }} <span class="mono">{{ j.fromInstance }}</span> → <span class="mono text-primary">{{ j.toInstance }}</span></template>
+                  <template v-else>{{ t('pages.players.journeyDisconnected') }} <span class="mono">{{ j.fromInstance }}</span></template>
                 </span>
                 <span class="tabular text-xs text-muted-foreground">{{ timeAgo(j.ts) }}</span>
               </div>

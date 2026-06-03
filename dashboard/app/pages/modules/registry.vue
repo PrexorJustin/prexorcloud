@@ -14,6 +14,7 @@ import { Button } from '~/components/ui/button';
 import { toast } from 'vue-sonner';
 import type { RegistryModuleEntry } from '~/types/api';
 
+const { t } = useI18n();
 const moduleStore = useModuleStore();
 const auth = useAuthStore();
 
@@ -56,10 +57,10 @@ async function install(m: RegistryModuleEntry) {
   installingKey.value = entryKey(m);
   try {
     await moduleStore.installFromRegistry(m.moduleId, m.version, m.registryUrl);
-    toast.success(`Module "${m.moduleId}" installed`, { description: `version ${m.version}` });
+    toast.success(t('pages.registry.toast.installedTitle', { id: m.moduleId }), { description: t('pages.registry.toast.installedDesc', { version: m.version }) });
   } catch (e) {
-    toast.error('Install failed', {
-      description: e instanceof Error ? e.message : 'Unknown error',
+    toast.error(t('pages.registry.toast.installFailedTitle'), {
+      description: e instanceof Error ? e.message : t('pages.registry.toast.unknownError'),
     });
   } finally {
     installingKey.value = null;
@@ -70,13 +71,13 @@ async function install(m: RegistryModuleEntry) {
 <template>
   <div class="flex flex-col gap-5 flex-1">
     <PageHeader
-      title="Module Registry"
-      description="Browse and install signed modules from the configured registries."
+      :title="t('pages.registry.title')"
+      :description="t('pages.registry.description')"
     >
       <template #actions>
         <Button variant="outline" :disabled="refreshing" @click="refresh">
           <RefreshCw class="mr-2 size-4" :class="refreshing ? 'animate-spin' : ''" />
-          Refresh
+          {{ t('pages.registry.refresh') }}
         </Button>
       </template>
     </PageHeader>
@@ -95,13 +96,13 @@ async function install(m: RegistryModuleEntry) {
       class="flex flex-col items-center justify-center gap-3 rounded-lg border border-glass-border bg-glass/50 px-6 py-16 text-center"
     >
       <PackageSearch class="size-8 text-muted-foreground" />
-      <p class="text-sm font-medium text-foreground">No registries configured</p>
+      <p class="text-sm font-medium text-foreground">{{ t('pages.registry.noRegistriesTitle') }}</p>
       <p class="max-w-md text-xs text-muted-foreground">
-        Set
+        {{ t('pages.registry.noRegistriesSet') }}
         <code class="font-mono">modules.registries</code>
-        in
+        {{ t('pages.registry.noRegistriesIn') }}
         <code class="font-mono">controller.yml</code>
-        to a signed registry index URL, then refresh.
+        {{ t('pages.registry.noRegistriesTail') }}
       </p>
     </div>
 
@@ -109,22 +110,20 @@ async function install(m: RegistryModuleEntry) {
       <div class="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span class="inline-flex items-center gap-1">
           <CheckCircle2 class="size-3.5 text-success" />
-          {{ moduleStore.registries.length }} registr{{
-            moduleStore.registries.length === 1 ? 'y' : 'ies'
-          }}
+          {{ t('pages.registry.registryCount', { count: moduleStore.registries.length }, moduleStore.registries.length) }}
         </span>
         <span v-if="updatable > 0" class="inline-flex items-center gap-1 text-warning">
           <ArrowUpCircle class="size-3.5" />
-          {{ updatable }} update{{ updatable === 1 ? '' : 's' }} available
+          {{ t('pages.registry.updatesAvailable', { count: updatable }, updatable) }}
         </span>
       </div>
 
       <FilterToolbar
         v-model:search="search"
-        search-placeholder="Search modules, tags…"
+        :search-placeholder="t('pages.registry.searchPlaceholder')"
         :show-view-toggle="false"
         :count="moduleStore.registryModules.length"
-        count-label="modules"
+        :count-label="t('pages.registry.countLabel')"
       />
 
       <div
@@ -156,7 +155,7 @@ async function install(m: RegistryModuleEntry) {
               :class="m.signed ? 'text-success' : 'text-warning'"
             >
               <component :is="m.signed ? ShieldCheck : ShieldAlert" class="size-3" />
-              {{ m.signed ? 'signed' : 'unsigned' }}
+              {{ m.signed ? t('pages.registry.signed') : t('pages.registry.unsigned') }}
             </span>
             <Badge v-for="tag in m.tags" :key="tag" variant="secondary" class="text-[11px]">
               {{ tag }}
@@ -177,10 +176,10 @@ async function install(m: RegistryModuleEntry) {
                 class="mr-2 size-4"
                 :class="installingKey === entryKey(m) ? 'animate-pulse' : ''"
               />
-              <template v-if="installingKey === entryKey(m)">Installing…</template>
-              <template v-else-if="isUpdate(m)">Update to {{ m.version }}</template>
-              <template v-else-if="m.installed">Installed</template>
-              <template v-else>Install</template>
+              <template v-if="installingKey === entryKey(m)">{{ t('pages.registry.installing') }}</template>
+              <template v-else-if="isUpdate(m)">{{ t('pages.registry.updateTo', { version: m.version }) }}</template>
+              <template v-else-if="m.installed">{{ t('pages.registry.installed') }}</template>
+              <template v-else>{{ t('pages.registry.install') }}</template>
             </Button>
           </div>
 
@@ -188,7 +187,7 @@ async function install(m: RegistryModuleEntry) {
             v-if="m.installed && m.installedVersion"
             class="mt-2 text-[11px] text-muted-foreground"
           >
-            Installed:
+            {{ t('pages.registry.installedLabel') }}
             <span class="font-mono">{{ m.installedVersion }}</span>
           </p>
         </div>
@@ -199,7 +198,7 @@ async function install(m: RegistryModuleEntry) {
         class="flex flex-col items-center justify-center gap-2 rounded-lg border border-glass-border bg-glass/40 px-6 py-12 text-center text-sm text-muted-foreground"
       >
         <PackageSearch class="size-6" />
-        No modules match your search.
+        {{ t('pages.registry.noMatches') }}
       </div>
     </template>
   </div>

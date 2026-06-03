@@ -7,6 +7,7 @@ import { Label } from "~/components/ui/label"
 import { Separator } from "~/components/ui/separator"
 import { toast } from "vue-sonner"
 
+const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 
@@ -23,7 +24,7 @@ async function linkMinecraft() {
     // Resolve username to UUID via Mojang API
     const mojangRes = await $fetch<{ id: string; name: string }>(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(name)}`)
     if (!mojangRes?.id) {
-      toast.error("Player not found", { description: `No Minecraft account found for "${name}"` })
+      toast.error(t('pages.profile.toast.linkNotFoundTitle'), { description: t('pages.profile.toast.linkNotFoundDesc', { name }) })
       return
     }
 
@@ -37,9 +38,9 @@ async function linkMinecraft() {
     auth.user!.minecraftName = mojangRes.name
 
     mcUsername.value = ""
-    toast.success("Minecraft account linked", { description: `Linked to ${mojangRes.name}` })
+    toast.success(t('pages.profile.toast.linkedTitle'), { description: t('pages.profile.toast.linkedDesc', { name: mojangRes.name }) })
   } catch {
-    toast.error("Link failed", { description: "Couldn't link your Minecraft account. Check the username and try again." })
+    toast.error(t('pages.profile.toast.linkFailedTitle'), { description: t('pages.profile.toast.linkFailedDesc') })
   } finally {
     mcLinking.value = false
   }
@@ -51,9 +52,9 @@ async function unlinkMinecraft() {
     await useApiClient().DELETE('/api/v1/users/{username}/minecraft', { params: { path: { username: auth.user!.username } } })
     auth.user!.minecraftUuid = null
     auth.user!.minecraftName = null
-    toast.success("Minecraft account unlinked")
+    toast.success(t('pages.profile.toast.unlinkedTitle'))
   } catch {
-    toast.error("Unlink failed", { description: "Couldn't unlink your Minecraft account. Try again, or check the controller logs." })
+    toast.error(t('pages.profile.toast.unlinkFailedTitle'), { description: t('pages.profile.toast.unlinkFailedDesc') })
   } finally {
     mcUnlinking.value = false
   }
@@ -83,7 +84,7 @@ async function changePassword() {
     confirmPassword.value = ""
   }
   catch {
-    toast.error("Password change failed", { description: "Check that your current password is correct and the new one is at least 8 characters." })
+    toast.error(t('pages.profile.toast.passwordFailedTitle'), { description: t('pages.profile.toast.passwordFailedDesc') })
   }
   finally {
     passwordLoading.value = false
@@ -99,8 +100,8 @@ function handleLogout() {
 <template>
   <div class="flex flex-col gap-6 flex-1">
     <PageHeader
-      title="Profile"
-      description="Manage your account and security."
+      :title="t('pages.profile.title')"
+      :description="t('pages.profile.description')"
     />
 
     <!-- Account Info -->
@@ -128,8 +129,8 @@ function handleLogout() {
           <Gamepad2 class="size-5 text-primary" />
         </div>
         <div>
-          <h3 class="font-semibold text-foreground">Minecraft Account</h3>
-          <p class="text-sm text-muted-foreground">Link your Minecraft account for in-game permissions</p>
+          <h3 class="font-semibold text-foreground">{{ t('pages.profile.mc.title') }}</h3>
+          <p class="text-sm text-muted-foreground">{{ t('pages.profile.mc.subtitle') }}</p>
         </div>
       </div>
 
@@ -155,23 +156,23 @@ function handleLogout() {
         >
           <Loader2 v-if="mcUnlinking" class="size-4 mr-1.5 animate-spin" />
           <Unlink v-else class="size-4 mr-2" />
-          {{ mcUnlinking ? 'Unlinking...' : 'Unlink' }}
+          {{ mcUnlinking ? t('pages.profile.mc.unlinking') : t('pages.profile.mc.unlink') }}
         </Button>
       </div>
 
       <!-- Unlinked state -->
       <div v-else class="flex flex-col gap-4 max-w-md">
         <div class="flex flex-col gap-1.5">
-          <Label for="mc-username">Minecraft Username</Label>
+          <Label for="mc-username">{{ t('pages.profile.mc.usernameLabel') }}</Label>
           <Input
             id="mc-username"
             v-model="mcUsername"
-            placeholder="e.g. Notch"
+            :placeholder="t('pages.profile.mc.usernamePlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
             @keydown.enter="linkMinecraft"
           />
-          <p class="text-xs text-muted-foreground">We'll verify this against the Mojang API to get your UUID.</p>
+          <p class="text-xs text-muted-foreground">{{ t('pages.profile.mc.usernameHint') }}</p>
         </div>
         <Button
           class="self-start"
@@ -180,7 +181,7 @@ function handleLogout() {
         >
           <Loader2 v-if="mcLinking" class="size-4 mr-1.5 animate-spin" />
           <Link v-else class="size-4 mr-2" />
-          {{ mcLinking ? 'Linking...' : 'Link Account' }}
+          {{ mcLinking ? t('pages.profile.mc.linking') : t('pages.profile.mc.linkAccount') }}
         </Button>
       </div>
     </div>
@@ -192,20 +193,20 @@ function handleLogout() {
           <KeyRound class="size-5 text-primary" />
         </div>
         <div>
-          <h3 class="font-semibold text-foreground">Change Password</h3>
-          <p class="text-sm text-muted-foreground">Update your account password</p>
+          <h3 class="font-semibold text-foreground">{{ t('pages.profile.password.title') }}</h3>
+          <p class="text-sm text-muted-foreground">{{ t('pages.profile.password.subtitle') }}</p>
         </div>
       </div>
 
       <div class="flex flex-col gap-4 max-w-md">
         <div class="flex flex-col gap-1.5">
-          <Label for="current-password">Current Password</Label>
+          <Label for="current-password">{{ t('pages.profile.password.currentLabel') }}</Label>
           <div class="relative">
             <Input
               id="current-password"
               v-model="currentPassword"
               :type="showCurrent ? 'text' : 'password'"
-              placeholder="Enter current password"
+              :placeholder="t('pages.profile.password.currentPlaceholder')"
               autocomplete="current-password"
               class="bg-glass border-glass-border pr-10"
             />
@@ -223,13 +224,13 @@ function handleLogout() {
         <Separator class="my-1" />
 
         <div class="flex flex-col gap-1.5">
-          <Label for="new-password">New Password</Label>
+          <Label for="new-password">{{ t('pages.profile.password.newLabel') }}</Label>
           <div class="relative">
             <Input
               id="new-password"
               v-model="newPassword"
               :type="showNew ? 'text' : 'password'"
-              placeholder="At least 8 characters"
+              :placeholder="t('pages.profile.password.newPlaceholder')"
               autocomplete="new-password"
               class="bg-glass border-glass-border pr-10"
             />
@@ -245,18 +246,18 @@ function handleLogout() {
         </div>
 
         <div class="flex flex-col gap-1.5">
-          <Label for="confirm-password">Confirm New Password</Label>
+          <Label for="confirm-password">{{ t('pages.profile.password.confirmLabel') }}</Label>
           <Input
             id="confirm-password"
             v-model="confirmPassword"
             type="password"
-            placeholder="Repeat new password"
+            :placeholder="t('pages.profile.password.confirmPlaceholder')"
             autocomplete="new-password"
             class="bg-glass border-glass-border"
             @keydown.enter="changePassword"
           />
           <p v-if="confirmPassword && newPassword !== confirmPassword" class="text-xs text-destructive">
-            Passwords do not match
+            {{ t('pages.profile.password.mismatch') }}
           </p>
         </div>
 
@@ -266,7 +267,7 @@ function handleLogout() {
           @click="changePassword"
         >
           <Loader2 v-if="passwordLoading" class="size-4 mr-1.5 animate-spin" />
-          {{ passwordLoading ? "Changing..." : "Change Password" }}
+          {{ passwordLoading ? t('pages.profile.password.changing') : t('pages.profile.password.title') }}
         </Button>
       </div>
     </div>
@@ -279,8 +280,8 @@ function handleLogout() {
             <LogOut class="size-5 text-destructive" />
           </div>
           <div>
-            <h3 class="font-semibold text-foreground">Sign Out</h3>
-            <p class="text-sm text-muted-foreground mt-1">End your current session and return to the login page.</p>
+            <h3 class="font-semibold text-foreground">{{ t('pages.profile.signOut.title') }}</h3>
+            <p class="text-sm text-muted-foreground mt-1">{{ t('pages.profile.signOut.subtitle') }}</p>
           </div>
         </div>
         <Button
@@ -289,7 +290,7 @@ function handleLogout() {
           @click="handleLogout"
         >
           <LogOut class="size-4 mr-2" />
-          Sign Out
+          {{ t('pages.profile.signOut.title') }}
         </Button>
       </div>
     </div>

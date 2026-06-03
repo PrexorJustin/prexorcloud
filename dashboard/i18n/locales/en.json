@@ -1198,6 +1198,117 @@
         "versions": "Versions",
         "recommended": "Recommended"
       }
+    },
+    "players": {
+      "title": "Players",
+      "description": "Connected clients across the cluster.",
+      "online": "Online",
+      "avgPing": "Avg ping",
+      "groupsInUse": "Groups in use",
+      "searchPlaceholder": "Search by username, UUID, instance, or group…",
+      "emptyTitle": "No players online",
+      "emptyHint": "New connections will appear here as players join.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter or searching by another term.",
+      "truncated": "Showing {shown} of {total} online — list capped. Refine with search to find a specific player.",
+      "columns": {
+        "player": "Player",
+        "uuid": "UUID",
+        "instance": "Instance",
+        "ping": "Ping",
+        "connected": "Connected"
+      },
+      "playerEyebrow": "Player",
+      "identity": "Identity",
+      "details": {
+        "uuid": "UUID",
+        "currentInstance": "Current instance",
+        "group": "Group",
+        "connected": "Connected"
+      },
+      "transfer": "Transfer",
+      "targetInstance": "Target instance",
+      "pickInstance": "Pick a running instance…",
+      "transferring": "Transferring…",
+      "transferAction": "Transfer",
+      "transferHint": "Only RUNNING instances are listed. The player keeps their session.",
+      "journey": "Journey",
+      "loading": "Loading…",
+      "noJourney": "No movement history.",
+      "journeyJoined": "Joined",
+      "journeyMoved": "Moved",
+      "journeyDisconnected": "Disconnected from"
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "Manage your account and security.",
+      "toast": {
+        "linkNotFoundTitle": "Player not found",
+        "linkNotFoundDesc": "No Minecraft account found for \"{name}\"",
+        "linkedTitle": "Minecraft account linked",
+        "linkedDesc": "Linked to {name}",
+        "linkFailedTitle": "Link failed",
+        "linkFailedDesc": "Couldn't link your Minecraft account. Check the username and try again.",
+        "unlinkedTitle": "Minecraft account unlinked",
+        "unlinkFailedTitle": "Unlink failed",
+        "unlinkFailedDesc": "Couldn't unlink your Minecraft account. Try again, or check the controller logs.",
+        "passwordFailedTitle": "Password change failed",
+        "passwordFailedDesc": "Check that your current password is correct and the new one is at least 8 characters."
+      },
+      "mc": {
+        "title": "Minecraft Account",
+        "subtitle": "Link your Minecraft account for in-game permissions",
+        "unlinking": "Unlinking...",
+        "unlink": "Unlink",
+        "usernameLabel": "Minecraft Username",
+        "usernamePlaceholder": "e.g. Notch",
+        "usernameHint": "We'll verify this against the Mojang API to get your UUID.",
+        "linking": "Linking...",
+        "linkAccount": "Link Account"
+      },
+      "password": {
+        "title": "Change Password",
+        "subtitle": "Update your account password",
+        "currentLabel": "Current Password",
+        "currentPlaceholder": "Enter current password",
+        "newLabel": "New Password",
+        "newPlaceholder": "At least 8 characters",
+        "confirmLabel": "Confirm New Password",
+        "confirmPlaceholder": "Repeat new password",
+        "mismatch": "Passwords do not match",
+        "changing": "Changing..."
+      },
+      "signOut": {
+        "title": "Sign Out",
+        "subtitle": "End your current session and return to the login page."
+      }
+    },
+    "registry": {
+      "title": "Module Registry",
+      "description": "Browse and install signed modules from the configured registries.",
+      "refresh": "Refresh",
+      "noRegistriesTitle": "No registries configured",
+      "noRegistriesSet": "Set",
+      "noRegistriesIn": "in",
+      "noRegistriesTail": "to a signed registry index URL, then refresh.",
+      "registryCount": "{count} registry | {count} registries",
+      "updatesAvailable": "{count} update available | {count} updates available",
+      "searchPlaceholder": "Search modules, tags…",
+      "countLabel": "modules",
+      "signed": "signed",
+      "unsigned": "unsigned",
+      "installing": "Installing…",
+      "updateTo": "Update to {version}",
+      "installed": "Installed",
+      "install": "Install",
+      "installedLabel": "Installed:",
+      "noMatches": "No modules match your search.",
+      "toast": {
+        "installedTitle": "Module \"{id}\" installed",
+        "installedDesc": "version {version}",
+        "installFailedTitle": "Install failed",
+        "unknownError": "Unknown error"
+      }
     }
   },
   "components": {
