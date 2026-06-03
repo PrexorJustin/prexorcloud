@@ -450,11 +450,11 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 - Mongo-Indices auditieren — die Audit-Log-Queries sind die wahrscheinlichsten Bottlenecks bei großen Clustern.
 - Scheduler-Tick-Profiling: lässt sich der Tick unter 50 ms p99 halten bei 100 Groups?
 
-### H.2 Accessibility-Audit (~3 d)
+### H.2 Accessibility-Audit (~3 d) — ⏳ **statischer A11y-Gate + Icon-Control-Naming shipped; Runtime-axe/Contrast/Keyboard offen**
 
-- Dashboard durch axe-core und Lighthouse-A11y. Mindest-Score 95.
-- Tastatur-Navigation für alle Critical-Flows (Login, Group Create, Deploy).
-- Color-Contrast WCAG-AA gegen Design-System-Tokens validieren.
+- ✅ **Statischer A11y-Lint (2026-06-03):** `dashboard/scripts/a11y-lint.mjs` (`pnpm a11y:check`), zero-dep, dieselbe Tag/Text/Quote-State-Machine wie der Hardcode-Lint. Prüft zwei statisch entscheidbare WCAG-Defekte, die ein authed-SPA mit Running-App-axe schlecht abdeckt (die meisten Routen liegen hinter Login): `<img>` ohne `alt` (1.1.1) und Icon-only-Controls ohne Accessible Name (4.1.2 — Name aus Text/Interpolation/`aria-label`/`title`/`sr-only`). **Harter CI-Gate** in `ci.yml` neben dem i18n-Gate.
+- ✅ **26 Icon-only-Controls benannt:** Alle vom Lint gefundenen namenlosen Buttons/Links (Move-up/down, Remove, Passwort-Show/Hide, Back, Copy …) tragen jetzt ein gebundenes `:aria-label="t('…')"` — geteiltes `common.a11y.*`-Vokabular, en+de, durch den Hardcode-Gate erzwungen (kein hartkodiertes Label). 0 Bilder ohne alt. Keine neuen Typecheck-Fehler (Stash-Vergleich).
+- ⏳ **Offen:** Runtime-axe-core + Lighthouse-A11y ≥95 (braucht serviertes Dashboard + Auth-Flow im CI, analog zum Website-axe-Job), Color-Contrast WCAG-AA gegen Design-System-Tokens (braucht echtes Rendering), Voll-Tastatur-Navigation der Critical-Flows (Login, Group Create, Deploy).
 
 ### H.3 i18n-Coverage (~3 d) — ⏳ **Dashboard vollständig extrahiert (Lint-verifiziert, harter Gate); Website-DE offen**
 
