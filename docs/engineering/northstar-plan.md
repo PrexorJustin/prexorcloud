@@ -10,6 +10,26 @@
 
 ---
 
+## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-03)
+
+**Gesamt ≈ 67 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 95 %** (faktisch geshippt, nur A.8-Config-History-UI offen) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 16 %** (F unangetastet, H ≈ 40 %).
+
+**Track-Stand:** A ~90 % · B 100 % · C ~95 % · D ~85 % · E ~40 % · F 0 % · G 100 % · H ~40 %.
+
+**Zuletzt geliefert (Session 2026-06-03):**
+- **H.3 Dashboard-i18n vollständig** — alle 104 Rest-Hardcode-Strings extrahiert (Batches 20–22), `i18n:check-hardcoded` jetzt **harter** CI-Gate (2072 Keys, en+de).
+- **H.2 statische A11y** — `a11y-lint.mjs` (harter Gate) + 26 Icon-only-Controls mit `aria-label` benannt; **Runtime-axe-Job** (soft) gegen Login-Oberfläche.
+- **Track A Loose Ends** — `/cluster/leases`-Endpoint, `cluster.member.joined`-Audit, tote `ClusterJoinRoutes` entfernt.
+- **Audit-Korrekturen** — zwei Plan-Overclaims (H.3 „0 hardcoded", A.8 totes Endpoint) der Realität angeglichen; drei neue harte CI-Gates schützen das jetzt.
+
+**👉 Hier weitermachen:** Die billigen Quick-Wins sind durch. Was bleibt, sitzt in den zwei großen Tracks:
+- **Track E** (~12 d) — Frontend-Konsolidierung + A11y-**Runtime**-Härtung (authed-Flow-axe mit Test-Login, Voll-Contrast-Audit, Keyboard-Nav).
+- **Track F** (~15 d) — Bedrock/Fabric/Forge, echte neue Subsysteme (kein Batch-Job).
+- Kleinere H-Reste: H.1 Audit-Log-`skip(offset)`-Pagination-Refactor; A.8 Config-Version-History/Diff-UI im Dashboard.
+- **Nächster sinnvoller Schritt:** Track E oder F sauber in einen phasierten Implementierungsplan scopen (statt weiterer Klein-Edits).
+
+---
+
 ## 0. Nordstern — was „bestes MC-Cloud-System" konkret bedeutet
 
 Die Marketing-Aussage ist sinnlos, wenn man nicht definiert, woran man sich messen lässt. PrexorCloud will in folgenden **acht Dimensionen** das Beste sein, was der Minecraft-Cloud-Markt bietet (Vergleichsgegner: CloudNet 4, SimpleCloud v3, ReformCloud, Aves Cloud):
