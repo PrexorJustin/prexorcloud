@@ -14,6 +14,7 @@ import { toast } from "vue-sonner"
 import { timeAgo, formatBytes } from "~/lib/utils"
 import type { BackupRecord } from "~/stores/backups"
 
+const { t } = useI18n()
 const store = useBackupsStore()
 
 onMounted(() => store.fetchBackups())
@@ -37,10 +38,10 @@ function verifyTone(s?: string) {
 }
 
 function verifyLabel(b: BackupRecord) {
-  if (!b.verifyStatus) return "Not verified"
-  if (b.verifyStatus === "OK") return `Verified ${b.verifiedAt ? timeAgo(b.verifiedAt) : ''}`.trim()
-  if (b.verifyStatus === "FAILED") return "Verify failed"
-  return "Verifying…"
+  if (!b.verifyStatus) return t('pages.backups.verify.notVerified')
+  if (b.verifyStatus === "OK") return t('pages.backups.verify.verified', { ago: b.verifiedAt ? timeAgo(b.verifiedAt) : '' }).trim()
+  if (b.verifyStatus === "FAILED") return t('pages.backups.verify.failed')
+  return t('pages.backups.verify.verifying')
 }
 
 const bulkBusy = ref(false)
@@ -49,7 +50,7 @@ async function bulkDelete() {
   try {
     const ids = Array.from(selected.value)
     await Promise.allSettled(ids.map(id => store.deleteBackup(id)))
-    toast.success(`${ids.length} ${ids.length === 1 ? 'backup' : 'backups'} deleted`)
+    toast.success(t('pages.backups.deletedToast', { count: ids.length }, ids.length))
     clearSelection()
   } finally { bulkBusy.value = false }
 }
@@ -97,28 +98,28 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
 
 <template>
   <div class="flex flex-1 flex-col gap-5">
-    <PageHeader title="Backups" description="Cluster-state snapshots: groups, templates, deployment history.">
+    <PageHeader :title="t('pages.backups.title')" :description="t('pages.backups.description')">
       <template #actions>
         <Button variant="outline" @click="pruneOpen = true">
-          <Scissors class="mr-2 size-4" /> Prune
+          <Scissors class="mr-2 size-4" /> {{ t('pages.backups.prune') }}
         </Button>
         <Button @click="createOpen = true">
-          <Plus class="mr-2 size-4" /> Create backup
+          <Plus class="mr-2 size-4" /> {{ t('pages.backups.createBackup') }}
         </Button>
       </template>
     </PageHeader>
 
     <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
-        <p class="eyebrow mb-2">Snapshots</p>
+        <p class="eyebrow mb-2">{{ t('pages.backups.summary.snapshots') }}</p>
         <p class="text-2xl font-semibold tabular">{{ store.backups.length }}</p>
       </div>
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
-        <p class="eyebrow mb-2">Total size</p>
+        <p class="eyebrow mb-2">{{ t('pages.backups.summary.totalSize') }}</p>
         <p class="text-2xl font-semibold tabular">{{ formatBytes(totalSize) }}</p>
       </div>
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
-        <p class="eyebrow mb-2">Latest</p>
+        <p class="eyebrow mb-2">{{ t('pages.backups.summary.latest') }}</p>
         <p class="text-sm">{{ store.backups[0]?.createdAt ? timeAgo(store.backups[0].createdAt) : '—' }}</p>
       </div>
     </div>
@@ -127,7 +128,7 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
       v-model:search="search"
       :filters="[]"
       :active-filters="new Set(['ALL'])"
-      search-placeholder="Search by id or notes…"
+      :search-placeholder="t('pages.backups.searchPlaceholder')"
       :show-view-toggle="false"
     />
 
@@ -136,24 +137,24 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
     <EmptyState
       v-else-if="filteredBackups.length === 0"
       :icon="Database"
-      :title="search ? 'No matches' : 'No backups yet'"
-      :description="search ? 'Try clearing the filter.' : 'Run Create backup to take the first snapshot.'"
+      :title="search ? t('pages.backups.emptyMatchesTitle') : t('pages.backups.emptyTitle')"
+      :description="search ? t('pages.backups.emptyMatchesHint') : t('pages.backups.emptyHint')"
     >
       <Button v-if="!search" @click="createOpen = true">
-        <Plus class="mr-2 size-4" /> Create backup
+        <Plus class="mr-2 size-4" /> {{ t('pages.backups.createBackup') }}
       </Button>
     </EmptyState>
 
     <div v-else class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
       <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
         <div class="w-8 shrink-0 -ml-1">
-          <Checkbox :model-value="isAll" aria-label="Select all backups" @update:model-value="toggleAll" />
+          <Checkbox :model-value="isAll" :aria-label="t('pages.backups.selectAll')" @update:model-value="toggleAll" />
         </div>
-        <div class="w-72 shrink-0">ID</div>
-        <div class="w-40 shrink-0 text-right">Size</div>
-        <div class="w-44 shrink-0 text-right">Created</div>
-        <div class="w-48 shrink-0">Verify</div>
-        <div class="flex-1 text-right">Actions</div>
+        <div class="w-72 shrink-0">{{ t('pages.backups.columns.id') }}</div>
+        <div class="w-40 shrink-0 text-right">{{ t('pages.backups.columns.size') }}</div>
+        <div class="w-44 shrink-0 text-right">{{ t('pages.backups.columns.created') }}</div>
+        <div class="w-48 shrink-0">{{ t('pages.backups.columns.verify') }}</div>
+        <div class="flex-1 text-right">{{ t('pages.backups.columns.actions') }}</div>
       </div>
       <div
         v-for="b in filteredBackups"
@@ -162,7 +163,7 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
         :class="isSelected(b.id) ? 'bg-glass/40' : ''"
       >
         <div class="w-8 shrink-0 -ml-1" @click.stop>
-          <Checkbox :model-value="isSelected(b.id)" :aria-label="`Select ${b.id}`" @update:model-value="toggleSelected(b.id)" />
+          <Checkbox :model-value="isSelected(b.id)" :aria-label="t('pages.backups.selectOne', { id: b.id })" @update:model-value="toggleSelected(b.id)" />
         </div>
         <div class="w-72 shrink-0 truncate mono text-xs">{{ b.id }}</div>
         <div class="w-40 shrink-0 text-right tabular text-sm">{{ formatBytes(b.sizeBytes) }}</div>
@@ -174,7 +175,7 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
           <button
             v-if="b.verifyStatus !== 'PENDING'"
             type="button"
-            title="Verify"
+            :title="t('pages.backups.verifyAction')"
             class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-primary/10 hover:text-primary"
             @click.stop="store.verifyBackup(b.id)"
           >
@@ -182,7 +183,7 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
           </button>
           <button
             type="button"
-            title="Restore from this backup"
+            :title="t('pages.backups.restoreAction')"
             class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-warning/10 hover:text-warning"
             @click.stop="restoreTarget = b"
           >
@@ -190,7 +191,7 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
           </button>
           <button
             type="button"
-            aria-label="Delete"
+            :aria-label="t('pages.backups.deleteAction')"
             class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             @click.stop="store.deleteBackup(b.id)"
           >
@@ -202,23 +203,23 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
 
     <BulkActionBar :count="selectedCount" singular="backup" plural="backups" @clear="clearSelection">
       <Button variant="outline" size="sm" :disabled="bulkBusy" class="border-destructive/50 text-destructive hover:bg-destructive/10" @click="bulkDelete">
-        <Trash2 class="mr-1.5 size-3.5" /> Delete
+        <Trash2 class="mr-1.5 size-3.5" /> {{ t('pages.backups.delete') }}
       </Button>
     </BulkActionBar>
 
     <!-- Create -->
     <Dialog :open="createOpen" @update:open="createOpen = $event">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Create backup</DialogTitle>
+        <DialogTitle>{{ t('pages.backups.createBackup') }}</DialogTitle>
         <form class="flex flex-col gap-4" @submit.prevent="submitCreate">
           <div class="flex flex-col gap-1.5">
-            <Label for="bk-notes">Notes (optional)</Label>
-            <Textarea id="bk-notes" v-model="createNotes" rows="3" placeholder="Pre-migration snapshot" />
+            <Label for="bk-notes">{{ t('pages.backups.notesLabel') }}</Label>
+            <Textarea id="bk-notes" v-model="createNotes" rows="3" :placeholder="t('pages.backups.notesPlaceholder')" />
           </div>
           <DialogFooter class="flex-row! gap-2 pt-2">
-            <Button type="button" variant="outline" @click="createOpen = false">Cancel</Button>
+            <Button type="button" variant="outline" @click="createOpen = false">{{ t('common.cancel') }}</Button>
             <Button type="submit" :disabled="creating">
-              {{ creating ? 'Creating…' : 'Create' }}
+              {{ creating ? t('pages.backups.creating') : t('pages.backups.create') }}
             </Button>
           </DialogFooter>
         </form>
@@ -228,20 +229,20 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
     <!-- Prune -->
     <Dialog :open="pruneOpen" @update:open="pruneOpen = $event">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Prune backups</DialogTitle>
+        <DialogTitle>{{ t('pages.backups.pruneTitle') }}</DialogTitle>
         <form class="flex flex-col gap-4" @submit.prevent="submitPrune">
           <Callout variant="warning">
-            <CalloutTitle>This deletes older backups</CalloutTitle>
-            <p class="text-sm text-muted-foreground">Only the most recent N snapshots are kept. Verified ones are not exempt.</p>
+            <CalloutTitle>{{ t('pages.backups.pruneCalloutTitle') }}</CalloutTitle>
+            <p class="text-sm text-muted-foreground">{{ t('pages.backups.pruneCalloutBody') }}</p>
           </Callout>
           <div class="flex flex-col gap-1.5">
-            <Label for="bk-keep">Keep most recent</Label>
+            <Label for="bk-keep">{{ t('pages.backups.keepLabel') }}</Label>
             <Input id="bk-keep" v-model.number="pruneKeep" type="number" min="1" max="100" />
           </div>
           <DialogFooter class="flex-row! gap-2 pt-2">
-            <Button type="button" variant="outline" @click="pruneOpen = false">Cancel</Button>
+            <Button type="button" variant="outline" @click="pruneOpen = false">{{ t('common.cancel') }}</Button>
             <Button type="submit" :disabled="pruning" class="bg-warning text-warning-foreground hover:bg-warning/90">
-              {{ pruning ? 'Pruning…' : `Keep ${pruneKeep}` }}
+              {{ pruning ? t('pages.backups.pruning') : t('pages.backups.keepN', { n: pruneKeep }) }}
             </Button>
           </DialogFooter>
         </form>
@@ -251,15 +252,14 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
     <!-- Restore confirmation — destructive, named-fix copy -->
     <Dialog :open="restoreTarget !== null" @update:open="(v) => { if (!v) restoreTarget = null }">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Restore from backup?</DialogTitle>
+        <DialogTitle>{{ t('pages.backups.restoreTitle') }}</DialogTitle>
         <Callout variant="error">
-          <CalloutTitle>This replaces cluster state</CalloutTitle>
+          <CalloutTitle>{{ t('pages.backups.restoreCalloutTitle') }}</CalloutTitle>
           <p class="text-sm text-muted-foreground">
-            Scheduler pauses while the controller rolls back groups, templates, and deployment history to the snapshot.
-            Running instances stay up until they're rescheduled against the restored state.
+            {{ t('pages.backups.restoreCalloutBody') }}
           </p>
           <template #next>
-            Take a fresh backup first if you might want to come back. Restores can't be undone.
+            {{ t('pages.backups.restoreCalloutNext') }}
           </template>
         </Callout>
         <div class="rounded-xl border border-glass-border bg-glass/40 p-3 mono text-xs">
@@ -267,9 +267,9 @@ const totalSize = computed(() => store.backups.reduce((sum, b) => sum + b.sizeBy
           <span class="ml-2 text-muted-foreground">{{ restoreTarget ? `${formatBytes(restoreTarget.sizeBytes)} · ${timeAgo(restoreTarget.createdAt)}` : '' }}</span>
         </div>
         <DialogFooter class="flex-row! gap-2 pt-2">
-          <Button variant="outline" @click="restoreTarget = null">Cancel</Button>
+          <Button variant="outline" @click="restoreTarget = null">{{ t('common.cancel') }}</Button>
           <Button :disabled="restoring" class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="confirmRestore">
-            {{ restoring ? 'Starting…' : 'Restore' }}
+            {{ restoring ? t('pages.backups.starting') : t('pages.backups.restore') }}
           </Button>
         </DialogFooter>
       </DialogContent>

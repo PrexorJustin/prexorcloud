@@ -10,6 +10,7 @@ import { Callout, CalloutTitle } from "~/components/ui/callout"
 import { StatusBadge } from "~/components/ui/status-badge"
 import { Eyebrow } from "~/components/ui/eyebrow"
 
+const { t } = useI18n()
 const store = useMaintenanceStore()
 const groupsStore = useGroupsStore()
 
@@ -89,49 +90,49 @@ async function addOverride() {
 
 <template>
   <div class="flex flex-1 flex-col gap-6">
-    <PageHeader title="Maintenance" description="Block player joins cluster-wide or per group.">
+    <PageHeader :title="t('pages.maintenance.title')" :description="t('pages.maintenance.description')">
       <template #actions>
         <StatusBadge
           :tone="store.state.globalEnabled ? 'warning' : 'success'"
-          :label="store.state.globalEnabled ? 'Maintenance on' : 'Cluster live'"
+          :label="store.state.globalEnabled ? t('pages.maintenance.statusOn') : t('pages.maintenance.statusLive')"
           :pulse="store.state.globalEnabled"
         />
       </template>
     </PageHeader>
 
     <Callout v-if="store.state.globalEnabled" variant="warning">
-      <CalloutTitle>Cluster-wide maintenance is enabled</CalloutTitle>
-      <p class="text-sm text-muted-foreground">All new player joins are rejected. Existing connections are kept.</p>
-      <template #next>Disable the global toggle below to resume normal scheduling.</template>
+      <CalloutTitle>{{ t('pages.maintenance.globalEnabledTitle') }}</CalloutTitle>
+      <p class="text-sm text-muted-foreground">{{ t('pages.maintenance.globalEnabledBody') }}</p>
+      <template #next>{{ t('pages.maintenance.globalEnabledNext') }}</template>
     </Callout>
 
     <!-- Global toggle card -->
     <section class="space-y-3">
-      <Eyebrow>Global</Eyebrow>
+      <Eyebrow>{{ t('pages.maintenance.global') }}</Eyebrow>
       <div class="space-y-5 rounded-2xl border border-glass-border bg-glass/60 p-5 backdrop-blur-xl">
         <div class="flex items-center justify-between gap-4">
           <div class="space-y-0.5">
-            <p class="text-sm font-medium">Cluster maintenance</p>
-            <p class="text-xs text-muted-foreground">Rejects new player joins across every group.</p>
+            <p class="text-sm font-medium">{{ t('pages.maintenance.clusterMaintenance') }}</p>
+            <p class="text-xs text-muted-foreground">{{ t('pages.maintenance.clusterMaintenanceHint') }}</p>
           </div>
           <Switch v-model="globalEnabled" />
         </div>
 
         <div class="space-y-2">
-          <Label for="m-message">Message shown to players</Label>
-          <Textarea id="m-message" v-model="globalMessage" rows="3" placeholder="Cluster will be down for migration from 03:00–04:00 UTC." />
-          <p class="text-xs text-muted-foreground">MiniMessage formatting supported. Shown on connect attempts during maintenance.</p>
+          <Label for="m-message">{{ t('pages.maintenance.messageLabel') }}</Label>
+          <Textarea id="m-message" v-model="globalMessage" rows="3" :placeholder="t('pages.maintenance.messagePlaceholder')" />
+          <p class="text-xs text-muted-foreground">{{ t('pages.maintenance.messageHint') }}</p>
         </div>
 
         <div class="space-y-2">
-          <Label for="m-bypass">Bypass usernames (comma-separated)</Label>
-          <Input id="m-bypass" v-model="globalBypass" placeholder="dev, ops, alice" />
-          <p class="text-xs text-muted-foreground">These usernames can connect even when maintenance is on. Use for the runbook operator.</p>
+          <Label for="m-bypass">{{ t('pages.maintenance.bypassLabel') }}</Label>
+          <Input id="m-bypass" v-model="globalBypass" :placeholder="t('pages.maintenance.bypassPlaceholder')" />
+          <p class="text-xs text-muted-foreground">{{ t('pages.maintenance.bypassHint') }}</p>
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-2">
           <Button :disabled="!globalDirty || globalSaving" @click="saveGlobal">
-            {{ globalSaving ? 'Saving…' : 'Save changes' }}
+            {{ globalSaving ? t('pages.maintenance.saving') : t('pages.maintenance.saveChanges') }}
           </Button>
         </div>
       </div>
@@ -140,26 +141,26 @@ async function addOverride() {
     <!-- Per-group overrides -->
     <section class="space-y-3">
       <div class="flex items-center justify-between">
-        <Eyebrow>Per-group overrides</Eyebrow>
+        <Eyebrow>{{ t('pages.maintenance.perGroup') }}</Eyebrow>
         <Button v-if="eligibleGroups.length > 0" variant="outline" size="sm" @click="addOpen = true">
-          <Plus class="mr-1.5 size-3.5" /> Add override
+          <Plus class="mr-1.5 size-3.5" /> {{ t('pages.maintenance.addOverride') }}
         </Button>
       </div>
 
       <div v-if="addOpen" class="flex items-end gap-3 rounded-2xl border border-glass-border bg-glass/40 p-4">
         <div class="flex-1 space-y-1.5">
-          <Label for="m-add-group">Group</Label>
+          <Label for="m-add-group">{{ t('pages.maintenance.groupLabel') }}</Label>
           <select id="m-add-group" v-model="addGroup" class="h-9 w-full rounded-md border border-input bg-glass/60 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-            <option value="" disabled>Pick a group</option>
+            <option value="" disabled>{{ t('pages.maintenance.pickGroup') }}</option>
             <option v-for="g in eligibleGroups" :key="g.name" :value="g.name">{{ g.name }}</option>
           </select>
         </div>
-        <Button :disabled="!addGroup" @click="addOverride">Enable maintenance</Button>
-        <Button variant="ghost" @click="addOpen = false">Cancel</Button>
+        <Button :disabled="!addGroup" @click="addOverride">{{ t('pages.maintenance.enableMaintenance') }}</Button>
+        <Button variant="ghost" @click="addOpen = false">{{ t('common.cancel') }}</Button>
       </div>
 
       <p v-if="groupOverrides.length === 0 && !addOpen" class="rounded-2xl border border-dashed border-glass-border bg-glass/30 p-6 text-center text-sm text-muted-foreground">
-        No per-group overrides. The cluster-wide toggle above applies to everything.
+        {{ t('pages.maintenance.noOverrides') }}
       </p>
 
       <div
@@ -173,30 +174,30 @@ async function addOverride() {
           </div>
           <div class="min-w-0 flex-1">
             <p class="font-medium mono">{{ g.groupName }}</p>
-            <p class="mt-0.5 text-xs text-muted-foreground">Overrides apply on top of the cluster-wide flag.</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">{{ t('pages.maintenance.overrideHint') }}</p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <Switch v-model="overrideEdits[g.groupName]!.enabled" />
-            <button type="button" aria-label="Remove override" class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" @click="removeOverride(g.groupName)">
+            <button type="button" :aria-label="t('pages.maintenance.removeOverride')" class="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive" @click="removeOverride(g.groupName)">
               <Trash2 class="size-3.5" />
             </button>
           </div>
         </div>
 
         <div class="space-y-2">
-          <Label :for="`m-msg-${g.groupName}`">Message</Label>
-          <Textarea :id="`m-msg-${g.groupName}`" v-model="overrideEdits[g.groupName]!.message" rows="2" placeholder="Reason shown to players hitting this group." />
+          <Label :for="`m-msg-${g.groupName}`">{{ t('pages.maintenance.messageShort') }}</Label>
+          <Textarea :id="`m-msg-${g.groupName}`" v-model="overrideEdits[g.groupName]!.message" rows="2" :placeholder="t('pages.maintenance.overrideMessagePlaceholder')" />
         </div>
 
         <div class="flex items-center justify-end">
-          <Button size="sm" @click="saveOverride(g.groupName)">Save</Button>
+          <Button size="sm" @click="saveOverride(g.groupName)">{{ t('common.save') }}</Button>
         </div>
       </div>
     </section>
 
     <Callout variant="info">
-      <CalloutTitle>Maintenance leaves existing players connected.</CalloutTitle>
-      <p class="text-sm text-muted-foreground">Toggling maintenance only affects new join attempts. To force-disconnect, drain the affected nodes or stop the instances directly.</p>
+      <CalloutTitle>{{ t('pages.maintenance.footerTitle') }}</CalloutTitle>
+      <p class="text-sm text-muted-foreground">{{ t('pages.maintenance.footerBody') }}</p>
     </Callout>
   </div>
 </template>

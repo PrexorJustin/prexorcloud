@@ -8,6 +8,7 @@ import { BulkActionBar } from "~/components/ui/bulk-action-bar"
 import { toast } from "vue-sonner"
 import { timeAgo } from "~/lib/utils"
 
+const { t } = useI18n()
 const store = useWorkloadCredentialsStore()
 
 onMounted(() => store.fetchCredentials())
@@ -29,7 +30,7 @@ async function bulkRevoke() {
   try {
     const ids = Array.from(selected.value)
     await Promise.allSettled(ids.map(id => store.revokeCredential(id)))
-    toast.success(`${ids.length} ${ids.length === 1 ? 'credential' : 'credentials'} revoked`)
+    toast.success(t('pages.credentials.revokedToast', { count: ids.length }, ids.length))
     clearSelection()
   } finally { bulkBusy.value = false }
 }
@@ -39,28 +40,28 @@ async function revokeAllForInstance(instanceId: string) {
 }
 
 function expiryLabel(expiresAt: string | null | undefined) {
-  if (!expiresAt) return 'Never'
+  if (!expiresAt) return t('pages.credentials.expiry.never')
   const ms = new Date(expiresAt).getTime() - Date.now()
-  if (ms < 0) return 'Expired'
+  if (ms < 0) return t('pages.credentials.expiry.expired')
   const hrs = Math.floor(ms / 3600 / 1000)
-  if (hrs < 24) return `${hrs}h left`
+  if (hrs < 24) return t('pages.credentials.expiry.hours', { hours: hrs })
   const days = Math.floor(hrs / 24)
-  return `${days}d left`
+  return t('pages.credentials.expiry.days', { days })
 }
 </script>
 
 <template>
   <div class="flex flex-1 flex-col gap-5">
     <PageHeader
-      title="Workload credentials"
-      description="Bearer tokens issued to running plugins and proxies. Revoke any that leak."
+      :title="t('pages.credentials.title')"
+      :description="t('pages.credentials.description')"
     />
 
     <FilterToolbar
       v-model:search="search"
       :filters="[]"
       :active-filters="new Set(['ALL'])"
-      search-placeholder="Search by instance, group, or node…"
+      :search-placeholder="t('pages.credentials.searchPlaceholder')"
       :show-view-toggle="false"
     />
 
@@ -69,22 +70,22 @@ function expiryLabel(expiresAt: string | null | undefined) {
     <EmptyState
       v-else-if="filteredCreds.length === 0"
       :icon="KeyRound"
-      :title="search ? 'No matches' : 'No credentials issued'"
-      :description="search ? 'Try clearing the filter.' : 'Workload credentials are minted automatically when instances start. New ones appear here as the controller issues them.'"
+      :title="search ? t('pages.credentials.emptyMatchesTitle') : t('pages.credentials.emptyTitle')"
+      :description="search ? t('pages.credentials.emptyMatchesHint') : t('pages.credentials.emptyHint')"
     />
 
     <div v-else class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
       <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
         <div class="w-8 shrink-0 -ml-1">
-          <Checkbox :model-value="isAll" aria-label="Select all credentials" @update:model-value="toggleAll" />
+          <Checkbox :model-value="isAll" :aria-label="t('pages.credentials.selectAll')" @update:model-value="toggleAll" />
         </div>
-        <div class="w-40 shrink-0">Token</div>
-        <div class="w-44 shrink-0">Instance</div>
-        <div class="w-32 shrink-0">Group</div>
-        <div class="w-32 shrink-0">Node</div>
-        <div class="w-32 shrink-0 text-right">Issued</div>
-        <div class="w-32 shrink-0 text-right">Expiry</div>
-        <div class="flex-1 text-right">Actions</div>
+        <div class="w-40 shrink-0">{{ t('pages.credentials.columns.token') }}</div>
+        <div class="w-44 shrink-0">{{ t('pages.credentials.columns.instance') }}</div>
+        <div class="w-32 shrink-0">{{ t('pages.credentials.columns.group') }}</div>
+        <div class="w-32 shrink-0">{{ t('pages.credentials.columns.node') }}</div>
+        <div class="w-32 shrink-0 text-right">{{ t('pages.credentials.columns.issued') }}</div>
+        <div class="w-32 shrink-0 text-right">{{ t('pages.credentials.columns.expiry') }}</div>
+        <div class="flex-1 text-right">{{ t('pages.credentials.columns.actions') }}</div>
       </div>
       <div
         v-for="c in filteredCreds"
@@ -93,7 +94,7 @@ function expiryLabel(expiresAt: string | null | undefined) {
         :class="isSelected(c.tokenId) ? 'bg-glass/40' : ''"
       >
         <div class="w-8 shrink-0 -ml-1">
-          <Checkbox :model-value="isSelected(c.tokenId)" :aria-label="`Select ${c.tokenId}`" @update:model-value="toggleSelected(c.tokenId)" />
+          <Checkbox :model-value="isSelected(c.tokenId)" :aria-label="t('pages.credentials.selectOne', { id: c.tokenId })" @update:model-value="toggleSelected(c.tokenId)" />
         </div>
         <div class="w-40 shrink-0 truncate mono text-xs">{{ c.tokenId }}</div>
         <NuxtLink :to="`/instances/${c.instanceId}`" class="w-44 shrink-0 truncate text-sm font-medium mono text-primary hover:underline">{{ c.instanceId }}</NuxtLink>
@@ -106,7 +107,7 @@ function expiryLabel(expiresAt: string | null | undefined) {
         <div class="flex flex-1 justify-end gap-1">
           <button
             type="button"
-            :title="`Revoke all credentials for ${c.instanceId}`"
+            :title="t('pages.credentials.revokeAllFor', { instance: c.instanceId })"
             class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-warning/10 hover:text-warning"
             @click.stop="revokeAllForInstance(c.instanceId)"
           >
@@ -114,7 +115,7 @@ function expiryLabel(expiresAt: string | null | undefined) {
           </button>
           <button
             type="button"
-            aria-label="Revoke this credential"
+            :aria-label="t('pages.credentials.revokeCredential')"
             class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             @click.stop="store.revokeCredential(c.tokenId)"
           >
@@ -126,7 +127,7 @@ function expiryLabel(expiresAt: string | null | undefined) {
 
     <BulkActionBar :count="selectedCount" singular="credential" plural="credentials" @clear="clearSelection">
       <Button variant="outline" size="sm" :disabled="bulkBusy" class="border-destructive/50 text-destructive hover:bg-destructive/10" @click="bulkRevoke">
-        <Trash2 class="mr-1.5 size-3.5" /> Revoke
+        <Trash2 class="mr-1.5 size-3.5" /> {{ t('pages.credentials.revoke') }}
       </Button>
     </BulkActionBar>
   </div>

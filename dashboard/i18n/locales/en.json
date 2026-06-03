@@ -856,6 +856,196 @@
         "passwordBody": "Anyone with the token can register as the named node and gain workload-credential access.",
         "revokeWarning": "Revoke immediately if it leaks."
       }
+    },
+    "credentials": {
+      "title": "Workload credentials",
+      "description": "Bearer tokens issued to running plugins and proxies. Revoke any that leak.",
+      "searchPlaceholder": "Search by instance, group, or node…",
+      "emptyTitle": "No credentials issued",
+      "emptyHint": "Workload credentials are minted automatically when instances start. New ones appear here as the controller issues them.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "selectAll": "Select all credentials",
+      "selectOne": "Select {id}",
+      "revokeAllFor": "Revoke all credentials for {instance}",
+      "revokeCredential": "Revoke this credential",
+      "revoke": "Revoke",
+      "revokedToast": "{count} credential revoked | {count} credentials revoked",
+      "columns": {
+        "token": "Token",
+        "instance": "Instance",
+        "group": "Group",
+        "node": "Node",
+        "issued": "Issued",
+        "expiry": "Expiry",
+        "actions": "Actions"
+      },
+      "expiry": {
+        "never": "Never",
+        "expired": "Expired",
+        "hours": "{hours}h left",
+        "days": "{days}d left"
+      }
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "description": "Block player joins cluster-wide or per group.",
+      "statusOn": "Maintenance on",
+      "statusLive": "Cluster live",
+      "globalEnabledTitle": "Cluster-wide maintenance is enabled",
+      "globalEnabledBody": "All new player joins are rejected. Existing connections are kept.",
+      "globalEnabledNext": "Disable the global toggle below to resume normal scheduling.",
+      "global": "Global",
+      "clusterMaintenance": "Cluster maintenance",
+      "clusterMaintenanceHint": "Rejects new player joins across every group.",
+      "messageLabel": "Message shown to players",
+      "messagePlaceholder": "Cluster will be down for migration from 03:00–04:00 UTC.",
+      "messageHint": "MiniMessage formatting supported. Shown on connect attempts during maintenance.",
+      "bypassLabel": "Bypass usernames (comma-separated)",
+      "bypassPlaceholder": "dev, ops, alice",
+      "bypassHint": "These usernames can connect even when maintenance is on. Use for the runbook operator.",
+      "saving": "Saving…",
+      "saveChanges": "Save changes",
+      "perGroup": "Per-group overrides",
+      "addOverride": "Add override",
+      "groupLabel": "Group",
+      "pickGroup": "Pick a group",
+      "enableMaintenance": "Enable maintenance",
+      "noOverrides": "No per-group overrides. The cluster-wide toggle above applies to everything.",
+      "overrideHint": "Overrides apply on top of the cluster-wide flag.",
+      "removeOverride": "Remove override",
+      "messageShort": "Message",
+      "overrideMessagePlaceholder": "Reason shown to players hitting this group.",
+      "footerTitle": "Maintenance leaves existing players connected.",
+      "footerBody": "Toggling maintenance only affects new join attempts. To force-disconnect, drain the affected nodes or stop the instances directly."
+    },
+    "backups": {
+      "title": "Backups",
+      "description": "Cluster-state snapshots: groups, templates, deployment history.",
+      "prune": "Prune",
+      "createBackup": "Create backup",
+      "searchPlaceholder": "Search by id or notes…",
+      "emptyTitle": "No backups yet",
+      "emptyHint": "Run Create backup to take the first snapshot.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "selectAll": "Select all backups",
+      "selectOne": "Select {id}",
+      "verifyAction": "Verify",
+      "restoreAction": "Restore from this backup",
+      "deleteAction": "Delete",
+      "delete": "Delete",
+      "deletedToast": "{count} backup deleted | {count} backups deleted",
+      "summary": {
+        "snapshots": "Snapshots",
+        "totalSize": "Total size",
+        "latest": "Latest"
+      },
+      "columns": {
+        "id": "ID",
+        "size": "Size",
+        "created": "Created",
+        "verify": "Verify",
+        "actions": "Actions"
+      },
+      "verify": {
+        "notVerified": "Not verified",
+        "verified": "Verified {ago}",
+        "failed": "Verify failed",
+        "verifying": "Verifying…"
+      },
+      "notesLabel": "Notes (optional)",
+      "notesPlaceholder": "Pre-migration snapshot",
+      "creating": "Creating…",
+      "create": "Create",
+      "pruneTitle": "Prune backups",
+      "pruneCalloutTitle": "This deletes older backups",
+      "pruneCalloutBody": "Only the most recent N snapshots are kept. Verified ones are not exempt.",
+      "keepLabel": "Keep most recent",
+      "pruning": "Pruning…",
+      "keepN": "Keep {n}",
+      "restoreTitle": "Restore from backup?",
+      "restoreCalloutTitle": "This replaces cluster state",
+      "restoreCalloutBody": "Scheduler pauses while the controller rolls back groups, templates, and deployment history to the snapshot. Running instances stay up until they're rescheduled against the restored state.",
+      "restoreCalloutNext": "Take a fresh backup first if you might want to come back. Restores can't be undone.",
+      "starting": "Starting…",
+      "restore": "Restore"
+    },
+    "controllers": {
+      "title": "Cluster controllers",
+      "description": "The Raft control plane that runs PrexorCloud. Members, join tokens, and leader-elected work.",
+      "rotateSeed": "Rotate seed",
+      "leaveCluster": "Leave cluster",
+      "issueToken": "Issue join token",
+      "confirmEject": "Force-eject controller {nodeId}? It will be removed from the Raft group.",
+      "confirmRevoke": "Revoke join token {jti}…?",
+      "ejectAria": "Eject controller",
+      "revokeAria": "Revoke token",
+      "membersHeading": "Controllers ({count})",
+      "tokensHeading": "Outstanding join tokens ({count})",
+      "leasesHeading": "Leases ({count})",
+      "emptyMembersTitle": "No members",
+      "emptyMembersBody": "The controller hasn't stamped any cluster members yet — bootstrap may still be running.",
+      "emptyTokensTitle": "No join tokens",
+      "emptyTokensBody": "Issue a token to add another controller to the cluster.",
+      "summary": {
+        "clusterId": "Cluster ID",
+        "members": "Members",
+        "activeConfig": "Active config version",
+        "activeLeases": "Active leases"
+      },
+      "memberColumns": {
+        "nodeId": "Node ID",
+        "raftAddr": "Raft addr",
+        "restAddr": "REST addr",
+        "grpcAddr": "gRPC addr",
+        "joined": "Joined"
+      },
+      "tokenColumns": {
+        "jti": "JTI",
+        "label": "Label",
+        "status": "Status",
+        "expires": "Expires"
+      },
+      "leaseColumns": {
+        "name": "Name",
+        "holder": "Holder",
+        "renewed": "Renewed"
+      },
+      "dialog": {
+        "title": "Issue cluster join token",
+        "oneTimeTitle": "One-time secret",
+        "oneTimeBody": "The token will be shown once. Copy it before closing this dialog.",
+        "labelLabel": "Label",
+        "labelHint": "Human-readable name pinned to the AddMember entry for audit.",
+        "ttlLabel": "TTL (hours)",
+        "addrsLabel": "Join addresses",
+        "addrsHint": "One existing controller gRPC host:port per line. The joiner dials these to redeem the token.",
+        "issuing": "Issuing…",
+        "issue": "Issue"
+      },
+      "issued": {
+        "title": "Copy this token now",
+        "body": "It won't be shown again. Once you close this dialog, only revocation is possible.",
+        "runPrefix": "Paste it into the controller wizard's",
+        "runSuffix": "mode on the new host.",
+        "copied": "Copied",
+        "copy": "Copy",
+        "done": "Done",
+        "passwordTitle": "Treat this like a password.",
+        "passwordBody": "Anyone with this token can add a controller to the cluster.",
+        "revokeWarning": "Revoke immediately if it leaks."
+      },
+      "leaveDialog": {
+        "title": "Leave cluster?",
+        "calloutTitle": "This controller will shut down.",
+        "body": "The cluster will continue with the remaining members. To re-add this controller, generate a new join token and run the installer."
+      },
+      "seedDialog": {
+        "title": "Rotate cluster seed?",
+        "calloutTitle": "Outstanding join tokens will be invalidated.",
+        "body": "The seed is the HMAC key for every join token. Rotating it means any token issued before this point can no longer be redeemed."
+      }
     }
   },
   "components": {

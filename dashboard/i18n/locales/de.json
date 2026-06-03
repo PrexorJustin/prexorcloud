@@ -856,6 +856,196 @@
         "passwordBody": "Jeder mit dem Token kann sich als der benannte Node registrieren und Zugriff auf Workload-Credentials erlangen.",
         "revokeWarning": "Bei einem Leak sofort widerrufen."
       }
+    },
+    "credentials": {
+      "title": "Workload-Credentials",
+      "description": "Bearer-Tokens, die an laufende Plugins und Proxies ausgegeben werden. Widerrufe alle, die leaken.",
+      "searchPlaceholder": "Nach Instanz, Gruppe oder Node suchen …",
+      "emptyTitle": "Keine Credentials ausgestellt",
+      "emptyHint": "Workload-Credentials werden automatisch erzeugt, wenn Instanzen starten. Neue erscheinen hier, sobald der Controller sie ausstellt.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen.",
+      "selectAll": "Alle Credentials auswählen",
+      "selectOne": "{id} auswählen",
+      "revokeAllFor": "Alle Credentials für {instance} widerrufen",
+      "revokeCredential": "Dieses Credential widerrufen",
+      "revoke": "Widerrufen",
+      "revokedToast": "{count} Credential widerrufen | {count} Credentials widerrufen",
+      "columns": {
+        "token": "Token",
+        "instance": "Instanz",
+        "group": "Gruppe",
+        "node": "Node",
+        "issued": "Ausgestellt",
+        "expiry": "Ablauf",
+        "actions": "Aktionen"
+      },
+      "expiry": {
+        "never": "Nie",
+        "expired": "Abgelaufen",
+        "hours": "noch {hours} Std",
+        "days": "noch {days} T"
+      }
+    },
+    "maintenance": {
+      "title": "Wartung",
+      "description": "Spieler-Joins clusterweit oder pro Gruppe blockieren.",
+      "statusOn": "Wartung aktiv",
+      "statusLive": "Cluster live",
+      "globalEnabledTitle": "Clusterweite Wartung ist aktiviert",
+      "globalEnabledBody": "Alle neuen Spieler-Joins werden abgelehnt. Bestehende Verbindungen bleiben erhalten.",
+      "globalEnabledNext": "Deaktiviere den globalen Schalter unten, um die normale Planung fortzusetzen.",
+      "global": "Global",
+      "clusterMaintenance": "Cluster-Wartung",
+      "clusterMaintenanceHint": "Lehnt neue Spieler-Joins über alle Gruppen hinweg ab.",
+      "messageLabel": "Den Spielern angezeigte Nachricht",
+      "messagePlaceholder": "Cluster wird für die Migration von 03:00–04:00 UTC heruntergefahren.",
+      "messageHint": "MiniMessage-Formatierung unterstützt. Wird bei Verbindungsversuchen während der Wartung angezeigt.",
+      "bypassLabel": "Bypass-Benutzernamen (kommagetrennt)",
+      "bypassPlaceholder": "dev, ops, alice",
+      "bypassHint": "Diese Benutzernamen können sich auch bei aktiver Wartung verbinden. Für den Runbook-Operator.",
+      "saving": "Wird gespeichert …",
+      "saveChanges": "Änderungen speichern",
+      "perGroup": "Pro-Gruppe-Overrides",
+      "addOverride": "Override hinzufügen",
+      "groupLabel": "Gruppe",
+      "pickGroup": "Gruppe auswählen",
+      "enableMaintenance": "Wartung aktivieren",
+      "noOverrides": "Keine Pro-Gruppe-Overrides. Der clusterweite Schalter oben gilt für alles.",
+      "overrideHint": "Overrides gelten zusätzlich zum clusterweiten Flag.",
+      "removeOverride": "Override entfernen",
+      "messageShort": "Nachricht",
+      "overrideMessagePlaceholder": "Grund, der Spielern in dieser Gruppe angezeigt wird.",
+      "footerTitle": "Wartung lässt verbundene Spieler verbunden.",
+      "footerBody": "Das Umschalten der Wartung betrifft nur neue Join-Versuche. Zum erzwungenen Trennen die betroffenen Nodes drainen oder die Instanzen direkt stoppen."
+    },
+    "backups": {
+      "title": "Backups",
+      "description": "Cluster-State-Snapshots: Gruppen, Templates, Deployment-Historie.",
+      "prune": "Aufräumen",
+      "createBackup": "Backup erstellen",
+      "searchPlaceholder": "Nach ID oder Notizen suchen …",
+      "emptyTitle": "Noch keine Backups",
+      "emptyHint": "Führe „Backup erstellen“ aus, um den ersten Snapshot anzulegen.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen.",
+      "selectAll": "Alle Backups auswählen",
+      "selectOne": "{id} auswählen",
+      "verifyAction": "Verifizieren",
+      "restoreAction": "Aus diesem Backup wiederherstellen",
+      "deleteAction": "Löschen",
+      "delete": "Löschen",
+      "deletedToast": "{count} Backup gelöscht | {count} Backups gelöscht",
+      "summary": {
+        "snapshots": "Snapshots",
+        "totalSize": "Gesamtgröße",
+        "latest": "Neuestes"
+      },
+      "columns": {
+        "id": "ID",
+        "size": "Größe",
+        "created": "Erstellt",
+        "verify": "Verifizierung",
+        "actions": "Aktionen"
+      },
+      "verify": {
+        "notVerified": "Nicht verifiziert",
+        "verified": "Verifiziert {ago}",
+        "failed": "Verifizierung fehlgeschlagen",
+        "verifying": "Wird verifiziert …"
+      },
+      "notesLabel": "Notizen (optional)",
+      "notesPlaceholder": "Snapshot vor der Migration",
+      "creating": "Wird erstellt …",
+      "create": "Erstellen",
+      "pruneTitle": "Backups aufräumen",
+      "pruneCalloutTitle": "Dies löscht ältere Backups",
+      "pruneCalloutBody": "Nur die N neuesten Snapshots werden behalten. Verifizierte sind nicht ausgenommen.",
+      "keepLabel": "Neueste behalten",
+      "pruning": "Wird aufgeräumt …",
+      "keepN": "{n} behalten",
+      "restoreTitle": "Aus Backup wiederherstellen?",
+      "restoreCalloutTitle": "Dies ersetzt den Cluster-State",
+      "restoreCalloutBody": "Der Scheduler pausiert, während der Controller Gruppen, Templates und Deployment-Historie auf den Snapshot zurückrollt. Laufende Instanzen bleiben oben, bis sie gegen den wiederhergestellten State neu geplant werden.",
+      "restoreCalloutNext": "Erstelle zuerst ein frisches Backup, falls du zurückwechseln möchtest. Wiederherstellungen können nicht rückgängig gemacht werden.",
+      "starting": "Wird gestartet …",
+      "restore": "Wiederherstellen"
+    },
+    "controllers": {
+      "title": "Cluster-Controller",
+      "description": "Die Raft-Control-Plane, die PrexorCloud betreibt. Mitglieder, Join-Tokens und leader-gewählte Arbeit.",
+      "rotateSeed": "Seed rotieren",
+      "leaveCluster": "Cluster verlassen",
+      "issueToken": "Join-Token ausstellen",
+      "confirmEject": "Controller {nodeId} zwangsweise entfernen? Er wird aus der Raft-Gruppe entfernt.",
+      "confirmRevoke": "Join-Token {jti}… widerrufen?",
+      "ejectAria": "Controller entfernen",
+      "revokeAria": "Token widerrufen",
+      "membersHeading": "Controller ({count})",
+      "tokensHeading": "Ausstehende Join-Tokens ({count})",
+      "leasesHeading": "Leases ({count})",
+      "emptyMembersTitle": "Keine Mitglieder",
+      "emptyMembersBody": "Der Controller hat noch keine Cluster-Mitglieder gestempelt — der Bootstrap läuft möglicherweise noch.",
+      "emptyTokensTitle": "Keine Join-Tokens",
+      "emptyTokensBody": "Stelle ein Token aus, um einen weiteren Controller zum Cluster hinzuzufügen.",
+      "summary": {
+        "clusterId": "Cluster-ID",
+        "members": "Mitglieder",
+        "activeConfig": "Aktive Config-Version",
+        "activeLeases": "Aktive Leases"
+      },
+      "memberColumns": {
+        "nodeId": "Node-ID",
+        "raftAddr": "Raft-Adresse",
+        "restAddr": "REST-Adresse",
+        "grpcAddr": "gRPC-Adresse",
+        "joined": "Beigetreten"
+      },
+      "tokenColumns": {
+        "jti": "JTI",
+        "label": "Label",
+        "status": "Status",
+        "expires": "Läuft ab"
+      },
+      "leaseColumns": {
+        "name": "Name",
+        "holder": "Halter",
+        "renewed": "Erneuert"
+      },
+      "dialog": {
+        "title": "Cluster-Join-Token ausstellen",
+        "oneTimeTitle": "Einmal-Geheimnis",
+        "oneTimeBody": "Das Token wird nur einmal angezeigt. Kopiere es, bevor du diesen Dialog schließt.",
+        "labelLabel": "Label",
+        "labelHint": "Menschenlesbarer Name, der für das Audit an den AddMember-Eintrag gepinnt wird.",
+        "ttlLabel": "TTL (Stunden)",
+        "addrsLabel": "Join-Adressen",
+        "addrsHint": "Ein bestehender Controller-gRPC-Host:Port pro Zeile. Der Joiner wählt diese an, um das Token einzulösen.",
+        "issuing": "Wird ausgestellt …",
+        "issue": "Ausstellen"
+      },
+      "issued": {
+        "title": "Kopiere dieses Token jetzt",
+        "body": "Es wird nicht erneut angezeigt. Sobald du diesen Dialog schließt, ist nur noch ein Widerruf möglich.",
+        "runPrefix": "Füge es im Controller-Wizard im Modus",
+        "runSuffix": "auf dem neuen Host ein.",
+        "copied": "Kopiert",
+        "copy": "Kopieren",
+        "done": "Fertig",
+        "passwordTitle": "Behandle es wie ein Passwort.",
+        "passwordBody": "Jeder mit diesem Token kann einen Controller zum Cluster hinzufügen.",
+        "revokeWarning": "Bei einem Leak sofort widerrufen."
+      },
+      "leaveDialog": {
+        "title": "Cluster verlassen?",
+        "calloutTitle": "Dieser Controller wird heruntergefahren.",
+        "body": "Das Cluster läuft mit den verbleibenden Mitgliedern weiter. Um diesen Controller wieder hinzuzufügen, generiere ein neues Join-Token und führe den Installer aus."
+      },
+      "seedDialog": {
+        "title": "Cluster-Seed rotieren?",
+        "calloutTitle": "Ausstehende Join-Tokens werden ungültig.",
+        "body": "Der Seed ist der HMAC-Schlüssel für jedes Join-Token. Ihn zu rotieren bedeutet, dass jedes vorher ausgestellte Token nicht mehr eingelöst werden kann."
+      }
     }
   },
   "components": {

@@ -15,6 +15,7 @@ import { TerminalBlock } from "~/components/ui/terminal-block"
 // actions. Mirrors the prexorctl cluster subcommands so the CLI and dashboard
 // surface the same operations.
 
+const { t } = useI18n()
 const store = useClusterStore()
 const auth = useAuthStore()
 
@@ -92,13 +93,13 @@ async function confirmSeedRotate() {
 async function eject(nodeId: string) {
   // Confirm inline — eject is destructive but easy to undo by re-joining the
   // controller via a fresh join token, so a one-shot confirm is enough.
-  if (!confirm(`Force-eject controller ${nodeId}? It will be removed from the Raft group.`)) return
+  if (!confirm(t('pages.controllers.confirmEject', { nodeId }))) return
   try { await store.ejectMember(nodeId, "ejected from dashboard") }
   catch { /* toast surfaces error */ }
 }
 
 async function revokeToken(jti: string) {
-  if (!confirm(`Revoke join token ${jti.slice(0, 8)}…?`)) return
+  if (!confirm(t('pages.controllers.confirmRevoke', { jti: jti.slice(0, 8) }))) return
   try { await store.revokeJoinToken(jti) }
   catch { /* toast surfaces error */ }
 }
@@ -107,18 +108,18 @@ async function revokeToken(jti: string) {
 <template>
   <div class="flex flex-1 flex-col gap-5">
     <PageHeader
-      title="Cluster controllers"
-      description="The Raft control plane that runs PrexorCloud. Members, join tokens, and leader-elected work."
+      :title="t('pages.controllers.title')"
+      :description="t('pages.controllers.description')"
     >
       <template #actions>
         <Button v-if="canManage" variant="outline" @click="seedRotateOpen = true">
-          <RefreshCw class="mr-2 size-4" /> Rotate seed
+          <RefreshCw class="mr-2 size-4" /> {{ t('pages.controllers.rotateSeed') }}
         </Button>
         <Button v-if="canManage" variant="outline" @click="leaveOpen = true">
-          <LogOut class="mr-2 size-4" /> Leave cluster
+          <LogOut class="mr-2 size-4" /> {{ t('pages.controllers.leaveCluster') }}
         </Button>
         <Button v-if="canManage" @click="issueOpen = true">
-          <Plus class="mr-2 size-4" /> Issue join token
+          <Plus class="mr-2 size-4" /> {{ t('pages.controllers.issueToken') }}
         </Button>
       </template>
     </PageHeader>
@@ -126,21 +127,21 @@ async function revokeToken(jti: string) {
     <!-- Status summary -->
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-4">
       <div class="rounded-2xl border border-glass-border bg-glass/60 p-4">
-        <div class="eyebrow text-xs">Cluster ID</div>
+        <div class="eyebrow text-xs">{{ t('pages.controllers.summary.clusterId') }}</div>
         <div class="mono text-sm mt-1 truncate" :title="store.status?.clusterId">
           {{ store.status?.clusterId ?? "—" }}
         </div>
       </div>
       <div class="rounded-2xl border border-glass-border bg-glass/60 p-4">
-        <div class="eyebrow text-xs">Members</div>
+        <div class="eyebrow text-xs">{{ t('pages.controllers.summary.members') }}</div>
         <div class="text-2xl mt-1">{{ store.status?.memberCount ?? "—" }}</div>
       </div>
       <div class="rounded-2xl border border-glass-border bg-glass/60 p-4">
-        <div class="eyebrow text-xs">Active config version</div>
+        <div class="eyebrow text-xs">{{ t('pages.controllers.summary.activeConfig') }}</div>
         <div class="text-2xl mt-1">v{{ store.status?.activeConfigVersion ?? "—" }}</div>
       </div>
       <div class="rounded-2xl border border-glass-border bg-glass/60 p-4">
-        <div class="eyebrow text-xs">Active leases</div>
+        <div class="eyebrow text-xs">{{ t('pages.controllers.summary.activeLeases') }}</div>
         <div class="text-2xl mt-1">{{ store.leases.length }}</div>
       </div>
     </div>
@@ -148,7 +149,7 @@ async function revokeToken(jti: string) {
     <!-- Members -->
     <section class="flex flex-col gap-2">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-medium">Controllers ({{ store.members.length }})</h2>
+        <h2 class="text-lg font-medium">{{ t('pages.controllers.membersHeading', { count: store.members.length }) }}</h2>
       </div>
 
       <LoadingSkeleton v-if="store.loadingMembers" mode="table" :count="3" />
@@ -156,17 +157,17 @@ async function revokeToken(jti: string) {
       <EmptyState
         v-else-if="store.members.length === 0"
         :icon="Server"
-        title="No members"
-        description="The controller hasn't stamped any cluster members yet — bootstrap may still be running."
+        :title="t('pages.controllers.emptyMembersTitle')"
+        :description="t('pages.controllers.emptyMembersBody')"
       />
 
       <div v-else class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
         <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
-          <div class="w-56 shrink-0">Node ID</div>
-          <div class="w-44 shrink-0">Raft addr</div>
-          <div class="w-44 shrink-0">REST addr</div>
-          <div class="w-44 shrink-0">gRPC addr</div>
-          <div class="flex-1">Joined</div>
+          <div class="w-56 shrink-0">{{ t('pages.controllers.memberColumns.nodeId') }}</div>
+          <div class="w-44 shrink-0">{{ t('pages.controllers.memberColumns.raftAddr') }}</div>
+          <div class="w-44 shrink-0">{{ t('pages.controllers.memberColumns.restAddr') }}</div>
+          <div class="w-44 shrink-0">{{ t('pages.controllers.memberColumns.grpcAddr') }}</div>
+          <div class="flex-1">{{ t('pages.controllers.memberColumns.joined') }}</div>
           <div class="w-20 shrink-0" />
         </div>
         <div
@@ -185,7 +186,7 @@ async function revokeToken(jti: string) {
             <button
               v-if="canManage"
               type="button"
-              aria-label="Eject controller"
+              :aria-label="t('pages.controllers.ejectAria')"
               class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               @click="eject(m.nodeId)"
             >
@@ -198,27 +199,27 @@ async function revokeToken(jti: string) {
 
     <!-- Join tokens -->
     <section class="flex flex-col gap-2">
-      <h2 class="text-lg font-medium">Outstanding join tokens ({{ store.joinTokens.length }})</h2>
+      <h2 class="text-lg font-medium">{{ t('pages.controllers.tokensHeading', { count: store.joinTokens.length }) }}</h2>
 
       <LoadingSkeleton v-if="store.loadingTokens" mode="table" :count="2" />
 
       <EmptyState
         v-else-if="store.joinTokens.length === 0"
         :icon="KeyRound"
-        title="No join tokens"
-        description="Issue a token to add another controller to the cluster."
+        :title="t('pages.controllers.emptyTokensTitle')"
+        :description="t('pages.controllers.emptyTokensBody')"
       >
         <Button v-if="canManage" @click="issueOpen = true">
-          <Plus class="mr-2 size-4" /> Issue join token
+          <Plus class="mr-2 size-4" /> {{ t('pages.controllers.issueToken') }}
         </Button>
       </EmptyState>
 
       <div v-else class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
         <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
-          <div class="w-64 shrink-0">JTI</div>
-          <div class="w-44 shrink-0">Label</div>
-          <div class="w-32 shrink-0">Status</div>
-          <div class="flex-1">Expires</div>
+          <div class="w-64 shrink-0">{{ t('pages.controllers.tokenColumns.jti') }}</div>
+          <div class="w-44 shrink-0">{{ t('pages.controllers.tokenColumns.label') }}</div>
+          <div class="w-32 shrink-0">{{ t('pages.controllers.tokenColumns.status') }}</div>
+          <div class="flex-1">{{ t('pages.controllers.tokenColumns.expires') }}</div>
           <div class="w-20 shrink-0" />
         </div>
         <div
@@ -238,7 +239,7 @@ async function revokeToken(jti: string) {
             <button
               v-if="canManage && tok.status !== 'REVOKED'"
               type="button"
-              aria-label="Revoke token"
+              :aria-label="t('pages.controllers.revokeAria')"
               class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               @click="revokeToken(tok.jti)"
             >
@@ -251,12 +252,12 @@ async function revokeToken(jti: string) {
 
     <!-- Leases (diagnostics) -->
     <section v-if="store.leases.length > 0" class="flex flex-col gap-2">
-      <h2 class="text-lg font-medium">Leases ({{ store.leases.length }})</h2>
+      <h2 class="text-lg font-medium">{{ t('pages.controllers.leasesHeading', { count: store.leases.length }) }}</h2>
       <div class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
         <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
-          <div class="w-56 shrink-0">Name</div>
-          <div class="w-56 shrink-0">Holder</div>
-          <div class="flex-1">Renewed</div>
+          <div class="w-56 shrink-0">{{ t('pages.controllers.leaseColumns.name') }}</div>
+          <div class="w-56 shrink-0">{{ t('pages.controllers.leaseColumns.holder') }}</div>
+          <div class="flex-1">{{ t('pages.controllers.leaseColumns.renewed') }}</div>
         </div>
         <div
           v-for="ls in store.leases"
@@ -275,37 +276,37 @@ async function revokeToken(jti: string) {
     <!-- Issue token dialog -->
     <Dialog :open="issueOpen" @update:open="(v: boolean) => { if (!v) closeIssue(); issueOpen = v }">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Issue cluster join token</DialogTitle>
+        <DialogTitle>{{ t('pages.controllers.dialog.title') }}</DialogTitle>
 
         <template v-if="!issuedToken">
           <form class="flex flex-col gap-4" @submit.prevent="submitIssue">
             <Callout variant="info">
-              <CalloutTitle>One-time secret</CalloutTitle>
-              <p class="text-sm text-muted-foreground">The token will be shown once. Copy it before closing this dialog.</p>
+              <CalloutTitle>{{ t('pages.controllers.dialog.oneTimeTitle') }}</CalloutTitle>
+              <p class="text-sm text-muted-foreground">{{ t('pages.controllers.dialog.oneTimeBody') }}</p>
             </Callout>
             <div class="flex flex-col gap-1.5">
-              <Label for="iss-label">Label</Label>
+              <Label for="iss-label">{{ t('pages.controllers.dialog.labelLabel') }}</Label>
               <Input id="iss-label" v-model="issueLabel" placeholder="controller-2" />
-              <p class="text-xs text-muted-foreground">Human-readable name pinned to the AddMember entry for audit.</p>
+              <p class="text-xs text-muted-foreground">{{ t('pages.controllers.dialog.labelHint') }}</p>
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="iss-ttl">TTL (hours)</Label>
+              <Label for="iss-ttl">{{ t('pages.controllers.dialog.ttlLabel') }}</Label>
               <Input id="iss-ttl" v-model.number="issueTtlHours" type="number" min="1" max="720" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <Label for="iss-addrs">Join addresses</Label>
+              <Label for="iss-addrs">{{ t('pages.controllers.dialog.addrsLabel') }}</Label>
               <textarea
                 id="iss-addrs"
                 v-model="issueJoinAddrs"
                 class="min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm mono"
                 placeholder="controller-1.example.internal:9090&#10;controller-3.example.internal:9090"
               />
-              <p class="text-xs text-muted-foreground">One existing controller gRPC host:port per line. The joiner dials these to redeem the token.</p>
+              <p class="text-xs text-muted-foreground">{{ t('pages.controllers.dialog.addrsHint') }}</p>
             </div>
             <DialogFooter class="flex-row! gap-2 pt-2">
-              <Button type="button" variant="outline" @click="issueOpen = false">Cancel</Button>
+              <Button type="button" variant="outline" @click="issueOpen = false">{{ t('common.cancel') }}</Button>
               <Button type="submit" :disabled="issuing || !issueJoinAddrs.trim()">
-                {{ issuing ? "Issuing…" : "Issue" }}
+                {{ issuing ? t('pages.controllers.dialog.issuing') : t('pages.controllers.dialog.issue') }}
               </Button>
             </DialogFooter>
           </form>
@@ -314,10 +315,10 @@ async function revokeToken(jti: string) {
         <template v-else>
           <div class="flex flex-col gap-4">
             <Callout variant="warning">
-              <CalloutTitle>Copy this token now</CalloutTitle>
-              <p class="text-sm text-muted-foreground">It won't be shown again. Once you close this dialog, only revocation is possible.</p>
+              <CalloutTitle>{{ t('pages.controllers.issued.title') }}</CalloutTitle>
+              <p class="text-sm text-muted-foreground">{{ t('pages.controllers.issued.body') }}</p>
               <template #next>
-                Paste it into the controller wizard's <code class="mono">Add controller</code> mode on the new host.
+                {{ t('pages.controllers.issued.runPrefix') }} <code class="mono">Add controller</code> {{ t('pages.controllers.issued.runSuffix') }}
               </template>
             </Callout>
             <TerminalBlock :copy="issuedToken" :traffic-lights="false" title="cluster join-token">{{ issuedToken }}</TerminalBlock>
@@ -325,15 +326,15 @@ async function revokeToken(jti: string) {
               <Button variant="outline" @click="copyToken">
                 <Check v-if="copied" class="mr-1.5 size-4 text-success" />
                 <Copy v-else class="mr-1.5 size-4" />
-                {{ copied ? "Copied" : "Copy" }}
+                {{ copied ? t('pages.controllers.issued.copied') : t('pages.controllers.issued.copy') }}
               </Button>
-              <Button @click="closeIssue">Done</Button>
+              <Button @click="closeIssue">{{ t('pages.controllers.issued.done') }}</Button>
             </DialogFooter>
             <Callout variant="error" class="mt-2">
-              <CalloutTitle>Treat this like a password.</CalloutTitle>
-              <p class="text-sm text-muted-foreground">Anyone with this token can add a controller to the cluster.</p>
+              <CalloutTitle>{{ t('pages.controllers.issued.passwordTitle') }}</CalloutTitle>
+              <p class="text-sm text-muted-foreground">{{ t('pages.controllers.issued.passwordBody') }}</p>
               <template #next>
-                <span class="inline-flex items-center gap-1"><AlertOctagon class="size-3.5" /> Revoke immediately if it leaks.</span>
+                <span class="inline-flex items-center gap-1"><AlertOctagon class="size-3.5" /> {{ t('pages.controllers.issued.revokeWarning') }}</span>
               </template>
             </Callout>
           </div>
@@ -344,14 +345,14 @@ async function revokeToken(jti: string) {
     <!-- Leave cluster dialog -->
     <Dialog v-model:open="leaveOpen">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Leave cluster?</DialogTitle>
+        <DialogTitle>{{ t('pages.controllers.leaveDialog.title') }}</DialogTitle>
         <Callout variant="warning">
-          <CalloutTitle>This controller will shut down.</CalloutTitle>
-          <p class="text-sm text-muted-foreground">The cluster will continue with the remaining members. To re-add this controller, generate a new join token and run the installer.</p>
+          <CalloutTitle>{{ t('pages.controllers.leaveDialog.calloutTitle') }}</CalloutTitle>
+          <p class="text-sm text-muted-foreground">{{ t('pages.controllers.leaveDialog.body') }}</p>
         </Callout>
         <DialogFooter class="flex-row! gap-2 pt-2">
-          <Button variant="outline" @click="leaveOpen = false">Cancel</Button>
-          <Button variant="destructive" @click="confirmLeave">Leave cluster</Button>
+          <Button variant="outline" @click="leaveOpen = false">{{ t('common.cancel') }}</Button>
+          <Button variant="destructive" @click="confirmLeave">{{ t('pages.controllers.leaveCluster') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -359,14 +360,14 @@ async function revokeToken(jti: string) {
     <!-- Rotate seed dialog -->
     <Dialog v-model:open="seedRotateOpen">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Rotate cluster seed?</DialogTitle>
+        <DialogTitle>{{ t('pages.controllers.seedDialog.title') }}</DialogTitle>
         <Callout variant="warning">
-          <CalloutTitle>Outstanding join tokens will be invalidated.</CalloutTitle>
-          <p class="text-sm text-muted-foreground">The seed is the HMAC key for every join token. Rotating it means any token issued before this point can no longer be redeemed.</p>
+          <CalloutTitle>{{ t('pages.controllers.seedDialog.calloutTitle') }}</CalloutTitle>
+          <p class="text-sm text-muted-foreground">{{ t('pages.controllers.seedDialog.body') }}</p>
         </Callout>
         <DialogFooter class="flex-row! gap-2 pt-2">
-          <Button variant="outline" @click="seedRotateOpen = false">Cancel</Button>
-          <Button variant="destructive" @click="confirmSeedRotate">Rotate seed</Button>
+          <Button variant="outline" @click="seedRotateOpen = false">{{ t('common.cancel') }}</Button>
+          <Button variant="destructive" @click="confirmSeedRotate">{{ t('pages.controllers.rotateSeed') }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
