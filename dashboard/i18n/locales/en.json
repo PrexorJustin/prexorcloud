@@ -2310,6 +2310,10 @@
     "fileSearch": {
       "placeholder": "Search in files...",
       "noResults": "No results found"
+    },
+    "copyBtn": {
+      "copied": "Copied",
+      "copy": "Copy to clipboard"
     }
   }
 }

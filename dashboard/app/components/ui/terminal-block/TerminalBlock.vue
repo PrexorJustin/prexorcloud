@@ -21,6 +21,7 @@ async function onCopy() {
   copied.value = true
   setTimeout(() => { copied.value = false }, 1200)
 }
+const { t } = useI18n()
 </script>
 
 <template>
@@ -36,7 +37,7 @@ async function onCopy() {
         v-if="props.copy"
         type="button"
         class="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-glass-hover hover:text-foreground"
-        :aria-label="copied ? 'Copied' : 'Copy to clipboard'"
+        ::aria-label="copied ? t('components.copyBtn.copied') : t('components.copyBtn.copy')"
         @click="onCopy"
       >
         <Check v-if="copied" class="size-3.5 text-success" />
