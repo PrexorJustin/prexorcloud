@@ -496,6 +496,7 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 - ✅ Repo-Hygiene (tote Dirs raus, READMEs drin, `.editorconfig`, Prettier-Gates, lefthook)
 - ✅ ADR-Register (29 ADRs in `docs/engineering/decisions.md`) + Migration-Runbook (`docs/runbooks/upgrade-v1.0-to-v1.1.md`)
 - ✅ Phase 8 (Raft-Leases) shipped — `ClusterLeaseManager` trägt Scheduler / Deployment-Reconciler / Audit-Pruner
+- ✅ **Loose-Ends-Nachzug (2026-06-03, Post-Audit):** `GET /api/v1/cluster/leases` nachgereicht (Dashboard-Lease-Panel rief eine nie geshippte Route → 404; jetzt `ClusterControlPlane.getLeases()`); `cluster.member.joined`-Audit-Event beim gRPC-`RequestJoin` ergänzt (vorher nur `.ejected`/`.leave` auditiert); die tote Pre-Raft-`ClusterJoinRoutes` (`/admin/cluster/join-template`) + ungenutzte `CLUSTER_JOIN`-Permission entfernt (`ClusterJoinTemplate` bleibt — speist die v1.0→v1.1-Migration). Tests + spotless grün.
 
 **Erfolgs-Kriterien (Gates):**
 - 3-Node-Cluster läuft, Killing-the-Leader führt zu Reelection in <5 s
