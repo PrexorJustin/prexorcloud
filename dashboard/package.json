@@ -11,6 +11,7 @@
     "sdk:check": "pnpm openapi:validate && pnpm --filter @prexorcloud/api-sdk check",
     "test": "vitest run",
     "i18n:check": "node i18n/check-locale-parity.mjs",
+    "i18n:check-hardcoded": "node i18n/check-hardcoded.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "nuxt typecheck",
