@@ -2,6 +2,7 @@
 import { Check, Pipette } from "lucide-vue-next"
 import { accentColors } from "~/lib/theme-data"
 
+const { t } = useI18n()
 const colorMode = useColorMode()
 const appearance = useAppearanceStore()
 const isDark = computed(() => colorMode.value === "dark")
@@ -9,8 +10,8 @@ const isDark = computed(() => colorMode.value === "dark")
 
 <template>
   <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-    <h3 class="text-base font-semibold text-foreground mb-1">Accent Color</h3>
-    <p class="text-sm text-muted-foreground mb-4">Sets the primary color across the entire dashboard</p>
+    <h3 class="text-base font-semibold text-foreground mb-1">{{ t('components.settings.accentColor.title') }}</h3>
+    <p class="text-sm text-muted-foreground mb-4">{{ t('components.settings.accentColor.subtitle') }}</p>
     <div class="grid grid-cols-3 sm:grid-cols-5 gap-2">
       <button
         v-for="color in accentColors"
@@ -51,7 +52,7 @@ const isDark = computed(() => colorMode.value === "dark")
           <span v-if="appearance.accentColor === 'Custom'" class="size-full rounded-full" :style="{ backgroundColor: appearance.customAccentColor ?? '#6366f1' }" />
           <Pipette v-else class="size-4 text-muted-foreground" />
         </span>
-        Custom
+        {{ t('components.settings.custom') }}
         <Pipette v-if="appearance.accentColor === 'Custom'" class="size-3 text-muted-foreground/50 ml-auto" />
       </label>
     </div>

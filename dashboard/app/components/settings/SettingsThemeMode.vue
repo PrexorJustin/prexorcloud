@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { Sun, Moon, Monitor } from "lucide-vue-next"
 
+const { t } = useI18n()
 const colorMode = useColorMode()
 
-const modes = [
-  { key: "light", label: "Light", icon: Sun, desc: "Always light" },
-  { key: "dark", label: "Dark", icon: Moon, desc: "Always dark" },
-  { key: "system", label: "System", icon: Monitor, desc: "Match OS setting" },
-]
+const modes = computed(() => [
+  { key: "light", label: t('components.settings.themeMode.light.label'), icon: Sun, desc: t('components.settings.themeMode.light.desc') },
+  { key: "dark", label: t('components.settings.themeMode.dark.label'), icon: Moon, desc: t('components.settings.themeMode.dark.desc') },
+  { key: "system", label: t('components.settings.themeMode.system.label'), icon: Monitor, desc: t('components.settings.themeMode.system.desc') },
+])
 </script>
 
 <template>
   <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-    <h3 class="text-base font-semibold text-foreground mb-1">Theme Mode</h3>
-    <p class="text-sm text-muted-foreground mb-4">Choose between light, dark, or system preference</p>
+    <h3 class="text-base font-semibold text-foreground mb-1">{{ t('components.settings.themeMode.title') }}</h3>
+    <p class="text-sm text-muted-foreground mb-4">{{ t('components.settings.themeMode.subtitle') }}</p>
     <div class="grid grid-cols-3 gap-3">
       <button
         v-for="mode in modes"

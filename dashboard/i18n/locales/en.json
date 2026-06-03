@@ -2182,6 +2182,105 @@
         "sidebarAccent": "Sidebar Accent",
         "sidebarBorder": "Sidebar Border"
       }
+    },
+    "settings": {
+      "custom": "Custom",
+      "accentColor": {
+        "title": "Accent Color",
+        "subtitle": "Sets the primary color across the entire dashboard"
+      },
+      "borderRadius": {
+        "title": "Border Radius",
+        "subtitle": "Controls the roundness of cards, buttons, and inputs"
+      },
+      "themeMode": {
+        "title": "Theme Mode",
+        "subtitle": "Choose between light, dark, or system preference",
+        "light": {
+          "label": "Light",
+          "desc": "Always light"
+        },
+        "dark": {
+          "label": "Dark",
+          "desc": "Always dark"
+        },
+        "system": {
+          "label": "System",
+          "desc": "Match OS setting"
+        }
+      }
+    },
+    "moduleError": {
+      "crashed": "Module Crashed",
+      "retry": "Retry",
+      "back": "Back to Dashboard"
+    },
+    "motd": {
+      "modeTitle": "MOTD Mode",
+      "rotateEvery": "Rotate every",
+      "seconds": "seconds",
+      "messages": "Messages",
+      "add": "Add",
+      "saveMotd": "Save MOTD",
+      "savedToast": "MOTD saved",
+      "saveFailedTitle": "Save failed",
+      "saveFailedDesc": "Couldn't save the MOTD. Try again, or check the controller logs.",
+      "modes": {
+        "static": {
+          "label": "Static",
+          "desc": "Always show the first MOTD"
+        },
+        "sequential": {
+          "label": "Sequential",
+          "desc": "Rotate on a timer"
+        },
+        "random": {
+          "label": "Random",
+          "desc": "Pick one at random each ping"
+        }
+      }
+    },
+    "glows": {
+      "title": "Ambient Glows",
+      "subtitle": "Subtle colored gradients in the background",
+      "blob": "Blob {n}",
+      "position": "Position",
+      "color": "Color",
+      "custom": "Custom",
+      "addBlob": "Add blob",
+      "reset": "Reset",
+      "colors": {
+        "primary": "Primary",
+        "secondary": "Secondary",
+        "success": "Success",
+        "warning": "Warning",
+        "danger": "Danger"
+      },
+      "sliders": {
+        "size": "Size",
+        "blur": "Blur",
+        "opacity": "Opacity",
+        "intensity": "Intensity",
+        "rotate": "Rotate",
+        "scaleX": "Scale X",
+        "scaleY": "Scale Y"
+      }
+    },
+    "addNode": {
+      "generateToken": "Generate Token",
+      "dialogTitle": "Generate Join Token",
+      "dialogDesc": "Create a token for a new daemon to join the cluster.",
+      "nodeName": "Node Name",
+      "namePlaceholder": "e.g. node-1",
+      "tokenTtl": "Token TTL",
+      "generating": "Generating...",
+      "generateCopy": "Generate & Copy Token",
+      "minutes": "{count} minutes",
+      "hours": "{count} hours",
+      "days": "{count} days",
+      "copiedTitle": "Token copied to clipboard",
+      "copiedDesc": "Join token for \"{name}\" expires in {ttl}",
+      "genFailed": "Failed to generate join token"
     }
   }
 }

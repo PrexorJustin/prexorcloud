@@ -2182,6 +2182,105 @@
         "sidebarAccent": "Seitenleisten-Akzent",
         "sidebarBorder": "Seitenleisten-Rand"
       }
+    },
+    "settings": {
+      "custom": "Eigene",
+      "accentColor": {
+        "title": "Akzentfarbe",
+        "subtitle": "Legt die Primärfarbe im gesamten Dashboard fest"
+      },
+      "borderRadius": {
+        "title": "Eck-Radius",
+        "subtitle": "Steuert die Rundung von Karten, Buttons und Eingabefeldern"
+      },
+      "themeMode": {
+        "title": "Theme-Modus",
+        "subtitle": "Wähle zwischen Hell, Dunkel oder System-Einstellung",
+        "light": {
+          "label": "Hell",
+          "desc": "Immer hell"
+        },
+        "dark": {
+          "label": "Dunkel",
+          "desc": "Immer dunkel"
+        },
+        "system": {
+          "label": "System",
+          "desc": "OS-Einstellung folgen"
+        }
+      }
+    },
+    "moduleError": {
+      "crashed": "Modul abgestürzt",
+      "retry": "Erneut versuchen",
+      "back": "Zurück zum Dashboard"
+    },
+    "motd": {
+      "modeTitle": "MOTD-Modus",
+      "rotateEvery": "Rotieren alle",
+      "seconds": "Sekunden",
+      "messages": "Nachrichten",
+      "add": "Hinzufügen",
+      "saveMotd": "MOTD speichern",
+      "savedToast": "MOTD gespeichert",
+      "saveFailedTitle": "Speichern fehlgeschlagen",
+      "saveFailedDesc": "Die MOTD konnte nicht gespeichert werden. Versuche es erneut oder prüfe die Controller-Logs.",
+      "modes": {
+        "static": {
+          "label": "Statisch",
+          "desc": "Immer die erste MOTD anzeigen"
+        },
+        "sequential": {
+          "label": "Sequenziell",
+          "desc": "Per Timer rotieren"
+        },
+        "random": {
+          "label": "Zufällig",
+          "desc": "Bei jedem Ping eine zufällig wählen"
+        }
+      }
+    },
+    "glows": {
+      "title": "Ambiente-Glow",
+      "subtitle": "Dezente farbige Verläufe im Hintergrund",
+      "blob": "Blob {n}",
+      "position": "Position",
+      "color": "Farbe",
+      "custom": "Eigene",
+      "addBlob": "Blob hinzufügen",
+      "reset": "Zurücksetzen",
+      "colors": {
+        "primary": "Primär",
+        "secondary": "Sekundär",
+        "success": "Erfolg",
+        "warning": "Warnung",
+        "danger": "Gefahr"
+      },
+      "sliders": {
+        "size": "Größe",
+        "blur": "Unschärfe",
+        "opacity": "Deckkraft",
+        "intensity": "Intensität",
+        "rotate": "Drehung",
+        "scaleX": "Skalierung X",
+        "scaleY": "Skalierung Y"
+      }
+    },
+    "addNode": {
+      "generateToken": "Token generieren",
+      "dialogTitle": "Join-Token generieren",
+      "dialogDesc": "Erstelle ein Token, damit ein neuer Daemon dem Cluster beitreten kann.",
+      "nodeName": "Node-Name",
+      "namePlaceholder": "z. B. node-1",
+      "tokenTtl": "Token-TTL",
+      "generating": "Wird generiert …",
+      "generateCopy": "Token generieren & kopieren",
+      "minutes": "{count} Minuten",
+      "hours": "{count} Stunden",
+      "days": "{count} Tage",
+      "copiedTitle": "Token in Zwischenablage kopiert",
+      "copiedDesc": "Join-Token für „{name}“ läuft in {ttl} ab",
+      "genFailed": "Join-Token konnte nicht generiert werden"
     }
   }
 }

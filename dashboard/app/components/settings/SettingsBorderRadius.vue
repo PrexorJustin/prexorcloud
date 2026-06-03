@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { radii } from "~/lib/theme-data"
 
+const { t } = useI18n()
 const appearance = useAppearanceStore()
 </script>
 
 <template>
   <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-    <h3 class="text-base font-semibold text-foreground mb-1">Border Radius</h3>
-    <p class="text-sm text-muted-foreground mb-4">Controls the roundness of cards, buttons, and inputs</p>
+    <h3 class="text-base font-semibold text-foreground mb-1">{{ t('components.settings.borderRadius.title') }}</h3>
+    <p class="text-sm text-muted-foreground mb-4">{{ t('components.settings.borderRadius.subtitle') }}</p>
     <div class="grid grid-cols-5 gap-3">
       <button
         v-for="r in radii"

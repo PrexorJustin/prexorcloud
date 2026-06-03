@@ -5,6 +5,7 @@ import { toast } from "vue-sonner"
 import { renderMiniMessage } from "~/lib/minimessage"
 import type { ServerGroup } from "~/types/api"
 
+const { t } = useI18n()
 const props = defineProps<{ group: ServerGroup }>()
 const emit = defineEmits<{ saved: [] }>()
 
@@ -15,11 +16,11 @@ const motdMode = ref<MotdMode>((props.group.motdMode as MotdMode) ?? 'STATIC')
 const motdIntervalSeconds = ref(props.group.motdIntervalSeconds > 0 ? props.group.motdIntervalSeconds : 30)
 const saving = ref(false)
 
-const modes: { value: MotdMode; label: string; description: string }[] = [
-  { value: 'STATIC', label: 'Static', description: 'Always show the first MOTD' },
-  { value: 'SEQUENTIAL', label: 'Sequential', description: 'Rotate on a timer' },
-  { value: 'RANDOM', label: 'Random', description: 'Pick one at random each ping' },
-]
+const modes = computed<{ value: MotdMode; label: string; description: string }[]>(() => [
+  { value: 'STATIC', label: t('components.motd.modes.static.label'), description: t('components.motd.modes.static.desc') },
+  { value: 'SEQUENTIAL', label: t('components.motd.modes.sequential.label'), description: t('components.motd.modes.sequential.desc') },
+  { value: 'RANDOM', label: t('components.motd.modes.random.label'), description: t('components.motd.modes.random.desc') },
+])
 
 function addMotd() {
   motds.value.push('')
@@ -44,10 +45,10 @@ async function save() {
       params: { path: { name: props.group.name } },
       body: body as never,
     })
-    toast.success('MOTD saved')
+    toast.success(t('components.motd.savedToast'))
     emit('saved')
   } catch {
-    toast.error('Save failed', { description: "Couldn't save the MOTD. Try again, or check the controller logs." })
+    toast.error(t('components.motd.saveFailedTitle'), { description: t('components.motd.saveFailedDesc') })
   } finally {
     saving.value = false
   }
@@ -58,7 +59,7 @@ async function save() {
   <div class="flex flex-col gap-5">
     <!-- Mode selector -->
     <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-      <h3 class="text-base font-semibold text-foreground mb-4">MOTD Mode</h3>
+      <h3 class="text-base font-semibold text-foreground mb-4">{{ t('components.motd.modeTitle') }}</h3>
       <div class="flex gap-2">
         <button
           v-for="m in modes"
@@ -75,23 +76,23 @@ async function save() {
       </div>
 
       <div v-if="motdMode === 'SEQUENTIAL'" class="mt-4 flex items-center gap-3">
-        <span class="text-sm text-muted-foreground">Rotate every</span>
+        <span class="text-sm text-muted-foreground">{{ t('components.motd.rotateEvery') }}</span>
         <input
           v-model.number="motdIntervalSeconds"
           type="number"
           min="5"
           class="w-20 rounded-lg border border-glass-border bg-glass/60 px-3 py-1.5 text-sm text-foreground text-center [appearance:textfield] focus:outline-none focus:ring-1 focus:ring-primary"
         >
-        <span class="text-sm text-muted-foreground">seconds</span>
+        <span class="text-sm text-muted-foreground">{{ t('components.motd.seconds') }}</span>
       </div>
     </div>
 
     <!-- MOTD entries -->
     <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-base font-semibold text-foreground">Messages</h3>
+        <h3 class="text-base font-semibold text-foreground">{{ t('components.motd.messages') }}</h3>
         <Button variant="outline" size="sm" class="h-7 text-xs gap-1" @click="addMotd">
-          <Plus class="size-3" /> Add
+          <Plus class="size-3" /> {{ t('components.motd.add') }}
         </Button>
       </div>
 
@@ -126,7 +127,7 @@ async function save() {
     <div class="flex justify-end">
       <Button :disabled="saving" @click="save">
         <Loader2 v-if="saving" class="size-4 mr-2 animate-spin" />
-        Save MOTD
+        {{ t('components.motd.saveMotd') }}
       </Button>
     </div>
   </div>

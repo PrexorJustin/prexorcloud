@@ -14,6 +14,7 @@ import {
 } from "~/components/ui/dialog"
 import {toast} from "vue-sonner"
 
+const { t } = useI18n()
 const { open, loading, error, reset } = useDialogState()
 
 const nodeName = ref("")
@@ -30,9 +31,9 @@ const ttlPresets = [
 
 const ttlDisplay = computed(() => {
   const m = ttlMinutes.value
-  if (m < 60) return `${m} minutes`
-  if (m < 1440) return `${(m / 60).toFixed(m % 60 === 0 ? 0 : 1)} hours`
-  return `${(m / 1440).toFixed(m % 1440 === 0 ? 0 : 1)} days`
+  if (m < 60) return t('components.addNode.minutes', { count: m })
+  if (m < 1440) return t('components.addNode.hours', { count: (m / 60).toFixed(m % 60 === 0 ? 0 : 1) })
+  return t('components.addNode.days', { count: (m / 1440).toFixed(m % 1440 === 0 ? 0 : 1) })
 })
 
 const formValid = computed(() => nodeName.value.trim().length > 0)
@@ -51,11 +52,11 @@ async function generateToken() {
     await useNodesStore().fetchNodes()
     open.value = false
 
-    toast.success("Token copied to clipboard", {
-      description: `Join token for "${nodeName.value.trim()}" expires in ${ttlDisplay.value}`,
+    toast.success(t('components.addNode.copiedTitle'), {
+      description: t('components.addNode.copiedDesc', { name: nodeName.value.trim(), ttl: ttlDisplay.value }),
     })
   } catch {
-    error.value = "Failed to generate join token"
+    error.value = t('components.addNode.genFailed')
   } finally {
     loading.value = false
   }
@@ -76,7 +77,7 @@ function handleOpen(value: boolean) {
     <DialogTrigger as-child>
       <Button class="bg-primary hover:bg-primary/90 text-primary-foreground">
         <Plus class="size-5 mr-2"/>
-        Generate Token
+        {{ t('components.addNode.generateToken') }}
       </Button>
     </DialogTrigger>
     <DialogContent
@@ -90,9 +91,9 @@ function handleOpen(value: boolean) {
             <Key class="size-6 text-primary"/>
           </div>
           <div class="text-center">
-            <DialogTitle class="text-base font-bold text-foreground">Generate Join Token</DialogTitle>
+            <DialogTitle class="text-base font-bold text-foreground">{{ t('components.addNode.dialogTitle') }}</DialogTitle>
             <DialogDescription class="text-xs text-muted-foreground mt-0.5">
-              Create a token for a new daemon to join the cluster.
+              {{ t('components.addNode.dialogDesc') }}
             </DialogDescription>
           </div>
         </div>
@@ -101,11 +102,11 @@ function handleOpen(value: boolean) {
       <div class="px-6 pb-8 flex flex-col gap-5 pt-5">
         <!-- Node Name -->
         <div class="flex flex-col gap-2">
-          <Label for="node-name">Node Name</Label>
+          <Label for="node-name">{{ t('components.addNode.nodeName') }}</Label>
           <Input
               id="node-name"
               v-model="nodeName"
-              placeholder="e.g. node-1"
+              :placeholder="t('components.addNode.namePlaceholder')"
               autocomplete="off"
               name="node-name-unique"
               class="bg-glass border-glass-border"
@@ -116,7 +117,7 @@ function handleOpen(value: boolean) {
         <!-- TTL Slider -->
         <div class="flex flex-col gap-3">
           <div class="flex items-center justify-between">
-            <Label>Token TTL</Label>
+            <Label>{{ t('components.addNode.tokenTtl') }}</Label>
             <span class="text-sm text-foreground font-medium">{{ ttlDisplay }}</span>
           </div>
           <input
@@ -157,7 +158,7 @@ function handleOpen(value: boolean) {
               @click="generateToken"
           >
             <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin"/>
-            {{ loading ? 'Generating...' : 'Generate & Copy Token' }}
+            {{ loading ? t('components.addNode.generating') : t('components.addNode.generateCopy') }}
           </Button>
         </DialogFooter>
       </div>

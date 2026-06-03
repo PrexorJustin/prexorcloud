@@ -5,15 +5,16 @@ import { Switch } from "~/components/ui/switch"
 import { Button } from "~/components/ui/button"
 import type { GlowBlob } from "~/lib/theme-data"
 
+const { t } = useI18n()
 const appearance = useAppearanceStore()
 
-const glowColorOptions = [
-  { key: "primary", label: "Primary" },
-  { key: "secondary", label: "Secondary" },
-  { key: "success", label: "Success" },
-  { key: "warning", label: "Warning" },
-  { key: "destructive", label: "Danger" },
-]
+const glowColorOptions = computed(() => [
+  { key: "primary", label: t('components.glows.colors.primary') },
+  { key: "secondary", label: t('components.glows.colors.secondary') },
+  { key: "success", label: t('components.glows.colors.success') },
+  { key: "warning", label: t('components.glows.colors.warning') },
+  { key: "destructive", label: t('components.glows.colors.danger') },
+])
 
 function blobCssColor(color: string) {
   return color.startsWith("#") ? color : `var(--${color})`
@@ -49,28 +50,28 @@ function onPositionMove(e: PointerEvent, index: number) {
   updateBlobPosition(e, index)
 }
 
-const sliders: ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Component; min: number; max: number; step: number; unit: string; fallback?: number }> = [
-  { key: "size", label: "Size", icon: Maximize2, min: 100, max: 1500, step: 10, unit: "px" },
-  { key: "blur", label: "Blur", icon: Droplets, min: 20, max: 300, step: 5, unit: "px" },
-  { key: "opacity", label: "Opacity", icon: Eye, min: 1, max: 30, step: 1, unit: "%" },
-  { key: "intensity", label: "Intensity", icon: Zap, min: 0, max: 300, step: 5, unit: "%", fallback: 100 },
-  { key: "rotate", label: "Rotate", icon: RotateCw, min: 0, max: 360, step: 1, unit: "°" },
-  { key: "scaleX", label: "Scale X", icon: Maximize2, min: 30, max: 300, step: 5, unit: "%" },
-  { key: "scaleY", label: "Scale Y", icon: Maximize2, min: 30, max: 300, step: 5, unit: "%" },
-]
+const sliders = computed<ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Component; min: number; max: number; step: number; unit: string; fallback?: number }>>(() => [
+  { key: "size", label: t('components.glows.sliders.size'), icon: Maximize2, min: 100, max: 1500, step: 10, unit: "px" },
+  { key: "blur", label: t('components.glows.sliders.blur'), icon: Droplets, min: 20, max: 300, step: 5, unit: "px" },
+  { key: "opacity", label: t('components.glows.sliders.opacity'), icon: Eye, min: 1, max: 30, step: 1, unit: "%" },
+  { key: "intensity", label: t('components.glows.sliders.intensity'), icon: Zap, min: 0, max: 300, step: 5, unit: "%", fallback: 100 },
+  { key: "rotate", label: t('components.glows.sliders.rotate'), icon: RotateCw, min: 0, max: 360, step: 1, unit: "°" },
+  { key: "scaleX", label: t('components.glows.sliders.scaleX'), icon: Maximize2, min: 30, max: 300, step: 5, unit: "%" },
+  { key: "scaleY", label: t('components.glows.sliders.scaleY'), icon: Maximize2, min: 30, max: 300, step: 5, unit: "%" },
+])
 </script>
 
 <template>
   <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
     <!-- Header -->
     <div class="flex items-center justify-between mb-1">
-      <h3 class="text-base font-semibold text-foreground">Ambient Glows</h3>
+      <h3 class="text-base font-semibold text-foreground">{{ t('components.glows.title') }}</h3>
       <Switch
         :model-value="appearance.glowEnabled"
         @update:model-value="appearance.setGlowEnabled"
       />
     </div>
-    <p class="text-sm text-muted-foreground mb-5">Subtle colored gradients in the background</p>
+    <p class="text-sm text-muted-foreground mb-5">{{ t('components.glows.subtitle') }}</p>
 
     <template v-if="appearance.glowEnabled">
       <!-- Blob list -->
@@ -104,7 +105,7 @@ const sliders: ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Compone
             <!-- Info -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2">
-                <span class="text-xs font-semibold text-foreground">Blob {{ i + 1 }}</span>
+                <span class="text-xs font-semibold text-foreground">{{ t('components.glows.blob', { n: i + 1 }) }}</span>
                 <span class="text-[10px] text-muted-foreground/60 font-mono">{{ blob.x }},{{ blob.y }}</span>
               </div>
               <!-- Mini property pills -->
@@ -136,7 +137,7 @@ const sliders: ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Compone
                 <div>
                   <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground mb-1.5">
                     <Move class="size-3" />
-                    <span class="uppercase tracking-wider font-medium">Position</span>
+                    <span class="uppercase tracking-wider font-medium">{{ t('components.glows.position') }}</span>
                   </div>
                   <div
                     class="relative w-full aspect-[4/3] rounded-lg bg-background/50 border border-glass-border cursor-crosshair overflow-hidden"
@@ -176,7 +177,7 @@ const sliders: ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Compone
 
                 <!-- Color palette -->
                 <div>
-                  <div class="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5">Color</div>
+                  <div class="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5">{{ t('components.glows.color') }}</div>
                   <div class="grid grid-cols-3 gap-1">
                     <button
                       v-for="c in glowColorOptions"
@@ -201,7 +202,7 @@ const sliders: ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Compone
                         class="size-2.5 rounded-full shrink-0 border border-white/10"
                         :style="{ backgroundColor: blob.color.startsWith('#') ? blob.color : '#6366f1' }"
                       />
-                      Custom
+                      {{ t('components.glows.custom') }}
                       <input
                         type="color"
                         :value="blob.color.startsWith('#') ? blob.color : '#6366f1'"
@@ -390,11 +391,11 @@ const sliders: ReadonlyArray<{ key: keyof GlowBlob; label: string; icon: Compone
           @click="appearance.addGlowBlob(); expandedBlob = appearance.glowBlobs.length - 1"
         >
           <Plus class="size-3 mr-1.5" />
-          Add blob
+          {{ t('components.glows.addBlob') }}
         </Button>
         <Button variant="ghost" size="sm" class="text-xs text-muted-foreground" @click="appearance.resetGlows(); expandedBlob = null">
           <RotateCcw class="size-3 mr-1.5" />
-          Reset
+          {{ t('components.glows.reset') }}
         </Button>
       </div>
     </template>
