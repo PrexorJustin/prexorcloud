@@ -10,6 +10,7 @@ import {
 } from '~/components/ui/popover'
 import { accentColors, radii } from '~/lib/theme-data'
 
+const { t } = useI18n()
 const colorMode = useColorMode()
 const appearance = useAppearanceStore()
 const router = useRouter()
@@ -27,19 +28,19 @@ function goToAdvanced() {
     <PopoverTrigger as-child>
       <Button variant="ghost" size="icon" class="size-8">
         <Paintbrush class="size-4" />
-        <span class="sr-only">Customize theme</span>
+        <span class="sr-only">{{ t('components.themeSwitcher.customizeTheme') }}</span>
       </Button>
     </PopoverTrigger>
     <PopoverContent align="end" class="w-80">
       <div class="grid gap-5">
         <div class="space-y-1">
-          <p class="text-sm font-semibold text-foreground">Customize</p>
-          <p class="text-xs text-muted-foreground">Pick a color and radius for the dashboard.</p>
+          <p class="text-sm font-semibold text-foreground">{{ t('components.themeSwitcher.customize') }}</p>
+          <p class="text-xs text-muted-foreground">{{ t('components.themeSwitcher.subtitle') }}</p>
         </div>
 
         <!-- Color -->
         <div class="space-y-2">
-          <Label>Color</Label>
+          <Label>{{ t('components.themeSwitcher.color') }}</Label>
           <div class="grid grid-cols-3 gap-2">
             <button
               v-for="color in accentColors"
@@ -63,7 +64,7 @@ function goToAdvanced() {
 
         <!-- Radius -->
         <div class="space-y-2">
-          <Label>Radius</Label>
+          <Label>{{ t('components.themeSwitcher.radius') }}</Label>
           <div class="grid grid-cols-5 gap-2">
             <button
               v-for="r in radii"
@@ -81,7 +82,7 @@ function goToAdvanced() {
 
         <!-- Mode -->
         <div class="space-y-2">
-          <Label>Mode</Label>
+          <Label>{{ t('components.themeSwitcher.mode') }}</Label>
           <div class="grid grid-cols-3 gap-2">
             <button
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-all"
@@ -91,7 +92,7 @@ function goToAdvanced() {
               @click="colorMode.preference = 'light'"
             >
               <Sun class="size-3.5" />
-              Light
+              {{ t('components.themeSwitcher.light') }}
             </button>
             <button
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-all"
@@ -101,7 +102,7 @@ function goToAdvanced() {
               @click="colorMode.preference = 'dark'"
             >
               <Moon class="size-3.5" />
-              Dark
+              {{ t('components.themeSwitcher.dark') }}
             </button>
             <button
               class="inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-all"
@@ -111,7 +112,7 @@ function goToAdvanced() {
               @click="colorMode.preference = 'system'"
             >
               <Monitor class="size-3.5" />
-              System
+              {{ t('components.themeSwitcher.system') }}
             </button>
           </div>
         </div>
@@ -122,7 +123,7 @@ function goToAdvanced() {
           @click="goToAdvanced()"
         >
           <Palette class="size-3.5" />
-          Advanced Customization
+          {{ t('components.themeSwitcher.advanced') }}
         </button>
       </div>
     </PopoverContent>

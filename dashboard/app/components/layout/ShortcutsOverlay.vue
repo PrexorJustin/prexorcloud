@@ -14,6 +14,8 @@ import { shortcuts, type Shortcut } from "~/lib/shortcuts"
 const props = defineProps<{ open: boolean }>()
 defineEmits<{ "update:open": [value: boolean] }>()
 
+const { t } = useI18n()
+
 const visible = computed(() => shortcuts.filter(s => !s.hidden))
 const sections = computed(() => {
   const grouped: Record<string, Shortcut[]> = {}
@@ -38,8 +40,8 @@ function chordTokens(keys: string): string[] {
             <Keyboard class="size-5 text-primary" />
           </div>
           <div>
-            <DialogTitle>Keyboard shortcuts</DialogTitle>
-            <p class="mt-0.5 text-sm text-muted-foreground">Press a chord to jump anywhere in the dashboard.</p>
+            <DialogTitle>{{ t('components.shortcuts.title') }}</DialogTitle>
+            <p class="mt-0.5 text-sm text-muted-foreground">{{ t('components.shortcuts.subtitle') }}</p>
           </div>
         </div>
       </DialogHeader>

@@ -10,11 +10,13 @@ const props = defineProps<{
   exploding?: boolean
 }>()
 
+const { t } = useI18n()
+
 const isConnected = computed(() => props.node.type === "CONNECTED")
 const connected = computed(() => (isConnected.value ? props.node as ConnectedNode : null))
 
 const status = computed((): { label: string; color: string; dot: string } =>
-  NODE_STATUS_CONFIG[props.node.status] ?? { label: "Unknown", color: "text-muted-foreground", dot: "bg-muted-foreground" },
+  NODE_STATUS_CONFIG[props.node.status] ?? { label: t('components.nodeCard.unknown'), color: "text-muted-foreground", dot: "bg-muted-foreground" },
 )
 
 
@@ -49,8 +51,8 @@ class="absolute inset-0 bg-gradient-to-br from-transparent to-transparent opacit
             <p class="font-semibold text-foreground">{{ node.id }}</p>
             <p class="text-xs text-muted-foreground">
               <template v-if="isConnected">{{ connected!.address }}</template>
-              <template v-else-if="node.type === 'PENDING'">Awaiting connection</template>
-              <template v-else>Disconnected</template>
+              <template v-else-if="node.type === 'PENDING'">{{ t('components.nodeCard.awaitingConnection') }}</template>
+              <template v-else>{{ t('components.nodeCard.disconnected') }}</template>
             </p>
           </div>
         </div>
@@ -78,14 +80,14 @@ class="absolute inset-0 bg-gradient-to-br from-transparent to-transparent opacit
       <!-- Pending info -->
       <template v-else-if="node.type === 'PENDING'">
         <p class="text-xs text-muted-foreground mt-3">
-          Expires {{ new Date(node.expiresAt).toLocaleString() }}
+          {{ t('components.nodeCard.expires', { date: new Date(node.expiresAt).toLocaleString() }) }}
         </p>
       </template>
 
       <!-- Disconnected info -->
       <template v-else-if="node.type === 'DISCONNECTED'">
         <p class="text-xs text-muted-foreground mt-3">
-          Last seen {{ new Date(node.lastSeen).toLocaleString() }}
+          {{ t('components.nodeCard.lastSeen', { date: new Date(node.lastSeen).toLocaleString() }) }}
         </p>
       </template>
     </div>

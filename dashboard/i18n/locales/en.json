@@ -1795,6 +1795,36 @@
     },
     "spinner": {
       "loading": "Loading"
+    },
+    "groupCard": {
+      "scheduledTitle": "Instance scheduled",
+      "scheduledDesc": "Starting an instance for \"{name}\"",
+      "startFailed": "Failed to start instance",
+      "startInstance": "Start instance",
+      "maintenance": "Maintenance"
+    },
+    "nodeCard": {
+      "unknown": "Unknown",
+      "awaitingConnection": "Awaiting connection",
+      "disconnected": "Disconnected",
+      "expires": "Expires {date}",
+      "lastSeen": "Last seen {date}"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "subtitle": "Press a chord to jump anywhere in the dashboard."
+    },
+    "themeSwitcher": {
+      "customizeTheme": "Customize theme",
+      "customize": "Customize",
+      "subtitle": "Pick a color and radius for the dashboard.",
+      "color": "Color",
+      "radius": "Radius",
+      "mode": "Mode",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "advanced": "Advanced Customization"
     }
   }
 }

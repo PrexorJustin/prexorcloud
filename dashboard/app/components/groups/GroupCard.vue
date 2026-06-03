@@ -9,6 +9,8 @@ const props = defineProps<{
   group: ServerGroup
 }>()
 
+const { t } = useI18n()
+
 const scaling = computed(() => SCALING_MODE_CONFIG[props.group.scalingMode] ?? {
   label: props.group.scalingMode,
   color: "text-muted-foreground"
@@ -20,9 +22,9 @@ async function startInstance() {
   starting.value = true
   try {
     await useApiClient().POST('/api/v1/groups/{name}/start', { params: { path: { name: props.group.name } } })
-    toast.success("Instance scheduled", {description: `Starting an instance for "${props.group.name}"`})
+    toast.success(t('components.groupCard.scheduledTitle'), {description: t('components.groupCard.scheduledDesc', { name: props.group.name })})
   } catch {
-    toast.error("Failed to start instance")
+    toast.error(t('components.groupCard.startFailed'))
   } finally {
     starting.value = false
   }
@@ -54,14 +56,14 @@ class="absolute inset-0 bg-linear-to-br from-transparent to-transparent opacity-
           <button
               v-if="!group.maintenance"
               :class="['size-7 rounded-lg flex items-center justify-center transition-all', starting ? 'text-primary' : 'text-muted-foreground/0 group-hover:text-muted-foreground hover:text-primary! hover:bg-primary/10']"
-              title="Start instance"
+              :title="t('components.groupCard.startInstance')"
               :disabled="starting"
               @click.stop="startInstance"
           >
             <Loader2 v-if="starting" class="size-3.5 animate-spin"/>
             <Play v-else class="size-3.5"/>
           </button>
-          <Badge v-if="group.maintenance" variant="outline" class="text-xs text-warning">Maintenance</Badge>
+          <Badge v-if="group.maintenance" variant="outline" class="text-xs text-warning">{{ t('components.groupCard.maintenance') }}</Badge>
           <Badge variant="outline" :class="['text-xs', scaling.color]">{{ scaling.label }}</Badge>
         </div>
       </div>
