@@ -1549,6 +1549,128 @@
         "deleteFailedTitle": "Delete failed",
         "deleteFailedDesc": "Couldn't delete {id}. The instance must be STOPPED, CRASHED, or SCHEDULED first."
       }
+    },
+    "nodeDetail": {
+      "node": "Node",
+      "awaitingConnection": "Awaiting connection",
+      "disconnected": "Disconnected",
+      "nodeDetails": "Node details",
+      "notFoundTitle": "Node not found",
+      "notFoundHint": "It may have been removed from the cluster, or the join token expired.",
+      "tabs": {
+        "overview": "Overview",
+        "cache": "Cache"
+      },
+      "connection": "Connection",
+      "conn": {
+        "address": "Address",
+        "connectedSince": "Connected since",
+        "uptime": "Uptime",
+        "lastHeartbeat": "Last heartbeat",
+        "cpu": "CPU",
+        "memory": "Memory",
+        "disk": "Disk",
+        "instances": "Instances"
+      },
+      "stale": "Stale",
+      "host": "Host",
+      "hostInfo": {
+        "os": "Operating system",
+        "arch": "Architecture",
+        "cpuModel": "CPU model",
+        "cores": "Cores",
+        "maxFreq": "Max frequency",
+        "java": "Java",
+        "jvmVendor": "JVM vendor",
+        "jvmRuntime": "JVM runtime",
+        "gc": "GC"
+      },
+      "noHostInfo": "No host information available",
+      "labels": "Labels",
+      "instances": "Instances",
+      "noInstances": "No instances on this node",
+      "instColumns": {
+        "instance": "Instance",
+        "group": "Group",
+        "state": "State",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "nodeInformation": "Node information",
+      "disc": {
+        "status": "Status",
+        "firstSeen": "First seen",
+        "lastSeen": "Last seen"
+      },
+      "pendingNode": "Pending node",
+      "pending": {
+        "status": "Status",
+        "pending": "Pending",
+        "expires": "Expires",
+        "joinToken": "Join token"
+      },
+      "drainZone": {
+        "title": "Drain node",
+        "body": "Gracefully stop all running instances and prevent new ones from being scheduled. Existing instances will be migrated to other nodes."
+      },
+      "undrainZone": {
+        "title": "Cancel drain",
+        "body": "Stop the drain process and allow new instances to be scheduled on this node again."
+      },
+      "cordonZone": {
+        "title": "Cordon node",
+        "body": "Prevent new instances from being scheduled on this node. Existing instances will continue running."
+      },
+      "uncordonZone": {
+        "title": "Uncordon node",
+        "body": "Allow new instances to be scheduled on this node again."
+      },
+      "deleteZone": {
+        "revokeTitle": "Revoke join token",
+        "deleteTitle": "Delete node",
+        "revokeBody": "Revoke this join token. The daemon will no longer be able to connect using it.",
+        "deleteBody": "Remove this node from the cluster registry. This action cannot be undone."
+      },
+      "drain": "Drain",
+      "draining": "Draining…",
+      "cancelDrain": "Cancel drain",
+      "cancelling": "Cancelling…",
+      "cordon": "Cordon",
+      "cordoning": "Cordoning…",
+      "uncordon": "Uncordon",
+      "uncordoning": "Uncordoning…",
+      "revoke": "Revoke",
+      "revoking": "Revoking…",
+      "delete": "Delete",
+      "deleting": "Deleting…",
+      "confirm": {
+        "revokeTitle": "Revoke join token?",
+        "deleteTitle": "Delete node?",
+        "revokeDesc": "Revoke the join token for \"{id}\". The daemon will no longer be able to connect using it.",
+        "deleteDesc": "Delete node \"{id}\" from the cluster registry. This action cannot be undone.",
+        "drainTitle": "Drain node?",
+        "drainDesc": "Running instances on \"{id}\" will be gracefully stopped and migrated to other nodes.",
+        "cordonTitle": "Cordon node?",
+        "cordonDesc": "No new instances will be scheduled on \"{id}\". Existing instances continue running."
+      },
+      "toast": {
+        "loadFailedTitle": "Can't load node",
+        "loadFailedDesc": "Node {id} couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "actionFailedTitle": "Action failed",
+        "genericRetry": "Try again, or check the controller logs.",
+        "tokenRevokedTitle": "Token revoked",
+        "tokenRevokedDesc": "Join token for \"{id}\" has been revoked",
+        "nodeDeletedTitle": "Node deleted",
+        "nodeDeletedDesc": "Node \"{id}\" removed from cluster",
+        "drainStartedTitle": "Drain started",
+        "drainStartedDesc": "Node \"{id}\" is being drained",
+        "drainCancelledTitle": "Drain cancelled",
+        "drainCancelledDesc": "Node \"{id}\" is back online",
+        "cordonedTitle": "Node cordoned",
+        "cordonedDesc": "No new instances will be scheduled on \"{id}\"",
+        "uncordonedTitle": "Node uncordoned",
+        "uncordonedDesc": "\"{id}\" is accepting new instances again"
+      }
     }
   },
   "components": {

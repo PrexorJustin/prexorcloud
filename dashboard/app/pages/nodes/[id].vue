@@ -11,6 +11,7 @@ import { formatMemory, formatUptime as formatUptimeMs, timeAgo } from "~/lib/uti
 import NodeCachePanel from "~/components/nodes/NodeCachePanel.vue"
 import { useMetricsTimeseries } from "~/composables/useMetricsTimeseries"
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const nodeId = route.params.id as string
@@ -61,7 +62,7 @@ onMounted(async () => {
   try {
     node.value = (await useApiClient().GET('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })).data as NodeEntry
   }
-  catch { toast.error("Can't load node", { description: `Node ${nodeId} couldn't be reached. It may have been deleted, or the controller is unreachable.` }) }
+  catch { toast.error(t('pages.nodeDetail.toast.loadFailedTitle'), { description: t('pages.nodeDetail.toast.loadFailedDesc', { id: nodeId }) }) }
   finally {
     loading.value = false
   }
@@ -83,7 +84,7 @@ watch(() => store.nodes.find(n => n.id === nodeId), async (storeNode) => {
     try {
       node.value = (await useApiClient().GET('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })).data as NodeEntry
     }
-    catch { toast.error("Action failed", { description: "Try again, or check the controller logs." }) }
+    catch { toast.error(t('pages.nodeDetail.toast.actionFailedTitle'), { description: t('pages.nodeDetail.toast.genericRetry') }) }
   } else if (storeNode.type === 'CONNECTED' && node.value?.type === 'CONNECTED') {
     // Live-update stats from SSE
     const connected = node.value as ConnectedNode
@@ -106,7 +107,7 @@ async function fetchCache() {
   try {
     cache.value = (await useApiClient().GET('/api/v1/nodes/{id}/cache', { params: { path: { id: nodeId } } })).data as NodeCacheStatus
   }
-  catch { toast.error("Action failed", { description: "Try again, or check the controller logs." }) }
+  catch { toast.error(t('pages.nodeDetail.toast.actionFailedTitle'), { description: t('pages.nodeDetail.toast.genericRetry') }) }
   finally {
     cacheLoading.value = false
   }
@@ -169,11 +170,11 @@ function requestDelete() {
   if (!node.value) return
   const isPending = node.value.type === "PENDING"
   showConfirm(
-    isPending ? "Revoke join token?" : "Delete node?",
+    isPending ? t('pages.nodeDetail.confirm.revokeTitle') : t('pages.nodeDetail.confirm.deleteTitle'),
     isPending
-      ? `Revoke the join token for "${nodeId}". The daemon will no longer be able to connect using it.`
-      : `Delete node "${nodeId}" from the cluster registry. This action cannot be undone.`,
-    isPending ? "Revoke" : "Delete",
+      ? t('pages.nodeDetail.confirm.revokeDesc', { id: nodeId })
+      : t('pages.nodeDetail.confirm.deleteDesc', { id: nodeId }),
+    isPending ? t('pages.nodeDetail.revoke') : t('pages.nodeDetail.delete'),
     async () => {
       const wasPending = node.value!.type === "PENDING"
       if (wasPending) {
@@ -181,8 +182,8 @@ function requestDelete() {
       } else {
         await useApiClient().DELETE('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })
       }
-      toast.success(wasPending ? "Token revoked" : "Node deleted", {
-        description: wasPending ? `Join token for "${nodeId}" has been revoked` : `Node "${nodeId}" removed from cluster`,
+      toast.success(wasPending ? t('pages.nodeDetail.toast.tokenRevokedTitle') : t('pages.nodeDetail.toast.nodeDeletedTitle'), {
+        description: wasPending ? t('pages.nodeDetail.toast.tokenRevokedDesc', { id: nodeId }) : t('pages.nodeDetail.toast.nodeDeletedDesc', { id: nodeId }),
       })
       await router.push("/nodes")
     },
@@ -191,13 +192,13 @@ function requestDelete() {
 
 function requestDrain() {
   showConfirm(
-    "Drain node?",
-    `Running instances on "${nodeId}" will be gracefully stopped and migrated to other nodes.`,
-    "Drain",
+    t('pages.nodeDetail.confirm.drainTitle'),
+    t('pages.nodeDetail.confirm.drainDesc', { id: nodeId }),
+    t('pages.nodeDetail.drain'),
     async () => {
       await useApiClient().POST('/api/v1/nodes/{id}/drain', { params: { path: { id: nodeId } } })
       node.value = (await useApiClient().GET('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })).data as NodeEntry
-      toast.success("Drain started", { description: `Node "${nodeId}" is being drained` })
+      toast.success(t('pages.nodeDetail.toast.drainStartedTitle'), { description: t('pages.nodeDetail.toast.drainStartedDesc', { id: nodeId }) })
     },
   )
 }
@@ -207,9 +208,9 @@ async function undrainNode() {
   try {
     await useApiClient().POST('/api/v1/nodes/{id}/undrain', { params: { path: { id: nodeId } } })
     node.value = (await useApiClient().GET('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })).data as NodeEntry
-    toast.success("Drain cancelled", { description: `Node "${nodeId}" is back online` })
+    toast.success(t('pages.nodeDetail.toast.drainCancelledTitle'), { description: t('pages.nodeDetail.toast.drainCancelledDesc', { id: nodeId }) })
   }
-  catch { toast.error("Action failed", { description: "Try again, or check the controller logs." }) }
+  catch { toast.error(t('pages.nodeDetail.toast.actionFailedTitle'), { description: t('pages.nodeDetail.toast.genericRetry') }) }
   finally {
     draining.value = false
   }
@@ -217,13 +218,13 @@ async function undrainNode() {
 
 function requestCordon() {
   showConfirm(
-    "Cordon node?",
-    `No new instances will be scheduled on "${nodeId}". Existing instances continue running.`,
-    "Cordon",
+    t('pages.nodeDetail.confirm.cordonTitle'),
+    t('pages.nodeDetail.confirm.cordonDesc', { id: nodeId }),
+    t('pages.nodeDetail.cordon'),
     async () => {
       await useApiClient().POST('/api/v1/nodes/{id}/cordon', { params: { path: { id: nodeId } } })
       node.value = (await useApiClient().GET('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })).data as NodeEntry
-      toast.success("Node cordoned", { description: `No new instances will be scheduled on "${nodeId}"` })
+      toast.success(t('pages.nodeDetail.toast.cordonedTitle'), { description: t('pages.nodeDetail.toast.cordonedDesc', { id: nodeId }) })
     },
   )
 }
@@ -233,9 +234,9 @@ async function uncordonNode() {
   try {
     await useApiClient().POST('/api/v1/nodes/{id}/uncordon', { params: { path: { id: nodeId } } })
     node.value = (await useApiClient().GET('/api/v1/nodes/{id}', { params: { path: { id: nodeId } } })).data as NodeEntry
-    toast.success("Node uncordoned", { description: `"${nodeId}" is accepting new instances again` })
+    toast.success(t('pages.nodeDetail.toast.uncordonedTitle'), { description: t('pages.nodeDetail.toast.uncordonedDesc', { id: nodeId }) })
   }
-  catch { toast.error("Action failed", { description: "Try again, or check the controller logs." }) }
+  catch { toast.error(t('pages.nodeDetail.toast.actionFailedTitle'), { description: t('pages.nodeDetail.toast.genericRetry') }) }
   finally {
     cordoning.value = false
   }
@@ -252,13 +253,13 @@ async function uncordonNode() {
         </NuxtLink>
       </Button>
       <div class="flex-1 min-w-0">
-        <p class="eyebrow mb-1">Node</p>
+        <p class="eyebrow mb-1">{{ t('pages.nodeDetail.node') }}</p>
         <h1 class="text-2xl font-bold tracking-tight text-gradient-title mono">{{ nodeId }}</h1>
         <p class="mt-0.5 text-sm text-muted-foreground">
           <template v-if="connected">{{ connected.address }}</template>
-          <template v-else-if="node?.type === 'PENDING'">Awaiting connection</template>
-          <template v-else-if="node?.type === 'DISCONNECTED'">Disconnected</template>
-          <template v-else>Node details</template>
+          <template v-else-if="node?.type === 'PENDING'">{{ t('pages.nodeDetail.awaitingConnection') }}</template>
+          <template v-else-if="node?.type === 'DISCONNECTED'">{{ t('pages.nodeDetail.disconnected') }}</template>
+          <template v-else>{{ t('pages.nodeDetail.nodeDetails') }}</template>
         </p>
       </div>
       <StatusBadge v-if="node" :state="node.status" :pulse="node.status === 'ONLINE'" />
@@ -279,8 +280,8 @@ async function uncordonNode() {
     <!-- Not found -->
     <div v-else-if="!node" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border py-24 flex flex-col items-center justify-center text-center">
       <Server class="size-12 text-muted-foreground/30 mb-3" />
-      <p class="text-base font-semibold">Node not found</p>
-      <p class="mt-1 text-sm text-muted-foreground">It may have been removed from the cluster, or the join token expired.</p>
+      <p class="text-base font-semibold">{{ t('pages.nodeDetail.notFoundTitle') }}</p>
+      <p class="mt-1 text-sm text-muted-foreground">{{ t('pages.nodeDetail.notFoundHint') }}</p>
     </div>
 
     <!-- Connected node details -->
@@ -289,8 +290,8 @@ async function uncordonNode() {
       <nav class="flex gap-1 border-b border-glass-border -mb-px">
         <button
           v-for="tab in ([
-            { key: 'overview' as const, label: 'Overview', icon: Server },
-            { key: 'cache' as const, label: 'Cache', icon: Database },
+            { key: 'overview' as const, label: t('pages.nodeDetail.tabs.overview'), icon: Server },
+            { key: 'cache' as const, label: t('pages.nodeDetail.tabs.cache'), icon: Database },
           ])"
           :key="tab.key"
           :class="[
@@ -314,31 +315,31 @@ async function uncordonNode() {
             <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
               <h2 class="mb-4 flex items-center gap-2 text-base font-semibold">
                 <Clock class="size-4 text-muted-foreground" />
-                Connection
+                {{ t('pages.nodeDetail.connection') }}
               </h2>
               <div class="flex flex-col gap-3">
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">Address</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.address') }}</span>
                   <span class="text-sm font-medium text-foreground font-mono">{{ connected.address }}</span>
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">Connected since</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.connectedSince') }}</span>
                   <span class="text-sm text-foreground">{{ new Date(connected.connectedSince).toLocaleString() }}</span>
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">Uptime</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.uptime') }}</span>
                   <span class="text-sm font-medium text-foreground">{{ formatUptime(connected.connectedSince) }}</span>
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-muted-foreground">Last heartbeat</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.lastHeartbeat') }}</span>
                   <span class="flex items-center gap-2">
                     <span
                       v-if="isHeartbeatStale"
                       class="rounded-full bg-destructive/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-destructive"
-                    >Stale</span>
+                    >{{ t('pages.nodeDetail.stale') }}</span>
                     <span class="text-sm text-foreground" :title="new Date(connected.lastHeartbeat).toLocaleString()">{{ lastHeartbeatAgo }}</span>
                   </span>
                 </div>
@@ -346,7 +347,7 @@ async function uncordonNode() {
                 <!-- CPU -->
                 <div>
                   <div class="flex justify-between mb-1.5">
-                    <span class="text-sm text-muted-foreground">CPU</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.cpu') }}</span>
                     <span class="text-sm text-foreground tabular-nums">{{ cpuPercent }}%</span>
                   </div>
                   <div class="h-2 rounded-full bg-glass overflow-hidden">
@@ -361,7 +362,7 @@ async function uncordonNode() {
                 <!-- Memory -->
                 <div>
                   <div class="flex justify-between mb-1.5">
-                    <span class="text-sm text-muted-foreground">Memory</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.memory') }}</span>
                     <span class="text-sm text-foreground tabular-nums">{{ formatMemory(connected.usedMemoryMb) }} / {{ formatMemory(connected.totalMemoryMb) }}</span>
                   </div>
                   <div class="h-2 rounded-full bg-glass overflow-hidden">
@@ -376,7 +377,7 @@ async function uncordonNode() {
                 <!-- Disk -->
                 <div>
                   <div class="flex justify-between mb-1.5">
-                    <span class="text-sm text-muted-foreground">Disk</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.disk') }}</span>
                     <span class="text-sm text-foreground tabular-nums">{{ formatMemory(connected.totalDiskMb - connected.freeDiskMb) }} / {{ formatMemory(connected.totalDiskMb) }}</span>
                   </div>
                   <div class="h-2 rounded-full bg-glass overflow-hidden">
@@ -389,7 +390,7 @@ async function uncordonNode() {
                 </div>
                 <div>
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">Instances</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.conn.instances') }}</span>
                     <span class="text-sm text-foreground tabular-nums">{{ connected.instanceCount }}</span>
                   </div>
                   <Sparkline v-if="tsn.loaded.value" :data="tsn.series.instanceCount ?? []" :height="20" tone="secondary" class="mt-1.5" />
@@ -401,63 +402,63 @@ async function uncordonNode() {
             <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
               <h2 class="mb-4 flex items-center gap-2 text-base font-semibold">
                 <Monitor class="size-4 text-muted-foreground" />
-                Host
+                {{ t('pages.nodeDetail.host') }}
               </h2>
               <template v-if="connected.hostInfo">
                 <div class="flex flex-col gap-3">
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">Operating system</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.os') }}</span>
                     <span class="text-sm text-foreground">{{ connected.hostInfo.osName }} {{ connected.hostInfo.osVersion }}</span>
                   </div>
                   <Separator class="bg-glass-border" />
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">Architecture</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.arch') }}</span>
                     <span class="text-sm text-foreground">{{ connected.hostInfo.arch }}</span>
                   </div>
                   <Separator class="bg-glass-border" />
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">CPU model</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.cpuModel') }}</span>
                     <span class="text-sm text-foreground truncate ml-4 text-right">{{ connected.hostInfo.cpuModel }}</span>
                   </div>
                   <Separator class="bg-glass-border" />
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">Cores</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.cores') }}</span>
                     <span class="text-sm text-foreground">{{ connected.hostInfo.cpuPhysicalCores }}P / {{ connected.hostInfo.cpuLogicalCores }}L</span>
                   </div>
                   <Separator class="bg-glass-border" />
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">Max frequency</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.maxFreq') }}</span>
                     <span class="text-sm text-foreground">{{ formatFreq(connected.hostInfo.cpuMaxFreqHz) }}</span>
                   </div>
                   <Separator class="bg-glass-border" />
                   <div class="flex items-center justify-between">
-                    <span class="text-sm text-muted-foreground">Java</span>
+                    <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.java') }}</span>
                     <span class="text-sm text-foreground">{{ connected.hostInfo.javaVersion }}</span>
                   </div>
                   <template v-if="connected.hostInfo.javaVendor && connected.hostInfo.javaVendor !== 'unknown'">
                     <Separator class="bg-glass-border" />
                     <div class="flex items-center justify-between">
-                      <span class="text-sm text-muted-foreground">JVM vendor</span>
+                      <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.jvmVendor') }}</span>
                       <span class="text-sm text-foreground truncate ml-4 text-right">{{ connected.hostInfo.javaVendor }}</span>
                     </div>
                   </template>
                   <template v-if="connected.hostInfo.javaRuntime && connected.hostInfo.javaRuntime !== 'unknown'">
                     <Separator class="bg-glass-border" />
                     <div class="flex items-center justify-between">
-                      <span class="text-sm text-muted-foreground">JVM runtime</span>
+                      <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.jvmRuntime') }}</span>
                       <span class="text-sm text-foreground truncate ml-4 text-right">{{ connected.hostInfo.javaRuntime }}</span>
                     </div>
                   </template>
                   <template v-if="connected.hostInfo.javaGc && connected.hostInfo.javaGc !== 'unknown'">
                     <Separator class="bg-glass-border" />
                     <div class="flex items-center justify-between">
-                      <span class="text-sm text-muted-foreground">GC</span>
+                      <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.hostInfo.gc') }}</span>
                       <span class="text-sm text-foreground">{{ connected.hostInfo.javaGc }}</span>
                     </div>
                   </template>
                 </div>
               </template>
-              <p v-else class="text-sm text-muted-foreground">No host information available</p>
+              <p v-else class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.noHostInfo') }}</p>
             </div>
           </div>
 
@@ -465,7 +466,7 @@ async function uncordonNode() {
           <div v-if="connected.labels && Object.keys(connected.labels).length > 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
             <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
               <Tag class="size-5 text-muted-foreground" />
-              Labels
+              {{ t('pages.nodeDetail.labels') }}
             </h3>
             <div class="flex flex-wrap gap-2">
               <Badge v-for="(value, key) in connected.labels" :key="key" variant="outline" class="text-sm">
@@ -478,16 +479,16 @@ async function uncordonNode() {
           <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
             <h3 class="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
               <Box class="size-5 text-muted-foreground" />
-              Instances
+              {{ t('pages.nodeDetail.instances') }}
             </h3>
-            <div v-if="nodeInstances.length === 0" class="text-sm text-muted-foreground text-center py-6">No instances on this node</div>
+            <div v-if="nodeInstances.length === 0" class="text-sm text-muted-foreground text-center py-6">{{ t('pages.nodeDetail.noInstances') }}</div>
             <div v-else class="overflow-hidden rounded-xl border border-glass-border">
               <div class="flex items-center h-9 px-4 border-b border-glass-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                <div class="w-44 shrink-0">Instance</div>
-                <div class="w-32 shrink-0">Group</div>
-                <div class="w-24 shrink-0 text-center">State</div>
-                <div class="w-20 shrink-0 text-right">Players</div>
-                <div class="flex-1 text-right">Uptime</div>
+                <div class="w-44 shrink-0">{{ t('pages.nodeDetail.instColumns.instance') }}</div>
+                <div class="w-32 shrink-0">{{ t('pages.nodeDetail.instColumns.group') }}</div>
+                <div class="w-24 shrink-0 text-center">{{ t('pages.nodeDetail.instColumns.state') }}</div>
+                <div class="w-20 shrink-0 text-right">{{ t('pages.nodeDetail.instColumns.players') }}</div>
+                <div class="flex-1 text-right">{{ t('pages.nodeDetail.instColumns.uptime') }}</div>
               </div>
               <div v-for="inst in nodeInstances" :key="inst.id" class="flex items-center h-10 px-4 border-b border-glass-border/50 last:border-0 cursor-pointer hover:bg-glass-hover transition-colors" @click="navigateTo(`/instances/${inst.id}`)">
                 <div class="w-44 shrink-0 flex items-center gap-2">
@@ -515,20 +516,20 @@ async function uncordonNode() {
     <!-- Disconnected node -->
     <template v-else-if="node.type === 'DISCONNECTED'">
       <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-        <h2 class="mb-4 text-base font-semibold">Node information</h2>
+        <h2 class="mb-4 text-base font-semibold">{{ t('pages.nodeDetail.nodeInformation') }}</h2>
         <div class="flex flex-col gap-3">
           <div class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">Status</span>
+            <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.disc.status') }}</span>
             <StatusBadge state="OFFLINE" />
           </div>
           <Separator class="bg-glass-border" />
           <div class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">First seen</span>
+            <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.disc.firstSeen') }}</span>
             <span class="text-sm text-foreground">{{ new Date(node.firstSeen).toLocaleString() }}</span>
           </div>
           <Separator class="bg-glass-border" />
           <div class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">Last seen</span>
+            <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.disc.lastSeen') }}</span>
             <span class="text-sm text-foreground">{{ new Date(node.lastSeen).toLocaleString() }}</span>
           </div>
         </div>
@@ -538,20 +539,20 @@ async function uncordonNode() {
     <!-- Pending node -->
     <template v-else-if="node.type === 'PENDING'">
       <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-        <h2 class="mb-4 text-base font-semibold">Pending node</h2>
+        <h2 class="mb-4 text-base font-semibold">{{ t('pages.nodeDetail.pendingNode') }}</h2>
         <div class="flex flex-col gap-3">
           <div class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">Status</span>
-            <StatusBadge tone="primary" label="Pending" pulse />
+            <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.pending.status') }}</span>
+            <StatusBadge tone="primary" :label="t('pages.nodeDetail.pending.pending')" pulse />
           </div>
           <Separator class="bg-glass-border" />
           <div class="flex items-center justify-between">
-            <span class="text-sm text-muted-foreground">Expires</span>
+            <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.pending.expires') }}</span>
             <span class="text-sm text-foreground">{{ new Date(node.expiresAt).toLocaleString() }}</span>
           </div>
           <Separator class="bg-glass-border" />
           <div>
-            <span class="text-sm text-muted-foreground">Join token</span>
+            <span class="text-sm text-muted-foreground">{{ t('pages.nodeDetail.pending.joinToken') }}</span>
             <div class="flex items-center gap-2 mt-2">
               <code class="flex-1 p-3 bg-glass rounded-xl text-sm text-foreground font-mono break-all border border-glass-border">
                 {{ node.joinToken }}
@@ -581,8 +582,8 @@ async function uncordonNode() {
               <Power class="size-5 text-warning" />
             </div>
             <div>
-              <h2 class="text-base font-semibold">Drain node</h2>
-              <p class="mt-1 text-sm text-muted-foreground">Gracefully stop all running instances and prevent new ones from being scheduled. Existing instances will be migrated to other nodes.</p>
+              <h2 class="text-base font-semibold">{{ t('pages.nodeDetail.drainZone.title') }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ t('pages.nodeDetail.drainZone.body') }}</p>
             </div>
           </div>
           <Button
@@ -591,7 +592,7 @@ async function uncordonNode() {
             :disabled="draining"
             @click="requestDrain"
           >
-            {{ draining ? "Draining…" : "Drain" }}
+            {{ draining ? t('pages.nodeDetail.draining') : t('pages.nodeDetail.drain') }}
           </Button>
         </div>
       </div>
@@ -604,8 +605,8 @@ async function uncordonNode() {
               <Power class="size-5 text-warning" />
             </div>
             <div>
-              <h2 class="text-base font-semibold">Cancel drain</h2>
-              <p class="mt-1 text-sm text-muted-foreground">Stop the drain process and allow new instances to be scheduled on this node again.</p>
+              <h2 class="text-base font-semibold">{{ t('pages.nodeDetail.undrainZone.title') }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ t('pages.nodeDetail.undrainZone.body') }}</p>
             </div>
           </div>
           <Button
@@ -614,7 +615,7 @@ async function uncordonNode() {
             :disabled="draining"
             @click="undrainNode"
           >
-            {{ draining ? "Cancelling…" : "Cancel drain" }}
+            {{ draining ? t('pages.nodeDetail.cancelling') : t('pages.nodeDetail.cancelDrain') }}
           </Button>
         </div>
       </div>
@@ -627,8 +628,8 @@ async function uncordonNode() {
               <ShieldOff class="size-5 text-warning" />
             </div>
             <div>
-              <h2 class="text-base font-semibold">Cordon node</h2>
-              <p class="mt-1 text-sm text-muted-foreground">Prevent new instances from being scheduled on this node. Existing instances will continue running.</p>
+              <h2 class="text-base font-semibold">{{ t('pages.nodeDetail.cordonZone.title') }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ t('pages.nodeDetail.cordonZone.body') }}</p>
             </div>
           </div>
           <Button
@@ -637,7 +638,7 @@ async function uncordonNode() {
             :disabled="cordoning"
             @click="requestCordon"
           >
-            {{ cordoning ? "Cordoning…" : "Cordon" }}
+            {{ cordoning ? t('pages.nodeDetail.cordoning') : t('pages.nodeDetail.cordon') }}
           </Button>
         </div>
       </div>
@@ -650,8 +651,8 @@ async function uncordonNode() {
               <ShieldOff class="size-5 text-warning" />
             </div>
             <div>
-              <h2 class="text-base font-semibold">Uncordon node</h2>
-              <p class="mt-1 text-sm text-muted-foreground">Allow new instances to be scheduled on this node again.</p>
+              <h2 class="text-base font-semibold">{{ t('pages.nodeDetail.uncordonZone.title') }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ t('pages.nodeDetail.uncordonZone.body') }}</p>
             </div>
           </div>
           <Button
@@ -660,7 +661,7 @@ async function uncordonNode() {
             :disabled="cordoning"
             @click="uncordonNode"
           >
-            {{ cordoning ? "Uncordoning…" : "Uncordon" }}
+            {{ cordoning ? t('pages.nodeDetail.uncordoning') : t('pages.nodeDetail.uncordon') }}
           </Button>
         </div>
       </div>
@@ -673,10 +674,10 @@ async function uncordonNode() {
               <Trash2 class="size-5 text-destructive" />
             </div>
             <div>
-              <h2 class="text-base font-semibold">{{ node.type === 'PENDING' ? 'Revoke join token' : 'Delete node' }}</h2>
+              <h2 class="text-base font-semibold">{{ node.type === 'PENDING' ? t('pages.nodeDetail.deleteZone.revokeTitle') : t('pages.nodeDetail.deleteZone.deleteTitle') }}</h2>
               <p class="mt-1 text-sm text-muted-foreground">
-                <template v-if="node.type === 'PENDING'">Revoke this join token. The daemon will no longer be able to connect using it.</template>
-                <template v-else>Remove this node from the cluster registry. This action cannot be undone.</template>
+                <template v-if="node.type === 'PENDING'">{{ t('pages.nodeDetail.deleteZone.revokeBody') }}</template>
+                <template v-else>{{ t('pages.nodeDetail.deleteZone.deleteBody') }}</template>
               </p>
             </div>
           </div>
@@ -687,7 +688,7 @@ async function uncordonNode() {
             @click="requestDelete"
           >
             <Trash2 class="mr-2 size-4" />
-            {{ deleting ? (node.type === 'PENDING' ? 'Revoking…' : 'Deleting…') : (node.type === 'PENDING' ? 'Revoke' : 'Delete') }}
+            {{ deleting ? (node.type === 'PENDING' ? t('pages.nodeDetail.revoking') : t('pages.nodeDetail.deleting')) : (node.type === 'PENDING' ? t('pages.nodeDetail.revoke') : t('pages.nodeDetail.delete')) }}
           </Button>
         </div>
       </div>

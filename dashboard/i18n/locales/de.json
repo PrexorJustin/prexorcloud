@@ -1549,6 +1549,128 @@
         "deleteFailedTitle": "Löschen fehlgeschlagen",
         "deleteFailedDesc": "{id} konnte nicht gelöscht werden. Die Instanz muss zuerst STOPPED, CRASHED oder SCHEDULED sein."
       }
+    },
+    "nodeDetail": {
+      "node": "Node",
+      "awaitingConnection": "Wartet auf Verbindung",
+      "disconnected": "Getrennt",
+      "nodeDetails": "Node-Details",
+      "notFoundTitle": "Node nicht gefunden",
+      "notFoundHint": "Er wurde möglicherweise aus dem Cluster entfernt, oder das Join-Token ist abgelaufen.",
+      "tabs": {
+        "overview": "Übersicht",
+        "cache": "Cache"
+      },
+      "connection": "Verbindung",
+      "conn": {
+        "address": "Adresse",
+        "connectedSince": "Verbunden seit",
+        "uptime": "Laufzeit",
+        "lastHeartbeat": "Letzter Heartbeat",
+        "cpu": "CPU",
+        "memory": "Arbeitsspeicher",
+        "disk": "Festplatte",
+        "instances": "Instanzen"
+      },
+      "stale": "Veraltet",
+      "host": "Host",
+      "hostInfo": {
+        "os": "Betriebssystem",
+        "arch": "Architektur",
+        "cpuModel": "CPU-Modell",
+        "cores": "Kerne",
+        "maxFreq": "Max. Frequenz",
+        "java": "Java",
+        "jvmVendor": "JVM-Hersteller",
+        "jvmRuntime": "JVM-Runtime",
+        "gc": "GC"
+      },
+      "noHostInfo": "Keine Host-Informationen verfügbar",
+      "labels": "Labels",
+      "instances": "Instanzen",
+      "noInstances": "Keine Instanzen auf diesem Node",
+      "instColumns": {
+        "instance": "Instanz",
+        "group": "Gruppe",
+        "state": "Status",
+        "players": "Spieler",
+        "uptime": "Laufzeit"
+      },
+      "nodeInformation": "Node-Informationen",
+      "disc": {
+        "status": "Status",
+        "firstSeen": "Zuerst gesehen",
+        "lastSeen": "Zuletzt gesehen"
+      },
+      "pendingNode": "Ausstehender Node",
+      "pending": {
+        "status": "Status",
+        "pending": "Ausstehend",
+        "expires": "Läuft ab",
+        "joinToken": "Join-Token"
+      },
+      "drainZone": {
+        "title": "Node drainen",
+        "body": "Alle laufenden Instanzen sauber stoppen und verhindern, dass neue geplant werden. Bestehende Instanzen werden auf andere Nodes migriert."
+      },
+      "undrainZone": {
+        "title": "Drain abbrechen",
+        "body": "Den Drain-Vorgang stoppen und wieder zulassen, dass neue Instanzen auf diesem Node geplant werden."
+      },
+      "cordonZone": {
+        "title": "Node cordonen",
+        "body": "Verhindern, dass neue Instanzen auf diesem Node geplant werden. Bestehende Instanzen laufen weiter."
+      },
+      "uncordonZone": {
+        "title": "Node uncordonen",
+        "body": "Wieder zulassen, dass neue Instanzen auf diesem Node geplant werden."
+      },
+      "deleteZone": {
+        "revokeTitle": "Join-Token widerrufen",
+        "deleteTitle": "Node löschen",
+        "revokeBody": "Dieses Join-Token widerrufen. Der Daemon kann sich damit nicht mehr verbinden.",
+        "deleteBody": "Diesen Node aus der Cluster-Registry entfernen. Diese Aktion kann nicht rückgängig gemacht werden."
+      },
+      "drain": "Drainen",
+      "draining": "Wird gedraint …",
+      "cancelDrain": "Drain abbrechen",
+      "cancelling": "Wird abgebrochen …",
+      "cordon": "Cordonen",
+      "cordoning": "Wird cordont …",
+      "uncordon": "Uncordonen",
+      "uncordoning": "Wird uncordont …",
+      "revoke": "Widerrufen",
+      "revoking": "Wird widerrufen …",
+      "delete": "Löschen",
+      "deleting": "Wird gelöscht …",
+      "confirm": {
+        "revokeTitle": "Join-Token widerrufen?",
+        "deleteTitle": "Node löschen?",
+        "revokeDesc": "Join-Token für „{id}“ widerrufen. Der Daemon kann sich damit nicht mehr verbinden.",
+        "deleteDesc": "Node „{id}“ aus der Cluster-Registry löschen. Diese Aktion kann nicht rückgängig gemacht werden.",
+        "drainTitle": "Node drainen?",
+        "drainDesc": "Laufende Instanzen auf „{id}“ werden sauber gestoppt und auf andere Nodes migriert.",
+        "cordonTitle": "Node cordonen?",
+        "cordonDesc": "Auf „{id}“ werden keine neuen Instanzen geplant. Bestehende Instanzen laufen weiter."
+      },
+      "toast": {
+        "loadFailedTitle": "Node kann nicht geladen werden",
+        "loadFailedDesc": "Node {id} konnte nicht erreicht werden. Er wurde möglicherweise gelöscht, oder der Controller ist nicht erreichbar.",
+        "actionFailedTitle": "Aktion fehlgeschlagen",
+        "genericRetry": "Versuche es erneut oder prüfe die Controller-Logs.",
+        "tokenRevokedTitle": "Token widerrufen",
+        "tokenRevokedDesc": "Join-Token für „{id}“ wurde widerrufen",
+        "nodeDeletedTitle": "Node gelöscht",
+        "nodeDeletedDesc": "Node „{id}“ aus dem Cluster entfernt",
+        "drainStartedTitle": "Drain gestartet",
+        "drainStartedDesc": "Node „{id}“ wird gedraint",
+        "drainCancelledTitle": "Drain abgebrochen",
+        "drainCancelledDesc": "Node „{id}“ ist wieder online",
+        "cordonedTitle": "Node cordont",
+        "cordonedDesc": "Auf „{id}“ werden keine neuen Instanzen geplant",
+        "uncordonedTitle": "Node uncordont",
+        "uncordonedDesc": "„{id}“ akzeptiert wieder neue Instanzen"
+      }
     }
   },
   "components": {
