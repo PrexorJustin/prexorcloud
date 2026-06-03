@@ -116,7 +116,7 @@ const { t } = useI18n()
 
     <!-- Initial state -->
     <div v-else class="flex items-center justify-center py-8 text-sm text-muted-foreground">
-      Type to search across all files
+      {{ t('components.fileSearch.initialHint') }}
     </div>
   </div>
 </template>

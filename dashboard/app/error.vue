@@ -3,6 +3,8 @@ import { AlertTriangle, ArrowLeft, Home } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 
 const props = defineProps<{ error: { statusCode: number; message: string } }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
@@ -15,16 +17,16 @@ const props = defineProps<{ error: { statusCode: number; message: string } }>()
         {{ props.error.statusCode }}
       </h1>
       <p class="mt-3 text-base text-muted-foreground">
-        {{ props.error.message || 'Something went wrong' }}
+        {{ props.error.message || t('pages.error.fallbackMessage') }}
       </p>
       <div class="mt-8 flex items-center justify-center gap-3">
         <Button variant="outline" @click="$router.back()">
           <ArrowLeft class="mr-2 size-4" />
-          Go back
+          {{ t('common.goBack') }}
         </Button>
         <Button @click="clearError({ redirect: '/' })">
           <Home class="mr-2 size-4" />
-          Home
+          {{ t('common.home') }}
         </Button>
       </div>
     </div>

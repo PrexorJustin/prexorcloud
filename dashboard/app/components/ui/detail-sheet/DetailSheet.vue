@@ -100,7 +100,7 @@ const widthClass = {
             class="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
             @click="close"
           >
-            Open full page
+            {{ t('components.detailSheet.openFullPage') }}
             <ArrowUpRight class="size-3.5" />
           </NuxtLink>
         </slot>

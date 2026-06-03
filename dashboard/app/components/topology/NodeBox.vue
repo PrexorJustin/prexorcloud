@@ -35,6 +35,8 @@ const emit = defineEmits<{
   "instance-click": [instanceId: string]
 }>()
 
+const { t } = useI18n()
+
 function instanceTone(state: string): StatusDotTone {
   if (state === "RUNNING") return "success"
   if (state === "STARTING" || state === "SCHEDULED") return "primary"
@@ -92,7 +94,7 @@ function nodeTone(status: string): "success" | "warning" | "destructive" | "mute
         v-if="props.data.instances.length === 0"
         class="py-3 text-center text-xs text-muted-foreground"
       >
-        No instances
+        {{ t('components.nodeBox.noInstances') }}
       </p>
     </div>
   </div>

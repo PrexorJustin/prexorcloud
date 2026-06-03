@@ -284,7 +284,7 @@ const sliders = computed<ReadonlyArray<{ key: keyof GlowBlob; label: string; ico
         <div class="absolute inset-0 flex items-center justify-center bg-background/0 group-hover/preview:bg-background/40 transition-colors">
           <div class="opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-glass/80 backdrop-blur border border-glass-border text-[10px] text-muted-foreground">
             <Expand class="size-3" />
-            Expand preview
+            {{ t('components.glows.expandPreview') }}
           </div>
         </div>
       </div>

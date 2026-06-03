@@ -49,7 +49,13 @@
     "search": "Search...",
     "items": "items",
     "gridView": "Grid view",
-    "tableView": "Table view"
+    "tableView": "Table view",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "home": "Home",
+    "goBack": "Go back",
+    "skipToContent": "Skip to content"
   },
   "sidebar": {
     "adminPanel": "Admin panel",
@@ -114,7 +120,8 @@
       "invalidToken": "This reset link is invalid or has expired. Request a fresh one from the sign-in page.",
       "genericError": "Reset failed. Try again, or request a fresh link.",
       "networkError": "Can't reach the controller. Check your connection and try again."
-    }
+    },
+    "homeAriaLabel": "PrexorCloud home"
   },
   "settings": {
     "title": "Settings",
@@ -1761,6 +1768,9 @@
         "installingDepDesc": "Provides {capability}",
         "installDepFailedDesc": "Couldn't install the providing module."
       }
+    },
+    "error": {
+      "fallbackMessage": "Something went wrong"
     }
   },
   "components": {
@@ -1778,7 +1788,8 @@
       "clearSelection": "Clear selection"
     },
     "detailSheet": {
-      "close": "Close panel"
+      "close": "Close panel",
+      "openFullPage": "Open full page"
     },
     "commandPalette": {
       "placeholder": "Search resources, jump to a page, switch theme…"
@@ -2066,7 +2077,8 @@
         "protectedPaths": "Protected Paths",
         "staticOnly": "(static instances only)",
         "protectedPlaceholder": "e.g. world, plugins/Essentials",
-        "protectedHint": "These paths survive template re-application on restart"
+        "protectedHint": "These paths survive template re-application on restart",
+        "maxLifetimeUnlimited": "0 = unlimited"
       },
       "s5": {
         "additionalTemplates": "Additional Templates",
@@ -2264,7 +2276,8 @@
         "rotate": "Rotate",
         "scaleX": "Scale X",
         "scaleY": "Scale Y"
-      }
+      },
+      "expandPreview": "Expand preview"
     },
     "addNode": {
       "generateToken": "Generate Token",
@@ -2309,11 +2322,23 @@
     },
     "fileSearch": {
       "placeholder": "Search in files...",
-      "noResults": "No results found"
+      "noResults": "No results found",
+      "initialHint": "Type to search across all files"
     },
     "copyBtn": {
       "copied": "Copied",
       "copy": "Copy to clipboard"
+    },
+    "appHeader": {
+      "toggleSidebar": "Toggle sidebar",
+      "accountMenu": "Account menu"
+    },
+    "nodeBox": {
+      "noInstances": "No instances"
+    },
+    "instanceCard": {
+      "stop": "Stop instance",
+      "delete": "Delete instance"
     }
   }
 }

@@ -75,7 +75,7 @@ class="absolute inset-0 bg-linear-to-br from-transparent to-transparent opacity-
           <button
             v-if="canStop"
             :class="['size-7 rounded-lg flex items-center justify-center transition-all', acting ? 'text-warning' : 'text-muted-foreground/0 group-hover:text-muted-foreground hover:text-warning! hover:bg-warning/10']"
-            title="Stop instance"
+            :title="t('components.instanceCard.stop')"
             :disabled="acting"
             @click.stop="stopInstance"
           >
@@ -86,7 +86,7 @@ class="absolute inset-0 bg-linear-to-br from-transparent to-transparent opacity-
           <button
             v-if="canDelete"
             :class="['size-7 rounded-lg flex items-center justify-center transition-all', acting ? 'text-destructive' : 'text-muted-foreground/0 group-hover:text-muted-foreground hover:text-destructive! hover:bg-destructive/10']"
-            title="Delete instance"
+            :title="t('components.instanceCard.delete')"
             :disabled="acting"
             @click.stop="deleteInstance"
           >

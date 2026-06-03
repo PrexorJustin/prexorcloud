@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu"
 
+const { t } = useI18n()
 const auth = useAuthStore()
 const notifications = useNotificationsStore()
 const router = useRouter()
@@ -43,7 +44,7 @@ async function logout() {
     href="#main-content"
     class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground focus:shadow-lg"
   >
-    Skip to content
+    {{ t('common.skipToContent') }}
   </a>
 
   <LayoutAmbientGlows />
@@ -55,7 +56,7 @@ async function logout() {
         class="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-glass-border bg-sidebar/80 px-4 backdrop-blur-xl"
         role="banner"
       >
-        <SidebarTrigger aria-label="Toggle sidebar" />
+        <SidebarTrigger :aria-label="t('components.appHeader.toggleSidebar')" />
         <Separator orientation="vertical" class="h-4" />
 
         <LayoutCommandPalette ref="paletteRef" />
@@ -68,7 +69,7 @@ async function logout() {
             <DropdownMenuTrigger as-child>
               <button
                 type="button"
-                aria-label="Account menu"
+                :aria-label="t('components.appHeader.accountMenu')"
                 class="ml-2 inline-flex size-8 items-center justify-center rounded-full transition-colors hover:bg-glass-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <Avatar class="size-8 bg-primary text-primary-foreground">
@@ -87,19 +88,19 @@ async function logout() {
               <DropdownMenuItem as-child>
                 <NuxtLink to="/profile" class="cursor-pointer">
                   <User class="mr-2 size-4" />
-                  Profile
+                  {{ t('common.profile') }}
                 </NuxtLink>
               </DropdownMenuItem>
               <DropdownMenuItem as-child>
                 <NuxtLink to="/settings" class="cursor-pointer">
                   <Settings class="mr-2 size-4" />
-                  Settings
+                  {{ t('common.settings') }}
                 </NuxtLink>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem class="text-destructive focus:text-destructive" @click="logout">
                 <LogOut class="mr-2 size-4" />
-                Log out
+                {{ t('common.logout') }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

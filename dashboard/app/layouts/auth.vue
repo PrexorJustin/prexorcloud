@@ -1,3 +1,7 @@
+<script setup lang="ts">
+const { t } = useI18n()
+</script>
+
 <template>
   <div class="relative flex min-h-svh items-center justify-center overflow-hidden bg-background p-6 md:p-10">
     <!-- Ambient glows: static, drift on load only (no continuous animation per design system). -->
@@ -22,7 +26,7 @@
     <div class="relative w-full max-w-[420px]">
       <NuxtLink
         to="/"
-        aria-label="PrexorCloud home"
+        :aria-label="t('auth.homeAriaLabel')"
         class="mb-8 flex items-center justify-center gap-2.5 transition-opacity hover:opacity-80"
       >
         <img src="/logomark.svg" alt="" aria-hidden="true" width="32" height="32" class="size-8" >
