@@ -4,6 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import java.net.ServerSocket;
 import java.nio.file.Path;
@@ -26,6 +31,7 @@ import me.prexorjustin.prexorcloud.controller.cluster.raft.RaftBootstrap;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.config.RaftConfig;
+import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinRequest;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinResponse;
 import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
@@ -202,6 +208,38 @@ class ClusterMembershipServiceImplTest {
             assertEquals(1, members.size());
             assertEquals("controller-2", members.get(0).nodeId());
             assertEquals("controller-2.cluster.test:9091", members.get(0).raftAddr());
+        }
+    }
+
+    @Test
+    @DisplayName("successful join writes a cluster.member.joined audit entry")
+    void happyPathWritesJoinAudit(@TempDir Path tmp) throws Exception {
+        try (Harness h = bootHarness(tmp)) {
+            Instant now = Instant.parse("2026-05-29T12:30:00Z");
+            var issued = JoinTokenCodec.encode(
+                    CLUSTER_ID,
+                    List.of("controller-1.cluster.test:9091"),
+                    now.plusSeconds(3600),
+                    JoinTokenCodec.decodeSeed(SEED_B64));
+            writeToken(h.plane, issued.jti(), now.plusSeconds(3600));
+
+            KeyPair joinerKp = generateEcKeyPair();
+            byte[] csr = generateCsr(joinerKp, "controller-2");
+
+            StateStore auditStore = mock(StateStore.class);
+            var svc = new ClusterMembershipServiceImpl(h.plane, Clock.fixed(now, ZoneOffset.UTC), auditStore);
+            CapturingObserver obs = new CapturingObserver();
+            svc.requestJoin(joinRequest(issued.token(), csr, "controller-2"), obs);
+
+            assertNull(obs.failure.get(), () -> "expected success but got: " + obs.failure.get());
+            verify(auditStore)
+                    .audit(
+                            eq("controller-2"),
+                            eq("cluster.member.joined"),
+                            eq("cluster_member"),
+                            eq("controller-2"),
+                            anyString(),
+                            any());
         }
     }
 

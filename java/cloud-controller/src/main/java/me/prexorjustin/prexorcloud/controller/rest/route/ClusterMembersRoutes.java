@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
+import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
@@ -29,7 +30,9 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>{@code GET    /api/v1/cluster} — cluster id, member count, this node's role.</li>
  *   <li>{@code GET    /api/v1/cluster/members} — detailed member list (sorted by nodeId).</li>
+ *   <li>{@code GET    /api/v1/cluster/leases} — current Raft lease holders (Phase 8).</li>
  *   <li>{@code DELETE /api/v1/cluster/members/{nodeId}} — force-eject a member.</li>
+ *   <li>{@code POST   /api/v1/cluster/leave} — graceful self-removal.</li>
  * </ul>
  */
 public final class ClusterMembersRoutes {
@@ -45,6 +48,7 @@ public final class ClusterMembersRoutes {
     public void register() {
         get("/api/v1/cluster", this::getStatus);
         get("/api/v1/cluster/members", this::listMembers);
+        get("/api/v1/cluster/leases", this::listLeases);
         delete("/api/v1/cluster/members/{nodeId}", this::ejectMember);
         post("/api/v1/cluster/leave", this::leave);
     }
@@ -72,6 +76,22 @@ public final class ClusterMembersRoutes {
                 .toList();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("members", members);
+        ctx.status(200);
+        ctx.json(body);
+    }
+
+    /**
+     * Lease-holder overview (Phase 8): which controller currently holds each
+     * Raft lease (scheduler, deployment-reconciler, audit-pruner). Read from the
+     * control-plane state machine so the view is leader-authoritative.
+     */
+    private void listLeases(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_VIEW);
+        ClusterControlPlane plane = controller.clusterControlPlane();
+        List<Map<String, Object>> leases =
+                plane.getLeases().stream().map(ClusterMembersRoutes::leaseJson).toList();
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("leases", leases);
         ctx.status(200);
         ctx.json(body);
     }
@@ -192,6 +212,16 @@ public final class ClusterMembersRoutes {
         out.put("label", m.label());
         out.put("joinedAt", m.joinedAt());
         out.put("lastSeen", m.lastSeen());
+        return out;
+    }
+
+    private static Map<String, Object> leaseJson(Lease l) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("name", l.name());
+        out.put("holder", l.holder());
+        out.put("grantedAt", l.grantedAt());
+        out.put("ttlMillis", l.ttlMillis());
+        out.put("renewedAt", l.renewedAt());
         return out;
     }
 }

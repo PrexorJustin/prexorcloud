@@ -26,8 +26,7 @@ class RoleTest {
      * sync with {@code Role.EXCLUDED_FROM_DEFAULT_ADMIN}. Adding a permission here
      * is a deliberate security decision — see the field's comment in Role.java.
      */
-    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN =
-            Set.of(Permission.CLUSTER_JOIN, Permission.CLUSTER_MANAGE);
+    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN = Set.of(Permission.CLUSTER_MANAGE);
 
     @Test
     @DisplayName("ADMIN role grants every Permission constant except the deliberately excluded set")
@@ -57,15 +56,6 @@ class RoleTest {
     @DisplayName("ADMIN can delete instances (regression: INSTANCES_DELETE drift)")
     void adminCanDeleteInstances() {
         assertTrue(Role.hasPermission(Role.ADMIN, Permission.INSTANCES_DELETE));
-    }
-
-    @Test
-    @DisplayName("ADMIN does NOT receive CLUSTER_JOIN by default")
-    void adminDoesNotGetClusterJoinByDefault() {
-        assertTrue(
-                !Role.hasPermission(Role.ADMIN, Permission.CLUSTER_JOIN),
-                "CLUSTER_JOIN must be explicitly granted via a custom role — issuing a join template leaks the"
-                        + " cluster's JWT secret and Mongo URI.");
     }
 
     @Test

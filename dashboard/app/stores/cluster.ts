@@ -116,9 +116,8 @@ export const useClusterStore = defineStore("cluster", () => {
       const { data } = await loose().GET("/api/v1/cluster/leases")
       leases.value = (data as { leases?: ClusterLease[] }).leases ?? []
     } catch {
-      // The /leases route hasn't shipped yet at the time of writing — degrade
-      // silently to an empty list so this page doesn't error-toast on every
-      // load until the route lands.
+      // Non-critical panel — degrade silently to an empty list rather than
+      // error-toast (e.g. a follower returning a transient read error).
       leases.value = []
     } finally {
       loadingLeases.value = false

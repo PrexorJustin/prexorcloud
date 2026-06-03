@@ -289,6 +289,42 @@ class ClusterControlPlaneTest {
     }
 
     @Test
+    @DisplayName("getLeases returns every currently-held lease and drops released ones")
+    void getLeasesReturnsAllHeld(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000d105");
+        ClusterControlStateMachine sm = new ClusterControlStateMachine();
+        try (RaftBootstrap raft = newBootstrap(tmp, sm, port, groupId)) {
+            raft.start();
+            raft.awaitLeader(10_000);
+            ClusterControlPlane cp = new ClusterControlPlane(raft, sm);
+
+            cp.grantLease("scheduler", "controller-1", 60_000);
+            cp.grantLease("audit-pruner", "controller-2", 60_000);
+
+            List<Lease> leases = cp.getLeases();
+            assertEquals(2, leases.size());
+            assertEquals(
+                    "controller-1",
+                    leases.stream()
+                            .filter(l -> l.name().equals("scheduler"))
+                            .findFirst()
+                            .orElseThrow()
+                            .holder());
+            assertEquals(
+                    "controller-2",
+                    leases.stream()
+                            .filter(l -> l.name().equals("audit-pruner"))
+                            .findFirst()
+                            .orElseThrow()
+                            .holder());
+
+            cp.releaseLease("scheduler", "controller-1");
+            assertEquals(1, cp.getLeases().size());
+        }
+    }
+
+    @Test
     @DisplayName("snapshot + restart recovers state without log replay from index 1")
     void snapshotAndRestart(@TempDir Path tmp) throws Exception {
         int port = freePort();

@@ -45,11 +45,10 @@ public final class Role {
     // existed in Permission but was missing here, denying ADMIN that permission.
     // Exception: permissions in EXCLUDED_FROM_DEFAULT_ADMIN are deliberately withheld
     // from the built-in ADMIN bundle; an operator must consciously create a custom role
-    // that includes them. See CLUSTER_JOIN — issuing a join template hands the requester
-    // the cluster's JWT secret and Mongo URI, so the cluster-join plan keeps it off the
-    // default admin bundle even though ADMIN is otherwise the superuser role.
-    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN =
-            Set.of(Permission.CLUSTER_JOIN, Permission.CLUSTER_MANAGE);
+    // that includes them. See CLUSTER_MANAGE — eject/leave/seed-rotate and config writes
+    // on the control plane are kept off the default admin bundle so a compromised admin
+    // token can't reshape the cluster, even though ADMIN is otherwise the superuser role.
+    private static final Set<String> EXCLUDED_FROM_DEFAULT_ADMIN = Set.of(Permission.CLUSTER_MANAGE);
 
     private static final Set<String> ALL_PERMISSIONS = collectAllPermissions();
 

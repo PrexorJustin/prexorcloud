@@ -7,16 +7,18 @@ import java.util.Map;
 import me.prexorjustin.prexorcloud.common.config.YamlConfigLoader;
 
 /**
- * Produces the cluster-shared subset of {@link ControllerConfig} that is returned
- * by {@code GET /api/v1/admin/cluster/join-template}. The "shared subset" is
- * defined in {@code docs/engineering/cluster-join-plan.md} (see the Field
- * classification table). Getting this wrong is the bug the cluster-join plan
- * exists to prevent — a missing cluster-shared field forces the operator into
- * the hand-copy workflow the plan replaces; an over-included node-local field
- * stamps a per-node bind address or admin password onto the new node.
+ * Produces the cluster-shared subset of {@link ControllerConfig}. The "shared
+ * subset" is defined in {@code docs/engineering/cluster-join-plan.md} (see the
+ * Field classification table). Getting this wrong is the bug the cluster-join
+ * plan exists to prevent — a missing cluster-shared field leaves the new node
+ * without authoritative config; an over-included node-local field would stamp a
+ * per-node bind address or admin password onto the cluster state.
  *
- * <p>The output is rendered as YAML so the wizard can merge it with node-local
- * overrides before writing the new node's {@code controller.yml}.
+ * <p>As of v1.1 this projection seeds the initial {@code cluster_config} version
+ * on first boot (the v1.0→v1.1 migration in {@code ClusterControlService}); the
+ * Raft control plane then distributes it to joining controllers. The legacy
+ * {@code GET /api/v1/admin/cluster/join-template} REST endpoint that previously
+ * served it has been removed.
  */
 public final class ClusterJoinTemplate {
 

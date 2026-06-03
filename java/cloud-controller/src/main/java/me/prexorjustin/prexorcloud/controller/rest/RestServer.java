@@ -260,7 +260,6 @@ public final class RestServer {
                 new AuthRoutes(controller).register();
                 new BootstrapRoutes(controller).register();
                 new AdminConfigRoutes(controller).register();
-                new ClusterJoinRoutes(controller).register();
                 new ClusterConfigRoutes(controller).register();
                 new ClusterMembersRoutes(controller).register();
                 new ClusterJoinTokenRoutes(controller).register();

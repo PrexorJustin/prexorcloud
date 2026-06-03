@@ -462,6 +462,10 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
         return Optional.ofNullable(leases.get(name));
     }
 
+    public List<Lease> getLeases() {
+        return List.copyOf(leases.values());
+    }
+
     public Optional<ClusterFile> getClusterFile(String key) {
         return Optional.ofNullable(clusterFiles.get(key));
     }

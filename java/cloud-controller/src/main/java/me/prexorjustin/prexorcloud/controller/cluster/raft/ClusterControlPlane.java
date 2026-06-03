@@ -90,6 +90,10 @@ public final class ClusterControlPlane {
         return sm.getLease(name);
     }
 
+    public List<Lease> getLeases() {
+        return sm.getLeases();
+    }
+
     public Optional<ClusterFile> getClusterFile(String key) {
         return sm.getClusterFile(key);
     }

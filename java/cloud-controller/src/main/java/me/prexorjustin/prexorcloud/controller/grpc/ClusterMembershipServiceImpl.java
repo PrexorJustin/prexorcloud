@@ -5,7 +5,9 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
@@ -13,12 +15,14 @@ import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterWriteConflict;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
+import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.protocol.ClusterMembershipGrpc;
 import me.prexorjustin.prexorcloud.protocol.KnownPeer;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinRequest;
 import me.prexorjustin.prexorcloud.protocol.RequestJoinResponse;
 import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -41,19 +45,27 @@ import org.slf4j.LoggerFactory;
 public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.ClusterMembershipImplBase {
 
     private static final Logger logger = LoggerFactory.getLogger(ClusterMembershipServiceImpl.class);
+    private static final ObjectMapper AUDIT_MAPPER = new ObjectMapper();
     private static final int LEAF_VALIDITY_DAYS = 365;
 
     private final ClusterControlPlane controlPlane;
     private final Clock clock;
+    /** Audit sink for {@code cluster.member.joined}; {@code null} in tests (no-op). */
+    private final StateStore auditStore;
 
     public ClusterMembershipServiceImpl(ClusterControlPlane controlPlane) {
-        this(controlPlane, Clock.systemUTC());
+        this(controlPlane, Clock.systemUTC(), null);
     }
 
-    /** Test seam — fixed clock. */
+    /** Test seam — fixed clock, no audit sink. */
     public ClusterMembershipServiceImpl(ClusterControlPlane controlPlane, Clock clock) {
+        this(controlPlane, clock, null);
+    }
+
+    public ClusterMembershipServiceImpl(ClusterControlPlane controlPlane, Clock clock, StateStore auditStore) {
         this.controlPlane = controlPlane;
         this.clock = clock;
+        this.auditStore = auditStore;
     }
 
     @Override
@@ -164,6 +176,8 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
                 request.getGrpcAddr(),
                 payload.jti());
 
+        writeJoinAudit(request, payload.jti(), peerCidr);
+
         RequestJoinResponse.Builder responseBuilder = RequestJoinResponse.newBuilder()
                 .setSignedCertDer(ByteString.copyFrom(signedCert.getEncoded()))
                 .setCaCertDer(ByteString.copyFrom(certFile.bytes()))
@@ -179,6 +193,34 @@ public final class ClusterMembershipServiceImpl extends ClusterMembershipGrpc.Cl
                     .build());
         }
         return responseBuilder.build();
+    }
+
+    /**
+     * Best-effort audit entry for a successful join. The actor is the joining
+     * node itself (gRPC join is token-authenticated, no operator user); the
+     * source CIDR mirrors what {@code RedeemJoinToken} recorded. Never throws —
+     * a join must not fail because the audit write hiccupped.
+     */
+    private void writeJoinAudit(RequestJoinRequest request, String jti, String peerCidr) {
+        if (auditStore == null) {
+            return;
+        }
+        try {
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("raftAddr", request.getRaftAddr());
+            details.put("restAddr", request.getRestAddr());
+            details.put("grpcAddr", request.getGrpcAddr());
+            details.put("jti", jti);
+            auditStore.audit(
+                    request.getNodeId(),
+                    "cluster.member.joined",
+                    "cluster_member",
+                    request.getNodeId(),
+                    AUDIT_MAPPER.writeValueAsString(details),
+                    peerCidr);
+        } catch (Exception e) {
+            logger.warn("Failed to write cluster.member.joined audit for {}: {}", request.getNodeId(), e.getMessage());
+        }
     }
 
     private static String peerCidr(RequestJoinRequest request) {

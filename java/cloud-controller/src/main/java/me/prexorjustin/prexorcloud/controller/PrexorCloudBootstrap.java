@@ -1019,7 +1019,7 @@ public final class PrexorCloudBootstrap {
         var adminService = new AdminServiceImpl(controller.joinTokenStore());
         var clusterMembershipService =
                 new me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl(
-                        clusterControlService.controlPlane());
+                        clusterControlService.controlPlane(), java.time.Clock.systemUTC(), controller.stateStore());
 
         var mtlsInterceptor = new MtlsEnforcementInterceptor(runtime.nodeCertRevocationStore());
         var subnetGuard =
