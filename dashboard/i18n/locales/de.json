@@ -834,6 +834,19 @@
     },
     "commandPalette": {
       "placeholder": "Ressourcen suchen, zu einer Seite springen, Theme wechseln …"
+    },
+    "console": {
+      "title": "Konsole",
+      "connected": "Verbunden",
+      "disconnected": "Getrennt",
+      "commandPlaceholder": "Befehl eingeben …",
+      "send": "Befehl senden"
+    },
+    "sidebar": {
+      "toggle": "Seitenleiste umschalten"
+    },
+    "spinner": {
+      "loading": "Wird geladen"
     }
   }
 }

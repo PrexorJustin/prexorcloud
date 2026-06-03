@@ -8,6 +8,8 @@ import "@xterm/xterm/css/xterm.css"
 import { StatusDot } from "~/components/ui/status-dot"
 import { getAuthToken } from "~/lib/auth-storage"
 
+const { t } = useI18n()
+
 const props = defineProps<{
   instanceId: string
 }>()
@@ -192,11 +194,11 @@ onUnmounted(() => {
     <div class="flex shrink-0 items-center justify-between border-b border-glass-border px-5 py-3">
       <div class="flex items-center gap-2.5">
         <TerminalIcon class="size-4 text-muted-foreground" />
-        <span class="text-sm font-semibold">Console</span>
+        <span class="text-sm font-semibold">{{ t('components.console.title') }}</span>
       </div>
       <div class="flex items-center gap-2">
         <StatusDot :tone="connected ? 'success' : 'muted'" :pulse="connected" size="sm" />
-        <span class="text-xs text-muted-foreground">{{ connected ? 'Connected' : 'Disconnected' }}</span>
+        <span class="text-xs text-muted-foreground">{{ connected ? t('components.console.connected') : t('components.console.disconnected') }}</span>
       </div>
     </div>
 
@@ -207,7 +209,7 @@ onUnmounted(() => {
       <input
         v-model="command"
         type="text"
-        placeholder="Enter command…"
+        :placeholder="t('components.console.commandPlaceholder')"
         class="flex-1 bg-transparent mono text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
         @keydown.enter="sendCommand"
         @keydown="onKeyDown"
@@ -215,7 +217,7 @@ onUnmounted(() => {
       <button
         type="button"
         :disabled="!command.trim()"
-        aria-label="Send command"
+        :aria-label="t('components.console.send')"
         class="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
         @click="sendCommand"
       >

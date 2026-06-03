@@ -7,15 +7,16 @@ const props = defineProps<{
   class?: HTMLAttributes["class"]
 }>()
 
+const { t } = useI18n()
 const { toggleSidebar } = useSidebar()
 </script>
 
 <template>
   <button
     data-sidebar="rail"
-    aria-label="Toggle Sidebar"
+    :aria-label="t('components.sidebar.toggle')"
     :tabindex="-1"
-    title="Toggle Sidebar"
+    :title="t('components.sidebar.toggle')"
     :class="cn(
       'absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] hover:after:bg-sidebar-border group-data-[side=left]:-right-4 group-data-[side=right]:left-0 sm:flex',
       '[[data-side=left]_&]:cursor-w-resize [[data-side=right]_&]:cursor-e-resize',

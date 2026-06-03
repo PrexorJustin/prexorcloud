@@ -834,6 +834,19 @@
     },
     "commandPalette": {
       "placeholder": "Search resources, jump to a page, switch theme…"
+    },
+    "console": {
+      "title": "Console",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "commandPlaceholder": "Enter command…",
+      "send": "Send command"
+    },
+    "sidebar": {
+      "toggle": "Toggle Sidebar"
+    },
+    "spinner": {
+      "loading": "Loading"
     }
   }
 }
