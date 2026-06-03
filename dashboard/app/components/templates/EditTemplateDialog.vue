@@ -79,8 +79,8 @@ function close() {
             <Pencil class="size-6 text-primary" />
           </div>
           <div class="text-center">
-            <DialogTitle class="text-base font-bold text-foreground">Edit {{ template.name }}</DialogTitle>
-            <DialogDescription class="text-xs text-muted-foreground mt-0.5">Update template metadata.</DialogDescription>
+            <DialogTitle class="text-base font-bold text-foreground">{{ t('components.editTemplate.title', { name: template.name }) }}</DialogTitle>
+            <DialogDescription class="text-xs text-muted-foreground mt-0.5">{{ t('components.editTemplate.subtitle') }}</DialogDescription>
           </div>
         </div>
       </div>
@@ -88,11 +88,11 @@ function close() {
       <div class="px-6 pb-8 flex flex-col gap-5 pt-5">
         <!-- Platform -->
         <div class="flex flex-col gap-1.5">
-          <Label for="edit-platform">Platform</Label>
+          <Label for="edit-platform">{{ t('components.editTemplate.platformLabel') }}</Label>
           <Input
             id="edit-platform"
             v-model="platform"
-            placeholder="e.g. paper, velocity"
+            :placeholder="t('components.templateForm.platformsPlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
             @keydown.enter="submit"
@@ -101,11 +101,11 @@ function close() {
 
         <!-- Description -->
         <div class="flex flex-col gap-1.5">
-          <Label for="edit-description">Description</Label>
+          <Label for="edit-description">{{ t('components.editTemplate.descriptionLabel') }}</Label>
           <Input
             id="edit-description"
             v-model="description"
-            placeholder="What this template is for"
+            :placeholder="t('components.templateForm.descriptionPlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
             @keydown.enter="submit"
@@ -115,7 +115,7 @@ function close() {
         <!-- Footer -->
         <DialogFooter class="!flex-row gap-2 mt-2 pt-5 border-t border-glass-border">
           <Button variant="outline" class="border-glass-border" :disabled="loading" @click="close">
-            Cancel
+            {{ t('components.editTemplate.cancel') }}
           </Button>
           <div class="flex-1" />
           <Button
@@ -124,7 +124,7 @@ function close() {
             @click="submit"
           >
             <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin" />
-            {{ loading ? 'Saving...' : 'Save Changes' }}
+            {{ loading ? t('components.editTemplate.saving') : t('components.editTemplate.save') }}
           </Button>
         </DialogFooter>
       </div>

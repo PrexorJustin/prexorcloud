@@ -245,18 +245,18 @@ async function selectCompareFile(path: string) {
     <!-- Empty -->
     <div v-else-if="versions.length === 0" class="flex flex-col items-center justify-center text-center py-16">
       <History class="size-10 text-muted-foreground/30 mb-3" />
-      <p class="text-sm text-muted-foreground">No version history yet</p>
+      <p class="text-sm text-muted-foreground">{{ t('components.versionHistory.empty') }}</p>
     </div>
 
     <!-- Version list -->
     <template v-else>
       <!-- Table header -->
       <div class="flex items-center h-10 px-5 border-b border-glass-border text-xs font-medium text-muted-foreground uppercase tracking-wider min-w-[720px]">
-        <div class="w-44 shrink-0">Hash</div>
-        <div class="w-24 shrink-0 text-center">Status</div>
-        <div class="w-28 shrink-0 text-right">Size</div>
-        <div class="flex-1 text-right">Created</div>
-        <div class="w-48 shrink-0 text-right">Actions</div>
+        <div class="w-44 shrink-0">{{ t('components.versionHistory.colHash') }}</div>
+        <div class="w-24 shrink-0 text-center">{{ t('components.versionHistory.colStatus') }}</div>
+        <div class="w-28 shrink-0 text-right">{{ t('components.versionHistory.colSize') }}</div>
+        <div class="flex-1 text-right">{{ t('components.versionHistory.colCreated') }}</div>
+        <div class="w-48 shrink-0 text-right">{{ t('components.versionHistory.colActions') }}</div>
       </div>
 
       <div class="max-h-[calc(100vh-340px)] overflow-auto styled-scrollbar">
@@ -274,10 +274,10 @@ async function selectCompareFile(path: string) {
             </div>
             <div class="w-24 shrink-0 text-center">
               <Badge v-if="v.hash === template.hash" variant="outline" class="text-[10px] text-primary border-primary/30">
-                current
+                {{ t('components.versionHistory.current') }}
               </Badge>
               <Badge v-else-if="i === 0" variant="outline" class="text-[10px] text-success border-success/30">
-                latest
+                {{ t('components.versionHistory.latest') }}
               </Badge>
             </div>
             <div class="w-28 shrink-0 text-right text-sm text-foreground tabular-nums">{{ formatBytes(v.sizeBytes) }}</div>
@@ -293,7 +293,7 @@ async function selectCompareFile(path: string) {
                 @click="togglePreviewVersion(v.hash)"
               >
                 <Eye class="size-3 mr-1" />
-                {{ previewVersionHash === v.hash ? "Close" : "View" }}
+                {{ previewVersionHash === v.hash ? t('components.versionHistory.close') : t('components.versionHistory.view') }}
               </Button>
               <Button
                 variant="ghost"
@@ -302,7 +302,7 @@ async function selectCompareFile(path: string) {
                 @click="toggleCompare(v.hash)"
               >
                 <FileCode class="size-3 mr-1" />
-                {{ compareVersionHash === v.hash ? "Close Diff" : "Compare" }}
+                {{ compareVersionHash === v.hash ? t('components.versionHistory.closeDiff') : t('components.versionHistory.compare') }}
               </Button>
               <template v-if="v.hash !== template.hash">
                 <!-- Restore / Delete (normal state) -->
@@ -313,7 +313,7 @@ async function selectCompareFile(path: string) {
                     class="h-7 px-2 text-xs border-glass-border"
                     @click="confirmRollbackHash = v.hash; confirmDeleteHash = null"
                   >
-                    <RotateCcw class="size-3 mr-1" /> Restore
+                    <RotateCcw class="size-3 mr-1" /> {{ t('components.versionHistory.restore') }}
                   </Button>
                   <Button
                     variant="ghost"
@@ -333,10 +333,10 @@ async function selectCompareFile(path: string) {
                     @click="requestRollback(v.hash)"
                   >
                     <Loader2 v-if="restoring" class="size-3 mr-1 animate-spin" />
-                    Confirm
+                    {{ t('components.versionHistory.confirm') }}
                   </Button>
                   <Button variant="ghost" size="sm" class="h-7 px-2 text-xs" :disabled="restoring" @click="confirmRollbackHash = null">
-                    Cancel
+                    {{ t('components.versionHistory.cancel') }}
                   </Button>
                 </div>
                 <!-- Confirm delete -->
@@ -348,10 +348,10 @@ async function selectCompareFile(path: string) {
                     @click="deleteVersion(v.hash)"
                   >
                     <Loader2 v-if="deletingVersion" class="size-3 mr-1 animate-spin" />
-                    Delete
+                    {{ t('components.versionHistory.delete') }}
                   </Button>
                   <Button variant="ghost" size="sm" class="h-7 px-2 text-xs" :disabled="deletingVersion" @click="confirmDeleteHash = null">
-                    Cancel
+                    {{ t('components.versionHistory.cancel') }}
                   </Button>
                 </div>
               </template>
@@ -367,7 +367,7 @@ async function selectCompareFile(path: string) {
               <!-- Read-only file tree -->
               <div class="w-64 shrink-0 bg-glass/40 rounded-xl border border-glass-border flex flex-col overflow-hidden">
                 <div class="px-3 py-2 border-b border-glass-border">
-                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Snapshot Files</span>
+                  <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('components.versionHistory.snapshotFiles') }}</span>
                 </div>
                 <div v-if="previewTreeLoading" class="flex-1 flex items-center justify-center">
                   <Loader2 class="size-4 animate-spin text-muted-foreground" />
@@ -392,13 +392,13 @@ async function selectCompareFile(path: string) {
               <!-- Read-only content viewer -->
               <div class="flex-1 bg-glass/40 rounded-xl border border-glass-border flex flex-col overflow-hidden">
                 <div v-if="!previewFile" class="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-                  Select a file to preview
+                  {{ t('components.versionHistory.selectFilePreview') }}
                 </div>
                 <template v-else>
                   <div class="flex items-center gap-2 px-3 py-2 border-b border-glass-border">
                     <FileCode class="size-3.5 text-muted-foreground" />
                     <span class="text-xs text-foreground font-medium truncate">{{ previewFile.name }}</span>
-                    <Badge variant="outline" class="text-[10px] ml-auto">read-only</Badge>
+                    <Badge variant="outline" class="text-[10px] ml-auto">{{ t('components.versionHistory.readOnly') }}</Badge>
                   </div>
                   <div v-if="previewFile.loading" class="flex-1 flex items-center justify-center">
                     <Loader2 class="size-4 animate-spin text-muted-foreground" />
@@ -415,12 +415,12 @@ async function selectCompareFile(path: string) {
               <Loader2 class="size-5 text-muted-foreground animate-spin" />
             </div>
             <div v-else-if="compareFiles.length === 0" class="py-8 text-center text-sm text-muted-foreground">
-              No file differences found at root level
+              {{ t('components.versionHistory.noDifferences') }}
             </div>
             <div v-else class="flex gap-4 p-4" style="height: 400px">
               <!-- Changed files list -->
               <div class="w-48 shrink-0 overflow-auto styled-scrollbar border-r border-glass-border pr-4">
-                <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Changed Files</p>
+                <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">{{ t('components.versionHistory.changedFiles') }}</p>
                 <div
                   v-for="f in compareFiles"
                   :key="f.path"
@@ -441,7 +441,7 @@ async function selectCompareFile(path: string) {
               <!-- Diff viewer -->
               <div class="flex-1 min-w-0 overflow-hidden">
                 <div v-if="!compareSelectedFile" class="flex items-center justify-center h-full text-sm text-muted-foreground">
-                  Select a file to view differences
+                  {{ t('components.versionHistory.selectFileDiff') }}
                 </div>
                 <div v-else-if="compareFileLoading" class="flex items-center justify-center h-full">
                   <Loader2 class="size-5 text-muted-foreground animate-spin" />
@@ -451,7 +451,7 @@ async function selectCompareFile(path: string) {
                   :original="compareOriginal"
                   :modified="compareModified"
                   :original-label="`${compareVersionHash?.slice(0, 8)}`"
-                  :modified-label="'current'"
+                  :modified-label="t('components.versionHistory.current')"
                 />
               </div>
             </div>

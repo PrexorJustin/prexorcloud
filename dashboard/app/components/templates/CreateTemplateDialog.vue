@@ -82,12 +82,12 @@ function selectPlatform(p: string) {
 }
 
 const heroTitle = computed(() =>
-  step.value === 1 ? "Choose platform" : "Template details",
+  step.value === 1 ? t("components.createTemplate.heroTitleStep1") : t("components.createTemplate.heroTitleStep2"),
 )
 const heroDescription = computed(() =>
   step.value === 1
-    ? "Select the platform this template targets."
-    : `Creating template for ${platform.value}.`,
+    ? t("components.createTemplate.heroDescStep1")
+    : t("components.createTemplate.heroDescStep2", { platform: platform.value }),
 )
 
 const nameValid = computed(() => /^[a-z0-9_][a-z0-9_-]*$/.test(name.value) && name.value.length <= 32)
@@ -95,9 +95,9 @@ const formValid = computed(() => nameValid.value && platform.value.trim().length
 
 const nameError = computed(() => {
   if (!name.value) return null
-  if (name.value.length > 32) return "Max 32 characters"
-  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return "Lowercase letters, numbers, underscore, hyphen only"
-  if (store.templates.find(t => t.name === name.value)) return "Template already exists"
+  if (name.value.length > 32) return t("components.createTemplate.errorMaxLength")
+  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return t("components.createTemplate.errorPattern")
+  if (store.templates.find(t => t.name === name.value)) return t("components.createTemplate.errorExists")
   return null
 })
 
@@ -139,7 +139,7 @@ function handleOpen(value: boolean) {
       <DialogTrigger as-child>
         <Button class="bg-primary hover:bg-primary/90 text-primary-foreground">
           <Plus class="size-5 mr-2" />
-          New Template
+          {{ t('components.createTemplate.title') }}
         </Button>
       </DialogTrigger>
       <DialogContent class="bg-popover backdrop-blur-xl border-glass-border rounded-2xl sm:max-w-lg [&>button:last-child]:hidden overflow-hidden p-0">
@@ -173,7 +173,7 @@ function handleOpen(value: boolean) {
               <input
                 v-model="platformSearch"
                 type="text"
-                placeholder="Search platforms..."
+                :placeholder="t('components.createTemplate.searchPlaceholder')"
                 class="w-full h-9 pl-9 pr-3 bg-glass rounded-xl border border-glass-border text-foreground text-sm placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40 transition-colors"
               >
             </div>
@@ -183,7 +183,7 @@ function handleOpen(value: boolean) {
               <!-- Empty catalog -->
               <div v-if="!catalogStore.entries.length" class="flex flex-col items-center gap-3 py-10">
                 <Package class="size-10 text-muted-foreground/20" />
-                <p class="text-sm text-muted-foreground">No platforms in catalog yet</p>
+                <p class="text-sm text-muted-foreground">{{ t('components.createTemplate.emptyCatalog') }}</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -191,13 +191,13 @@ function handleOpen(value: boolean) {
                   @click="catalogDialogOpen = true"
                 >
                   <Plus class="size-3.5 mr-1.5" />
-                  Add Platform to Catalog
+                  {{ t('components.createTemplate.addToCatalog') }}
                 </Button>
               </div>
 
               <!-- No search results -->
               <div v-else-if="!hasResults" class="py-10 text-center">
-                <p class="text-sm text-muted-foreground">No platforms match "{{ platformSearch }}"</p>
+                <p class="text-sm text-muted-foreground">{{ t('components.createTemplate.noMatch', { query: platformSearch }) }}</p>
               </div>
 
               <template v-else>
@@ -205,7 +205,7 @@ function handleOpen(value: boolean) {
                 <template v-if="filteredServers.length">
                   <div class="flex items-center gap-2 px-1 pt-1 pb-2">
                     <Server class="size-3 text-muted-foreground/40" />
-                    <span class="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest">Servers</span>
+                    <span class="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest">{{ t('components.createTemplate.servers') }}</span>
                     <div class="flex-1 h-px bg-glass-border/30" />
                   </div>
                   <div class="grid grid-cols-2 gap-2 mb-3">
@@ -226,7 +226,7 @@ function handleOpen(value: boolean) {
                       </div>
                       <div class="flex-1 min-w-0">
                         <p :class="['text-sm font-medium capitalize leading-tight', platform === entry.platform ? 'text-foreground' : 'text-foreground/80']">{{ entry.platform }}</p>
-                        <p class="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">{{ entry.versions?.length ?? 0 }} version{{ (entry.versions?.length ?? 0) !== 1 ? 's' : '' }}</p>
+                        <p class="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">{{ t('components.createTemplate.versionCount', { count: entry.versions?.length ?? 0 }, entry.versions?.length ?? 0) }}</p>
                       </div>
                       <Check v-if="platform === entry.platform" class="size-3.5 text-primary shrink-0" />
                     </button>
@@ -237,7 +237,7 @@ function handleOpen(value: boolean) {
                 <template v-if="filteredProxies.length">
                   <div class="flex items-center gap-2 px-1 pt-1 pb-2">
                     <Network class="size-3 text-muted-foreground/40" />
-                    <span class="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest">Proxies</span>
+                    <span class="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest">{{ t('components.createTemplate.proxies') }}</span>
                     <div class="flex-1 h-px bg-glass-border/30" />
                   </div>
                   <div class="grid grid-cols-2 gap-2 mb-3">
@@ -258,7 +258,7 @@ function handleOpen(value: boolean) {
                       </div>
                       <div class="flex-1 min-w-0">
                         <p :class="['text-sm font-medium capitalize leading-tight', platform === entry.platform ? 'text-foreground' : 'text-foreground/80']">{{ entry.platform }}</p>
-                        <p class="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">{{ entry.versions?.length ?? 0 }} version{{ (entry.versions?.length ?? 0) !== 1 ? 's' : '' }}</p>
+                        <p class="text-[10px] text-muted-foreground/50 leading-tight mt-0.5">{{ t('components.createTemplate.versionCount', { count: entry.versions?.length ?? 0 }, entry.versions?.length ?? 0) }}</p>
                       </div>
                       <Check v-if="platform === entry.platform" class="size-3.5 text-primary shrink-0" />
                     </button>
@@ -276,7 +276,7 @@ function handleOpen(value: boolean) {
                   <div class="size-8 rounded-lg bg-glass border border-dashed border-glass-border/50 flex items-center justify-center shrink-0">
                     <Plus class="size-3.5 text-muted-foreground/50" />
                   </div>
-                  <span class="text-sm text-muted-foreground">Add Platform to Catalog</span>
+                  <span class="text-sm text-muted-foreground">{{ t('components.createTemplate.addToCatalog') }}</span>
                 </button>
               </div>
             </div>
@@ -291,16 +291,16 @@ function handleOpen(value: boolean) {
                 <span class="font-medium text-foreground capitalize">{{ platform }}</span>
                 <span class="text-[10px] text-muted-foreground/60 uppercase">{{ selectedEntry?.category }}</span>
               </div>
-              <button type="button" class="text-xs text-muted-foreground hover:text-foreground transition-colors" @click="step = 1">Change</button>
+              <button type="button" class="text-xs text-muted-foreground hover:text-foreground transition-colors" @click="step = 1">{{ t('components.createTemplate.change') }}</button>
             </div>
 
             <!-- Name -->
             <div class="flex flex-col gap-1.5">
-              <Label for="template-name">Name</Label>
+              <Label for="template-name">{{ t('components.createTemplate.nameLabel') }}</Label>
               <Input
                 id="template-name"
                 v-model="name"
-                placeholder="e.g. lobby, survival_base"
+                :placeholder="t('components.templateForm.tagsPlaceholder')"
                 autocomplete="off"
                 class="bg-glass border-glass-border font-mono"
                 @keydown.enter="submit"
@@ -310,11 +310,11 @@ function handleOpen(value: boolean) {
 
             <!-- Description -->
             <div class="flex flex-col gap-1.5">
-              <Label for="template-description">Description <span class="text-muted-foreground font-normal">(optional)</span></Label>
+              <Label for="template-description">{{ t('components.createTemplate.descriptionLabel') }} <span class="text-muted-foreground font-normal">{{ t('common.optional') }}</span></Label>
               <Input
                 id="template-description"
                 v-model="description"
-                placeholder="What this template is for"
+                :placeholder="t('components.templateForm.descriptionPlaceholder')"
                 autocomplete="off"
                 class="bg-glass border-glass-border"
                 @keydown.enter="submit"
@@ -331,7 +331,7 @@ function handleOpen(value: boolean) {
               @click="step = 1"
             >
               <ArrowLeft class="size-4 mr-1.5" />
-              Back
+              {{ t('components.createTemplate.back') }}
             </Button>
 
             <div class="flex-1" />
@@ -342,7 +342,7 @@ function handleOpen(value: boolean) {
               :disabled="!platform"
               @click="step = 2"
             >
-              Continue
+              {{ t('components.createTemplate.continue') }}
               <ArrowRight class="size-4 ml-1.5" />
             </Button>
 
@@ -353,7 +353,7 @@ function handleOpen(value: boolean) {
               @click="submit"
             >
               <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin" />
-              {{ loading ? 'Creating...' : 'Create Template' }}
+              {{ loading ? t('components.createTemplate.creating') : t('components.createTemplate.create') }}
             </Button>
           </DialogFooter>
         </div>

@@ -31,9 +31,9 @@ const formValid = computed(() => nameValid.value && platform.value.trim().length
 
 const nameError = computed(() => {
   if (!name.value) return null
-  if (name.value.length > 32) return "Max 32 characters"
-  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return "Lowercase letters, numbers, underscore, hyphen only"
-  if (store.templates.find(t => t.name === name.value)) return "Template already exists"
+  if (name.value.length > 32) return t("components.importTemplate.errorMaxChars")
+  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return t("components.importTemplate.errorNameFormat")
+  if (store.templates.find(t => t.name === name.value)) return t("components.importTemplate.errorExists")
   return null
 })
 
@@ -109,7 +109,7 @@ function handleOpen(value: boolean) {
     <DialogTrigger as-child>
       <Button variant="outline" class="border-glass-border">
         <Upload class="size-4 mr-2" />
-        Import
+        {{ t('components.importTemplate.import') }}
       </Button>
     </DialogTrigger>
     <DialogContent class="bg-popover backdrop-blur-xl border-glass-border rounded-2xl sm:max-w-lg [&>button:last-child]:hidden overflow-hidden p-0">
@@ -122,8 +122,8 @@ function handleOpen(value: boolean) {
             <Upload class="size-6 text-primary" />
           </div>
           <div class="text-center">
-            <DialogTitle class="text-base font-bold text-foreground">Import Template</DialogTitle>
-            <DialogDescription class="text-xs text-muted-foreground mt-0.5">Upload a template archive to create a new template.</DialogDescription>
+            <DialogTitle class="text-base font-bold text-foreground">{{ t('components.importTemplate.title') }}</DialogTitle>
+            <DialogDescription class="text-xs text-muted-foreground mt-0.5">{{ t('components.importTemplate.subtitle') }}</DialogDescription>
           </div>
         </div>
       </div>
@@ -131,7 +131,7 @@ function handleOpen(value: boolean) {
       <div class="px-6 pb-8 flex flex-col gap-5 pt-5">
         <!-- File drop zone -->
         <div class="flex flex-col gap-1.5">
-          <Label>Archive file</Label>
+          <Label>{{ t('components.importTemplate.archiveFile') }}</Label>
           <div
             v-if="!file"
             :class="[
@@ -146,9 +146,9 @@ function handleOpen(value: boolean) {
             <Upload :class="['size-8', dragging ? 'text-primary' : 'text-muted-foreground/40']" />
             <div class="text-center">
               <p class="text-sm text-foreground">
-                {{ dragging ? 'Drop file here' : 'Drag & drop or click to select' }}
+                {{ dragging ? t('components.importTemplate.dropHere') : t('components.importTemplate.dragOrClick') }}
               </p>
-              <p class="text-xs text-muted-foreground mt-1">.tar.gz or .tgz files only</p>
+              <p class="text-xs text-muted-foreground mt-1">{{ t('components.importTemplate.fileTypeHint') }}</p>
             </div>
             <input
               ref="fileInputRef"
@@ -181,11 +181,11 @@ function handleOpen(value: boolean) {
 
         <!-- Name -->
         <div class="flex flex-col gap-1.5">
-          <Label for="import-template-name">Name</Label>
+          <Label for="import-template-name">{{ t('components.importTemplate.name') }}</Label>
           <Input
             id="import-template-name"
             v-model="name"
-            placeholder="e.g. lobby, survival_base"
+            :placeholder="t('components.templateForm.tagsPlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border font-mono"
             @keydown.enter="submit"
@@ -195,11 +195,11 @@ function handleOpen(value: boolean) {
 
         <!-- Platform -->
         <div class="flex flex-col gap-1.5">
-          <Label for="import-template-platform">Platform</Label>
+          <Label for="import-template-platform">{{ t('components.importTemplate.platform') }}</Label>
           <Input
             id="import-template-platform"
             v-model="platform"
-            placeholder="e.g. paper, velocity"
+            :placeholder="t('components.templateForm.platformsPlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
             @keydown.enter="submit"
@@ -208,11 +208,11 @@ function handleOpen(value: boolean) {
 
         <!-- Description -->
         <div class="flex flex-col gap-1.5">
-          <Label for="import-template-description">Description <span class="text-muted-foreground font-normal">(optional)</span></Label>
+          <Label for="import-template-description">{{ t('components.importTemplate.description') }} <span class="text-muted-foreground font-normal">{{ t('common.optional') }}</span></Label>
           <Input
             id="import-template-description"
             v-model="description"
-            placeholder="What this template is for"
+            :placeholder="t('components.templateForm.descriptionPlaceholder')"
             autocomplete="off"
             class="bg-glass border-glass-border"
             @keydown.enter="submit"
@@ -228,7 +228,7 @@ function handleOpen(value: boolean) {
             @click="submit"
           >
             <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin" />
-            {{ loading ? 'Importing...' : 'Import' }}
+            {{ loading ? t('components.importTemplate.importing') : t('components.importTemplate.import') }}
           </Button>
         </DialogFooter>
       </div>

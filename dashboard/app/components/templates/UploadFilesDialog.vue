@@ -97,9 +97,9 @@ async function upload() {
             <Upload class="size-6 text-primary" />
           </div>
           <div class="text-center">
-            <DialogTitle class="text-base font-bold text-foreground">Upload Files</DialogTitle>
+            <DialogTitle class="text-base font-bold text-foreground">{{ t('components.uploadFiles.title') }}</DialogTitle>
             <DialogDescription class="text-xs text-muted-foreground mt-0.5">
-              Upload to {{ targetPath ? `/${targetPath}` : 'root' }} in {{ templateName }}
+              {{ t('components.uploadFiles.target', { path: targetPath ? `/${targetPath}` : 'root', template: templateName }) }}
             </DialogDescription>
           </div>
         </div>
@@ -131,8 +131,8 @@ async function upload() {
 
           <template v-if="!selectedFiles?.length">
             <FileUp class="size-8 text-muted-foreground/40 mx-auto mb-3" />
-            <p class="text-sm text-foreground font-medium">Drop files here or click to browse</p>
-            <p class="text-xs text-muted-foreground mt-1">ZIP files will be auto-extracted</p>
+            <p class="text-sm text-foreground font-medium">{{ t('components.uploadFiles.dropZone') }}</p>
+            <p class="text-xs text-muted-foreground mt-1">{{ t('components.uploadFiles.zipHint') }}</p>
           </template>
 
           <template v-else>
@@ -147,7 +147,7 @@ async function upload() {
                 <span class="text-xs text-muted-foreground tabular-nums shrink-0">{{ formatBytes(file.size) }}</span>
               </div>
               <p v-if="selectedFiles.length > 5" class="text-xs text-muted-foreground mt-1">
-                +{{ selectedFiles.length - 5 }} more file{{ selectedFiles.length - 5 > 1 ? 's' : '' }}
+                {{ t('components.uploadFiles.moreFiles', { n: selectedFiles.length - 5 }, selectedFiles.length - 5) }}
               </p>
             </div>
             <button
@@ -162,7 +162,7 @@ async function upload() {
         <!-- Footer -->
         <DialogFooter class="!flex-row gap-2 mt-2 pt-5 border-t border-glass-border">
           <Button variant="outline" class="border-glass-border" :disabled="uploading" @click="close">
-            Cancel
+            {{ t('components.uploadFiles.cancel') }}
           </Button>
           <div class="flex-1" />
           <Button
@@ -171,7 +171,7 @@ async function upload() {
             @click="upload"
           >
             <Loader2 v-if="uploading" class="size-4 mr-1.5 animate-spin" />
-            {{ uploading ? 'Uploading...' : `Upload ${selectedFiles?.length ?? 0} file${(selectedFiles?.length ?? 0) > 1 ? 's' : ''}` }}
+            {{ uploading ? t('components.uploadFiles.uploading') : t('components.uploadFiles.uploadButton', { n: selectedFiles?.length ?? 0 }, selectedFiles?.length ?? 0) }}
           </Button>
         </DialogFooter>
       </div>

@@ -93,7 +93,7 @@ const variablesProxy = computed({
         @click="!isBaseTemplate && editingField !== 'platform' && startEdit('platform')"
       >
         <div class="flex items-center justify-between text-muted-foreground mb-2">
-          <div class="flex items-center gap-2"><Package class="size-4" /><span class="text-sm">Platform</span></div>
+          <div class="flex items-center gap-2"><Package class="size-4" /><span class="text-sm">{{ t('components.templateOverview.platform') }}</span></div>
           <Pencil v-if="!isBaseTemplate && editingField !== 'platform'" class="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
         <template v-if="!isBaseTemplate && editingField === 'platform'">
@@ -101,7 +101,7 @@ const variablesProxy = computed({
             id="inline-edit-platform"
             v-model="editValue"
             class="w-full bg-transparent text-lg font-bold text-foreground outline-none placeholder:text-muted-foreground/50"
-            placeholder="e.g. paper, velocity"
+            :placeholder="t('components.templateForm.platformsPlaceholder')"
             @keydown.enter="saveEdit"
             @keydown.escape="cancelEdit"
             @blur="saveEdit"
@@ -112,13 +112,13 @@ const variablesProxy = computed({
 
       <!-- Size (read-only) -->
       <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-5">
-        <div class="flex items-center gap-2 text-muted-foreground mb-2"><HardDrive class="size-4" /><span class="text-sm">Size</span></div>
+        <div class="flex items-center gap-2 text-muted-foreground mb-2"><HardDrive class="size-4" /><span class="text-sm">{{ t('components.templateOverview.size') }}</span></div>
         <p class="text-lg font-bold text-foreground tabular-nums">{{ formatBytes(template.sizeBytes) }}</p>
       </div>
 
       <!-- Hash (read-only) -->
       <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-5">
-        <div class="flex items-center gap-2 text-muted-foreground mb-2"><Hash class="size-4" /><span class="text-sm">Hash</span></div>
+        <div class="flex items-center gap-2 text-muted-foreground mb-2"><Hash class="size-4" /><span class="text-sm">{{ t('components.templateOverview.hash') }}</span></div>
         <p class="text-sm font-mono text-muted-foreground truncate" :title="template.hash">{{ template.hash.slice(0, 16) }}…</p>
       </div>
 
@@ -134,7 +134,7 @@ const variablesProxy = computed({
         @click="!isBaseTemplate && editingField !== 'description' && startEdit('description')"
       >
         <div class="flex items-center justify-between text-muted-foreground mb-2">
-          <div class="flex items-center gap-2"><FileCode class="size-4" /><span class="text-sm">Description</span></div>
+          <div class="flex items-center gap-2"><FileCode class="size-4" /><span class="text-sm">{{ t('components.templateOverview.description') }}</span></div>
           <Pencil v-if="!isBaseTemplate && editingField !== 'description'" class="size-3 opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
         <template v-if="!isBaseTemplate && editingField === 'description'">
@@ -142,7 +142,7 @@ const variablesProxy = computed({
             id="inline-edit-description"
             v-model="editValue"
             class="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/50"
-            placeholder="What this template is for"
+            :placeholder="t('components.templateForm.descriptionPlaceholder')"
             @keydown.enter="saveEdit"
             @keydown.escape="cancelEdit"
             @blur="saveEdit"
@@ -154,7 +154,7 @@ const variablesProxy = computed({
 
     <!-- Inheritance chain -->
     <div v-if="inheritanceChain.length" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-4">
-      <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Template Inheritance</p>
+      <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">{{ t('components.templateOverview.inheritance') }}</p>
       <UiInheritanceChain :chain="inheritanceChain" @click="(name: string) => emit('inheritanceClick', name)" />
     </div>
 
@@ -162,17 +162,17 @@ const variablesProxy = computed({
     <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-5">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Template Variables</p>
-          <p class="text-xs text-muted-foreground mt-0.5">Define placeholders that get resolved when the template is deployed</p>
+          <p class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('components.templateOverview.variables') }}</p>
+          <p class="text-xs text-muted-foreground mt-0.5">{{ t('components.templateOverview.variablesDescription') }}</p>
         </div>
         <div class="flex items-center gap-2">
           <Button variant="outline" size="sm" class="border-glass-border h-7 text-xs" :disabled="scanningVariables" @click="emit('scanVariables')">
             <Search class="size-3 mr-1" />
-            {{ scanningVariables ? 'Scanning...' : 'Scan Files' }}
+            {{ scanningVariables ? t('components.templateOverview.scanning') : t('components.templateOverview.scanFiles') }}
           </Button>
           <Button size="sm" class="h-7 text-xs" :disabled="variablesSaving" @click="emit('saveVariables')">
             <Save class="size-3 mr-1" />
-            {{ variablesSaving ? 'Saving...' : 'Save' }}
+            {{ variablesSaving ? t('components.templateOverview.saving') : t('components.templateOverview.save') }}
           </Button>
         </div>
       </div>
@@ -183,15 +183,15 @@ const variablesProxy = computed({
     <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-5">
       <div class="flex items-center gap-2 text-muted-foreground mb-3">
         <Layers class="size-4" />
-        <span class="text-sm font-medium">Used by Groups</span>
+        <span class="text-sm font-medium">{{ t('components.templateOverview.usedByGroups') }}</span>
         <Badge variant="secondary" class="ml-auto text-xs tabular-nums">{{ usedByGroups.length }}</Badge>
       </div>
       <div v-if="groupsLoading" class="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 class="size-4 animate-spin" />
-        Loading...
+        {{ t('components.templateOverview.loading') }}
       </div>
       <p v-else-if="usedByGroups.length === 0" class="text-sm text-muted-foreground">
-        Not used by any groups
+        {{ t('components.templateOverview.notUsedByGroups') }}
       </p>
       <div v-else class="flex flex-wrap gap-2">
         <NuxtLink
@@ -213,8 +213,8 @@ const variablesProxy = computed({
             <Trash2 class="size-5 text-destructive" />
           </div>
           <div>
-            <h3 class="font-semibold text-foreground">Delete Template</h3>
-            <p class="text-sm text-muted-foreground mt-1">Permanently delete this template including all files and version history. This action cannot be undone.</p>
+            <h3 class="font-semibold text-foreground">{{ t('components.templateOverview.deleteTemplate') }}</h3>
+            <p class="text-sm text-muted-foreground mt-1">{{ t('components.templateOverview.deleteDescription') }}</p>
           </div>
         </div>
         <Button
@@ -224,7 +224,7 @@ const variablesProxy = computed({
           @click="emit('requestDelete')"
         >
           <Trash2 class="size-4 mr-2" />
-          {{ deleteLoading ? "Deleting..." : "Delete Template" }}
+          {{ deleteLoading ? t('components.templateOverview.deleting') : t('components.templateOverview.deleteTemplate') }}
         </Button>
       </div>
     </div>
@@ -236,8 +236,8 @@ const variablesProxy = computed({
           <Lock class="size-5 text-muted-foreground" />
         </div>
         <div>
-          <h3 class="font-semibold text-foreground">Protected Template</h3>
-          <p class="text-sm text-muted-foreground mt-1">Base templates are managed by the system and cannot be deleted. They serve as the foundation for derived templates.</p>
+          <h3 class="font-semibold text-foreground">{{ t('components.templateOverview.protectedTemplate') }}</h3>
+          <p class="text-sm text-muted-foreground mt-1">{{ t('components.templateOverview.protectedDescription') }}</p>
         </div>
       </div>
     </div>

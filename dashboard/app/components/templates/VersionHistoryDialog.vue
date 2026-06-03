@@ -88,8 +88,8 @@ function formatDate(iso: string): string {
             <History class="size-6 text-primary" />
           </div>
           <div class="text-center">
-            <DialogTitle class="text-base font-bold text-foreground">Version History</DialogTitle>
-            <DialogDescription class="text-xs text-muted-foreground mt-0.5">{{ template.name }} &middot; {{ versions.length }} version{{ versions.length !== 1 ? 's' : '' }}</DialogDescription>
+            <DialogTitle class="text-base font-bold text-foreground">{{ t('components.versionHistory.title') }}</DialogTitle>
+            <DialogDescription class="text-xs text-muted-foreground mt-0.5">{{ template.name }} &middot; {{ t('components.versionHistory.versionCount', { count: versions.length }, versions.length) }}</DialogDescription>
           </div>
         </div>
       </div>
@@ -103,7 +103,7 @@ function formatDate(iso: string): string {
         <!-- Empty -->
         <div v-else-if="versions.length === 0" class="text-center py-12">
           <History class="size-10 text-muted-foreground/30 mx-auto mb-3" />
-          <p class="text-sm text-muted-foreground">No version history yet</p>
+          <p class="text-sm text-muted-foreground">{{ t('components.versionHistory.empty') }}</p>
         </div>
 
         <!-- Version list -->
@@ -124,10 +124,10 @@ function formatDate(iso: string): string {
                   <Hash class="size-3 inline -mt-0.5" />{{ v.hash.slice(0, 12) }}
                 </span>
                 <Badge v-if="v.hash === template.hash" variant="outline" class="text-[10px] text-primary border-primary/30">
-                  current
+                  {{ t('components.versionHistory.current') }}
                 </Badge>
                 <Badge v-else-if="i === 0" variant="outline" class="text-[10px] text-success border-success/30">
-                  latest
+                  {{ t('components.versionHistory.latest') }}
                 </Badge>
               </div>
               <div class="flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -146,7 +146,7 @@ function formatDate(iso: string): string {
                 class="h-7 px-2 text-xs border-glass-border shrink-0"
                 @click="confirmHash = v.hash"
               >
-                <RotateCcw class="size-3 mr-1" /> Restore
+                <RotateCcw class="size-3 mr-1" /> {{ t('components.versionHistory.restore') }}
               </Button>
               <div v-else class="flex items-center gap-1 shrink-0">
                 <Button
@@ -156,7 +156,7 @@ function formatDate(iso: string): string {
                   @click="rollback(v.hash)"
                 >
                   <Loader2 v-if="restoring" class="size-3 mr-1 animate-spin" />
-                  Confirm
+                  {{ t('components.versionHistory.confirm') }}
                 </Button>
                 <Button
                   variant="ghost"
@@ -165,7 +165,7 @@ function formatDate(iso: string): string {
                   :disabled="restoring"
                   @click="confirmHash = null"
                 >
-                  Cancel
+                  {{ t('components.versionHistory.cancel') }}
                 </Button>
               </div>
             </template>
@@ -176,7 +176,7 @@ function formatDate(iso: string): string {
         <DialogFooter class="!flex-row gap-2 pt-4 border-t border-glass-border">
           <div class="flex-1" />
           <Button variant="outline" class="border-glass-border" @click="close">
-            Close
+            {{ t('components.versionHistory.close') }}
           </Button>
         </DialogFooter>
       </div>
