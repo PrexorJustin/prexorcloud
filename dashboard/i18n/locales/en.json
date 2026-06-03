@@ -2281,6 +2281,35 @@
       "copiedTitle": "Token copied to clipboard",
       "copiedDesc": "Join token for \"{name}\" expires in {ttl}",
       "genFailed": "Failed to generate join token"
+    },
+    "variableEditor": {
+      "key": "Key",
+      "value": "Value",
+      "description": "Description",
+      "keyPlaceholder": "VARIABLE_NAME",
+      "valuePlaceholder": "value",
+      "descPlaceholder": "Optional description",
+      "remove": "Remove variable",
+      "empty": "No variables defined",
+      "addVariable": "Add Variable"
+    },
+    "diff": {
+      "original": "Original",
+      "modified": "Modified",
+      "unifiedView": "Unified view",
+      "splitView": "Split view",
+      "additions": "+{count} addition | +{count} additions",
+      "deletions": "-{count} deletion | -{count} deletions",
+      "noDiff": "No differences"
+    },
+    "srOnly": {
+      "toggleSidebar": "Toggle Sidebar",
+      "close": "Close",
+      "more": "More"
+    },
+    "fileSearch": {
+      "placeholder": "Search in files...",
+      "noResults": "No results found"
     }
   }
 }

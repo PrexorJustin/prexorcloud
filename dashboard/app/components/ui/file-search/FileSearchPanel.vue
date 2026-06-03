@@ -46,6 +46,7 @@ function onInput(event: Event) {
   const value = (event.target as HTMLInputElement).value
   emit("search", value)
 }
+const { t } = useI18n()
 </script>
 
 <template>
@@ -56,7 +57,7 @@ function onInput(event: Event) {
       <input
         type="text"
         :value="query"
-        placeholder="Search in files..."
+        :placeholder="t('components.fileSearch.placeholder')"
         class="h-8 w-full pl-9 pr-3 bg-glass border border-glass-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all"
         @input="onInput"
       >
@@ -110,7 +111,7 @@ function onInput(event: Event) {
     <!-- No results -->
     <div v-else-if="query && results.length === 0" class="flex flex-col items-center justify-center py-8 text-muted-foreground">
       <Search class="size-8 text-muted-foreground/30 mb-2" />
-      <span class="text-sm">No results found</span>
+      <span class="text-sm">{{ t('components.fileSearch.noResults') }}</span>
     </div>
 
     <!-- Initial state -->

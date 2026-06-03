@@ -10,9 +10,11 @@ const props = withDefaults(defineProps<{
   originalLabel?: string
   modifiedLabel?: string
 }>(), {
-  originalLabel: "Original",
-  modifiedLabel: "Modified",
+  originalLabel: "",
+  modifiedLabel: "",
 })
+
+const { t } = useI18n()
 
 const originalRef = computed(() => props.original)
 const modifiedRef = computed(() => props.modified)
@@ -90,21 +92,21 @@ function lineClass(type: DiffLine["type"]) {
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-glass-border">
       <div class="flex items-center gap-4 text-sm text-muted-foreground">
-        <span class="font-medium text-foreground">{{ originalLabel }}</span>
+        <span class="font-medium text-foreground">{{ originalLabel || t('components.diff.original') }}</span>
         <span class="text-muted-foreground/40">&rarr;</span>
-        <span class="font-medium text-foreground">{{ modifiedLabel }}</span>
+        <span class="font-medium text-foreground">{{ modifiedLabel || t('components.diff.modified') }}</span>
       </div>
       <div class="flex items-center gap-1 bg-glass rounded-lg border border-glass-border p-1">
         <button
           :class="['inline-flex size-7 items-center justify-center rounded-md transition-all', viewMode === 'unified' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground']"
-          title="Unified view"
+          :title="t('components.diff.unifiedView')"
           @click="viewMode = 'unified'"
         >
           <AlignJustify class="size-3.5" />
         </button>
         <button
           :class="['inline-flex size-7 items-center justify-center rounded-md transition-all', viewMode === 'split' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground']"
-          title="Split view"
+          :title="t('components.diff.splitView')"
           @click="viewMode = 'split'"
         >
           <Columns2 class="size-3.5" />
@@ -114,13 +116,13 @@ function lineClass(type: DiffLine["type"]) {
 
     <!-- Stats -->
     <div v-if="diff.hasChanges" class="flex items-center gap-3 px-4 py-2 border-b border-glass-border text-xs">
-      <span class="text-success font-medium">+{{ diff.additions }} addition{{ diff.additions !== 1 ? 's' : '' }}</span>
-      <span class="text-destructive font-medium">-{{ diff.deletions }} deletion{{ diff.deletions !== 1 ? 's' : '' }}</span>
+      <span class="text-success font-medium">{{ t('components.diff.additions', { count: diff.additions }, diff.additions) }}</span>
+      <span class="text-destructive font-medium">{{ t('components.diff.deletions', { count: diff.deletions }, diff.deletions) }}</span>
     </div>
 
     <!-- No changes -->
     <div v-if="!diff.hasChanges" class="flex items-center justify-center py-12 text-sm text-muted-foreground">
-      No differences
+      {{ t('components.diff.noDiff') }}
     </div>
 
     <!-- Unified view -->

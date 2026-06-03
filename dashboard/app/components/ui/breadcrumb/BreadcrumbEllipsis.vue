@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 const props = defineProps<{
   class?: HTMLAttributes["class"]
 }>()
+const { t } = useI18n()
 </script>
 
 <template>
@@ -17,6 +18,6 @@ const props = defineProps<{
     <slot>
       <MoreHorizontal class="h-4 w-4" />
     </slot>
-    <span class="sr-only">More</span>
+    <span class="sr-only">{{ t('components.srOnly.more') }}</span>
   </span>
 </template>

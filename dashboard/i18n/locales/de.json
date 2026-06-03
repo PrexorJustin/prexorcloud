@@ -2281,6 +2281,35 @@
       "copiedTitle": "Token in Zwischenablage kopiert",
       "copiedDesc": "Join-Token für „{name}“ läuft in {ttl} ab",
       "genFailed": "Join-Token konnte nicht generiert werden"
+    },
+    "variableEditor": {
+      "key": "Schlüssel",
+      "value": "Wert",
+      "description": "Beschreibung",
+      "keyPlaceholder": "VARIABLE_NAME",
+      "valuePlaceholder": "Wert",
+      "descPlaceholder": "Optionale Beschreibung",
+      "remove": "Variable entfernen",
+      "empty": "Keine Variablen definiert",
+      "addVariable": "Variable hinzufügen"
+    },
+    "diff": {
+      "original": "Original",
+      "modified": "Geändert",
+      "unifiedView": "Vereinheitlichte Ansicht",
+      "splitView": "Geteilte Ansicht",
+      "additions": "+{count} Ergänzung | +{count} Ergänzungen",
+      "deletions": "-{count} Löschung | -{count} Löschungen",
+      "noDiff": "Keine Unterschiede"
+    },
+    "srOnly": {
+      "toggleSidebar": "Seitenleiste umschalten",
+      "close": "Schließen",
+      "more": "Mehr"
+    },
+    "fileSearch": {
+      "placeholder": "In Dateien suchen …",
+      "noResults": "Keine Ergebnisse gefunden"
     }
   }
 }
