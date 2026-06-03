@@ -1445,6 +1445,110 @@
         "deleteFailedTitle": "Löschen fehlgeschlagen",
         "deleteFailedDesc": "„{name}“ konnte nicht gelöscht werden. Stoppe zuerst die laufenden Instanzen oder prüfe die Controller-Logs."
       }
+    },
+    "templateDetail": {
+      "tabs": {
+        "overview": "Übersicht",
+        "files": "Dateien",
+        "versions": "Versionen"
+      },
+      "stageDelete": {
+        "title": "Löschung vormerken",
+        "desc": "„{path}“ zum Löschen vormerken? Dies wird beim Speichern angewendet.",
+        "confirm": "Löschen vormerken"
+      },
+      "discardAll": {
+        "title": "Alle Änderungen verwerfen",
+        "desc": "Alle {count} vorgemerkte Änderung verwerfen? Dies kann nicht rückgängig gemacht werden. | Alle {count} vorgemerkten Änderungen verwerfen? Dies kann nicht rückgängig gemacht werden.",
+        "confirm": "Alle verwerfen"
+      },
+      "deleteTemplate": {
+        "title": "Template löschen",
+        "desc": "„{name}“ dauerhaft löschen? Alle Dateien und die Versions-Historie gehen verloren.",
+        "confirm": "Template löschen"
+      },
+      "unsaved": {
+        "title": "Ungespeicherte Änderungen",
+        "desc": "Du hast ungespeicherte vorgemerkte Änderungen, die verloren gehen. Möchtest du fortfahren?",
+        "confirm": "Fortfahren"
+      },
+      "toast": {
+        "loadFailedTitle": "Template kann nicht geladen werden",
+        "loadFailedDesc": "Template „{name}“ konnte nicht erreicht werden. Es wurde möglicherweise gelöscht, oder der Controller ist nicht erreichbar.",
+        "versionsFailedTitle": "Versions-Historie kann nicht geladen werden",
+        "genericRetry": "Versuche es erneut oder prüfe die Controller-Logs.",
+        "versionRestored": "Version wiederhergestellt",
+        "restoreFailedTitle": "Wiederherstellung fehlgeschlagen",
+        "restoreFailedDesc": "Konnte nicht auf diese Version zurückrollen. Versuche es erneut oder prüfe die Controller-Logs."
+      }
+    },
+    "instanceDetail": {
+      "instance": "Instanz",
+      "on": "auf",
+      "stopping": "Wird gestoppt …",
+      "stop": "Stoppen",
+      "killing": "Wird beendet …",
+      "forceStop": "Stopp erzwingen",
+      "delete": "Löschen",
+      "info": {
+        "group": "Gruppe",
+        "node": "Node",
+        "port": "Port",
+        "players": "Spieler",
+        "uptime": "Laufzeit",
+        "deployment": "Deployment",
+        "started": "Gestartet"
+      },
+      "revLabel": "Rev {rev}",
+      "serverMetrics": "Server-Metriken",
+      "metrics": {
+        "tps": "TPS",
+        "mspt": "MSPT",
+        "heap": "Heap",
+        "gc": "GC",
+        "gcValue": "{collections} Collections, {ms}ms",
+        "threads": "Threads",
+        "version": "Version",
+        "plugins": "Plugins"
+      },
+      "noMetrics": "Keine Metriken verfügbar",
+      "noMetricsHintServer": "Metriken erscheinen, sobald der Server läuft",
+      "noMetricsHintProxy": "Metriken erscheinen, sobald der Proxy läuft",
+      "proxyMetrics": "Proxy-Metriken",
+      "proxy": {
+        "players": "Spieler",
+        "avgPing": "Ø Ping",
+        "memory": "Arbeitsspeicher",
+        "uptime": "Laufzeit",
+        "playerLatency": "Spieler-Latenz"
+      },
+      "worlds": "Welten",
+      "worldColumns": {
+        "world": "Welt",
+        "environment": "Umgebung",
+        "entities": "Entitäten",
+        "chunks": "Chunks",
+        "players": "Spieler"
+      },
+      "composition": "Komposition",
+      "templateChain": "Template-Kette",
+      "primary": "Primär",
+      "inherited": "Vererbt",
+      "extensions": "Erweiterungen",
+      "jvmArgs": "JVM-Argumente",
+      "environment": "Umgebung",
+      "confirmDeleteTitle": "Instanz löschen?",
+      "confirmDeleteDesc": "Instanz „{id}“ aus der Cluster-Registry entfernen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "toast": {
+        "loadFailedTitle": "Instanz kann nicht geladen werden",
+        "loadFailedDesc": "Instanz {id} konnte nicht erreicht werden. Sie wurde möglicherweise gelöscht, oder der Controller ist nicht erreichbar.",
+        "stopFailedTitle": "Stopp fehlgeschlagen",
+        "stopFailedDesc": "{id} konnte nicht gestoppt werden. Versuche „Stopp erzwingen“ oder prüfe die Controller-Logs.",
+        "forceStopFailedTitle": "Erzwungener Stopp fehlgeschlagen",
+        "forceStopFailedDesc": "{id} konnte nicht beendet werden. Prüfe den Daemon auf {node}.",
+        "deleteFailedTitle": "Löschen fehlgeschlagen",
+        "deleteFailedDesc": "{id} konnte nicht gelöscht werden. Die Instanz muss zuerst STOPPED, CRASHED oder SCHEDULED sein."
+      }
     }
   },
   "components": {

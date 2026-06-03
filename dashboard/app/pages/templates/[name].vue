@@ -9,6 +9,7 @@ import TemplateVersionHistory from "~/components/templates/TemplateVersionHistor
 import TemplateFilesTab from "~/components/templates/TemplateFilesTab.vue"
 import type { ChangeType } from "~/composables/useTemplateEditor"
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const templateName = route.params.name as string
@@ -35,7 +36,7 @@ async function fetchTemplate() {
   try {
     template.value = (await useApiClient().GET('/api/v1/templates/{name}', { params: { path: { name: templateName } } })).data as Template
   } catch {
-    toast.error("Can't load template", { description: `Template "${templateName}" couldn't be reached. It may have been deleted, or the controller is unreachable.` })
+    toast.error(t('pages.templateDetail.toast.loadFailedTitle'), { description: t('pages.templateDetail.toast.loadFailedDesc', { name: templateName }) })
     await router.push("/templates")
   } finally {
     loading.value = false
@@ -82,7 +83,7 @@ watch(activeTab, async (tab) => {
     try {
       versions.value = await store.fetchVersions(templateName)
     } catch {
-      toast.error("Can't load version history", { description: "Try again, or check the controller logs." })
+      toast.error(t('pages.templateDetail.toast.versionsFailedTitle'), { description: t('pages.templateDetail.toast.genericRetry') })
     } finally {
       versionsLoading.value = false
     }
@@ -126,9 +127,9 @@ async function rollbackToVersion(hash: string) {
     await editor.loadRoot()
     if (editor.openFile.value) await editor.loadFileContent(editor.openFile.value.path)
     versions.value = await store.fetchVersions(templateName)
-    toast.success("Version restored")
+    toast.success(t('pages.templateDetail.toast.versionRestored'))
   } catch {
-    toast.error("Restore failed", { description: "Couldn't roll back to that version. Try again, or check the controller logs." })
+    toast.error(t('pages.templateDetail.toast.restoreFailedTitle'), { description: t('pages.templateDetail.toast.restoreFailedDesc') })
   } finally {
     restoring.value = false
   }
@@ -262,9 +263,9 @@ const changeTypeStyles: Record<ChangeType, { label: string; class: string; dot: 
       <nav class="flex gap-1 border-b border-glass-border -mb-px">
         <button
           v-for="tab in ([
-            { key: 'overview', label: 'Overview', icon: Package },
-            { key: 'files', label: 'Files', icon: FileCode },
-            { key: 'versions', label: 'Versions', icon: History },
+            { key: 'overview', label: t('pages.templateDetail.tabs.overview'), icon: Package },
+            { key: 'files', label: t('pages.templateDetail.tabs.files'), icon: FileCode },
+            { key: 'versions', label: t('pages.templateDetail.tabs.versions'), icon: History },
           ] as const)"
           :key="tab.key"
           :class="[
@@ -336,27 +337,27 @@ const changeTypeStyles: Record<ChangeType, { label: string; class: string; dot: 
 
     <ConfirmDialog
       :open="!!editor.confirmDeletePath.value"
-      title="Stage Deletion"
-      :description="`Mark '${editor.confirmDeletePath.value}' for deletion? This will be applied when you save.`"
-      confirm-label="Stage Delete"
+      :title="t('pages.templateDetail.stageDelete.title')"
+      :description="t('pages.templateDetail.stageDelete.desc', { path: editor.confirmDeletePath.value })"
+      :confirm-label="t('pages.templateDetail.stageDelete.confirm')"
       @update:open="editor.cancelDelete"
       @confirm="editor.confirmDelete"
     />
 
     <ConfirmDialog
       :open="confirmDiscardAll"
-      title="Discard All Changes"
-      :description="`Discard all ${editor.stagedChanges.size} staged change${editor.stagedChanges.size > 1 ? 's' : ''}? This cannot be undone.`"
-      confirm-label="Discard All"
+      :title="t('pages.templateDetail.discardAll.title')"
+      :description="t('pages.templateDetail.discardAll.desc', { count: editor.stagedChanges.size }, editor.stagedChanges.size)"
+      :confirm-label="t('pages.templateDetail.discardAll.confirm')"
       @update:open="confirmDiscardAll = $event"
       @confirm="discardAllChanges"
     />
 
     <ConfirmDialog
       :open="showDeleteConfirm"
-      title="Delete Template"
-      :description="`Permanently delete '${templateName}'? All files and version history will be lost.`"
-      confirm-label="Delete Template"
+      :title="t('pages.templateDetail.deleteTemplate.title')"
+      :description="t('pages.templateDetail.deleteTemplate.desc', { name: templateName })"
+      :confirm-label="t('pages.templateDetail.deleteTemplate.confirm')"
       :loading="deleteLoading"
       @update:open="showDeleteConfirm = $event"
       @confirm="deleteTemplate"
@@ -364,9 +365,9 @@ const changeTypeStyles: Record<ChangeType, { label: string; class: string; dot: 
 
     <ConfirmDialog
       :open="unsavedWarningOpen"
-      title="Unsaved Changes"
-      description="You have unsaved staged changes that will be lost. Do you want to continue?"
-      confirm-label="Continue"
+      :title="t('pages.templateDetail.unsaved.title')"
+      :description="t('pages.templateDetail.unsaved.desc')"
+      :confirm-label="t('pages.templateDetail.unsaved.confirm')"
       @update:open="onUnsavedWarningCancel"
       @confirm="onUnsavedWarningConfirm"
     />

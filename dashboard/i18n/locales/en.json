@@ -1445,6 +1445,110 @@
         "deleteFailedTitle": "Delete failed",
         "deleteFailedDesc": "Couldn't delete \"{name}\". Stop running instances first, or check the controller logs."
       }
+    },
+    "templateDetail": {
+      "tabs": {
+        "overview": "Overview",
+        "files": "Files",
+        "versions": "Versions"
+      },
+      "stageDelete": {
+        "title": "Stage Deletion",
+        "desc": "Mark '{path}' for deletion? This will be applied when you save.",
+        "confirm": "Stage Delete"
+      },
+      "discardAll": {
+        "title": "Discard All Changes",
+        "desc": "Discard all {count} staged change? This cannot be undone. | Discard all {count} staged changes? This cannot be undone.",
+        "confirm": "Discard All"
+      },
+      "deleteTemplate": {
+        "title": "Delete Template",
+        "desc": "Permanently delete '{name}'? All files and version history will be lost.",
+        "confirm": "Delete Template"
+      },
+      "unsaved": {
+        "title": "Unsaved Changes",
+        "desc": "You have unsaved staged changes that will be lost. Do you want to continue?",
+        "confirm": "Continue"
+      },
+      "toast": {
+        "loadFailedTitle": "Can't load template",
+        "loadFailedDesc": "Template \"{name}\" couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "versionsFailedTitle": "Can't load version history",
+        "genericRetry": "Try again, or check the controller logs.",
+        "versionRestored": "Version restored",
+        "restoreFailedTitle": "Restore failed",
+        "restoreFailedDesc": "Couldn't roll back to that version. Try again, or check the controller logs."
+      }
+    },
+    "instanceDetail": {
+      "instance": "Instance",
+      "on": "on",
+      "stopping": "Stopping…",
+      "stop": "Stop",
+      "killing": "Killing…",
+      "forceStop": "Force-stop",
+      "delete": "Delete",
+      "info": {
+        "group": "Group",
+        "node": "Node",
+        "port": "Port",
+        "players": "Players",
+        "uptime": "Uptime",
+        "deployment": "Deployment",
+        "started": "Started"
+      },
+      "revLabel": "rev {rev}",
+      "serverMetrics": "Server metrics",
+      "metrics": {
+        "tps": "TPS",
+        "mspt": "MSPT",
+        "heap": "Heap",
+        "gc": "GC",
+        "gcValue": "{collections} collections, {ms}ms",
+        "threads": "Threads",
+        "version": "Version",
+        "plugins": "Plugins"
+      },
+      "noMetrics": "No metrics available",
+      "noMetricsHintServer": "Metrics appear once the server is running",
+      "noMetricsHintProxy": "Metrics appear once the proxy is running",
+      "proxyMetrics": "Proxy metrics",
+      "proxy": {
+        "players": "Players",
+        "avgPing": "Avg Ping",
+        "memory": "Memory",
+        "uptime": "Uptime",
+        "playerLatency": "Player latency"
+      },
+      "worlds": "Worlds",
+      "worldColumns": {
+        "world": "World",
+        "environment": "Environment",
+        "entities": "Entities",
+        "chunks": "Chunks",
+        "players": "Players"
+      },
+      "composition": "Composition",
+      "templateChain": "Template chain",
+      "primary": "Primary",
+      "inherited": "Inherited",
+      "extensions": "Extensions",
+      "jvmArgs": "JVM args",
+      "environment": "Environment",
+      "confirmDeleteTitle": "Delete instance?",
+      "confirmDeleteDesc": "Remove instance '{id}' from the cluster registry. This action cannot be undone.",
+      "toast": {
+        "loadFailedTitle": "Can't load instance",
+        "loadFailedDesc": "Instance {id} couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "stopFailedTitle": "Stop failed",
+        "stopFailedDesc": "Couldn't stop {id}. Try force-stop, or check the controller logs.",
+        "forceStopFailedTitle": "Force-stop failed",
+        "forceStopFailedDesc": "Couldn't kill {id}. Check the daemon on {node}.",
+        "deleteFailedTitle": "Delete failed",
+        "deleteFailedDesc": "Couldn't delete {id}. The instance must be STOPPED, CRASHED, or SCHEDULED first."
+      }
     }
   },
   "components": {

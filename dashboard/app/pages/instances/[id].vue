@@ -29,6 +29,7 @@ async function fetchComposition() {
   finally { compositionLoading.value = false }
 }
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const instanceId = route.params.id as string
@@ -57,8 +58,8 @@ async function fetchInstance() {
     instance.value = data as ServerInstance
     uptimeTick.value = instance.value.uptimeMs
   } catch {
-    toast.error("Can't load instance", {
-      description: `Instance ${instanceId} couldn't be reached. It may have been deleted, or the controller is unreachable.`,
+    toast.error(t('pages.instanceDetail.toast.loadFailedTitle'), {
+      description: t('pages.instanceDetail.toast.loadFailedDesc', { id: instanceId }),
     })
     await router.push("/instances")
   } finally {
@@ -217,8 +218,8 @@ async function stopInstance() {
     await store.stopInstance(instanceId)
     await fetchInstance()
   } catch {
-    toast.error("Stop failed", {
-      description: `Couldn't stop ${instanceId}. Try force-stop, or check the controller logs.`,
+    toast.error(t('pages.instanceDetail.toast.stopFailedTitle'), {
+      description: t('pages.instanceDetail.toast.stopFailedDesc', { id: instanceId }),
     })
   } finally {
     stopping.value = false
@@ -231,8 +232,8 @@ async function forceStopInstance() {
     await store.forceStopInstance(instanceId)
     await fetchInstance()
   } catch {
-    toast.error("Force-stop failed", {
-      description: `Couldn't kill ${instanceId}. Check the daemon on ${instance.value?.node}.`,
+    toast.error(t('pages.instanceDetail.toast.forceStopFailedTitle'), {
+      description: t('pages.instanceDetail.toast.forceStopFailedDesc', { id: instanceId, node: instance.value?.node }),
     })
   } finally {
     forceStopping.value = false
@@ -245,8 +246,8 @@ async function onConfirmDelete() {
     await store.deleteInstance(instanceId)
     await router.push("/instances")
   } catch {
-    toast.error("Delete failed", {
-      description: `Couldn't delete ${instanceId}. The instance must be STOPPED, CRASHED, or SCHEDULED first.`,
+    toast.error(t('pages.instanceDetail.toast.deleteFailedTitle'), {
+      description: t('pages.instanceDetail.toast.deleteFailedDesc', { id: instanceId }),
     })
   } finally {
     deleting.value = false
@@ -262,13 +263,13 @@ async function onConfirmDelete() {
         <ArrowLeft class="size-5" />
       </Button>
       <div class="flex-1 min-w-0">
-        <p class="eyebrow mb-1">Instance</p>
+        <p class="eyebrow mb-1">{{ t('pages.instanceDetail.instance') }}</p>
         <div class="flex items-center gap-3">
           <h1 class="truncate text-2xl font-bold tracking-tight text-gradient-title mono">{{ instanceId }}</h1>
           <StatusBadge v-if="instance" :state="instance.state" :pulse="instance.state === 'RUNNING'" />
         </div>
         <p v-if="instance" class="mt-0.5 text-sm text-muted-foreground">
-          on <NuxtLink :to="`/nodes/${instance.node}`" class="text-foreground hover:underline">{{ instance.node }}</NuxtLink>
+          {{ t('pages.instanceDetail.on') }} <NuxtLink :to="`/nodes/${instance.node}`" class="text-foreground hover:underline">{{ instance.node }}</NuxtLink>
         </p>
       </div>
       <div v-if="instance" class="flex shrink-0 items-center gap-2">
@@ -280,7 +281,7 @@ async function onConfirmDelete() {
           @click="stopInstance"
         >
           <Square class="mr-2 size-4" />
-          {{ stopping ? 'Stopping…' : 'Stop' }}
+          {{ stopping ? t('pages.instanceDetail.stopping') : t('pages.instanceDetail.stop') }}
         </Button>
         <Button
           v-if="instance.state === 'RUNNING' || instance.state === 'STARTING' || instance.state === 'STOPPING'"
@@ -290,7 +291,7 @@ async function onConfirmDelete() {
           @click="forceStopInstance"
         >
           <Zap class="mr-2 size-4" />
-          {{ forceStopping ? 'Killing…' : 'Force-stop' }}
+          {{ forceStopping ? t('pages.instanceDetail.killing') : t('pages.instanceDetail.forceStop') }}
         </Button>
         <Button
           v-if="instance.state === 'STOPPED' || instance.state === 'CRASHED' || instance.state === 'SCHEDULED'"
@@ -300,7 +301,7 @@ async function onConfirmDelete() {
           @click="confirmOpen = true"
         >
           <Trash2 class="mr-2 size-4" />
-          Delete
+          {{ t('pages.instanceDetail.delete') }}
         </Button>
       </div>
     </div>
@@ -317,34 +318,34 @@ async function onConfirmDelete() {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <!-- Instance Info -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Box class="size-4" /> Instance</h2>
+          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Box class="size-4" /> {{ t('pages.instanceDetail.instance') }}</h2>
           <div class="flex flex-col gap-3">
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Group</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.group') }}</span>
               <NuxtLink :to="`/groups/${instance.group}`" class="text-sm font-medium text-primary hover:underline">{{ instance.group }}</NuxtLink>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Node</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.node') }}</span>
               <NuxtLink :to="`/nodes/${instance.node}`" class="text-sm font-medium text-primary hover:underline">{{ instance.node }}</NuxtLink>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Port</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.port') }}</span>
               <span class="text-sm text-foreground tabular-nums">{{ instance.port }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Players</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.players') }}</span>
               <span class="text-sm text-foreground tabular-nums">{{ instance.playerCount }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Uptime</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.uptime') }}</span>
               <span class="text-sm text-foreground tabular-nums">{{ formatUptime(displayUptime) }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Deployment</span>
-              <span class="text-sm text-foreground tabular-nums">rev {{ instance.deploymentRevision }}</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.deployment') }}</span>
+              <span class="text-sm text-foreground tabular-nums">{{ t('pages.instanceDetail.revLabel', { rev: instance.deploymentRevision }) }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Started</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.info.started') }}</span>
               <span class="text-sm text-foreground">{{ new Date(instance.startedAt).toLocaleString() }}</span>
             </div>
           </div>
@@ -352,12 +353,12 @@ async function onConfirmDelete() {
 
         <!-- Server Metrics (game servers) -->
         <div v-if="!isProxy" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Activity class="size-4" /> Server metrics</h2>
+          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Activity class="size-4" /> {{ t('pages.instanceDetail.serverMetrics') }}</h2>
           <template v-if="metrics">
             <div class="flex flex-col gap-3">
               <div>
                 <div class="flex justify-between items-center mb-1">
-                  <span class="text-sm text-muted-foreground">TPS</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.tps') }}</span>
                   <div class="flex items-center gap-2">
                     <span :class="['text-sm font-bold tabular-nums', tpsColor(metrics.tps1m)]">{{ metrics.tps1m.toFixed(1) }}</span>
                     <span class="text-xs text-muted-foreground tabular-nums">{{ metrics.tps5m.toFixed(1) }} / {{ metrics.tps15m.toFixed(1) }}</span>
@@ -367,14 +368,14 @@ async function onConfirmDelete() {
               </div>
               <div>
                 <div class="flex justify-between mb-1">
-                  <span class="text-sm text-muted-foreground">MSPT</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.mspt') }}</span>
                   <span :class="['text-sm font-medium tabular-nums', metrics.msptAvg < 50 ? 'text-success' : metrics.msptAvg < 100 ? 'text-warning' : 'text-destructive']">{{ metrics.msptAvg.toFixed(1) }}ms</span>
                 </div>
                 <Sparkline v-if="tsi.loaded.value" :data="tsi.series.msptAvg ?? []" :height="20" tone="warning" />
               </div>
               <div>
                 <div class="flex justify-between mb-1.5">
-                  <span class="text-sm text-muted-foreground">Heap</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.heap') }}</span>
                   <span class="text-sm text-foreground tabular-nums">{{ metrics.heapUsedMb }} / {{ metrics.heapMaxMb }} MB</span>
                 </div>
                 <div class="h-2 rounded-full bg-glass overflow-hidden">
@@ -383,46 +384,46 @@ async function onConfirmDelete() {
                 <Sparkline v-if="tsi.loaded.value" :data="tsi.series.heapUsedMb ?? []" :height="20" tone="primary" class="mt-1.5" />
               </div>
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">GC</span>
-                <span class="text-sm text-foreground tabular-nums">{{ metrics.gcCollections }} collections, {{ metrics.gcTimeMs }}ms</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.gc') }}</span>
+                <span class="text-sm text-foreground tabular-nums">{{ t('pages.instanceDetail.metrics.gcValue', { collections: metrics.gcCollections, ms: metrics.gcTimeMs }) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">Threads</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.threads') }}</span>
                 <span class="text-sm text-foreground tabular-nums">{{ metrics.threadCount }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">Version</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.version') }}</span>
                 <span class="text-sm text-foreground">{{ metrics.serverVersion }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">Plugins</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.metrics.plugins') }}</span>
                 <span class="text-sm text-foreground tabular-nums">{{ metrics.pluginCount }}</span>
               </div>
             </div>
           </template>
           <div v-else class="flex flex-col items-center justify-center text-center py-8">
             <Cpu class="size-8 text-muted-foreground/30 mb-2" />
-            <p class="text-sm text-muted-foreground">No metrics available</p>
-            <p class="text-xs text-muted-foreground/60 mt-1">Metrics appear once the server is running</p>
+            <p class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.noMetrics') }}</p>
+            <p class="text-xs text-muted-foreground/60 mt-1">{{ t('pages.instanceDetail.noMetricsHintServer') }}</p>
           </div>
         </div>
 
         <!-- Proxy Metrics -->
         <div v-else class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Network class="size-4" /> Proxy metrics</h2>
+          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Network class="size-4" /> {{ t('pages.instanceDetail.proxyMetrics') }}</h2>
           <template v-if="proxyMetrics">
             <div class="flex flex-col gap-3">
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">Players</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.proxy.players') }}</span>
                 <span class="text-sm font-bold text-foreground tabular-nums">{{ proxyMetrics.totalNetworkPlayers }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">Avg Ping</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.proxy.avgPing') }}</span>
                 <span :class="['text-sm font-medium tabular-nums', avgPing < 50 ? 'text-success' : avgPing < 150 ? 'text-warning' : 'text-destructive']">{{ avgPing }}ms</span>
               </div>
               <div>
                 <div class="flex justify-between mb-1.5">
-                  <span class="text-sm text-muted-foreground">Memory</span>
+                  <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.proxy.memory') }}</span>
                   <span class="text-sm text-foreground tabular-nums">{{ proxyMetrics.proxyMemoryUsedMb }} / {{ proxyMetrics.proxyMemoryMaxMb }} MB</span>
                 </div>
                 <div class="h-2 rounded-full bg-glass overflow-hidden">
@@ -430,12 +431,12 @@ async function onConfirmDelete() {
                 </div>
               </div>
               <div class="flex justify-between">
-                <span class="text-sm text-muted-foreground">Uptime</span>
+                <span class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.proxy.uptime') }}</span>
                 <span class="text-sm text-foreground">{{ formatUptime(proxyMetrics.proxyUptimeMs) }}</span>
               </div>
               <!-- Top pings -->
               <div v-if="proxyPingEntries.length > 0">
-                <p class="eyebrow mt-1 mb-2">Player latency</p>
+                <p class="eyebrow mt-1 mb-2">{{ t('pages.instanceDetail.proxy.playerLatency') }}</p>
                 <div class="flex flex-col gap-1 max-h-40 overflow-auto styled-scrollbar pr-1">
                   <div v-for="entry in proxyPingEntries.slice(0, 20)" :key="entry.uuid" class="flex justify-between items-center gap-2 px-2 py-1 rounded-lg">
                     <span class="text-xs text-foreground truncate" :title="entry.uuid">{{ entry.username }}</span>
@@ -447,22 +448,22 @@ async function onConfirmDelete() {
           </template>
           <div v-else class="flex flex-col items-center justify-center text-center py-8">
             <Network class="size-8 text-muted-foreground/30 mb-2" />
-            <p class="text-sm text-muted-foreground">No metrics available</p>
-            <p class="text-xs text-muted-foreground/60 mt-1">Metrics appear once the proxy is running</p>
+            <p class="text-sm text-muted-foreground">{{ t('pages.instanceDetail.noMetrics') }}</p>
+            <p class="text-xs text-muted-foreground/60 mt-1">{{ t('pages.instanceDetail.noMetricsHintProxy') }}</p>
           </div>
         </div>
       </div>
 
       <!-- Worlds -->
       <div v-if="metrics && metrics.worlds.length > 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-        <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Globe class="size-4" /> Worlds</h2>
+        <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Globe class="size-4" /> {{ t('pages.instanceDetail.worlds') }}</h2>
         <div class="overflow-hidden rounded-xl border border-glass-border">
           <div class="flex items-center h-9 px-4 border-b border-glass-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <div class="flex-1">World</div>
-            <div class="w-28 text-center">Environment</div>
-            <div class="w-20 text-right">Entities</div>
-            <div class="w-20 text-right">Chunks</div>
-            <div class="w-20 text-right">Players</div>
+            <div class="flex-1">{{ t('pages.instanceDetail.worldColumns.world') }}</div>
+            <div class="w-28 text-center">{{ t('pages.instanceDetail.worldColumns.environment') }}</div>
+            <div class="w-20 text-right">{{ t('pages.instanceDetail.worldColumns.entities') }}</div>
+            <div class="w-20 text-right">{{ t('pages.instanceDetail.worldColumns.chunks') }}</div>
+            <div class="w-20 text-right">{{ t('pages.instanceDetail.worldColumns.players') }}</div>
           </div>
           <div v-for="world in metrics.worlds" :key="world.name" class="flex items-center h-10 px-4 border-b border-glass-border/50 last:border-0">
             <div class="flex-1 text-sm font-medium text-foreground truncate">{{ world.name }}</div>
@@ -476,28 +477,28 @@ async function onConfirmDelete() {
 
       <!-- Composition — resolved templates + extensions for this instance. -->
       <div v-if="composition" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6 space-y-4">
-        <h2 class="flex items-center gap-2 text-base font-semibold"><Puzzle class="size-4" /> Composition</h2>
+        <h2 class="flex items-center gap-2 text-base font-semibold"><Puzzle class="size-4" /> {{ t('pages.instanceDetail.composition') }}</h2>
 
         <section v-if="composition.templates?.length" class="space-y-2">
-          <Eyebrow><Layers class="mr-1 inline size-3" /> Template chain</Eyebrow>
+          <Eyebrow><Layers class="mr-1 inline size-3" /> {{ t('pages.instanceDetail.templateChain') }}</Eyebrow>
           <div class="space-y-1">
             <div
-              v-for="t in composition.templates"
-              :key="t.name"
+              v-for="tpl in composition.templates"
+              :key="tpl.name"
               class="flex items-center justify-between rounded-md border border-glass-border bg-glass/40 px-3 py-2 text-sm"
             >
               <div class="flex items-center gap-2">
-                <NuxtLink :to="`/templates/${t.name}`" class="mono text-primary hover:underline">{{ t.name }}</NuxtLink>
-                <StatusBadge v-if="t.source === 'primary'" tone="primary" label="Primary" />
-                <StatusBadge v-else tone="muted" label="Inherited" />
+                <NuxtLink :to="`/templates/${tpl.name}`" class="mono text-primary hover:underline">{{ tpl.name }}</NuxtLink>
+                <StatusBadge v-if="tpl.source === 'primary'" tone="primary" :label="t('pages.instanceDetail.primary')" />
+                <StatusBadge v-else tone="muted" :label="t('pages.instanceDetail.inherited')" />
               </div>
-              <span v-if="t.hash" class="mono text-[10px] text-muted-foreground">{{ t.hash }}</span>
+              <span v-if="tpl.hash" class="mono text-[10px] text-muted-foreground">{{ tpl.hash }}</span>
             </div>
           </div>
         </section>
 
         <section v-if="composition.extensions?.length" class="space-y-2">
-          <Eyebrow>Extensions</Eyebrow>
+          <Eyebrow>{{ t('pages.instanceDetail.extensions') }}</Eyebrow>
           <div class="flex flex-wrap gap-1.5">
             <span
               v-for="x in composition.extensions"
@@ -511,12 +512,12 @@ async function onConfirmDelete() {
         </section>
 
         <section v-if="composition.jvmArgs?.length" class="space-y-2">
-          <Eyebrow>JVM args</Eyebrow>
+          <Eyebrow>{{ t('pages.instanceDetail.jvmArgs') }}</Eyebrow>
           <CodeBlock :code="composition.jvmArgs.join(' ')" :show-line-numbers="false" />
         </section>
 
         <section v-if="composition.env && Object.keys(composition.env).length" class="space-y-2">
-          <Eyebrow>Environment</Eyebrow>
+          <Eyebrow>{{ t('pages.instanceDetail.environment') }}</Eyebrow>
           <div class="space-y-1">
             <div v-for="(v, k) in composition.env" :key="k" class="flex justify-between rounded-md border border-glass-border bg-glass/40 px-3 py-1.5 mono text-xs">
               <span class="text-muted-foreground">{{ k }}</span>
@@ -532,9 +533,9 @@ async function onConfirmDelete() {
 
     <ConfirmDialog
       :open="confirmOpen"
-      title="Delete instance?"
-      :description="`Remove instance '${instanceId}' from the cluster registry. This action cannot be undone.`"
-      confirm-label="Delete"
+      :title="t('pages.instanceDetail.confirmDeleteTitle')"
+      :description="t('pages.instanceDetail.confirmDeleteDesc', { id: instanceId })"
+      :confirm-label="t('pages.instanceDetail.delete')"
       :loading="deleting"
       @update:open="confirmOpen = $event"
       @confirm="onConfirmDelete"
