@@ -1671,6 +1671,96 @@
         "uncordonedTitle": "Node uncordoned",
         "uncordonedDesc": "\"{id}\" is accepting new instances again"
       }
+    },
+    "modules": {
+      "title": "Modules",
+      "description": "Runtime-loaded plugins extending the controller and dashboard.",
+      "refresh": "Refresh",
+      "installing": "Installing…",
+      "installModule": "Install module",
+      "searchPlaceholder": "Search modules...",
+      "countLabel": "installed",
+      "summary": {
+        "installed": "Installed",
+        "active": "Active",
+        "unresolved": "Unresolved"
+      },
+      "views": {
+        "modules": "Modules",
+        "capabilities": "Capabilities",
+        "extensions": "Extensions"
+      },
+      "storage": {
+        "mongo": "Mongo",
+        "redis": "Redis",
+        "available": "Available",
+        "requested": "Requested",
+        "off": "Off",
+        "docs": "docs",
+        "keys": "keys"
+      },
+      "resources": "Resources",
+      "quotaExceeded": "Quota exceeded",
+      "threads": "threads",
+      "msCpuMin": "ms CPU/min",
+      "mbMin": "MB/min",
+      "needs": "needs",
+      "providesThis": "provides this",
+      "install": "Install",
+      "backendOnly": "Backend only",
+      "remove": "Remove",
+      "removing": "Removing…",
+      "unlimited": "Unlimited",
+      "healthTitle": "Health: {label}{detail}",
+      "emptyTitle": "No modules installed",
+      "emptyHint": "Upload a platform module JAR to extend the controller.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter or searching by another term.",
+      "capColumns": {
+        "module": "Module",
+        "type": "Type",
+        "capability": "Capability",
+        "version": "Version",
+        "binding": "Binding"
+      },
+      "capTypes": {
+        "provides": "Provides",
+        "requires": "Requires",
+        "unresolved": "Unresolved"
+      },
+      "peer": {
+        "activeBinding": "active binding",
+        "inactive": "inactive",
+        "unbound": "unbound"
+      },
+      "noCapabilities": "No capability declarations",
+      "target": "Target",
+      "runtimeVersion": "Runtime version",
+      "resolve": "Resolve",
+      "extensionRegistry": "Extension registry",
+      "ext": {
+        "mc": "MC {range}",
+        "runtime": "Runtime {version}"
+      },
+      "noExtensions": "No workload extensions",
+      "resolvedVariants": "Resolved variants",
+      "noVariants": "No compatible variants",
+      "confirmRemoveTitle": "Remove module?",
+      "confirmRemoveDesc": "Remove '{id}' from the controller. The platform module JAR will be deleted.",
+      "toast": {
+        "onlyJar": "Only .jar files are accepted",
+        "uploadFailed": "Upload failed",
+        "uploadFailedStatus": "Upload failed ({status})",
+        "installedTitle": "Module \"{id}\" installed",
+        "installFailedTitle": "Install failed",
+        "installFailedDesc": "Couldn't install the module. Check the JAR is signed and the controller logs for details.",
+        "removedTitle": "Module \"{id}\" removed",
+        "removeFailedTitle": "Remove failed",
+        "removeFailedDesc": "Couldn't remove the module. Try again, or check the controller logs.",
+        "installingDepTitle": "Installing \"{id}\"",
+        "installingDepDesc": "Provides {capability}",
+        "installDepFailedDesc": "Couldn't install the providing module."
+      }
     }
   },
   "components": {

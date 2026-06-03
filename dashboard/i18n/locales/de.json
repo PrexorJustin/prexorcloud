@@ -1671,6 +1671,96 @@
         "uncordonedTitle": "Node uncordont",
         "uncordonedDesc": "„{id}“ akzeptiert wieder neue Instanzen"
       }
+    },
+    "modules": {
+      "title": "Module",
+      "description": "Zur Laufzeit geladene Plugins, die Controller und Dashboard erweitern.",
+      "refresh": "Aktualisieren",
+      "installing": "Wird installiert …",
+      "installModule": "Modul installieren",
+      "searchPlaceholder": "Module suchen …",
+      "countLabel": "installiert",
+      "summary": {
+        "installed": "Installiert",
+        "active": "Aktiv",
+        "unresolved": "Ungelöst"
+      },
+      "views": {
+        "modules": "Module",
+        "capabilities": "Capabilities",
+        "extensions": "Erweiterungen"
+      },
+      "storage": {
+        "mongo": "Mongo",
+        "redis": "Redis",
+        "available": "Verfügbar",
+        "requested": "Angefordert",
+        "off": "Aus",
+        "docs": "Docs",
+        "keys": "Keys"
+      },
+      "resources": "Ressourcen",
+      "quotaExceeded": "Quota überschritten",
+      "threads": "Threads",
+      "msCpuMin": "ms CPU/min",
+      "mbMin": "MB/min",
+      "needs": "benötigt",
+      "providesThis": "stellt das bereit",
+      "install": "Installieren",
+      "backendOnly": "Nur Backend",
+      "remove": "Entfernen",
+      "removing": "Wird entfernt …",
+      "unlimited": "Unbegrenzt",
+      "healthTitle": "Health: {label}{detail}",
+      "emptyTitle": "Keine Module installiert",
+      "emptyHint": "Lade eine Plattform-Modul-JAR hoch, um den Controller zu erweitern.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen oder nach einem anderen Begriff zu suchen.",
+      "capColumns": {
+        "module": "Modul",
+        "type": "Typ",
+        "capability": "Capability",
+        "version": "Version",
+        "binding": "Bindung"
+      },
+      "capTypes": {
+        "provides": "Stellt bereit",
+        "requires": "Benötigt",
+        "unresolved": "Ungelöst"
+      },
+      "peer": {
+        "activeBinding": "aktive Bindung",
+        "inactive": "inaktiv",
+        "unbound": "ungebunden"
+      },
+      "noCapabilities": "Keine Capability-Deklarationen",
+      "target": "Ziel",
+      "runtimeVersion": "Runtime-Version",
+      "resolve": "Auflösen",
+      "extensionRegistry": "Erweiterungs-Registry",
+      "ext": {
+        "mc": "MC {range}",
+        "runtime": "Runtime {version}"
+      },
+      "noExtensions": "Keine Workload-Erweiterungen",
+      "resolvedVariants": "Aufgelöste Varianten",
+      "noVariants": "Keine kompatiblen Varianten",
+      "confirmRemoveTitle": "Modul entfernen?",
+      "confirmRemoveDesc": "„{id}“ vom Controller entfernen. Die Plattform-Modul-JAR wird gelöscht.",
+      "toast": {
+        "onlyJar": "Es werden nur .jar-Dateien akzeptiert",
+        "uploadFailed": "Upload fehlgeschlagen",
+        "uploadFailedStatus": "Upload fehlgeschlagen ({status})",
+        "installedTitle": "Modul „{id}“ installiert",
+        "installFailedTitle": "Installation fehlgeschlagen",
+        "installFailedDesc": "Das Modul konnte nicht installiert werden. Prüfe, ob die JAR signiert ist, und die Controller-Logs für Details.",
+        "removedTitle": "Modul „{id}“ entfernt",
+        "removeFailedTitle": "Entfernen fehlgeschlagen",
+        "removeFailedDesc": "Das Modul konnte nicht entfernt werden. Versuche es erneut oder prüfe die Controller-Logs.",
+        "installingDepTitle": "„{id}“ wird installiert",
+        "installingDepDesc": "Stellt {capability} bereit",
+        "installDepFailedDesc": "Das bereitstellende Modul konnte nicht installiert werden."
+      }
     }
   },
   "components": {

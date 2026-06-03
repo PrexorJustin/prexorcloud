@@ -26,6 +26,7 @@ import { resolveIcon } from '~/lib/icons'
 import type { ModuleHealthInfo, ModuleResourceInfo, PlatformCloudModule, RegistryModuleEntry } from '~/types/api'
 import { getAuthToken } from '~/lib/auth-storage'
 
+const { t } = useI18n()
 const moduleStore = useModuleStore()
 
 const uploading = ref(false)
@@ -73,7 +74,7 @@ const capabilityRows = computed(() =>
       type: 'Provides',
       id: capability.id,
       version: capability.version,
-      peer: capability.active ? 'active binding' : 'inactive',
+      peer: capability.active ? t('pages.modules.peer.activeBinding') : t('pages.modules.peer.inactive'),
       problem: null as string | null,
     })),
     ...mod.requires.map(capability => ({
@@ -81,7 +82,7 @@ const capabilityRows = computed(() =>
       type: 'Requires',
       id: capability.id,
       version: capability.versionRange,
-      peer: capability.binding ? `${capability.binding.moduleId}@${capability.binding.version}` : 'unbound',
+      peer: capability.binding ? `${capability.binding.moduleId}@${capability.binding.version}` : t('pages.modules.peer.unbound'),
       problem: null as string | null,
     })),
     ...mod.unresolvedRequirements.map(requirement => ({
@@ -89,7 +90,7 @@ const capabilityRows = computed(() =>
       type: 'Unresolved',
       id: requirement.capabilityId,
       version: requirement.versionRange,
-      peer: 'unbound',
+      peer: t('pages.modules.peer.unbound'),
       problem: requirement.reason,
     })),
   ]) ?? [],
@@ -131,7 +132,7 @@ async function handleFileUpload(event: Event) {
   if (!file) return
 
   if (!file.name.endsWith('.jar')) {
-    toast.error('Only .jar files are accepted')
+    toast.error(t('pages.modules.toast.onlyJar'))
     return
   }
 
@@ -151,16 +152,16 @@ async function handleFileUpload(event: Event) {
     })
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({ error: { message: 'Upload failed' } }))
-      throw new Error(err.error?.message || err.message || `Upload failed (${response.status})`)
+      const err = await response.json().catch(() => ({ error: { message: t('pages.modules.toast.uploadFailed') } }))
+      throw new Error(err.error?.message || err.message || t('pages.modules.toast.uploadFailedStatus', { status: response.status }))
     }
 
     const installed = await response.json().catch(() => null) as PlatformCloudModule | null
-    toast.success(`Module "${installed?.moduleId ?? file.name.replace('.jar', '')}" installed`)
+    toast.success(t('pages.modules.toast.installedTitle', { id: installed?.moduleId ?? file.name.replace('.jar', '') }))
     await refreshAll()
   }
   catch (e) {
-    toast.error("Install failed", { description: e instanceof Error ? e.message : "Couldn't install the module. Check the JAR is signed and the controller logs for details." })
+    toast.error(t('pages.modules.toast.installFailedTitle'), { description: e instanceof Error ? e.message : t('pages.modules.toast.installFailedDesc') })
   }
   finally {
     uploading.value = false
@@ -179,12 +180,12 @@ async function deleteModule() {
   try {
     const moduleId = deleteTarget.value.moduleId
     await moduleStore.uninstallPlatformModule(moduleId)
-    toast.success(`Module "${moduleId}" removed`)
+    toast.success(t('pages.modules.toast.removedTitle', { id: moduleId }))
     showDeleteDialog.value = false
     deleteTarget.value = null
   }
   catch (e) {
-    toast.error("Remove failed", { description: e instanceof Error ? e.message : "Couldn't remove the module. Try again, or check the controller logs." })
+    toast.error(t('pages.modules.toast.removeFailedTitle'), { description: e instanceof Error ? e.message : t('pages.modules.toast.removeFailedDesc') })
   }
   finally {
     deleting.value = false
@@ -200,7 +201,7 @@ function frontendFor(mod: PlatformCloudModule) {
 }
 
 function storageLimitLabel(limit: number, unit: string) {
-  return limit > 0 ? `${limit.toLocaleString()} ${unit}` : 'Unlimited'
+  return limit > 0 ? `${limit.toLocaleString()} ${unit}` : t('pages.modules.unlimited')
 }
 
 function displayName(mod: PlatformCloudModule) {
@@ -244,7 +245,7 @@ function healthTitle(moduleId: string): string {
   if (!health) return ''
   const label = health.status.charAt(0) + health.status.slice(1).toLowerCase()
   const detail = health.detail ? ` — ${health.detail}` : ''
-  return `Health: ${label}${detail}`
+  return t('pages.modules.healthTitle', { label, detail })
 }
 
 // Dependency resolution: find a not-yet-installed catalog module that provides the missing
@@ -260,11 +261,11 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
   installingDep.value = capabilityId
   try {
     await moduleStore.installFromRegistry(provider.moduleId, undefined, provider.registryUrl)
-    toast.success(`Installing "${provider.moduleId}"`, { description: `Provides ${capabilityId}` })
+    toast.success(t('pages.modules.toast.installingDepTitle', { id: provider.moduleId }), { description: t('pages.modules.toast.installingDepDesc', { capability: capabilityId }) })
     await refreshAll()
   }
   catch (e) {
-    toast.error('Install failed', { description: e instanceof Error ? e.message : "Couldn't install the providing module." })
+    toast.error(t('pages.modules.toast.installFailedTitle'), { description: e instanceof Error ? e.message : t('pages.modules.toast.installDepFailedDesc') })
   }
   finally {
     installingDep.value = null
@@ -274,16 +275,16 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
 
 <template>
   <div class="flex flex-col gap-5 flex-1">
-    <PageHeader title="Modules" description="Runtime-loaded plugins extending the controller and dashboard.">
+    <PageHeader :title="t('pages.modules.title')" :description="t('pages.modules.description')">
       <template #actions>
         <input ref="fileInputRef" type="file" accept=".jar" class="hidden" @change="handleFileUpload" >
         <Button variant="outline" :disabled="refreshing" @click="refreshAll">
           <RefreshCw class="mr-2 size-4" :class="refreshing ? 'animate-spin' : ''" />
-          Refresh
+          {{ t('pages.modules.refresh') }}
         </Button>
         <Button :disabled="uploading" @click="uploadModule">
           <Upload class="mr-2 size-4" />
-          {{ uploading ? 'Installing…' : 'Install module' }}
+          {{ uploading ? t('pages.modules.installing') : t('pages.modules.installModule') }}
         </Button>
       </template>
     </PageHeader>
@@ -291,21 +292,21 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
       <div class="rounded-lg border border-glass-border bg-glass/50 p-4">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-muted-foreground">Installed</span>
+          <span class="text-sm text-muted-foreground">{{ t('pages.modules.summary.installed') }}</span>
           <Puzzle class="size-4 text-muted-foreground" />
         </div>
         <p class="mt-2 text-2xl font-semibold tabular-nums">{{ moduleStore.platformModules.length }}</p>
       </div>
       <div class="rounded-lg border border-glass-border bg-glass/50 p-4">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-muted-foreground">Active</span>
+          <span class="text-sm text-muted-foreground">{{ t('pages.modules.summary.active') }}</span>
           <CheckCircle2 class="size-4 text-success" />
         </div>
         <p class="mt-2 text-2xl font-semibold tabular-nums">{{ activeCount }}</p>
       </div>
       <div class="rounded-lg border border-glass-border bg-glass/50 p-4">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-muted-foreground">Unresolved</span>
+          <span class="text-sm text-muted-foreground">{{ t('pages.modules.summary.unresolved') }}</span>
           <AlertTriangle class="size-4 text-warning" />
         </div>
         <p class="mt-2 text-2xl font-semibold tabular-nums">{{ unresolvedCount }}</p>
@@ -323,10 +324,10 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <FilterToolbar
         v-model:search="search"
-        search-placeholder="Search modules..."
+        :search-placeholder="t('pages.modules.searchPlaceholder')"
         :show-view-toggle="false"
         :count="moduleStore.platformModules.length"
-        count-label="installed"
+        :count-label="t('pages.modules.countLabel')"
         class="flex-1"
       />
 
@@ -339,7 +340,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           ]"
           @click="activeView = 'modules'"
         >
-          <Boxes class="size-4" /> Modules
+          <Boxes class="size-4" /> {{ t('pages.modules.views.modules') }}
         </button>
         <button
           type="button"
@@ -349,7 +350,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           ]"
           @click="activeView = 'capabilities'"
         >
-          <GitBranch class="size-4" /> Capabilities
+          <GitBranch class="size-4" /> {{ t('pages.modules.views.capabilities') }}
         </button>
         <button
           type="button"
@@ -359,7 +360,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           ]"
           @click="activeView = 'extensions'"
         >
-          <PackageSearch class="size-4" /> Extensions
+          <PackageSearch class="size-4" /> {{ t('pages.modules.views.extensions') }}
         </button>
       </div>
     </div>
@@ -396,21 +397,21 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
 
           <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
             <div class="rounded-md border border-glass-border bg-background/20 px-3 py-2">
-              <span class="text-muted-foreground">Mongo</span>
+              <span class="text-muted-foreground">{{ t('pages.modules.storage.mongo') }}</span>
               <p class="mt-1 font-medium" :class="mod.storage.mongoAvailable ? 'text-success' : 'text-muted-foreground'">
-                {{ mod.storage.mongo ? (mod.storage.mongoAvailable ? 'Available' : 'Requested') : 'Off' }}
+                {{ mod.storage.mongo ? (mod.storage.mongoAvailable ? t('pages.modules.storage.available') : t('pages.modules.storage.requested')) : t('pages.modules.storage.off') }}
               </p>
               <p v-if="mod.storage.mongo" class="mt-0.5 truncate text-[11px] text-muted-foreground">
-                {{ storageLimitLabel(mod.storage.mongoDocumentLimit, 'docs') }}
+                {{ storageLimitLabel(mod.storage.mongoDocumentLimit, t('pages.modules.storage.docs')) }}
               </p>
             </div>
             <div class="rounded-md border border-glass-border bg-background/20 px-3 py-2">
-              <span class="text-muted-foreground">Redis</span>
+              <span class="text-muted-foreground">{{ t('pages.modules.storage.redis') }}</span>
               <p class="mt-1 font-medium" :class="mod.storage.redisAvailable ? 'text-success' : 'text-muted-foreground'">
-                {{ mod.storage.redis ? (mod.storage.redisAvailable ? 'Available' : 'Requested') : 'Off' }}
+                {{ mod.storage.redis ? (mod.storage.redisAvailable ? t('pages.modules.storage.available') : t('pages.modules.storage.requested')) : t('pages.modules.storage.off') }}
               </p>
               <p v-if="mod.storage.redis" class="mt-0.5 truncate text-[11px] text-muted-foreground">
-                {{ storageLimitLabel(mod.storage.redisKeyLimit, 'keys') }}
+                {{ storageLimitLabel(mod.storage.redisKeyLimit, t('pages.modules.storage.keys')) }}
               </p>
             </div>
           </div>
@@ -421,28 +422,28 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           >
             <div class="flex items-center justify-between">
               <span class="flex items-center gap-1.5 text-muted-foreground">
-                <Activity class="size-3.5" /> Resources
+                <Activity class="size-3.5" /> {{ t('pages.modules.resources') }}
               </span>
               <Badge
                 v-if="resourcesFor(mod.moduleId)?.quotaEvaluation?.anyExceeded"
                 variant="destructive"
                 class="gap-1"
               >
-                <AlertTriangle class="size-3" /> Quota exceeded
+                <AlertTriangle class="size-3" /> {{ t('pages.modules.quotaExceeded') }}
               </Badge>
             </div>
             <div class="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-muted-foreground">
               <span>
-                <span class="text-foreground">{{ resourcesFor(mod.moduleId)?.liveThreads ?? 0 }}</span> threads
+                <span class="text-foreground">{{ resourcesFor(mod.moduleId)?.liveThreads ?? 0 }}</span> {{ t('pages.modules.threads') }}
               </span>
               <template v-if="resourcesFor(mod.moduleId)?.quotaEvaluation">
                 <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.cpuExceeded ? 'text-destructive' : ''">
                   <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.cpuExceeded ? 'text-destructive font-medium' : 'text-foreground'">{{ resourcesFor(mod.moduleId)?.quotaEvaluation?.cpuMillisPerMinute }}</span>
-                  ms CPU/min
+                  {{ t('pages.modules.msCpuMin') }}
                 </span>
                 <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.allocationExceeded ? 'text-destructive' : ''">
                   <span :class="resourcesFor(mod.moduleId)?.quotaEvaluation?.allocationExceeded ? 'text-destructive font-medium' : 'text-foreground'">{{ resourcesFor(mod.moduleId)?.quotaEvaluation?.allocatedMbPerMinute }}</span>
-                  MB/min
+                  {{ t('pages.modules.mbMin') }}
                 </span>
               </template>
             </div>
@@ -454,7 +455,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
                 + {{ capability.id }} {{ capability.version }}
               </Badge>
               <Badge v-for="capability in mod.capabilities.requires" :key="`r-${capability.id}`" variant="secondary">
-                needs {{ capability.id }} {{ capability.versionRange }}
+                {{ t('pages.modules.needs') }} {{ capability.id }} {{ capability.versionRange }}
               </Badge>
             </div>
             <div v-if="mod.unresolvedRequirements.length" class="space-y-1">
@@ -472,7 +473,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
                   class="mt-1 flex items-center justify-between gap-2 pl-5"
                 >
                   <span class="min-w-0 truncate text-[11px] text-muted-foreground">
-                    <span class="font-mono text-foreground">{{ providerFor(requirement.capabilityId)!.moduleId }}</span> provides this
+                    <span class="font-mono text-foreground">{{ providerFor(requirement.capabilityId)!.moduleId }}</span> {{ t('pages.modules.providesThis') }}
                   </span>
                   <Button
                     size="sm"
@@ -482,7 +483,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
                     @click="installDependency(requirement.capabilityId, providerFor(requirement.capabilityId)!)"
                   >
                     <Download class="mr-1 size-3" :class="installingDep === requirement.capabilityId ? 'animate-pulse' : ''" />
-                    Install
+                    {{ t('pages.modules.install') }}
                   </Button>
                 </div>
               </div>
@@ -502,14 +503,14 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           </div>
           <div v-else class="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
             <Server class="size-3.5" />
-            Backend only
+            {{ t('pages.modules.backendOnly') }}
           </div>
 
           <div class="mt-4 flex items-center justify-between border-t border-glass-border pt-3">
             <span class="truncate text-xs text-muted-foreground font-mono">{{ mod.backend.entrypoint }}</span>
             <Button variant="ghost" size="sm" class="text-destructive hover:text-destructive" @click="confirmDelete(mod)">
               <Trash2 class="size-3.5 mr-1.5" />
-              Remove
+              {{ t('pages.modules.remove') }}
             </Button>
           </div>
         </div>
@@ -518,11 +519,11 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
       <EmptyState
         v-else
         :icon="Puzzle"
-        :title="search ? 'No matches' : 'No modules installed'"
-        :description="search ? 'Try clearing the filter or searching by another term.' : 'Upload a platform module JAR to extend the controller.'"
+        :title="search ? t('pages.modules.emptyMatchesTitle') : t('pages.modules.emptyTitle')"
+        :description="search ? t('pages.modules.emptyMatchesHint') : t('pages.modules.emptyHint')"
       >
         <Button v-if="!search" variant="outline" @click="uploadModule">
-          <Upload class="mr-2 size-4" /> Install module
+          <Upload class="mr-2 size-4" /> {{ t('pages.modules.installModule') }}
         </Button>
       </EmptyState>
     </template>
@@ -530,11 +531,11 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
     <template v-else-if="activeView === 'capabilities'">
       <div class="rounded-lg border border-glass-border overflow-hidden">
         <div class="grid grid-cols-12 gap-3 border-b border-glass-border bg-glass/50 px-4 py-2 text-xs font-medium text-muted-foreground">
-          <span class="col-span-3">Module</span>
-          <span class="col-span-2">Type</span>
-          <span class="col-span-3">Capability</span>
-          <span class="col-span-2">Version</span>
-          <span class="col-span-2">Binding</span>
+          <span class="col-span-3">{{ t('pages.modules.capColumns.module') }}</span>
+          <span class="col-span-2">{{ t('pages.modules.capColumns.type') }}</span>
+          <span class="col-span-3">{{ t('pages.modules.capColumns.capability') }}</span>
+          <span class="col-span-2">{{ t('pages.modules.capColumns.version') }}</span>
+          <span class="col-span-2">{{ t('pages.modules.capColumns.binding') }}</span>
         </div>
         <div
           v-for="row in capabilityRows"
@@ -543,7 +544,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
         >
           <span class="col-span-3 truncate font-mono text-xs">{{ row.moduleId }}</span>
           <span class="col-span-2">
-            <Badge :variant="row.type === 'Unresolved' ? 'destructive' : 'secondary'">{{ row.type }}</Badge>
+            <Badge :variant="row.type === 'Unresolved' ? 'destructive' : 'secondary'">{{ t(`pages.modules.capTypes.${row.type.toLowerCase()}`) }}</Badge>
           </span>
           <span class="col-span-3 truncate">{{ row.id }}</span>
           <span class="col-span-2 truncate font-mono text-xs text-muted-foreground">{{ row.version }}</span>
@@ -552,7 +553,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           </span>
         </div>
         <div v-if="capabilityRows.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
-          No capability declarations
+          {{ t('pages.modules.noCapabilities') }}
         </div>
       </div>
     </template>
@@ -560,7 +561,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
     <template v-else>
       <div class="flex flex-col gap-3 rounded-lg border border-glass-border bg-glass/40 p-4 md:flex-row md:items-end">
         <div class="flex-1">
-          <label class="text-xs text-muted-foreground" for="resolver-target">Target</label>
+          <label class="text-xs text-muted-foreground" for="resolver-target">{{ t('pages.modules.target') }}</label>
           <select
             id="resolver-target"
             v-model="resolverTarget"
@@ -571,7 +572,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
           </select>
         </div>
         <div class="flex-1">
-          <label class="text-xs text-muted-foreground" for="resolver-version">Runtime version</label>
+          <label class="text-xs text-muted-foreground" for="resolver-version">{{ t('pages.modules.runtimeVersion') }}</label>
           <input
             id="resolver-version"
             v-model="resolverVersion"
@@ -580,7 +581,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
         </div>
         <Button variant="outline" @click="resolveVariants">
           <GitBranch class="size-4 mr-2" />
-          Resolve
+          {{ t('pages.modules.resolve') }}
         </Button>
       </div>
 
@@ -588,7 +589,7 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
         <div class="rounded-lg border border-glass-border overflow-hidden">
           <div class="flex items-center gap-2 border-b border-glass-border bg-glass/50 px-4 py-3">
             <PackageSearch class="size-4 text-muted-foreground" />
-            <h2 class="font-medium">Extension registry</h2>
+            <h2 class="font-medium">{{ t('pages.modules.extensionRegistry') }}</h2>
           </div>
           <div
             v-for="row in extensionRows"
@@ -603,20 +604,20 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
               <Badge variant="secondary">{{ row.target }}</Badge>
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-              <span class="truncate">MC {{ row.mcVersionRange }}</span>
-              <span class="truncate">Runtime {{ row.runtimeApiVersion }}</span>
+              <span class="truncate">{{ t('pages.modules.ext.mc', { range: row.mcVersionRange }) }}</span>
+              <span class="truncate">{{ t('pages.modules.ext.runtime', { version: row.runtimeApiVersion }) }}</span>
               <span class="col-span-2 truncate font-mono">{{ row.installPath }}/{{ row.artifact }}</span>
             </div>
           </div>
           <div v-if="extensionRows.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
-            No workload extensions
+            {{ t('pages.modules.noExtensions') }}
           </div>
         </div>
 
         <div class="rounded-lg border border-glass-border overflow-hidden">
           <div class="flex items-center gap-2 border-b border-glass-border bg-glass/50 px-4 py-3">
             <Database class="size-4 text-muted-foreground" />
-            <h2 class="font-medium">Resolved variants</h2>
+            <h2 class="font-medium">{{ t('pages.modules.resolvedVariants') }}</h2>
           </div>
           <div
             v-for="variant in moduleStore.resolvedExtensions"
@@ -631,13 +632,13 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
               <Badge variant="outline">{{ variant.activation }}</Badge>
             </div>
             <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-              <span class="truncate">MC {{ variant.mcVersionRange }}</span>
-              <span class="truncate">Runtime {{ variant.runtimeApiVersion }}</span>
+              <span class="truncate">{{ t('pages.modules.ext.mc', { range: variant.mcVersionRange }) }}</span>
+              <span class="truncate">{{ t('pages.modules.ext.runtime', { version: variant.runtimeApiVersion }) }}</span>
               <span class="col-span-2 truncate font-mono">{{ variant.installPath }}/{{ variant.artifact }}</span>
             </div>
           </div>
           <div v-if="moduleStore.resolvedExtensions.length === 0" class="px-4 py-8 text-center text-sm text-muted-foreground">
-            No compatible variants
+            {{ t('pages.modules.noVariants') }}
           </div>
         </div>
       </div>
@@ -645,9 +646,9 @@ async function installDependency(capabilityId: string, provider: RegistryModuleE
 
     <ConfirmDialog
       :open="showDeleteDialog"
-      title="Remove module?"
-      :description="`Remove '${deleteTarget?.moduleId}' from the controller. The platform module JAR will be deleted.`"
-      :confirm-label="deleting ? 'Removing…' : 'Remove'"
+      :title="t('pages.modules.confirmRemoveTitle')"
+      :description="t('pages.modules.confirmRemoveDesc', { id: deleteTarget?.moduleId })"
+      :confirm-label="deleting ? t('pages.modules.removing') : t('pages.modules.remove')"
       @update:open="showDeleteDialog = $event"
       @confirm="deleteModule"
     />
