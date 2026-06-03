@@ -456,10 +456,12 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 - Tastatur-Navigation für alle Critical-Flows (Login, Group Create, Deploy).
 - Color-Contrast WCAG-AA gegen Design-System-Tokens validieren.
 
-### H.3 i18n-Coverage (~3 d)
+### H.3 i18n-Coverage (~3 d) — ⏳ **alle Pages extrahiert; Komponenten-Rest offen**
 
 - Dashboard: 100 % der UI-Strings extrahiert in `i18n/en.json`, `i18n/de.json`.
-  - **Gemessene Lücke (2026-06-02):** ~119 hardcodete user-facing Attribute (`placeholder`/`aria-label`/`title`) + grob ~250 Text-Node-Literale, verteilt über **44+ Komponenten** — viele davon (z.B. `CommandPalette`, `NotificationsPanel`, `InstanceConsole`) importieren `useI18n` noch gar nicht, d.h. Extraktion heißt nicht nur String→`t()`, sondern auch Composable-Verdrahtung + ~300 neue Keys × 2 Locales. Bewusst **nicht** als autonomer Einzel-Pass gemacht (zu groß, pro-String-Risiko, nicht runtime-verifizierbar ohne laufende App) — eigener gescopeter Pass, danach kann der `i18n:check`-Gate um eine „keine hardcodeten Strings"-Lint erweitert werden.
+  - **Gemessene Lücke (2026-06-02):** ~119 hardcodete user-facing Attribute (`placeholder`/`aria-label`/`title`) + grob ~250 Text-Node-Literale, verteilt über **44+ Komponenten** — viele davon (z.B. `CommandPalette`, `NotificationsPanel`, `InstanceConsole`) importierten `useI18n` noch gar nicht, d.h. Extraktion heißt nicht nur String→`t()`, sondern auch Composable-Verdrahtung + ~300 neue Keys × 2 Locales.
+  - **Geliefert (2026-06-03, 13 gescopte Batches):** **Alle 28 `app/pages/**`-Seiten** sind vollständig extrahiert (en+de) — inkl. Script-seitiger Toasts, nativer `confirm()`-Prompts, pluralisierter Counter (vue-i18n-Choice-Syntax), und der großen Detail-Seiten (`nodes/[id]` 706, `modules/index` 655, `instances/[id]` 543, `groups/[name]` 488, `templates/[name]` 374). Erste Komponenten-Schicht (Chrome + `GroupCard`/`NodeCard`/`ShortcutsOverlay`/`ThemeSwitcher`) ebenfalls erledigt. Locale-Set von 646 → **1442 Keys**, harter `i18n:check`-Parity-Gate grün. Wiederkehrendes Muster: `v-for="t in …"`-Loop-Vars kollidierten mit der i18n-`t()` → zu `tpl`/`tok` umbenannt; Daten-getriebene Enum-Labels (z.B. `SCALING_MODE_CONFIG`, Git-Status-Buchstaben) und Einheiten (`ms`/`MB`/`%`/`GHz`) bewusst gelassen.
+  - **Offen:** Rest der Leaf-Komponenten (`CreateGroupDialog` 816, `SettingsThemePalette` 576, Template-Editor-Panels, …). Danach kann der `i18n:check`-Gate um eine „keine hardcodeten Strings"-Lint erweitert werden.
 - Website: Übersetzung der `docs/public/`-Inhalte ins Deutsche.
 
 **Track-H-Gesamt: ~10 eng-days. Vor v1.3-Release.**
