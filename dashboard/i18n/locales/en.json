@@ -1825,6 +1825,32 @@
       "dark": "Dark",
       "system": "System",
       "advanced": "Advanced Customization"
+    },
+    "templateEditor": {
+      "files": "Files",
+      "newFile": "New file",
+      "newFolder": "New folder",
+      "extractZip": "Extract ZIP",
+      "download": "Download",
+      "delete": "Delete",
+      "uploadFiles": "Upload files",
+      "refresh": "Refresh",
+      "searchFiles": "Search files",
+      "folderName": "folder name",
+      "fileName": "file name",
+      "binaryFile": "Binary file",
+      "extract": "Extract",
+      "noFileSelected": "No file selected",
+      "noFileHint": "Click a file in the tree to view and edit it",
+      "unsaved": "unsaved",
+      "staged": "staged",
+      "errors": "{count} error | {count} errors",
+      "downloadFile": "Download file",
+      "revert": "Revert",
+      "stagedChanges": "Staged Changes",
+      "unstage": "Unstage",
+      "saving": "Saving...",
+      "saveRehash": "Save & Rehash"
     }
   }
 }

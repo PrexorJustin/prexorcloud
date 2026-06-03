@@ -22,12 +22,14 @@ const emit = defineEmits<{
   (e: 'unstage', path: string): void
   (e: 'save'): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div class="w-56 shrink-0 bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border flex flex-col overflow-hidden">
     <div class="px-4 py-3 border-b border-glass-border">
-      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Staged Changes</span>
+      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('components.templateEditor.stagedChanges') }}</span>
     </div>
     <div class="flex-1 overflow-auto styled-scrollbar p-2">
       <div
@@ -44,7 +46,7 @@ const emit = defineEmits<{
         </span>
         <button
           class="size-4 rounded flex items-center justify-center text-muted-foreground hover:text-foreground opacity-0 group-hover/staged:opacity-100 transition-opacity shrink-0"
-          title="Unstage"
+          :title="t('components.templateEditor.unstage')"
           @click="emit('unstage', change.path)"
         >
           <X class="size-3" />
@@ -54,7 +56,7 @@ const emit = defineEmits<{
     <div class="px-3 py-2.5 border-t border-glass-border">
       <Button class="w-full h-8 text-xs" :disabled="saving" @click="emit('save')">
         <Save class="size-3 mr-1.5" />
-        {{ saving ? "Saving..." : "Save & Rehash" }}
+        {{ saving ? t('components.templateEditor.saving') : t('components.templateEditor.saveRehash') }}
       </Button>
     </div>
   </div>

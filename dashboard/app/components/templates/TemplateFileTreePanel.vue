@@ -47,38 +47,40 @@ const emit = defineEmits<{
   (e: 'rootDragLeave'): void
   (e: 'rootDrop', event: DragEvent): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div class="w-72 shrink-0 bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border flex flex-col overflow-hidden">
     <!-- Tree header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-glass-border">
-      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Files</span>
+      <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('components.templateEditor.files') }}</span>
       <div class="flex items-center gap-1">
         <button
           class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
-          title="New file"
+          :title="t('components.templateEditor.newFile')"
           @click="emit('newFile', '')"
         >
           <FilePlus class="size-3.5" />
         </button>
         <button
           class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
-          title="New folder"
+          :title="t('components.templateEditor.newFolder')"
           @click="emit('newDir', '')"
         >
           <FolderPlus class="size-3.5" />
         </button>
         <button
           class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
-          title="Upload files"
+          :title="t('components.templateEditor.uploadFiles')"
           @click="emit('upload')"
         >
           <Upload class="size-3.5" />
         </button>
         <button
           class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
-          title="Refresh"
+          :title="t('components.templateEditor.refresh')"
           @click="emit('refresh')"
         >
           <RefreshCw class="size-3.5" />
@@ -86,7 +88,7 @@ const emit = defineEmits<{
         <button
           class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
           :class="showSearch ? 'bg-primary/10 text-primary' : ''"
-          title="Search files"
+          :title="t('components.templateEditor.searchFiles')"
           @click="emit('update:showSearch', !showSearch)"
         >
           <Search class="size-3.5" />
@@ -113,7 +115,7 @@ const emit = defineEmits<{
         <input
           :value="newItemName"
           type="text"
-          :placeholder="showNewInput === 'dir' ? 'folder name' : 'file name'"
+          :placeholder="showNewInput === 'dir' ? t('components.templateEditor.folderName') : t('components.templateEditor.fileName')"
           class="flex-1 h-7 px-2 bg-glass rounded border border-glass-border text-foreground text-xs focus:outline-none focus:border-primary"
           autofocus
           @input="(e) => emit('update:newItemName', (e.target as HTMLInputElement).value)"

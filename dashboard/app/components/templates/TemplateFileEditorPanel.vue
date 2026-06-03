@@ -34,6 +34,8 @@ const emit = defineEmits<{
   (e: 'revert'): void
 }>()
 
+const { t } = useI18n()
+
 const editorContent = computed({
   get: () => props.openFile?.content ?? '',
   set: (v) => emit('update:openFileContent', v),
@@ -46,14 +48,14 @@ const editorContent = computed({
     <div v-if="!openFile && binaryFile" class="flex-1 flex flex-col items-center justify-center text-center p-8">
       <File class="size-16 text-muted-foreground/20 mb-4" />
       <p class="text-foreground font-medium">{{ binaryFile.name }}</p>
-      <p class="text-muted-foreground text-sm mt-1">Binary file · {{ formatBytes(binaryFile.size) }}</p>
+      <p class="text-muted-foreground text-sm mt-1">{{ t('components.templateEditor.binaryFile') }} · {{ formatBytes(binaryFile.size) }}</p>
       <div class="flex items-center gap-2 mt-4">
         <Button v-if="binaryFile.name.toLowerCase().endsWith('.zip')" size="sm" :disabled="extracting" @click="emit('extract', binaryFile.path)">
           <Loader2 v-if="extracting" class="size-3.5 mr-1.5 animate-spin" />
-          <Archive v-else class="size-3.5 mr-1.5" /> Extract
+          <Archive v-else class="size-3.5 mr-1.5" /> {{ t('components.templateEditor.extract') }}
         </Button>
         <Button variant="outline" size="sm" class="border-glass-border" @click="emit('download', binaryFile.path)">
-          <Download class="size-3.5 mr-1.5" /> Download
+          <Download class="size-3.5 mr-1.5" /> {{ t('components.templateEditor.download') }}
         </Button>
       </div>
     </div>
@@ -61,8 +63,8 @@ const editorContent = computed({
     <!-- No file open -->
     <div v-else-if="!openFile" class="flex-1 flex flex-col items-center justify-center text-center p-8">
       <FileCode class="size-16 text-muted-foreground/20 mb-4" />
-      <p class="text-foreground font-medium">No file selected</p>
-      <p class="text-muted-foreground text-sm mt-1">Click a file in the tree to view and edit it</p>
+      <p class="text-foreground font-medium">{{ t('components.templateEditor.noFileSelected') }}</p>
+      <p class="text-muted-foreground text-sm mt-1">{{ t('components.templateEditor.noFileHint') }}</p>
     </div>
 
     <template v-else>
@@ -72,21 +74,21 @@ const editorContent = computed({
         <span class="text-sm font-medium text-foreground truncate">{{ openFile.path }}</span>
 
         <Badge v-if="fileIsModified" variant="outline" class="text-[10px] text-warning border-warning/30 ml-1">
-          unsaved
+          {{ t('components.templateEditor.unsaved') }}
         </Badge>
         <Badge v-if="getChangeType(openFile.path)" variant="outline" :class="['text-[10px] ml-1', changeTypeStyles[getChangeType(openFile.path)!].class]">
-          staged
+          {{ t('components.templateEditor.staged') }}
         </Badge>
 
         <span class="text-[10px] text-muted-foreground/50 ml-1 uppercase">{{ editorLanguage }}</span>
         <Badge v-if="validationErrors.length > 0" variant="outline" class="text-[10px] text-destructive border-destructive/30 ml-1">
-          {{ validationErrors.length }} error{{ validationErrors.length > 1 ? 's' : '' }}
+          {{ t('components.templateEditor.errors', { count: validationErrors.length }, validationErrors.length) }}
         </Badge>
 
         <div class="ml-auto flex items-center gap-1">
           <button
             class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
-            title="Download file"
+            :title="t('components.templateEditor.downloadFile')"
             @click="emit('download', openFile.path)"
           >
             <Download class="size-3.5" />
@@ -101,7 +103,7 @@ const editorContent = computed({
             :disabled="!fileIsModified"
             @click="emit('revert')"
           >
-            <RotateCcw class="size-3 mr-1" /> Revert
+            <RotateCcw class="size-3 mr-1" /> {{ t('components.templateEditor.revert') }}
           </Button>
         </div>
       </div>

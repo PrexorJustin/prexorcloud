@@ -53,6 +53,7 @@ const emit = defineEmits<{
   "update:newItemName": [value: string]
 }>()
 
+const { t } = useI18n()
 const depth = computed(() => props.depth ?? 0)
 const isZip = computed(() => props.node.name.toLowerCase().endsWith('.zip'))
 
@@ -139,7 +140,7 @@ function getFileIcon(name: string) {
         <button
           v-if="node.isDirectory"
           class="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground"
-          title="New file"
+          :title="t('components.templateEditor.newFile')"
           @click="emit('newFile', node.path)"
         >
           <FilePlus class="size-3" />
@@ -147,7 +148,7 @@ function getFileIcon(name: string) {
         <button
           v-if="node.isDirectory"
           class="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground"
-          title="New folder"
+          :title="t('components.templateEditor.newFolder')"
           @click="emit('newDir', node.path)"
         >
           <FolderPlus class="size-3" />
@@ -155,7 +156,7 @@ function getFileIcon(name: string) {
         <button
           v-if="!node.isDirectory && isZip"
           class="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground"
-          title="Extract ZIP"
+          :title="t('components.templateEditor.extractZip')"
           @click="emit('extract', node.path)"
         >
           <Archive class="size-3" />
@@ -163,14 +164,14 @@ function getFileIcon(name: string) {
         <button
           v-if="!node.isDirectory"
           class="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground"
-          title="Download"
+          :title="t('components.templateEditor.download')"
           @click="emit('download', node.path)"
         >
           <Download class="size-3" />
         </button>
         <button
           class="size-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive"
-          title="Delete"
+          :title="t('components.templateEditor.delete')"
           @click="emit('delete', node.path)"
         >
           <Trash2 class="size-3" />
@@ -188,7 +189,7 @@ function getFileIcon(name: string) {
         <input
           :value="newItemName"
           type="text"
-          :placeholder="showNewInput === 'dir' ? 'folder name' : 'file name'"
+          :placeholder="showNewInput === 'dir' ? t('components.templateEditor.folderName') : t('components.templateEditor.fileName')"
           class="flex-1 h-6 px-1.5 bg-glass rounded border border-glass-border text-foreground text-xs focus:outline-none focus:border-primary"
           autofocus
           @input="emit('update:newItemName', ($event.target as HTMLInputElement).value)"
