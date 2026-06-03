@@ -12,6 +12,7 @@
     "test": "vitest run",
     "i18n:check": "node i18n/check-locale-parity.mjs",
     "i18n:check-hardcoded": "node i18n/check-hardcoded.mjs",
+    "a11y:check": "node scripts/a11y-lint.mjs",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "typecheck": "nuxt typecheck",

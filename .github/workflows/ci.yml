@@ -91,6 +91,12 @@ jobs:
       - name: i18n hardcoded strings
         run: pnpm i18n:check-hardcoded
         working-directory: dashboard
+      # Static a11y guard — hard gate. Every <img> needs an alt and every
+      # icon-only control needs an accessible name (aria-label / sr-only). The
+      # H.2 pass drove this to zero; regressions fail CI.
+      - name: a11y lint
+        run: pnpm a11y:check
+        working-directory: dashboard
       # ESLint runs as a soft signal — pre-existing debt surfaces as a
       # GH Actions warning but does not fail the run. Track via v1.0.1.
       - name: Run pnpm lint (soft)
