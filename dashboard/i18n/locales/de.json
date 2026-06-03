@@ -813,6 +813,49 @@
         "url": "URL",
         "actions": "Aktionen"
       }
+    },
+    "tokens": {
+      "title": "Tokens",
+      "description": "Einmal-Join-Tokens für neue Daemons.",
+      "generate": "Token generieren",
+      "searchPlaceholder": "Nach Token-ID oder Node suchen …",
+      "emptyTitle": "Keine aktiven Tokens",
+      "emptyHint": "Generiere ein Token, um einen neuen Daemon online zu bringen.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen.",
+      "revoke": "Token widerrufen",
+      "columns": {
+        "tokenId": "Token-ID",
+        "node": "Node",
+        "expiry": "Ablauf",
+        "created": "Erstellt"
+      },
+      "expiry": {
+        "expired": "Abgelaufen",
+        "daysHours": "noch {days} T {hours} Std",
+        "hours": "noch {hours} Std"
+      },
+      "dialog": {
+        "title": "Join-Token generieren",
+        "oneTimeTitle": "Einmal-Geheimnis",
+        "oneTimeBody": "Das Token wird nur einmal angezeigt. Kopiere es, bevor du diesen Dialog schließt.",
+        "pinLabel": "An Node-ID binden (optional)",
+        "pinHint": "Wenn leer, wird ein ungebundenes Token ausgestellt, das jeder ausstehende Daemon einlösen kann.",
+        "generate": "Generieren",
+        "generating": "Wird generiert …"
+      },
+      "issued": {
+        "title": "Kopiere dieses Token jetzt",
+        "body": "Es wird nicht erneut angezeigt. Sobald du diesen Dialog schließt, ist nur noch ein Widerruf möglich.",
+        "runPrefix": "Führe",
+        "runSuffix": "auf dem neuen Host aus.",
+        "copy": "Kopieren",
+        "copied": "Kopiert",
+        "done": "Fertig",
+        "passwordTitle": "Behandle es wie ein Passwort.",
+        "passwordBody": "Jeder mit dem Token kann sich als der benannte Node registrieren und Zugriff auf Workload-Credentials erlangen.",
+        "revokeWarning": "Bei einem Leak sofort widerrufen."
+      }
     }
   },
   "components": {

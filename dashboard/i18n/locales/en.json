@@ -813,6 +813,49 @@
         "creating": "Creating…",
         "create": "Create"
       }
+    },
+    "tokens": {
+      "title": "Tokens",
+      "description": "Single-use join tokens for new daemons.",
+      "generate": "Generate token",
+      "searchPlaceholder": "Search by token id or node…",
+      "emptyTitle": "No active tokens",
+      "emptyHint": "Generate a token to bring a new daemon online.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "revoke": "Revoke token",
+      "columns": {
+        "tokenId": "Token ID",
+        "node": "Node",
+        "expiry": "Expiry",
+        "created": "Created"
+      },
+      "expiry": {
+        "expired": "Expired",
+        "daysHours": "{days}d {hours}h left",
+        "hours": "{hours}h left"
+      },
+      "dialog": {
+        "title": "Generate join token",
+        "oneTimeTitle": "One-time secret",
+        "oneTimeBody": "The token will be shown once. Copy it before closing this dialog.",
+        "pinLabel": "Pin to node ID (optional)",
+        "pinHint": "Leaving this empty issues an unpinned token any pending daemon can claim.",
+        "generate": "Generate",
+        "generating": "Generating…"
+      },
+      "issued": {
+        "title": "Copy this token now",
+        "body": "It won't be shown again. Once you close this dialog, only revocation is possible.",
+        "runPrefix": "Run",
+        "runSuffix": "on the new host.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "done": "Done",
+        "passwordTitle": "Treat this like a password.",
+        "passwordBody": "Anyone with the token can register as the named node and gain workload-credential access.",
+        "revokeWarning": "Revoke immediately if it leaks."
+      }
     }
   },
   "components": {
