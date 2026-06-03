@@ -33,6 +33,7 @@ async function fetchResolved() {
   } catch { /* leave empty */ }
 }
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const groupName = route.params.name as string
@@ -68,7 +69,7 @@ async function fetchGroup() {
     deployments.value = (deps?.data ?? []) as unknown as Deployment[]
 
   } catch {
-    toast.error("Can't load group", { description: `Group "${groupName}" couldn't be reached. It may have been deleted, or the controller is unreachable.` })
+    toast.error(t('pages.groupDetail.toast.loadFailedTitle'), { description: t('pages.groupDetail.toast.loadFailedDesc', { name: groupName }) })
     await router.push("/groups")
   } finally {
     loading.value = false
@@ -117,11 +118,11 @@ async function startGroup() {
   try {
     const count = startCount.value
     await useApiClient().POST('/api/v1/groups/{name}/start', { params: { path: { name: groupName } }, body: count > 1 ? { count } : {} })
-    toast.success(`${count > 1 ? count + ' instances' : 'Instance'} scheduled`, { description: `Starting for "${groupName}"` })
+    toast.success(t('pages.groupDetail.toast.scheduled', { count }, count), { description: t('pages.groupDetail.toast.scheduledDesc', { name: groupName }) })
     startOpen.value = false
     startCount.value = 1
   } catch {
-    toast.error("Start failed", { description: `Couldn't schedule instances for "${groupName}". Check that at least one node has capacity.` })
+    toast.error(t('pages.groupDetail.toast.startFailedTitle'), { description: t('pages.groupDetail.toast.startFailedDesc', { name: groupName }) })
   } finally {
     startLoading.value = false
   }
@@ -129,14 +130,14 @@ async function startGroup() {
 
 async function restartGroup() {
   await useApiClient().POST('/api/v1/groups/{name}/restart', { params: { path: { name: groupName } } })
-  toast.success("Rolling restart", { description: `Restarting instances for "${groupName}"` })
+  toast.success(t('pages.groupDetail.toast.restartTitle'), { description: t('pages.groupDetail.toast.restartDesc', { name: groupName }) })
   await fetchGroup()
 }
 
 async function deployGroup() {
   const client = useApiClient()
   await client.POST('/api/v1/groups/{name}/deploy', { params: { path: { name: groupName } } })
-  toast.success("Deployment triggered", { description: `Deploying "${groupName}"` })
+  toast.success(t('pages.groupDetail.toast.deployTitle'), { description: t('pages.groupDetail.toast.deployDesc', { name: groupName }) })
   const { data: deps } = await client.GET('/api/v1/groups/{name}/deployments', { params: { path: { name: groupName } } })
   deployments.value = (deps?.data ?? []) as unknown as Deployment[]
 }
@@ -144,7 +145,7 @@ async function deployGroup() {
 async function pauseDeployment(rev: number) {
   const client = useApiClient()
   await client.POST('/api/v1/groups/{name}/deployments/{rev}/pause', { params: { path: { name: groupName, rev } } })
-  toast.success("Deployment paused")
+  toast.success(t('pages.groupDetail.toast.deployPaused'))
   const { data: deps } = await client.GET('/api/v1/groups/{name}/deployments', { params: { path: { name: groupName } } })
   deployments.value = (deps?.data ?? []) as unknown as Deployment[]
 }
@@ -152,7 +153,7 @@ async function pauseDeployment(rev: number) {
 async function resumeDeployment(rev: number) {
   const client = useApiClient()
   await client.POST('/api/v1/groups/{name}/deployments/{rev}/resume', { params: { path: { name: groupName, rev } } })
-  toast.success("Deployment resumed")
+  toast.success(t('pages.groupDetail.toast.deployResumed'))
   const { data: deps } = await client.GET('/api/v1/groups/{name}/deployments', { params: { path: { name: groupName } } })
   deployments.value = (deps?.data ?? []) as unknown as Deployment[]
 }
@@ -160,7 +161,7 @@ async function resumeDeployment(rev: number) {
 async function rollbackDeployment(rev: number) {
   const client = useApiClient()
   await client.POST('/api/v1/groups/{name}/deployments/{rev}/rollback', { params: { path: { name: groupName, rev } } })
-  toast.success("Deployment rolled back")
+  toast.success(t('pages.groupDetail.toast.deployRolledBack'))
   const { data: deps } = await client.GET('/api/v1/groups/{name}/deployments', { params: { path: { name: groupName } } })
   deployments.value = (deps?.data ?? []) as unknown as Deployment[]
 }
@@ -172,10 +173,10 @@ async function deleteGroup() {
   confirmLoading.value = true
   try {
     await useApiClient().DELETE('/api/v1/groups/{name}', { params: { path: { name: groupName } } })
-    toast.success("Group deleted", { description: `"${groupName}" has been removed` })
+    toast.success(t('pages.groupDetail.toast.deletedTitle'), { description: t('pages.groupDetail.toast.deletedDesc', { name: groupName }) })
     await router.push("/groups")
   } catch {
-    toast.error("Delete failed", { description: `Couldn't delete "${groupName}". Stop running instances first, or check the controller logs.` })
+    toast.error(t('pages.groupDetail.toast.deleteFailedTitle'), { description: t('pages.groupDetail.toast.deleteFailedDesc', { name: groupName }) })
   } finally {
     confirmLoading.value = false
     confirmOpen.value = false
@@ -191,22 +192,22 @@ async function deleteGroup() {
         <ArrowLeft class="size-5" />
       </Button>
       <div class="flex-1 min-w-0">
-        <p class="eyebrow mb-1">Group</p>
+        <p class="eyebrow mb-1">{{ t('pages.groupDetail.group') }}</p>
         <div class="flex items-center gap-3">
           <h1 class="truncate text-2xl font-bold tracking-tight text-gradient-title">{{ groupName }}</h1>
-          <StatusBadge v-if="group?.maintenance" tone="warning" label="Maintenance" />
+          <StatusBadge v-if="group?.maintenance" tone="warning" :label="t('pages.groupDetail.maintenance')" />
         </div>
         <p v-if="group" class="mt-0.5 text-sm text-muted-foreground">{{ group.platform }} {{ group.platformVersion }}</p>
       </div>
       <div v-if="group" class="flex items-center gap-2 shrink-0">
         <Button variant="outline" class="border-glass-border" @click="startOpen = true">
-          <Zap class="size-4 mr-2" /> Start
+          <Zap class="size-4 mr-2" /> {{ t('pages.groupDetail.start') }}
         </Button>
         <Button variant="outline" class="border-glass-border" @click="restartGroup">
-          <RefreshCw class="size-4 mr-2" /> Restart
+          <RefreshCw class="size-4 mr-2" /> {{ t('pages.groupDetail.restart') }}
         </Button>
         <Button variant="outline" class="border-glass-border" @click="deployGroup">
-          <Rocket class="size-4 mr-2" /> Deploy
+          <Rocket class="size-4 mr-2" /> {{ t('pages.groupDetail.deploy') }}
         </Button>
       </div>
     </div>
@@ -214,7 +215,7 @@ async function deleteGroup() {
     <!-- Tab bar (proxy groups only, shown once loaded) -->
     <div v-if="!loading && isProxyGroup" class="flex gap-1 p-1 rounded-xl border border-glass-border bg-glass/60 backdrop-blur-xl w-fit">
       <button
-        v-for="tab in [{ id: 'overview', label: 'Overview', Icon: Activity }, { id: 'appearance', label: 'Appearance', Icon: Paintbrush }]"
+        v-for="tab in [{ id: 'overview', label: t('pages.groupDetail.tabs.overview'), Icon: Activity }, { id: 'appearance', label: t('pages.groupDetail.tabs.appearance'), Icon: Paintbrush }]"
         :key="tab.id"
         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
         :class="activeTab === tab.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'"
@@ -237,54 +238,54 @@ async function deleteGroup() {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <!-- Configuration -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Settings class="size-4" /> Configuration</h3>
+          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Settings class="size-4" /> {{ t('pages.groupDetail.configuration') }}</h3>
           <div class="flex flex-col gap-3">
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Platform</span><span class="text-sm text-foreground">{{ group.platform }} {{ group.platformVersion }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Templates</span><span class="text-sm text-foreground"><NuxtLink v-for="(t, i) in allTemplates" :key="t" :to="`/templates/${t}`" class="text-primary hover:underline">{{ t }}<span v-if="i < allTemplates.length - 1">, </span></NuxtLink></span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Routing</span><span class="text-sm text-foreground">{{ group.routing }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Port Range</span><span class="text-sm text-foreground tabular-nums">{{ group.portRangeStart }}–{{ group.portRangeEnd }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Update Strategy</span><span class="text-sm text-foreground">{{ group.updateStrategy }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Memory</span><span class="text-sm text-foreground tabular-nums">{{ group.memoryMb }} MB</span></div>
-            <div v-if="group.jvmArgs.length" class="flex justify-between"><span class="text-sm text-muted-foreground">JVM Args</span><span class="text-sm text-foreground font-mono text-xs truncate ml-4">{{ group.jvmArgs.join(' ') }}</span></div>
-            <div v-if="group.maxLifetimeSeconds" class="flex justify-between"><span class="text-sm text-muted-foreground">Max Lifetime</span><span class="text-sm text-foreground tabular-nums">{{ group.maxLifetimeSeconds }}s</span></div>
-            <div v-if="group.static" class="flex justify-between"><span class="text-sm text-muted-foreground">Static</span><span class="text-sm text-foreground">Yes</span></div>
-            <div v-if="group.staticInstanceNames?.length" class="flex justify-between"><span class="text-sm text-muted-foreground">Static Instances</span><span class="text-sm text-foreground">{{ group.staticInstanceNames.join(', ') }}</span></div>
-            <div v-if="group.fallbackGroup" class="flex justify-between"><span class="text-sm text-muted-foreground">Fallback</span><NuxtLink :to="`/groups/${group.fallbackGroup}`" class="text-sm font-medium text-primary hover:underline">{{ group.fallbackGroup }}</NuxtLink></div>
-            <div v-if="group.defaultGroup" class="flex justify-between"><span class="text-sm text-muted-foreground">Default Group</span><span class="text-sm text-foreground">Yes</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Priority</span><span class="text-sm text-foreground tabular-nums">{{ group.priority }}</span></div>
-            <div v-if="group.maintenance" class="flex justify-between"><span class="text-sm text-muted-foreground">Status</span><Badge variant="outline" class="text-xs text-warning">Maintenance</Badge></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.platform') }}</span><span class="text-sm text-foreground">{{ group.platform }} {{ group.platformVersion }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.templates') }}</span><span class="text-sm text-foreground"><NuxtLink v-for="(tpl, i) in allTemplates" :key="tpl" :to="`/templates/${tpl}`" class="text-primary hover:underline">{{ tpl }}<span v-if="i < allTemplates.length - 1">, </span></NuxtLink></span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.routing') }}</span><span class="text-sm text-foreground">{{ group.routing }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.portRange') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.portRangeStart }}–{{ group.portRangeEnd }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.updateStrategy') }}</span><span class="text-sm text-foreground">{{ group.updateStrategy }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.memory') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.memoryMb }} MB</span></div>
+            <div v-if="group.jvmArgs.length" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.jvmArgs') }}</span><span class="text-sm text-foreground font-mono text-xs truncate ml-4">{{ group.jvmArgs.join(' ') }}</span></div>
+            <div v-if="group.maxLifetimeSeconds" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.maxLifetime') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.maxLifetimeSeconds }}s</span></div>
+            <div v-if="group.static" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.static') }}</span><span class="text-sm text-foreground">{{ t('pages.groupDetail.yes') }}</span></div>
+            <div v-if="group.staticInstanceNames?.length" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.staticInstances') }}</span><span class="text-sm text-foreground">{{ group.staticInstanceNames.join(', ') }}</span></div>
+            <div v-if="group.fallbackGroup" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.fallback') }}</span><NuxtLink :to="`/groups/${group.fallbackGroup}`" class="text-sm font-medium text-primary hover:underline">{{ group.fallbackGroup }}</NuxtLink></div>
+            <div v-if="group.defaultGroup" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.defaultGroup') }}</span><span class="text-sm text-foreground">{{ t('pages.groupDetail.yes') }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.priority') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.priority }}</span></div>
+            <div v-if="group.maintenance" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.config.status') }}</span><Badge variant="outline" class="text-xs text-warning">{{ t('pages.groupDetail.maintenance') }}</Badge></div>
           </div>
         </div>
 
         <!-- Scaling -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Activity class="size-4" /> Scaling</h3>
+          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Activity class="size-4" /> {{ t('pages.groupDetail.scaling') }}</h3>
           <div class="flex flex-col gap-3">
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Mode</span><Badge variant="outline" :class="['text-xs', SCALING_MODE_CONFIG[group.scalingMode]?.color]">{{ SCALING_MODE_CONFIG[group.scalingMode]?.label }}</Badge></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Instances</span><span class="text-sm text-foreground tabular-nums">{{ group.runningInstances }} running ({{ group.minInstances }}–{{ group.maxInstances }})</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Players</span><span class="text-sm text-foreground tabular-nums">{{ group.totalPlayers }} / {{ group.maxPlayers }}</span></div>
-            <div v-if="group.scalingMode === 'DYNAMIC'" class="flex justify-between"><span class="text-sm text-muted-foreground">Scale Up Threshold</span><span class="text-sm text-foreground tabular-nums">{{ group.scaleUpThreshold }}%</span></div>
-            <div v-if="group.scalingMode === 'DYNAMIC'" class="flex justify-between"><span class="text-sm text-muted-foreground">Scale Down After</span><span class="text-sm text-foreground tabular-nums">{{ group.scaleDownAfterSeconds }}s</span></div>
-            <div v-if="group.scalingMode === 'DYNAMIC'" class="flex justify-between"><span class="text-sm text-muted-foreground">Cooldown</span><span class="text-sm text-foreground tabular-nums">{{ group.scaleCooldownSeconds }}s</span></div>
-            <div v-if="group.predictiveScaling" class="flex justify-between"><span class="text-sm text-muted-foreground">Predictive</span><span class="text-sm text-foreground">Enabled (margin {{ group.scaleUpMargin }})</span></div>
-            <div v-if="group.predictiveScaling && group.burstCeiling" class="flex justify-between"><span class="text-sm text-muted-foreground">Burst Ceiling</span><span class="text-sm text-foreground tabular-nums">{{ group.burstCeiling }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Startup Timeout</span><span class="text-sm text-foreground tabular-nums">{{ group.startupTimeoutSeconds }}s</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Shutdown Grace</span><span class="text-sm text-foreground tabular-nums">{{ group.shutdownGraceSeconds }}s</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.mode') }}</span><Badge variant="outline" :class="['text-xs', SCALING_MODE_CONFIG[group.scalingMode]?.color]">{{ SCALING_MODE_CONFIG[group.scalingMode]?.label }}</Badge></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.instances') }}</span><span class="text-sm text-foreground tabular-nums">{{ t('pages.groupDetail.scalingFields.instancesValue', { running: group.runningInstances, min: group.minInstances, max: group.maxInstances }) }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.players') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.totalPlayers }} / {{ group.maxPlayers }}</span></div>
+            <div v-if="group.scalingMode === 'DYNAMIC'" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.scaleUpThreshold') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.scaleUpThreshold }}%</span></div>
+            <div v-if="group.scalingMode === 'DYNAMIC'" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.scaleDownAfter') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.scaleDownAfterSeconds }}s</span></div>
+            <div v-if="group.scalingMode === 'DYNAMIC'" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.cooldown') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.scaleCooldownSeconds }}s</span></div>
+            <div v-if="group.predictiveScaling" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.predictive') }}</span><span class="text-sm text-foreground">{{ t('pages.groupDetail.scalingFields.predictiveValue', { margin: group.scaleUpMargin }) }}</span></div>
+            <div v-if="group.predictiveScaling && group.burstCeiling" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.burstCeiling') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.burstCeiling }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.startupTimeout') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.startupTimeoutSeconds }}s</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.scalingFields.shutdownGrace') }}</span><span class="text-sm text-foreground tabular-nums">{{ group.shutdownGraceSeconds }}s</span></div>
           </div>
         </div>
       </div>
 
       <!-- Live Instances -->
       <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-        <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Box class="size-4" /> Instances</h3>
-        <div v-if="groupInstances.length === 0" class="text-sm text-muted-foreground text-center py-6">No instances running</div>
+        <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Box class="size-4" /> {{ t('pages.groupDetail.instances') }}</h3>
+        <div v-if="groupInstances.length === 0" class="text-sm text-muted-foreground text-center py-6">{{ t('pages.groupDetail.noInstances') }}</div>
         <div v-else class="overflow-hidden rounded-xl border border-glass-border">
           <div class="flex items-center h-9 px-4 border-b border-glass-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <div class="w-44 shrink-0">Instance</div>
-            <div class="w-32 shrink-0">Node</div>
-            <div class="w-24 shrink-0 text-center">State</div>
-            <div class="w-20 shrink-0 text-right">Players</div>
-            <div class="flex-1 text-right">Uptime</div>
+            <div class="w-44 shrink-0">{{ t('pages.groupDetail.instColumns.instance') }}</div>
+            <div class="w-32 shrink-0">{{ t('pages.groupDetail.instColumns.node') }}</div>
+            <div class="w-24 shrink-0 text-center">{{ t('pages.groupDetail.instColumns.state') }}</div>
+            <div class="w-20 shrink-0 text-right">{{ t('pages.groupDetail.instColumns.players') }}</div>
+            <div class="flex-1 text-right">{{ t('pages.groupDetail.instColumns.uptime') }}</div>
           </div>
           <div v-for="inst in groupInstances" :key="inst.id" class="flex items-center h-10 px-4 border-b border-glass-border/50 last:border-0 cursor-pointer hover:bg-glass-hover transition-colors" @click="navigateTo(`/instances/${inst.id}`)">
             <div class="w-44 shrink-0 flex items-center gap-2">
@@ -305,24 +306,24 @@ async function deleteGroup() {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <!-- Node Affinity -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Server class="size-4" /> Node Affinity</h3>
+          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Server class="size-4" /> {{ t('pages.groupDetail.nodeAffinity') }}</h3>
           <div class="flex flex-col gap-3">
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Affinity</span><span class="text-sm text-foreground">{{ group.nodeAffinity.join(', ') || 'Any' }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Anti-Affinity</span><span class="text-sm text-foreground">{{ group.nodeAntiAffinity.join(', ') || 'None' }}</span></div>
-            <div class="flex justify-between"><span class="text-sm text-muted-foreground">Spread</span><span class="text-sm text-foreground">{{ group.spreadConstraint || 'None' }}</span></div>
-            <div v-if="group.dependsOn.length" class="flex justify-between"><span class="text-sm text-muted-foreground">Depends On</span><span class="text-sm text-foreground">{{ group.dependsOn.join(', ') }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.affinity.affinity') }}</span><span class="text-sm text-foreground">{{ group.nodeAffinity.join(', ') || t('pages.groupDetail.any') }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.affinity.antiAffinity') }}</span><span class="text-sm text-foreground">{{ group.nodeAntiAffinity.join(', ') || t('pages.groupDetail.none') }}</span></div>
+            <div class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.affinity.spread') }}</span><span class="text-sm text-foreground">{{ group.spreadConstraint || t('pages.groupDetail.none') }}</span></div>
+            <div v-if="group.dependsOn.length" class="flex justify-between"><span class="text-sm text-muted-foreground">{{ t('pages.groupDetail.affinity.dependsOn') }}</span><span class="text-sm text-foreground">{{ group.dependsOn.join(', ') }}</span></div>
           </div>
         </div>
 
         <!-- Deployments -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Clock class="size-4" /> Deployments</h3>
-          <div v-if="deployments.length === 0" class="text-sm text-muted-foreground text-center py-6">No deployments yet</div>
+          <h3 class="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Clock class="size-4" /> {{ t('pages.groupDetail.deployments') }}</h3>
+          <div v-if="deployments.length === 0" class="text-sm text-muted-foreground text-center py-6">{{ t('pages.groupDetail.noDeployments') }}</div>
           <div v-else class="flex flex-col gap-2 max-h-80 overflow-auto styled-scrollbar pr-1">
             <div v-for="d in deployments.slice(0, 15)" :key="d.id" class="p-3 rounded-xl border border-glass-border">
               <div class="flex items-center justify-between mb-1">
                 <div class="flex items-center gap-2">
-                  <span class="text-sm font-medium text-foreground">Rev {{ d.revision }}</span>
+                  <span class="text-sm font-medium text-foreground">{{ t('pages.groupDetail.revLabel', { rev: d.revision }) }}</span>
                   <Badge variant="outline" :class="['text-[10px]', DEPLOY_STATE_CONFIG[d.state]?.color ?? 'text-muted-foreground']">
                     {{ DEPLOY_STATE_CONFIG[d.state]?.label ?? d.state }}
                   </Badge>
@@ -335,7 +336,7 @@ async function deleteGroup() {
                   <button
                     v-if="d.state === 'IN_PROGRESS'"
                     class="p-1 rounded text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors"
-                    title="Pause"
+                    :title="t('pages.groupDetail.pause')"
                     @click="pauseDeployment(d.revision)"
                   >
                     <Pause class="size-3.5" />
@@ -343,7 +344,7 @@ async function deleteGroup() {
                   <button
                     v-if="d.state === 'PAUSED'"
                     class="p-1 rounded text-muted-foreground hover:text-success hover:bg-success/10 transition-colors"
-                    title="Resume"
+                    :title="t('pages.groupDetail.resume')"
                     @click="resumeDeployment(d.revision)"
                   >
                     <Play class="size-3.5" />
@@ -351,7 +352,7 @@ async function deleteGroup() {
                   <button
                     v-if="d.state === 'COMPLETED' || d.state === 'FAILED'"
                     class="p-1 rounded text-muted-foreground hover:text-warning hover:bg-warning/10 transition-colors"
-                    title="Rollback"
+                    :title="t('pages.groupDetail.rollback')"
                     @click="rollbackDeployment(d.revision)"
                   >
                     <RotateCcw class="size-3.5" />
@@ -365,13 +366,13 @@ async function deleteGroup() {
 
       <!-- Resolved configuration — flattened template + JVM + env after inheritance -->
       <div v-if="resolved" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6 space-y-4">
-        <h2 class="flex items-center gap-2 text-base font-semibold"><Activity class="size-4" /> Resolved configuration</h2>
+        <h2 class="flex items-center gap-2 text-base font-semibold"><Activity class="size-4" /> {{ t('pages.groupDetail.resolvedConfig') }}</h2>
 
         <section v-if="resolved.templateChain?.length" class="space-y-2">
-          <Eyebrow>Template chain</Eyebrow>
+          <Eyebrow>{{ t('pages.groupDetail.templateChain') }}</Eyebrow>
           <div class="flex flex-wrap items-center gap-1.5">
-            <template v-for="(t, i) in resolved.templateChain" :key="t">
-              <NuxtLink :to="`/templates/${t}`" class="inline-flex items-center rounded-md border border-glass-border bg-glass px-2 py-0.5 mono text-[11px] text-primary hover:bg-glass-hover">{{ t }}</NuxtLink>
+            <template v-for="(tpl, i) in resolved.templateChain" :key="tpl">
+              <NuxtLink :to="`/templates/${tpl}`" class="inline-flex items-center rounded-md border border-glass-border bg-glass px-2 py-0.5 mono text-[11px] text-primary hover:bg-glass-hover">{{ tpl }}</NuxtLink>
               <span v-if="i < resolved.templateChain.length - 1" class="text-muted-foreground/50">→</span>
             </template>
           </div>
@@ -379,26 +380,26 @@ async function deleteGroup() {
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div class="rounded-md border border-glass-border bg-glass/40 px-3 py-2">
-            <p class="eyebrow mb-1">Files</p>
+            <p class="eyebrow mb-1">{{ t('pages.groupDetail.resolved.files') }}</p>
             <p class="text-lg font-semibold tabular">{{ resolved.resolvedFiles ?? 0 }}</p>
           </div>
           <div class="rounded-md border border-glass-border bg-glass/40 px-3 py-2">
-            <p class="eyebrow mb-1">Config patches</p>
+            <p class="eyebrow mb-1">{{ t('pages.groupDetail.resolved.configPatches') }}</p>
             <p class="text-lg font-semibold tabular">{{ resolved.resolvedConfigPatches ?? 0 }}</p>
           </div>
           <div class="rounded-md border border-glass-border bg-glass/40 px-3 py-2">
-            <p class="eyebrow mb-1">JVM args</p>
+            <p class="eyebrow mb-1">{{ t('pages.groupDetail.resolved.jvmArgs') }}</p>
             <p class="text-lg font-semibold tabular">{{ resolved.resolvedJvmArgs?.length ?? 0 }}</p>
           </div>
         </div>
 
         <section v-if="resolved.resolvedJvmArgs?.length" class="space-y-2">
-          <Eyebrow>JVM args (resolved)</Eyebrow>
+          <Eyebrow>{{ t('pages.groupDetail.resolved.jvmArgsResolved') }}</Eyebrow>
           <CodeBlock :code="resolved.resolvedJvmArgs.join(' ')" :show-line-numbers="false" />
         </section>
 
         <section v-if="resolved.resolvedEnv && Object.keys(resolved.resolvedEnv).length" class="space-y-2">
-          <Eyebrow>Environment (resolved)</Eyebrow>
+          <Eyebrow>{{ t('pages.groupDetail.resolved.envResolved') }}</Eyebrow>
           <div class="space-y-1">
             <div v-for="(v, k) in resolved.resolvedEnv" :key="k" class="flex justify-between rounded-md border border-glass-border bg-glass/40 px-3 py-1.5 mono text-xs">
               <span class="text-muted-foreground">{{ k }}</span>
@@ -416,8 +417,8 @@ async function deleteGroup() {
               <Trash2 class="size-5 text-destructive" />
             </div>
             <div>
-              <h2 class="text-base font-semibold">Delete group</h2>
-              <p class="mt-1 text-sm text-muted-foreground">Permanently delete this group and stop all running instances. This action cannot be undone.</p>
+              <h2 class="text-base font-semibold">{{ t('pages.groupDetail.dangerTitle') }}</h2>
+              <p class="mt-1 text-sm text-muted-foreground">{{ t('pages.groupDetail.dangerBody') }}</p>
             </div>
           </div>
           <Button
@@ -426,7 +427,7 @@ async function deleteGroup() {
             @click="confirmOpen = true"
           >
             <Trash2 class="size-4 mr-2" />
-            Delete
+            {{ t('pages.groupDetail.delete') }}
           </Button>
         </div>
       </div>
@@ -445,14 +446,14 @@ async function deleteGroup() {
               <Zap class="size-5 text-primary" />
             </div>
             <div class="text-center">
-              <DialogTitle class="text-sm font-bold text-foreground">Start instances</DialogTitle>
+              <DialogTitle class="text-sm font-bold text-foreground">{{ t('pages.groupDetail.startDialog.title') }}</DialogTitle>
               <DialogDescription class="text-xs text-muted-foreground mt-0.5">{{ groupName }}</DialogDescription>
             </div>
           </div>
         </div>
         <div class="px-6 pb-6 flex flex-col gap-5 pt-4">
           <div class="flex flex-col gap-1">
-            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">Count</span>
+            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('pages.groupDetail.startDialog.count') }}</span>
             <Slider
               :model-value="[startCount]"
               :min="1"
@@ -465,10 +466,10 @@ async function deleteGroup() {
           </div>
           <DialogFooter class="flex-row! gap-2 pt-4 border-t border-glass-border">
             <div class="flex-1" />
-            <Button variant="outline" class="border-glass-border" @click="startOpen = false">Cancel</Button>
+            <Button variant="outline" class="border-glass-border" @click="startOpen = false">{{ t('common.cancel') }}</Button>
             <Button class="bg-primary hover:bg-primary/90 text-primary-foreground" :disabled="startLoading" @click="startGroup">
               <Loader2 v-if="startLoading" class="size-4 mr-1.5 animate-spin" />
-              {{ startLoading ? 'Starting…' : startCount > 1 ? `Start ${startCount} instances` : 'Start instance' }}
+              {{ startLoading ? t('pages.groupDetail.startDialog.starting') : startCount > 1 ? t('pages.groupDetail.startDialog.startN', { count: startCount }) : t('pages.groupDetail.startDialog.startOne') }}
             </Button>
           </DialogFooter>
         </div>
@@ -477,9 +478,9 @@ async function deleteGroup() {
 
     <ConfirmDialog
       :open="confirmOpen"
-      title="Delete group?"
-      :description="`Delete group &quot;${groupName}&quot;. All running instances will be stopped and the group configuration will be permanently removed.`"
-      confirm-label="Delete"
+      :title="t('pages.groupDetail.confirmDeleteTitle')"
+      :description="t('pages.groupDetail.confirmDeleteDesc', { name: groupName })"
+      :confirm-label="t('pages.groupDetail.delete')"
       :loading="confirmLoading"
       @update:open="confirmOpen = $event"
       @confirm="deleteGroup"

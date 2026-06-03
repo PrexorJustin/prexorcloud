@@ -1309,6 +1309,142 @@
         "installFailedTitle": "Install failed",
         "unknownError": "Unknown error"
       }
+    },
+    "catalogPlatform": {
+      "platform": "Platform",
+      "unknownFormat": "Unknown format",
+      "na": "N/A",
+      "none": "None",
+      "versions": "Versions",
+      "noVersions": "No versions yet",
+      "markRecommended": "Mark as recommended",
+      "deleteVersion": "Delete version",
+      "usedByGroups": "Used by groups",
+      "confirmDeleteTitle": "Delete version?",
+      "confirmDeleteDesc": "Remove version '{version}' from {platform}. This action cannot be undone.",
+      "delete": "Delete",
+      "info": {
+        "category": "Category",
+        "configFormat": "Config format",
+        "recommended": "Recommended",
+        "template": "Template"
+      },
+      "toast": {
+        "notFoundTitle": "Platform not found",
+        "notFoundDesc": "'{platform}' isn't registered in the catalog. Check the URL or add it from the catalog page.",
+        "loadFailedTitle": "Can't load catalog",
+        "loadFailedDesc": "The controller may be unreachable. Try again, or check the controller logs.",
+        "actionFailedTitle": "Action failed",
+        "actionFailedDesc": "Try again, or check the controller logs."
+      }
+    },
+    "groupDetail": {
+      "group": "Group",
+      "maintenance": "Maintenance",
+      "start": "Start",
+      "restart": "Restart",
+      "deploy": "Deploy",
+      "tabs": {
+        "overview": "Overview",
+        "appearance": "Appearance"
+      },
+      "configuration": "Configuration",
+      "config": {
+        "platform": "Platform",
+        "templates": "Templates",
+        "routing": "Routing",
+        "portRange": "Port Range",
+        "updateStrategy": "Update Strategy",
+        "memory": "Memory",
+        "jvmArgs": "JVM Args",
+        "maxLifetime": "Max Lifetime",
+        "static": "Static",
+        "staticInstances": "Static Instances",
+        "fallback": "Fallback",
+        "defaultGroup": "Default Group",
+        "priority": "Priority",
+        "status": "Status"
+      },
+      "yes": "Yes",
+      "scaling": "Scaling",
+      "scalingFields": {
+        "mode": "Mode",
+        "instances": "Instances",
+        "instancesValue": "{running} running ({min}–{max})",
+        "players": "Players",
+        "scaleUpThreshold": "Scale Up Threshold",
+        "scaleDownAfter": "Scale Down After",
+        "cooldown": "Cooldown",
+        "predictive": "Predictive",
+        "predictiveValue": "Enabled (margin {margin})",
+        "burstCeiling": "Burst Ceiling",
+        "startupTimeout": "Startup Timeout",
+        "shutdownGrace": "Shutdown Grace"
+      },
+      "instances": "Instances",
+      "noInstances": "No instances running",
+      "instColumns": {
+        "instance": "Instance",
+        "node": "Node",
+        "state": "State",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "nodeAffinity": "Node Affinity",
+      "affinity": {
+        "affinity": "Affinity",
+        "antiAffinity": "Anti-Affinity",
+        "spread": "Spread",
+        "dependsOn": "Depends On"
+      },
+      "any": "Any",
+      "none": "None",
+      "deployments": "Deployments",
+      "noDeployments": "No deployments yet",
+      "revLabel": "Rev {rev}",
+      "pause": "Pause",
+      "resume": "Resume",
+      "rollback": "Rollback",
+      "resolvedConfig": "Resolved configuration",
+      "templateChain": "Template chain",
+      "resolved": {
+        "files": "Files",
+        "configPatches": "Config patches",
+        "jvmArgs": "JVM args",
+        "jvmArgsResolved": "JVM args (resolved)",
+        "envResolved": "Environment (resolved)"
+      },
+      "dangerTitle": "Delete group",
+      "dangerBody": "Permanently delete this group and stop all running instances. This action cannot be undone.",
+      "delete": "Delete",
+      "startDialog": {
+        "title": "Start instances",
+        "count": "Count",
+        "starting": "Starting…",
+        "startN": "Start {count} instances",
+        "startOne": "Start instance"
+      },
+      "confirmDeleteTitle": "Delete group?",
+      "confirmDeleteDesc": "Delete group \"{name}\". All running instances will be stopped and the group configuration will be permanently removed.",
+      "toast": {
+        "loadFailedTitle": "Can't load group",
+        "loadFailedDesc": "Group \"{name}\" couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "scheduled": "Instance scheduled | {count} instances scheduled",
+        "scheduledDesc": "Starting for \"{name}\"",
+        "startFailedTitle": "Start failed",
+        "startFailedDesc": "Couldn't schedule instances for \"{name}\". Check that at least one node has capacity.",
+        "restartTitle": "Rolling restart",
+        "restartDesc": "Restarting instances for \"{name}\"",
+        "deployTitle": "Deployment triggered",
+        "deployDesc": "Deploying \"{name}\"",
+        "deployPaused": "Deployment paused",
+        "deployResumed": "Deployment resumed",
+        "deployRolledBack": "Deployment rolled back",
+        "deletedTitle": "Group deleted",
+        "deletedDesc": "\"{name}\" has been removed",
+        "deleteFailedTitle": "Delete failed",
+        "deleteFailedDesc": "Couldn't delete \"{name}\". Stop running instances first, or check the controller logs."
+      }
     }
   },
   "components": {

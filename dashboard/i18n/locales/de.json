@@ -1309,6 +1309,142 @@
         "installFailedTitle": "Installation fehlgeschlagen",
         "unknownError": "Unbekannter Fehler"
       }
+    },
+    "catalogPlatform": {
+      "platform": "Plattform",
+      "unknownFormat": "Unbekanntes Format",
+      "na": "k. A.",
+      "none": "Keine",
+      "versions": "Versionen",
+      "noVersions": "Noch keine Versionen",
+      "markRecommended": "Als empfohlen markieren",
+      "deleteVersion": "Version löschen",
+      "usedByGroups": "Von Gruppen genutzt",
+      "confirmDeleteTitle": "Version löschen?",
+      "confirmDeleteDesc": "Version „{version}“ aus {platform} entfernen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete": "Löschen",
+      "info": {
+        "category": "Kategorie",
+        "configFormat": "Config-Format",
+        "recommended": "Empfohlen",
+        "template": "Template"
+      },
+      "toast": {
+        "notFoundTitle": "Plattform nicht gefunden",
+        "notFoundDesc": "„{platform}“ ist nicht im Katalog registriert. Prüfe die URL oder füge sie auf der Katalog-Seite hinzu.",
+        "loadFailedTitle": "Katalog kann nicht geladen werden",
+        "loadFailedDesc": "Der Controller ist möglicherweise nicht erreichbar. Versuche es erneut oder prüfe die Controller-Logs.",
+        "actionFailedTitle": "Aktion fehlgeschlagen",
+        "actionFailedDesc": "Versuche es erneut oder prüfe die Controller-Logs."
+      }
+    },
+    "groupDetail": {
+      "group": "Gruppe",
+      "maintenance": "Wartung",
+      "start": "Starten",
+      "restart": "Neustarten",
+      "deploy": "Deployen",
+      "tabs": {
+        "overview": "Übersicht",
+        "appearance": "Erscheinungsbild"
+      },
+      "configuration": "Konfiguration",
+      "config": {
+        "platform": "Plattform",
+        "templates": "Templates",
+        "routing": "Routing",
+        "portRange": "Port-Bereich",
+        "updateStrategy": "Update-Strategie",
+        "memory": "Arbeitsspeicher",
+        "jvmArgs": "JVM-Argumente",
+        "maxLifetime": "Max. Laufzeit",
+        "static": "Statisch",
+        "staticInstances": "Statische Instanzen",
+        "fallback": "Fallback",
+        "defaultGroup": "Standard-Gruppe",
+        "priority": "Priorität",
+        "status": "Status"
+      },
+      "yes": "Ja",
+      "scaling": "Skalierung",
+      "scalingFields": {
+        "mode": "Modus",
+        "instances": "Instanzen",
+        "instancesValue": "{running} laufend ({min}–{max})",
+        "players": "Spieler",
+        "scaleUpThreshold": "Scale-Up-Schwelle",
+        "scaleDownAfter": "Scale-Down nach",
+        "cooldown": "Cooldown",
+        "predictive": "Prädiktiv",
+        "predictiveValue": "Aktiviert (Marge {margin})",
+        "burstCeiling": "Burst-Limit",
+        "startupTimeout": "Start-Timeout",
+        "shutdownGrace": "Shutdown-Karenz"
+      },
+      "instances": "Instanzen",
+      "noInstances": "Keine Instanzen laufen",
+      "instColumns": {
+        "instance": "Instanz",
+        "node": "Node",
+        "state": "Status",
+        "players": "Spieler",
+        "uptime": "Laufzeit"
+      },
+      "nodeAffinity": "Node-Affinität",
+      "affinity": {
+        "affinity": "Affinität",
+        "antiAffinity": "Anti-Affinität",
+        "spread": "Verteilung",
+        "dependsOn": "Hängt ab von"
+      },
+      "any": "Beliebig",
+      "none": "Keine",
+      "deployments": "Deployments",
+      "noDeployments": "Noch keine Deployments",
+      "revLabel": "Rev {rev}",
+      "pause": "Pausieren",
+      "resume": "Fortsetzen",
+      "rollback": "Zurückrollen",
+      "resolvedConfig": "Aufgelöste Konfiguration",
+      "templateChain": "Template-Kette",
+      "resolved": {
+        "files": "Dateien",
+        "configPatches": "Config-Patches",
+        "jvmArgs": "JVM-Argumente",
+        "jvmArgsResolved": "JVM-Argumente (aufgelöst)",
+        "envResolved": "Umgebung (aufgelöst)"
+      },
+      "dangerTitle": "Gruppe löschen",
+      "dangerBody": "Diese Gruppe dauerhaft löschen und alle laufenden Instanzen stoppen. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete": "Löschen",
+      "startDialog": {
+        "title": "Instanzen starten",
+        "count": "Anzahl",
+        "starting": "Wird gestartet …",
+        "startN": "{count} Instanzen starten",
+        "startOne": "Instanz starten"
+      },
+      "confirmDeleteTitle": "Gruppe löschen?",
+      "confirmDeleteDesc": "Gruppe „{name}“ löschen. Alle laufenden Instanzen werden gestoppt und die Gruppen-Konfiguration wird dauerhaft entfernt.",
+      "toast": {
+        "loadFailedTitle": "Gruppe kann nicht geladen werden",
+        "loadFailedDesc": "Gruppe „{name}“ konnte nicht erreicht werden. Sie wurde möglicherweise gelöscht, oder der Controller ist nicht erreichbar.",
+        "scheduled": "Instanz eingeplant | {count} Instanzen eingeplant",
+        "scheduledDesc": "Wird für „{name}“ gestartet",
+        "startFailedTitle": "Start fehlgeschlagen",
+        "startFailedDesc": "Instanzen für „{name}“ konnten nicht eingeplant werden. Prüfe, ob mindestens ein Node Kapazität hat.",
+        "restartTitle": "Rolling-Restart",
+        "restartDesc": "Instanzen für „{name}“ werden neu gestartet",
+        "deployTitle": "Deployment ausgelöst",
+        "deployDesc": "„{name}“ wird deployt",
+        "deployPaused": "Deployment pausiert",
+        "deployResumed": "Deployment fortgesetzt",
+        "deployRolledBack": "Deployment zurückgerollt",
+        "deletedTitle": "Gruppe gelöscht",
+        "deletedDesc": "„{name}“ wurde entfernt",
+        "deleteFailedTitle": "Löschen fehlgeschlagen",
+        "deleteFailedDesc": "„{name}“ konnte nicht gelöscht werden. Stoppe zuerst die laufenden Instanzen oder prüfe die Controller-Logs."
+      }
     }
   },
   "components": {

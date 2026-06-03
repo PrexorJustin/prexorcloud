@@ -5,6 +5,7 @@ import type { CatalogEntry } from "~/types/api"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const platformName = route.params.platform as string
@@ -18,11 +19,11 @@ async function fetchData() {
   try {
     await store.fetchCatalog()
     if (!store.entries.find(e => e.platform === platformName)) {
-      toast.error("Platform not found", { description: `'${platformName}' isn't registered in the catalog. Check the URL or add it from the catalog page.` })
+      toast.error(t('pages.catalogPlatform.toast.notFoundTitle'), { description: t('pages.catalogPlatform.toast.notFoundDesc', { platform: platformName }) })
       await router.push("/catalog")
     }
   } catch {
-    toast.error("Can't load catalog", { description: "The controller may be unreachable. Try again, or check the controller logs." })
+    toast.error(t('pages.catalogPlatform.toast.loadFailedTitle'), { description: t('pages.catalogPlatform.toast.loadFailedDesc') })
     await router.push("/catalog")
   } finally {
     loading.value = false
@@ -42,13 +43,15 @@ onMounted(() => {
 
 const entry = computed(() => store.entries.find(e => e.platform === platformName) ?? null)
 
-const defaultCategoryConfig = { label: "Server", color: "text-success", icon: Package }
-const categoryConfig: Record<string, { label: string; color: string; icon: typeof Package }> = {
-  SERVER: defaultCategoryConfig,
-  PROXY: { label: "Proxy", color: "text-primary", icon: Network },
-}
+const categoryConfig = computed<Record<string, { label: string; color: string; icon: typeof Package }>>(() => ({
+  SERVER: { label: t("pages.catalog.category.server"), color: "text-success", icon: Package },
+  PROXY: { label: t("pages.catalog.category.proxy"), color: "text-primary", icon: Network },
+}))
 
-const config = computed(() => (entry.value ? categoryConfig[entry.value.category] ?? defaultCategoryConfig : defaultCategoryConfig))
+const config = computed(() => {
+  const fallback = categoryConfig.value.SERVER!
+  return entry.value ? categoryConfig.value[entry.value.category] ?? fallback : fallback
+})
 
 const sortedVersions = computed(() =>
   entry.value
@@ -60,7 +63,7 @@ const sortedVersions = computed(() =>
     : [],
 )
 
-const recommendedVersion = computed(() => entry.value?.versions.find(v => v.recommended)?.version ?? "None")
+const recommendedVersion = computed(() => entry.value?.versions.find(v => v.recommended)?.version ?? t("pages.catalogPlatform.none"))
 
 // Delete confirmation
 const confirmOpen = ref(false)
@@ -82,7 +85,7 @@ async function onConfirmDelete() {
       await router.push("/catalog")
     }
   } catch {
-    toast.error("Action failed", { description: "Try again, or check the controller logs." })
+    toast.error(t('pages.catalogPlatform.toast.actionFailedTitle'), { description: t('pages.catalogPlatform.toast.actionFailedDesc') })
   } finally {
     deleting.value = false
   }
@@ -95,7 +98,7 @@ async function markRecommended(version: string) {
   try {
     await store.markRecommended(platformName, version)
   } catch {
-    toast.error("Action failed", { description: "Try again, or check the controller logs." })
+    toast.error(t('pages.catalogPlatform.toast.actionFailedTitle'), { description: t('pages.catalogPlatform.toast.actionFailedDesc') })
   } finally {
     marking.value = null
   }
@@ -110,9 +113,9 @@ async function markRecommended(version: string) {
         <ArrowLeft class="size-5" />
       </Button>
       <div class="flex-1 min-w-0">
-        <p class="eyebrow mb-1">Platform</p>
+        <p class="eyebrow mb-1">{{ t('pages.catalogPlatform.platform') }}</p>
         <h1 class="text-2xl font-bold tracking-tight text-gradient-title mono">{{ platformName }}</h1>
-        <p v-if="entry" class="mt-0.5 text-sm text-muted-foreground">{{ entry.configFormat ?? 'Unknown format' }}</p>
+        <p v-if="entry" class="mt-0.5 text-sm text-muted-foreground">{{ entry.configFormat ?? t('pages.catalogPlatform.unknownFormat') }}</p>
       </div>
     </div>
 
@@ -128,22 +131,22 @@ async function markRecommended(version: string) {
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <!-- Platform Info -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><component :is="config.icon" class="size-4" /> Platform</h2>
+          <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><component :is="config.icon" class="size-4" /> {{ t('pages.catalogPlatform.platform') }}</h2>
           <div class="flex flex-col gap-3">
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Category</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.catalogPlatform.info.category') }}</span>
               <Badge variant="outline" :class="['text-xs', config.color]">{{ config.label }}</Badge>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Config format</span>
-              <span class="text-sm text-foreground">{{ entry.configFormat ?? 'N/A' }}</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.catalogPlatform.info.configFormat') }}</span>
+              <span class="text-sm text-foreground">{{ entry.configFormat ?? t('pages.catalogPlatform.na') }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Recommended</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.catalogPlatform.info.recommended') }}</span>
               <span class="text-sm font-medium text-primary">{{ recommendedVersion }}</span>
             </div>
             <div class="flex justify-between">
-              <span class="text-sm text-muted-foreground">Template</span>
+              <span class="text-sm text-muted-foreground">{{ t('pages.catalogPlatform.info.template') }}</span>
               <NuxtLink
                 :to="`/templates/base-${entry.platform}`"
                 class="inline-flex items-center gap-1 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
@@ -158,11 +161,11 @@ async function markRecommended(version: string) {
         <!-- Versions -->
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
           <div class="flex items-center justify-between mb-4">
-            <h2 class="flex items-center gap-2 text-base font-semibold"><Star class="size-4" /> Versions</h2>
+            <h2 class="flex items-center gap-2 text-base font-semibold"><Star class="size-4" /> {{ t('pages.catalogPlatform.versions') }}</h2>
             <CatalogAddVersionDialog :platform="entry.platform" />
           </div>
           <div v-if="sortedVersions.length === 0" class="text-center py-6">
-            <p class="text-sm text-muted-foreground">No versions yet</p>
+            <p class="text-sm text-muted-foreground">{{ t('pages.catalogPlatform.noVersions') }}</p>
           </div>
           <div v-else class="flex flex-col gap-2 max-h-96 overflow-auto styled-scrollbar pr-1">
             <div
@@ -191,7 +194,7 @@ async function markRecommended(version: string) {
                 <button
                   v-if="!version.recommended"
                   class="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                  title="Mark as recommended"
+                  :title="t('pages.catalogPlatform.markRecommended')"
                   :disabled="marking === version.version"
                   @click.stop="markRecommended(version.version)"
                 >
@@ -199,7 +202,7 @@ async function markRecommended(version: string) {
                 </button>
                 <button
                   class="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  title="Delete version"
+                  :title="t('pages.catalogPlatform.deleteVersion')"
                   @click.stop="requestDelete(version.version)"
                 >
                   <Trash2 class="size-3.5" />
@@ -212,7 +215,7 @@ async function markRecommended(version: string) {
 
       <!-- Used By Groups -->
       <div v-if="usedByGroups.length > 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
-        <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Layers class="size-4" /> Used by groups</h2>
+        <h2 class="mb-4 flex items-center gap-2 text-base font-semibold"><Layers class="size-4" /> {{ t('pages.catalogPlatform.usedByGroups') }}</h2>
         <div class="flex flex-wrap gap-2">
           <NuxtLink
             v-for="g in usedByGroups"
@@ -229,9 +232,9 @@ async function markRecommended(version: string) {
 
     <ConfirmDialog
       :open="confirmOpen"
-      title="Delete version?"
-      :description="`Remove version '${pendingDeleteVersion}' from ${platformName}. This action cannot be undone.`"
-      confirm-label="Delete"
+      :title="t('pages.catalogPlatform.confirmDeleteTitle')"
+      :description="t('pages.catalogPlatform.confirmDeleteDesc', { version: pendingDeleteVersion, platform: platformName })"
+      :confirm-label="t('pages.catalogPlatform.delete')"
       :loading="deleting"
       @update:open="confirmOpen = $event"
       @confirm="onConfirmDelete"
