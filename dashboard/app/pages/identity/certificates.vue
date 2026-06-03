@@ -10,6 +10,7 @@ import { Callout, CalloutTitle } from "~/components/ui/callout"
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "~/components/ui/dialog"
 import { timeAgo } from "~/lib/utils"
 
+const { t } = useI18n()
 const store = useCertificatesStore()
 
 onMounted(() => store.fetchRevoked())
@@ -41,19 +42,19 @@ async function submitRevoke() {
 
 <template>
   <div class="flex flex-1 flex-col gap-5">
-    <PageHeader title="Certificates" description="Compromise-response: revoke a node's TLS certificate to force-disconnect it.">
+    <PageHeader :title="t('pages.certificates.title')" :description="t('pages.certificates.description')">
       <template #actions>
         <Button class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="revokeOpen = true">
-          <ShieldX class="mr-2 size-4" /> Revoke certificate
+          <ShieldX class="mr-2 size-4" /> {{ t('pages.certificates.revokeCertificate') }}
         </Button>
       </template>
     </PageHeader>
 
     <Callout variant="warning">
-      <CalloutTitle>Revoking blocks the daemon's controller access immediately on next reconnect.</CalloutTitle>
-      <p class="text-sm text-muted-foreground">Use this when a node is suspected leaked or compromised. Existing instances on the node keep running until the controller marks them UNREACHABLE.</p>
+      <CalloutTitle>{{ t('pages.certificates.warningTitle') }}</CalloutTitle>
+      <p class="text-sm text-muted-foreground">{{ t('pages.certificates.warningBody') }}</p>
       <template #next>
-        Drain the node first if you want graceful migration. <span class="mono">prexorctl node drain &lt;id&gt;</span>.
+        {{ t('pages.certificates.warningNext') }} <span class="mono">prexorctl node drain &lt;id&gt;</span>.
       </template>
     </Callout>
 
@@ -61,7 +62,7 @@ async function submitRevoke() {
       v-model:search="search"
       :filters="[]"
       :active-filters="new Set(['ALL'])"
-      search-placeholder="Search by node, serial, or reason…"
+      :search-placeholder="t('pages.certificates.searchPlaceholder')"
       :show-view-toggle="false"
     />
 
@@ -70,17 +71,17 @@ async function submitRevoke() {
     <EmptyState
       v-else-if="filteredRevoked.length === 0"
       :icon="BadgeCheck"
-      :title="search ? 'No matches' : 'No revoked certificates'"
-      :description="search ? 'Try clearing the filter.' : 'Every node certificate is currently valid. Use the Revoke button if you need to lock one out.'"
+      :title="search ? t('pages.certificates.emptyMatchesTitle') : t('pages.certificates.emptyTitle')"
+      :description="search ? t('pages.certificates.emptyMatchesHint') : t('pages.certificates.emptyHint')"
     />
 
     <div v-else class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
       <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
-        <div class="w-52 shrink-0">Node</div>
-        <div class="w-52 shrink-0">Serial</div>
-        <div class="flex-1">Reason</div>
-        <div class="w-44 shrink-0 text-right">Revoked</div>
-        <div class="w-44 shrink-0 text-right">Status</div>
+        <div class="w-52 shrink-0">{{ t('pages.certificates.columns.node') }}</div>
+        <div class="w-52 shrink-0">{{ t('pages.certificates.columns.serial') }}</div>
+        <div class="flex-1">{{ t('pages.certificates.columns.reason') }}</div>
+        <div class="w-44 shrink-0 text-right">{{ t('pages.certificates.columns.revoked') }}</div>
+        <div class="w-44 shrink-0 text-right">{{ t('pages.certificates.columns.status') }}</div>
         <div class="w-24 shrink-0" />
       </div>
       <div
@@ -93,12 +94,12 @@ async function submitRevoke() {
         <div class="flex-1 truncate text-sm text-muted-foreground">{{ r.reason ?? '—' }}</div>
         <div class="w-44 shrink-0 text-right tabular text-sm text-muted-foreground">{{ timeAgo(r.revokedAt) }}</div>
         <div class="w-44 shrink-0 text-right">
-          <StatusBadge tone="destructive" label="Revoked" />
+          <StatusBadge tone="destructive" :label="t('pages.certificates.revoked')" />
         </div>
         <div class="flex w-24 shrink-0 justify-end">
           <button
             type="button"
-            title="Unrevoke (allow reconnect)"
+            :title="t('pages.certificates.unrevoke')"
             class="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground/0 transition-all group-hover/row:text-muted-foreground hover:bg-warning/10 hover:text-warning"
             @click="store.unrevoke(r.nodeId)"
           >
@@ -110,29 +111,29 @@ async function submitRevoke() {
 
     <Dialog :open="revokeOpen" @update:open="revokeOpen = $event">
       <DialogContent class="sm:max-w-md">
-        <DialogTitle>Revoke certificate?</DialogTitle>
+        <DialogTitle>{{ t('pages.certificates.dialog.title') }}</DialogTitle>
         <Callout variant="error">
-          <CalloutTitle>This locks the daemon out.</CalloutTitle>
+          <CalloutTitle>{{ t('pages.certificates.dialog.calloutTitle') }}</CalloutTitle>
           <p class="text-sm text-muted-foreground">
-            On next reconnect, the daemon's TLS handshake is rejected. Existing controller access via active sessions remains until they expire.
+            {{ t('pages.certificates.dialog.calloutBody') }}
           </p>
           <template #next>
-            <span class="inline-flex items-center gap-1"><AlertOctagon class="size-3.5" /> Reversible — unrevoke from this page.</span>
+            <span class="inline-flex items-center gap-1"><AlertOctagon class="size-3.5" /> {{ t('pages.certificates.dialog.calloutNext') }}</span>
           </template>
         </Callout>
         <form class="flex flex-col gap-4 pt-2" @submit.prevent="submitRevoke">
           <div class="flex flex-col gap-1.5">
-            <Label for="rc-node">Node ID</Label>
+            <Label for="rc-node">{{ t('pages.certificates.dialog.nodeLabel') }}</Label>
             <Input id="rc-node" v-model="revokeNodeId" placeholder="node-east-1" class="mono" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <Label for="rc-reason">Reason (optional)</Label>
-            <Textarea id="rc-reason" v-model="revokeReason" rows="2" placeholder="Suspected compromise; rotating cert before re-bootstrap." />
+            <Label for="rc-reason">{{ t('pages.certificates.dialog.reasonLabel') }}</Label>
+            <Textarea id="rc-reason" v-model="revokeReason" rows="2" :placeholder="t('pages.certificates.dialog.reasonPlaceholder')" />
           </div>
           <DialogFooter class="flex-row! gap-2 pt-2">
-            <Button type="button" variant="outline" @click="revokeOpen = false">Cancel</Button>
+            <Button type="button" variant="outline" @click="revokeOpen = false">{{ t('common.cancel') }}</Button>
             <Button type="submit" :disabled="!revokeNodeId.trim() || revoking" class="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {{ revoking ? 'Revoking…' : 'Revoke' }}
+              {{ revoking ? t('pages.certificates.dialog.revoking') : t('pages.certificates.dialog.revoke') }}
             </Button>
           </DialogFooter>
         </form>

@@ -1046,6 +1046,85 @@
         "calloutTitle": "Ausstehende Join-Tokens werden ungültig.",
         "body": "Der Seed ist der HMAC-Schlüssel für jedes Join-Token. Ihn zu rotieren bedeutet, dass jedes vorher ausgestellte Token nicht mehr eingelöst werden kann."
       }
+    },
+    "certificates": {
+      "title": "Zertifikate",
+      "description": "Kompromittierungs-Reaktion: Widerrufe das TLS-Zertifikat eines Nodes, um ihn zwangsweise zu trennen.",
+      "revokeCertificate": "Zertifikat widerrufen",
+      "warningTitle": "Ein Widerruf blockiert den Controller-Zugriff des Daemons sofort beim nächsten Reconnect.",
+      "warningBody": "Verwende dies, wenn ein Node als geleakt oder kompromittiert verdächtigt wird. Bestehende Instanzen auf dem Node laufen weiter, bis der Controller sie als UNREACHABLE markiert.",
+      "warningNext": "Draine den Node zuerst, wenn du eine saubere Migration möchtest.",
+      "searchPlaceholder": "Nach Node, Seriennummer oder Grund suchen …",
+      "emptyTitle": "Keine widerrufenen Zertifikate",
+      "emptyHint": "Jedes Node-Zertifikat ist derzeit gültig. Nutze den Widerrufen-Button, wenn du eines aussperren musst.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen.",
+      "revoked": "Widerrufen",
+      "unrevoke": "Widerruf aufheben (Reconnect erlauben)",
+      "columns": {
+        "node": "Node",
+        "serial": "Seriennummer",
+        "reason": "Grund",
+        "revoked": "Widerrufen",
+        "status": "Status"
+      },
+      "dialog": {
+        "title": "Zertifikat widerrufen?",
+        "calloutTitle": "Dies sperrt den Daemon aus.",
+        "calloutBody": "Beim nächsten Reconnect wird der TLS-Handshake des Daemons abgelehnt. Bestehender Controller-Zugriff über aktive Sessions bleibt, bis diese ablaufen.",
+        "calloutNext": "Umkehrbar — den Widerruf auf dieser Seite aufheben.",
+        "nodeLabel": "Node-ID",
+        "reasonLabel": "Grund (optional)",
+        "reasonPlaceholder": "Kompromittierung vermutet; Zertifikat vor Re-Bootstrap rotieren.",
+        "revoking": "Wird widerrufen …",
+        "revoke": "Widerrufen"
+      }
+    },
+    "networks": {
+      "title": "Netzwerke",
+      "description": "Velocity-Proxies vor einer oder mehreren Gruppen, mit Lobby- und Fallback-Routing.",
+      "searchPlaceholder": "Netzwerke suchen …",
+      "emptyTitle": "Keine Netzwerke konfiguriert",
+      "emptySearchHint": "Versuche, deine Suche anzupassen",
+      "emptyHint": "Erstelle ein Netzwerk, um Lobby- und Fallback-Routing für deine Proxies zu zentralisieren",
+      "editNetwork": "Netzwerk bearbeiten",
+      "deleteNetwork": "Netzwerk löschen",
+      "members": "Mitglieder",
+      "proxies": "Proxies",
+      "all": "alle",
+      "columns": {
+        "name": "Name",
+        "lobby": "Lobby",
+        "fallbackChain": "Fallback-Kette"
+      },
+      "confirmDeleteDesc": "Netzwerk „{name}“ dauerhaft löschen? Proxies fallen auf das Standard-Gruppen-Routing zurück."
+    },
+    "roles": {
+      "title": "Rollen",
+      "description": "Berechtigungs-Bündel, die Benutzern zugewiesen werden.",
+      "createRole": "Rolle erstellen",
+      "searchPlaceholder": "Nach Name oder Berechtigung suchen …",
+      "emptyTitle": "Keine Rollen definiert",
+      "emptyHint": "Erstelle eine Rolle, um Berechtigungen für Benutzer zu bündeln.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen.",
+      "builtIn": "Integriert",
+      "custom": "Benutzerdefiniert",
+      "roleEyebrow": "Rolle",
+      "builtInNote": "Integrierte Rollen können nicht bearbeitet oder gelöscht werden.",
+      "delete": "Löschen",
+      "saving": "Wird gespeichert …",
+      "nameLabel": "Name",
+      "nameHintPrefix": "Muss passen auf",
+      "nameHintSuffix": ", max. 32 Zeichen.",
+      "creating": "Wird erstellt …",
+      "create": "Erstellen",
+      "columns": {
+        "name": "Name",
+        "type": "Typ",
+        "permissions": "Berechtigungen",
+        "users": "Benutzer"
+      }
     }
   },
   "components": {

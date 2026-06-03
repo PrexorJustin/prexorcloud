@@ -6,6 +6,7 @@ import NetworkDialog from "~/components/networks/NetworkDialog.vue"
 
 type NetworkComposition = Schema<'NetworkComposition'>
 
+const { t } = useI18n()
 const store = useNetworksStore()
 const groupsStore = useGroupsStore()
 const { can } = useCan()
@@ -44,7 +45,7 @@ async function deleteNetwork() {
 
 <template>
   <div class="flex flex-col gap-5 flex-1">
-    <PageHeader title="Networks" description="Velocity proxies fronting one or more groups, with lobby and fallback routing.">
+    <PageHeader :title="t('pages.networks.title')" :description="t('pages.networks.description')">
       <template #actions>
         <NetworkDialog v-if="can('networks.create')" />
       </template>
@@ -53,7 +54,7 @@ async function deleteNetwork() {
     <FilterToolbar
       v-model:search="search"
       :view-mode="viewMode"
-      search-placeholder="Search networks..."
+      :search-placeholder="t('pages.networks.searchPlaceholder')"
       @update:view-mode="viewMode = $event"
     />
 
@@ -63,8 +64,8 @@ async function deleteNetwork() {
       <EmptyState
         v-else-if="filteredNetworks.length === 0"
         :icon="NetworkIcon"
-        title="No networks configured"
-        :description="search ? 'Try adjusting your search' : 'Create a network to centralize lobby + fallback routing for your proxies'"
+        :title="t('pages.networks.emptyTitle')"
+        :description="search ? t('pages.networks.emptySearchHint') : t('pages.networks.emptyHint')"
       />
 
       <template v-else-if="viewMode === 'grid'">
@@ -88,7 +89,7 @@ async function deleteNetwork() {
                 <button
                   v-if="can('networks.update')"
                   class="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-all"
-                  title="Edit network"
+                  :title="t('pages.networks.editNetwork')"
                   @click.stop="openEdit(n)"
                 >
                   <Pencil class="size-3.5" />
@@ -96,7 +97,7 @@ async function deleteNetwork() {
                 <button
                   v-if="can('networks.delete')"
                   class="size-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive! hover:bg-destructive/10 transition-all"
-                  title="Delete network"
+                  :title="t('pages.networks.deleteNetwork')"
                   @click.stop="confirmDeleteName = n.name"
                 >
                   <Trash2 class="size-3.5" />
@@ -121,16 +122,16 @@ async function deleteNetwork() {
             <div class="grid grid-cols-2 gap-3 pt-2 border-t border-glass-border/50">
               <div class="flex items-center gap-2">
                 <Server class="size-3.5 text-muted-foreground" />
-                <span class="text-xs text-muted-foreground">Members</span>
+                <span class="text-xs text-muted-foreground">{{ t('pages.networks.members') }}</span>
                 <span class="text-xs font-medium text-foreground tabular-nums ml-auto">
                   {{ (n.memberGroups?.length ?? 0) || '—' }}
                 </span>
               </div>
               <div class="flex items-center gap-2">
                 <NetworkIcon class="size-3.5 text-muted-foreground" />
-                <span class="text-xs text-muted-foreground">Proxies</span>
+                <span class="text-xs text-muted-foreground">{{ t('pages.networks.proxies') }}</span>
                 <span class="text-xs font-medium text-foreground tabular-nums ml-auto">
-                  {{ n.proxyGroups?.length ? n.proxyGroups.length : 'all' }}
+                  {{ n.proxyGroups?.length ? n.proxyGroups.length : t('pages.networks.all') }}
                 </span>
               </div>
             </div>
@@ -141,11 +142,11 @@ async function deleteNetwork() {
       <template v-else>
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border overflow-hidden">
           <div class="flex items-center h-10 px-4 border-b border-glass-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <div class="w-44 shrink-0">Name</div>
-            <div class="w-32 shrink-0">Lobby</div>
-            <div class="flex-1 min-w-0">Fallback chain</div>
-            <div class="w-20 shrink-0 text-right">Members</div>
-            <div class="w-20 shrink-0 text-right">Proxies</div>
+            <div class="w-44 shrink-0">{{ t('pages.networks.columns.name') }}</div>
+            <div class="w-32 shrink-0">{{ t('pages.networks.columns.lobby') }}</div>
+            <div class="flex-1 min-w-0">{{ t('pages.networks.columns.fallbackChain') }}</div>
+            <div class="w-20 shrink-0 text-right">{{ t('pages.networks.members') }}</div>
+            <div class="w-20 shrink-0 text-right">{{ t('pages.networks.proxies') }}</div>
             <div class="w-16 shrink-0" />
           </div>
           <div
@@ -174,7 +175,7 @@ async function deleteNetwork() {
               <button
                 v-if="can('networks.update')"
                 class="size-7 rounded-lg flex items-center justify-center text-muted-foreground/0 group-hover:text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-all"
-                title="Edit network"
+                :title="t('pages.networks.editNetwork')"
                 @click.stop="openEdit(n)"
               >
                 <Pencil class="size-3.5" />
@@ -182,7 +183,7 @@ async function deleteNetwork() {
               <button
                 v-if="can('networks.delete')"
                 class="size-7 rounded-lg flex items-center justify-center text-muted-foreground/0 group-hover:text-muted-foreground hover:text-destructive! hover:bg-destructive/10 transition-all"
-                title="Delete network"
+                :title="t('pages.networks.deleteNetwork')"
                 @click.stop="confirmDeleteName = n.name"
               >
                 <Trash2 class="size-3.5" />
@@ -197,9 +198,9 @@ async function deleteNetwork() {
 
     <ConfirmDialog
       :open="!!confirmDeleteName"
-      title="Delete network"
-      :description="`Permanently delete network '${confirmDeleteName}'? Proxies will fall back to default-group routing.`"
-      confirm-label="Delete network"
+      :title="t('pages.networks.deleteNetwork')"
+      :description="t('pages.networks.confirmDeleteDesc', { name: confirmDeleteName })"
+      :confirm-label="t('pages.networks.deleteNetwork')"
       :loading="deleting"
       @update:open="confirmDeleteName = null"
       @confirm="deleteNetwork"

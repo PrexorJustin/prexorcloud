@@ -1046,6 +1046,85 @@
         "calloutTitle": "Outstanding join tokens will be invalidated.",
         "body": "The seed is the HMAC key for every join token. Rotating it means any token issued before this point can no longer be redeemed."
       }
+    },
+    "certificates": {
+      "title": "Certificates",
+      "description": "Compromise-response: revoke a node's TLS certificate to force-disconnect it.",
+      "revokeCertificate": "Revoke certificate",
+      "warningTitle": "Revoking blocks the daemon's controller access immediately on next reconnect.",
+      "warningBody": "Use this when a node is suspected leaked or compromised. Existing instances on the node keep running until the controller marks them UNREACHABLE.",
+      "warningNext": "Drain the node first if you want graceful migration.",
+      "searchPlaceholder": "Search by node, serial, or reason…",
+      "emptyTitle": "No revoked certificates",
+      "emptyHint": "Every node certificate is currently valid. Use the Revoke button if you need to lock one out.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "revoked": "Revoked",
+      "unrevoke": "Unrevoke (allow reconnect)",
+      "columns": {
+        "node": "Node",
+        "serial": "Serial",
+        "reason": "Reason",
+        "revoked": "Revoked",
+        "status": "Status"
+      },
+      "dialog": {
+        "title": "Revoke certificate?",
+        "calloutTitle": "This locks the daemon out.",
+        "calloutBody": "On next reconnect, the daemon's TLS handshake is rejected. Existing controller access via active sessions remains until they expire.",
+        "calloutNext": "Reversible — unrevoke from this page.",
+        "nodeLabel": "Node ID",
+        "reasonLabel": "Reason (optional)",
+        "reasonPlaceholder": "Suspected compromise; rotating cert before re-bootstrap.",
+        "revoking": "Revoking…",
+        "revoke": "Revoke"
+      }
+    },
+    "networks": {
+      "title": "Networks",
+      "description": "Velocity proxies fronting one or more groups, with lobby and fallback routing.",
+      "searchPlaceholder": "Search networks...",
+      "emptyTitle": "No networks configured",
+      "emptySearchHint": "Try adjusting your search",
+      "emptyHint": "Create a network to centralize lobby + fallback routing for your proxies",
+      "editNetwork": "Edit network",
+      "deleteNetwork": "Delete network",
+      "members": "Members",
+      "proxies": "Proxies",
+      "all": "all",
+      "columns": {
+        "name": "Name",
+        "lobby": "Lobby",
+        "fallbackChain": "Fallback chain"
+      },
+      "confirmDeleteDesc": "Permanently delete network '{name}'? Proxies will fall back to default-group routing."
+    },
+    "roles": {
+      "title": "Roles",
+      "description": "Permission bundles assigned to users.",
+      "createRole": "Create role",
+      "searchPlaceholder": "Search by name or permission…",
+      "emptyTitle": "No roles defined",
+      "emptyHint": "Create a role to bundle permissions for users.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "roleEyebrow": "Role",
+      "builtInNote": "Built-in roles can't be edited or deleted.",
+      "delete": "Delete",
+      "saving": "Saving…",
+      "nameLabel": "Name",
+      "nameHintPrefix": "Must match",
+      "nameHintSuffix": ", max 32 characters.",
+      "creating": "Creating…",
+      "create": "Create",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "permissions": "Permissions",
+        "users": "Users"
+      }
     }
   },
   "components": {
