@@ -1851,6 +1851,281 @@
       "unstage": "Vormerkung aufheben",
       "saving": "Wird gespeichert …",
       "saveRehash": "Speichern & neu hashen"
+    },
+    "createGroup": {
+      "newGroup": "Neue Gruppe",
+      "dialogTitle": "Server-Gruppe erstellen",
+      "setupWizard": "Einrichtungs-Assistent",
+      "proxy": "Proxy",
+      "server": "Server",
+      "none": "Keine",
+      "optional": "(optional)",
+      "optionalBadge": "Optional",
+      "comingSoon": "Demnächst",
+      "add": "Hinzufügen",
+      "min": "Min",
+      "max": "Max",
+      "total": "gesamt",
+      "yes": "Ja",
+      "no": "Nein",
+      "back": "Zurück",
+      "continue": "Weiter",
+      "creating": "Wird erstellt …",
+      "createGroupBtn": "Gruppe erstellen",
+      "presets": {
+        "lobby": {
+          "label": "Lobby",
+          "desc": "Dauerhafter Hub-Server"
+        },
+        "game": {
+          "label": "Game",
+          "desc": "Skalierbare Spiel-Instanzen"
+        },
+        "proxy": {
+          "label": "Proxy",
+          "desc": "Netzwerk-Proxy-Schicht"
+        }
+      },
+      "validation": {
+        "maxChars": "Max. 32 Zeichen",
+        "nameFormat": "Kleinbuchstaben, Zahlen, Unterstrich, Bindestrich",
+        "exists": "Gruppe existiert bereits"
+      },
+      "steps": {
+        "identity": {
+          "label": "Identität",
+          "desc": "Plattform & Name"
+        },
+        "scaling": {
+          "label": "Skalierung",
+          "desc": "Instanzen & Kapazität"
+        },
+        "resources": {
+          "label": "Ressourcen",
+          "desc": "Speicher & Netzwerk"
+        },
+        "lifecycle": {
+          "label": "Lebenszyklus",
+          "desc": "Timer & Deployment"
+        },
+        "orchestration": {
+          "label": "Orchestrierung",
+          "desc": "Beziehungen & Cluster"
+        },
+        "review": {
+          "label": "Überprüfung",
+          "desc": "Bestätigen & erstellen"
+        }
+      },
+      "scalingModes": {
+        "dynamic": {
+          "label": "Dynamisch",
+          "desc": "Auto-Skalierung nach Spieler-Nachfrage"
+        },
+        "static": {
+          "label": "Statisch",
+          "desc": "Feste benannte Instanzen"
+        },
+        "manual": {
+          "label": "Manuell",
+          "desc": "Instanzen bei Bedarf starten"
+        }
+      },
+      "routing": {
+        "lowestPlayers": {
+          "label": "Wenigste Spieler",
+          "desc": "Am wenigsten besetzte zuerst"
+        },
+        "roundRobin": {
+          "label": "Round Robin",
+          "desc": "Gleichmäßig verteilen"
+        },
+        "random": {
+          "label": "Zufällig",
+          "desc": "Zufällige Auswahl"
+        },
+        "fillFirst": {
+          "label": "Zuerst füllen",
+          "desc": "Füllen, bevor neue geöffnet werden"
+        }
+      },
+      "strategies": {
+        "rolling": {
+          "label": "Rollend",
+          "desc": "Eine nach der anderen ersetzen"
+        },
+        "onNew": {
+          "label": "Bei Neuen",
+          "desc": "Nur neue Instanzen"
+        },
+        "canary": {
+          "label": "Canary",
+          "desc": "Eine ausrollen, dann alle"
+        },
+        "manual": {
+          "label": "Manuell",
+          "desc": "Selbst auslösen"
+        }
+      },
+      "memHints": {
+        "light": "Leicht",
+        "standard": "Standard",
+        "moderate": "Moderat",
+        "heavy": "Schwer",
+        "extreme": "Extrem"
+      },
+      "tplDesc": {
+        "base": "Basis-Template",
+        "basePlatform": "Basis-Template für {platform}",
+        "group": "Template für Gruppe {name}"
+      },
+      "toast": {
+        "createFailedTitle": "Erstellen fehlgeschlagen",
+        "createFailedDesc": "Die Gruppe konnte nicht erstellt werden. Prüfe das Formular auf ungültige Felder oder die Controller-Logs."
+      },
+      "s1": {
+        "platform": "Plattform",
+        "clear": "Löschen",
+        "searchPlatforms": "Plattformen suchen …",
+        "noMatch": "Keine Plattformen passen zu „{q}“",
+        "servers": "Server",
+        "proxies": "Proxies",
+        "versionCount": "{count} Version | {count} Versionen",
+        "customPlatform": "Eigene Plattform",
+        "byoJar": "Eigene JAR mitbringen",
+        "versionsLabel": "{count} Versionen",
+        "selected": "Ausgewählt",
+        "version": "Version",
+        "rec": "empf.",
+        "versionPlaceholder": "z. B. 1.21.4",
+        "quickStart": "Schnellstart",
+        "groupName": "Gruppenname",
+        "namePlaceholder": "z. B. lobby",
+        "templateLayer": "Template-Schicht",
+        "green": "Grün",
+        "yellow": "gelb",
+        "legendExists": "= existiert,",
+        "legendAuto": "= automatisch erstellt",
+        "jarFile": "JAR-Datei",
+        "jarPlaceholder": "server.jar",
+        "jarHint": "Ohne Katalog-Plattform musst du den Server-JAR-Dateinamen angeben."
+      },
+      "s2": {
+        "scalingMode": "Skalierungs-Modus",
+        "instanceRange": "Instanz-Bereich",
+        "instanceRangeHint": "Wie viele Instanzen gleichzeitig laufen können",
+        "playersInstance": "Spieler / Instanz",
+        "slotsHint": "Slots, bevor eine Instanz als voll gilt",
+        "scaleUpThreshold": "Scale-up-Schwelle",
+        "newInstanceWhen": "Neue Instanz, wenn {filled} von {total} Slots belegt sind",
+        "scaleDownDelay": "Scale-down-Verzögerung",
+        "scaleDownHint": "Warten, bevor eine leere Instanz entfernt wird",
+        "cooldown": "Cooldown",
+        "cooldownHint": "Mindestwartezeit zwischen Skalierungs-Aktionen",
+        "predictive": "Prädiktive Skalierung",
+        "predictiveHint": "Vorab skalieren anhand historischer Muster",
+        "instanceCount": "Instanz-Anzahl",
+        "fixedHint": "Feste Anzahl, immer am Laufen gehalten",
+        "manualSlotsHint": "Maximale Spieler-Slots für jede gestartete Instanz",
+        "running": "Laufend:",
+        "instanceWord": "Instanz | Instanzen",
+        "instanceNames": "Instanz-Namen",
+        "instanceNamesPlaceholder": "z. B. lobby-1, lobby-2, lobby-vip",
+        "staticHintNames": "Diese Namen überschreiben die Instanz-Anzahl — es läuft genau {count} Instanz. | Diese Namen überschreiben die Instanz-Anzahl — es laufen genau {count} Instanzen.",
+        "staticHintAuto": "Leer lassen, um automatisch als {name}-1, {name}-2 usw. zu generieren."
+      },
+      "s3": {
+        "memory": "Speicher pro Instanz",
+        "memoryHint": "JVM-Heap-Größe — bestimmt auch, welche Nodes genug freien Speicher für die Platzierung haben",
+        "routing": "Spieler-Routing",
+        "routingHint": "Wie der Proxy ankommende Spieler den Instanzen zuweist",
+        "portRange": "Port-Bereich",
+        "portHint": "Jede Instanz erhält einen Port aus diesem Bereich — Überlappung mit anderen Gruppen vermeiden",
+        "start": "Start",
+        "end": "Ende",
+        "portError": "Start muss ≤ Ende sein",
+        "jvmArgs": "JVM-Argumente",
+        "jvmPlaceholder": "z. B. -XX:+UseG1GC, -XX:MaxGCPauseMillis=50",
+        "envVars": "Umgebungsvariablen",
+        "keyPlaceholder": "KEY",
+        "valuePlaceholder": "Wert",
+        "noEnv": "Keine Umgebungsvariablen — Plugins erhalten CLOUD_CONTROLLER_URL automatisch"
+      },
+      "s4": {
+        "instanceTimers": "Instanz-Timer",
+        "startupTimeout": "Start-Timeout",
+        "startupHint": "Erlaubte Boot-Zeit — wird bei Überschreitung beendet",
+        "shutdownGrace": "Shutdown-Karenz",
+        "graceHint": "Karenzzeit vor dem erzwungenen Beenden",
+        "maxLifetime": "Max. Laufzeit",
+        "lifetimeHint": "Nach dieser Dauer automatisch recyceln (verhindert Memory-Leaks)",
+        "drain": "Bei Shutdown drainen",
+        "drainHint": "Spieler vor dem Stoppen auf andere Instanzen migrieren",
+        "updateStrategy": "Update-Strategie",
+        "strategyHint": "Wie Template-Änderungen auf laufende Instanzen ausgerollt werden",
+        "protectedPaths": "Geschützte Pfade",
+        "staticOnly": "(nur statische Instanzen)",
+        "protectedPlaceholder": "z. B. world, plugins/Essentials",
+        "protectedHint": "Diese Pfade überstehen die erneute Template-Anwendung beim Neustart"
+      },
+      "s5": {
+        "additionalTemplates": "Zusätzliche Templates",
+        "additionalHint": "Optionale Template-Schichten, die nach der Pflicht-Kette gemergt werden — spätere Templates überschreiben frühere",
+        "relationships": "Gruppen-Beziehungen",
+        "parentGroup": "Eltern-Gruppe",
+        "inheritConfig": "(Config erben)",
+        "dependsOn": "Hängt ab von",
+        "startupOrder": "(Start-Reihenfolge)",
+        "dependsPlaceholder": "z. B. proxy, auth",
+        "fallbackGroup": "Fallback-Gruppe",
+        "overflow": "(Überlauf)",
+        "startupWeight": "Start-Gewicht",
+        "higherFirst": "(höher = zuerst)",
+        "defaultGroup": "Standard-Gruppe",
+        "notForProxies": "Für Proxies nicht verfügbar",
+        "entryPoint": "Einstiegspunkt für neue Spieler",
+        "maintenance": "Wartung",
+        "maintenanceHint": "Skalierung überspringen, bestehende drainen",
+        "nodePlacement": "Node-Platzierung",
+        "nodeAffinity": "Node-Affinität",
+        "require": "(erforderlich)",
+        "nodeAntiAffinity": "Node-Anti-Affinität",
+        "exclude": "(ausschließen)",
+        "excludePlaceholder": "Nodes ausschließen",
+        "spreadConstraint": "Verteilungs-Constraint",
+        "spreadPlaceholder": "z. B. zone",
+        "priority": "Priorität",
+        "contention": "(Konkurrenz)"
+      },
+      "review": {
+        "edit": "Bearbeiten",
+        "name": "Name",
+        "platform": "Plattform",
+        "custom": "Eigene",
+        "parent": "Eltern",
+        "templates": "Templates",
+        "mode": "Modus",
+        "instances": "Instanzen",
+        "onDemand": "Bei Bedarf",
+        "players": "Spieler",
+        "playersPerInstance": "{count} / Instanz",
+        "scaleUp": "Scale-up",
+        "resourcesNetwork": "Ressourcen & Netzwerk",
+        "memory": "Speicher",
+        "routing": "Routing",
+        "ports": "Ports",
+        "jvm": "JVM",
+        "envVars": "Env-Variablen",
+        "varCount": "{count} Variable | {count} Variablen",
+        "lifecycleDeployment": "Lebenszyklus & Deployment",
+        "strategy": "Strategie",
+        "startup": "Start",
+        "drain": "Drain",
+        "maxLife": "Max. Laufzeit",
+        "dependsOn": "Hängt ab von",
+        "defaultGroup": "Standard-Gruppe",
+        "maintenance": "Wartung"
+      }
     }
   }
 }

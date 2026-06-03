@@ -1851,6 +1851,281 @@
       "unstage": "Unstage",
       "saving": "Saving...",
       "saveRehash": "Save & Rehash"
+    },
+    "createGroup": {
+      "newGroup": "New Group",
+      "dialogTitle": "Create Server Group",
+      "setupWizard": "Setup wizard",
+      "proxy": "Proxy",
+      "server": "Server",
+      "none": "None",
+      "optional": "(optional)",
+      "optionalBadge": "Optional",
+      "comingSoon": "Coming soon",
+      "add": "Add",
+      "min": "Min",
+      "max": "Max",
+      "total": "total",
+      "yes": "Yes",
+      "no": "No",
+      "back": "Back",
+      "continue": "Continue",
+      "creating": "Creating...",
+      "createGroupBtn": "Create Group",
+      "presets": {
+        "lobby": {
+          "label": "Lobby",
+          "desc": "Persistent hub server"
+        },
+        "game": {
+          "label": "Game",
+          "desc": "Scalable game instances"
+        },
+        "proxy": {
+          "label": "Proxy",
+          "desc": "Network proxy layer"
+        }
+      },
+      "validation": {
+        "maxChars": "Max 32 characters",
+        "nameFormat": "Lowercase, numbers, underscore, hyphen",
+        "exists": "Group already exists"
+      },
+      "steps": {
+        "identity": {
+          "label": "Identity",
+          "desc": "Platform & name"
+        },
+        "scaling": {
+          "label": "Scaling",
+          "desc": "Instances & capacity"
+        },
+        "resources": {
+          "label": "Resources",
+          "desc": "Memory & networking"
+        },
+        "lifecycle": {
+          "label": "Lifecycle",
+          "desc": "Timers & deployment"
+        },
+        "orchestration": {
+          "label": "Orchestration",
+          "desc": "Relationships & cluster"
+        },
+        "review": {
+          "label": "Review",
+          "desc": "Confirm & create"
+        }
+      },
+      "scalingModes": {
+        "dynamic": {
+          "label": "Dynamic",
+          "desc": "Auto-scale on player demand"
+        },
+        "static": {
+          "label": "Static",
+          "desc": "Fixed named instances"
+        },
+        "manual": {
+          "label": "Manual",
+          "desc": "Start instances on demand"
+        }
+      },
+      "routing": {
+        "lowestPlayers": {
+          "label": "Lowest Players",
+          "desc": "Least populated first"
+        },
+        "roundRobin": {
+          "label": "Round Robin",
+          "desc": "Distribute evenly"
+        },
+        "random": {
+          "label": "Random",
+          "desc": "Random selection"
+        },
+        "fillFirst": {
+          "label": "Fill First",
+          "desc": "Fill before opening new"
+        }
+      },
+      "strategies": {
+        "rolling": {
+          "label": "Rolling",
+          "desc": "Replace one at a time"
+        },
+        "onNew": {
+          "label": "On New",
+          "desc": "New instances only"
+        },
+        "canary": {
+          "label": "Canary",
+          "desc": "Deploy one, then all"
+        },
+        "manual": {
+          "label": "Manual",
+          "desc": "Trigger yourself"
+        }
+      },
+      "memHints": {
+        "light": "Light",
+        "standard": "Standard",
+        "moderate": "Moderate",
+        "heavy": "Heavy",
+        "extreme": "Extreme"
+      },
+      "tplDesc": {
+        "base": "Base template",
+        "basePlatform": "Base template for {platform}",
+        "group": "Template for group {name}"
+      },
+      "toast": {
+        "createFailedTitle": "Create failed",
+        "createFailedDesc": "Couldn't create the group. Check the form for invalid fields, or check the controller logs."
+      },
+      "s1": {
+        "platform": "Platform",
+        "clear": "Clear",
+        "searchPlatforms": "Search platforms...",
+        "noMatch": "No platforms match \"{q}\"",
+        "servers": "Servers",
+        "proxies": "Proxies",
+        "versionCount": "{count} version | {count} versions",
+        "customPlatform": "Custom Platform",
+        "byoJar": "Bring your own JAR",
+        "versionsLabel": "{count} versions",
+        "selected": "Selected",
+        "version": "Version",
+        "rec": "rec",
+        "versionPlaceholder": "e.g. 1.21.4",
+        "quickStart": "Quick Start",
+        "groupName": "Group Name",
+        "namePlaceholder": "e.g. lobby",
+        "templateLayer": "Template Layer",
+        "green": "Green",
+        "yellow": "yellow",
+        "legendExists": "= exists,",
+        "legendAuto": "= created automatically",
+        "jarFile": "JAR File",
+        "jarPlaceholder": "server.jar",
+        "jarHint": "Without a catalog platform you must provide the server JAR filename."
+      },
+      "s2": {
+        "scalingMode": "Scaling Mode",
+        "instanceRange": "Instance Range",
+        "instanceRangeHint": "How many instances can run at once",
+        "playersInstance": "Players / Instance",
+        "slotsHint": "Slots before instance is considered full",
+        "scaleUpThreshold": "Scale-up Threshold",
+        "newInstanceWhen": "New instance when {filled} of {total} slots filled",
+        "scaleDownDelay": "Scale-down Delay",
+        "scaleDownHint": "Wait before removing empty instance",
+        "cooldown": "Cooldown",
+        "cooldownHint": "Minimum wait between scaling actions",
+        "predictive": "Predictive Scaling",
+        "predictiveHint": "Pre-scale based on historical patterns",
+        "instanceCount": "Instance Count",
+        "fixedHint": "Fixed number, always kept running",
+        "manualSlotsHint": "Max player slots for each instance you start",
+        "running": "Running:",
+        "instanceWord": "instance | instances",
+        "instanceNames": "Instance Names",
+        "instanceNamesPlaceholder": "e.g. lobby-1, lobby-2, lobby-vip",
+        "staticHintNames": "These names override the instance count — exactly {count} instance will run. | These names override the instance count — exactly {count} instances will run.",
+        "staticHintAuto": "Leave empty to auto-generate as {name}-1, {name}-2, etc."
+      },
+      "s3": {
+        "memory": "Memory per Instance",
+        "memoryHint": "JVM heap size — also determines which nodes have enough free memory for placement",
+        "routing": "Player Routing",
+        "routingHint": "How the proxy assigns incoming players to instances",
+        "portRange": "Port Range",
+        "portHint": "Each instance gets a port from this range — avoid overlapping with other groups",
+        "start": "Start",
+        "end": "End",
+        "portError": "Start must be ≤ end",
+        "jvmArgs": "JVM Arguments",
+        "jvmPlaceholder": "e.g. -XX:+UseG1GC, -XX:MaxGCPauseMillis=50",
+        "envVars": "Environment Variables",
+        "keyPlaceholder": "KEY",
+        "valuePlaceholder": "value",
+        "noEnv": "No environment variables — plugins receive CLOUD_CONTROLLER_URL automatically"
+      },
+      "s4": {
+        "instanceTimers": "Instance Timers",
+        "startupTimeout": "Startup timeout",
+        "startupHint": "Time allowed for boot — killed if exceeded",
+        "shutdownGrace": "Shutdown grace",
+        "graceHint": "Grace period before force-kill",
+        "maxLifetime": "Max lifetime",
+        "lifetimeHint": "Auto-recycle after this duration (prevents memory leaks)",
+        "drain": "Drain on Shutdown",
+        "drainHint": "Migrate players to other instances before stopping",
+        "updateStrategy": "Update Strategy",
+        "strategyHint": "How template changes are rolled out to running instances",
+        "protectedPaths": "Protected Paths",
+        "staticOnly": "(static instances only)",
+        "protectedPlaceholder": "e.g. world, plugins/Essentials",
+        "protectedHint": "These paths survive template re-application on restart"
+      },
+      "s5": {
+        "additionalTemplates": "Additional Templates",
+        "additionalHint": "Optional template layers merged after the mandatory chain — later templates override earlier ones",
+        "relationships": "Group Relationships",
+        "parentGroup": "Parent Group",
+        "inheritConfig": "(inherit config)",
+        "dependsOn": "Depends On",
+        "startupOrder": "(startup order)",
+        "dependsPlaceholder": "e.g. proxy, auth",
+        "fallbackGroup": "Fallback Group",
+        "overflow": "(overflow)",
+        "startupWeight": "Startup Weight",
+        "higherFirst": "(higher = first)",
+        "defaultGroup": "Default Group",
+        "notForProxies": "Not available for proxies",
+        "entryPoint": "Entry point for new players",
+        "maintenance": "Maintenance",
+        "maintenanceHint": "Skip scaling, drain existing",
+        "nodePlacement": "Node Placement",
+        "nodeAffinity": "Node Affinity",
+        "require": "(require)",
+        "nodeAntiAffinity": "Node Anti-Affinity",
+        "exclude": "(exclude)",
+        "excludePlaceholder": "Exclude nodes",
+        "spreadConstraint": "Spread Constraint",
+        "spreadPlaceholder": "e.g. zone",
+        "priority": "Priority",
+        "contention": "(contention)"
+      },
+      "review": {
+        "edit": "Edit",
+        "name": "Name",
+        "platform": "Platform",
+        "custom": "Custom",
+        "parent": "Parent",
+        "templates": "Templates",
+        "mode": "Mode",
+        "instances": "Instances",
+        "onDemand": "On demand",
+        "players": "Players",
+        "playersPerInstance": "{count} / instance",
+        "scaleUp": "Scale-up",
+        "resourcesNetwork": "Resources & Network",
+        "memory": "Memory",
+        "routing": "Routing",
+        "ports": "Ports",
+        "jvm": "JVM",
+        "envVars": "Env vars",
+        "varCount": "{count} variable | {count} variables",
+        "lifecycleDeployment": "Lifecycle & Deployment",
+        "strategy": "Strategy",
+        "startup": "Startup",
+        "drain": "Drain",
+        "maxLife": "Max life",
+        "dependsOn": "Depends on",
+        "defaultGroup": "Default group",
+        "maintenance": "Maintenance"
+      }
     }
   }
 }

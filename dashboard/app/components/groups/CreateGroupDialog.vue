@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } 
 import { toast } from "vue-sonner"
 import type { CatalogEntry } from "~/types/api"
 
+const { t } = useI18n()
 const store = useGroupsStore()
 const catalogStore = useCatalogStore()
 const templateStore = useTemplatesStore()
@@ -112,9 +113,9 @@ const connectedNodeNames = computed(() => nodesStore.nodes.filter(n => n.type ==
 
 // ── Presets ──────────────────────────────────
 interface Preset { key: string; label: string; desc: string; icon: Component; color: string; border: string; bg: string; iconBg: string; apply: () => void }
-const presets: Preset[] = [
+const presets = computed<Preset[]>(() => [
   {
-    key: "lobby", label: "Lobby", desc: "Persistent hub server", icon: Users,
+    key: "lobby", label: t('components.createGroup.presets.lobby.label'), desc: t('components.createGroup.presets.lobby.desc'), icon: Users,
     color: "text-success", border: "border-success/40", bg: "bg-success/5", iconBg: "bg-success/10",
     apply() {
       // Scaling: always 1 static instance, 100 player slots
@@ -133,7 +134,7 @@ const presets: Preset[] = [
     },
   },
   {
-    key: "game", label: "Game", desc: "Scalable game instances", icon: Rocket,
+    key: "game", label: t('components.createGroup.presets.game.label'), desc: t('components.createGroup.presets.game.desc'), icon: Rocket,
     color: "text-primary", border: "border-primary/40", bg: "bg-primary/5", iconBg: "bg-primary/10",
     apply() {
       // Scaling: dynamic 0–20 instances, 50 players each, scale at 80%
@@ -151,7 +152,7 @@ const presets: Preset[] = [
     },
   },
   {
-    key: "proxy", label: "Proxy", desc: "Network proxy layer", icon: Network,
+    key: "proxy", label: t('components.createGroup.presets.proxy.label'), desc: t('components.createGroup.presets.proxy.desc'), icon: Network,
     color: "text-warning", border: "border-warning/40", bg: "bg-warning/5", iconBg: "bg-warning/10",
     apply() {
       // Scaling: 1–3 static proxies, 500 connections each
@@ -169,23 +170,23 @@ const presets: Preset[] = [
       scaleUpThreshold.value = 80; scaleDownAfterSeconds.value = 300; scaleCooldownSeconds.value = 60
     },
   },
-]
+])
 const activePreset = ref<string | null>(null)
 function applyPreset(preset: Preset) { activePreset.value = preset.key; preset.apply() }
 
 // Filter presets by selected platform category
 const visiblePresets = computed(() => {
   if (!platform.value) return [] // no platform → no presets
-  if (isProxy.value) return presets.filter(p => p.key === "proxy")
-  return presets.filter(p => p.key !== "proxy") // server → lobby + game
+  if (isProxy.value) return presets.value.filter(p => p.key === "proxy")
+  return presets.value.filter(p => p.key !== "proxy") // server → lobby + game
 })
 
 // ── Validation ──────────────────────────────
 const nameError = computed(() => {
   if (!name.value) return null
-  if (name.value.length > 32) return "Max 32 characters"
-  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return "Lowercase, numbers, underscore, hyphen"
-  if (store.groups.find(g => g.name === name.value)) return "Group already exists"
+  if (name.value.length > 32) return t('components.createGroup.validation.maxChars')
+  if (!/^[a-z0-9_][a-z0-9_-]*$/.test(name.value)) return t('components.createGroup.validation.nameFormat')
+  if (store.groups.find(g => g.name === name.value)) return t('components.createGroup.validation.exists')
   return null
 })
 const nameValid = computed(() => name.value.length > 0 && !nameError.value)
@@ -202,38 +203,38 @@ const stepValid = computed(() => {
 })
 
 // ── Steps ───────────────────────────────────
-const steps = [
-  { label: "Identity", desc: "Platform & name", icon: Layers },
-  { label: "Scaling", desc: "Instances & capacity", icon: Activity },
-  { label: "Resources", desc: "Memory & networking", icon: Cpu },
-  { label: "Lifecycle", desc: "Timers & deployment", icon: Clock },
-  { label: "Orchestration", desc: "Relationships & cluster", icon: GitBranch },
-  { label: "Review", desc: "Confirm & create", icon: Eye },
-]
+const steps = computed(() => [
+  { label: t('components.createGroup.steps.identity.label'), desc: t('components.createGroup.steps.identity.desc'), icon: Layers },
+  { label: t('components.createGroup.steps.scaling.label'), desc: t('components.createGroup.steps.scaling.desc'), icon: Activity },
+  { label: t('components.createGroup.steps.resources.label'), desc: t('components.createGroup.steps.resources.desc'), icon: Cpu },
+  { label: t('components.createGroup.steps.lifecycle.label'), desc: t('components.createGroup.steps.lifecycle.desc'), icon: Clock },
+  { label: t('components.createGroup.steps.orchestration.label'), desc: t('components.createGroup.steps.orchestration.desc'), icon: GitBranch },
+  { label: t('components.createGroup.steps.review.label'), desc: t('components.createGroup.steps.review.desc'), icon: Eye },
+])
 
 // ── Config options ──────────────────────────
-const scalingModes = [
-  { key: "DYNAMIC" as const, label: "Dynamic", desc: "Auto-scale on player demand", icon: Activity, color: "text-success", border: "border-success/40", bg: "bg-success/5", shadow: "shadow-success/30", iconBg: "bg-success/10" },
-  { key: "STATIC" as const, label: "Static", desc: "Fixed named instances", icon: Box, color: "text-primary", border: "border-primary/40", bg: "bg-primary/5", shadow: "shadow-primary/30", iconBg: "bg-primary/10" },
-  { key: "MANUAL" as const, label: "Manual", desc: "Start instances on demand", icon: Gauge, color: "text-warning", border: "border-warning/40", bg: "bg-warning/5", shadow: "shadow-warning/30", iconBg: "bg-warning/10" },
-]
-const routingOptions = [
-  { key: "LOWEST_PLAYERS", label: "Lowest Players", desc: "Least populated first", icon: Users },
-  { key: "ROUND_ROBIN", label: "Round Robin", desc: "Distribute evenly", icon: Route },
-  { key: "RANDOM", label: "Random", desc: "Random selection", icon: Sparkles },
-  { key: "FILL_FIRST", label: "Fill First", desc: "Fill before opening new", icon: Box },
-]
-const updateStrategies = [
-  { key: "ROLLING" as const, label: "Rolling", desc: "Replace one at a time" },
-  { key: "ON_NEW" as const, label: "On New", desc: "New instances only" },
-  { key: "CANARY" as const, label: "Canary", desc: "Deploy one, then all" },
-  { key: "MANUAL" as const, label: "Manual", desc: "Trigger yourself" },
-]
-const memoryPresets = [
-  { mb: 512, label: "512M", hint: "Light" }, { mb: 1024, label: "1G", hint: "Standard" },
-  { mb: 2048, label: "2G", hint: "Moderate" }, { mb: 4096, label: "4G", hint: "Heavy" },
-  { mb: 8192, label: "8G", hint: "Extreme" },
-]
+const scalingModes = computed(() => [
+  { key: "DYNAMIC" as const, label: t('components.createGroup.scalingModes.dynamic.label'), desc: t('components.createGroup.scalingModes.dynamic.desc'), icon: Activity, color: "text-success", border: "border-success/40", bg: "bg-success/5", shadow: "shadow-success/30", iconBg: "bg-success/10" },
+  { key: "STATIC" as const, label: t('components.createGroup.scalingModes.static.label'), desc: t('components.createGroup.scalingModes.static.desc'), icon: Box, color: "text-primary", border: "border-primary/40", bg: "bg-primary/5", shadow: "shadow-primary/30", iconBg: "bg-primary/10" },
+  { key: "MANUAL" as const, label: t('components.createGroup.scalingModes.manual.label'), desc: t('components.createGroup.scalingModes.manual.desc'), icon: Gauge, color: "text-warning", border: "border-warning/40", bg: "bg-warning/5", shadow: "shadow-warning/30", iconBg: "bg-warning/10" },
+])
+const routingOptions = computed(() => [
+  { key: "LOWEST_PLAYERS", label: t('components.createGroup.routing.lowestPlayers.label'), desc: t('components.createGroup.routing.lowestPlayers.desc'), icon: Users },
+  { key: "ROUND_ROBIN", label: t('components.createGroup.routing.roundRobin.label'), desc: t('components.createGroup.routing.roundRobin.desc'), icon: Route },
+  { key: "RANDOM", label: t('components.createGroup.routing.random.label'), desc: t('components.createGroup.routing.random.desc'), icon: Sparkles },
+  { key: "FILL_FIRST", label: t('components.createGroup.routing.fillFirst.label'), desc: t('components.createGroup.routing.fillFirst.desc'), icon: Box },
+])
+const updateStrategies = computed(() => [
+  { key: "ROLLING" as const, label: t('components.createGroup.strategies.rolling.label'), desc: t('components.createGroup.strategies.rolling.desc') },
+  { key: "ON_NEW" as const, label: t('components.createGroup.strategies.onNew.label'), desc: t('components.createGroup.strategies.onNew.desc') },
+  { key: "CANARY" as const, label: t('components.createGroup.strategies.canary.label'), desc: t('components.createGroup.strategies.canary.desc') },
+  { key: "MANUAL" as const, label: t('components.createGroup.strategies.manual.label'), desc: t('components.createGroup.strategies.manual.desc') },
+])
+const memoryPresets = computed(() => [
+  { mb: 512, label: "512M", hint: t('components.createGroup.memHints.light') }, { mb: 1024, label: "1G", hint: t('components.createGroup.memHints.standard') },
+  { mb: 2048, label: "2G", hint: t('components.createGroup.memHints.moderate') }, { mb: 4096, label: "4G", hint: t('components.createGroup.memHints.heavy') },
+  { mb: 8192, label: "8G", hint: t('components.createGroup.memHints.extreme') },
+])
 
 // ── Helpers ─────────────────────────────────
 function formatMem(mb: number) { return mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 === 0 ? 0 : 1)}G` : `${mb}M` }
@@ -269,8 +270,8 @@ async function submit() {
     const env: Record<string, string> = {}
     for (const p of envPairs.value) { if (p.key.trim()) env[p.key.trim()] = p.value }
     const plat = platform.value.trim()
-    for (const t of mandatoryTemplateStatus.value) {
-      if (!t.exists) await templateStore.createTemplate({ name: t.name, description: t.name === "base" ? "Base template" : t.name.startsWith("base-") ? `Base template for ${plat}` : `Template for group ${t.name}`, platform: plat })
+    for (const tpl of mandatoryTemplateStatus.value) {
+      if (!tpl.exists) await templateStore.createTemplate({ name: tpl.name, description: tpl.name === "base" ? t('components.createGroup.tplDesc.base') : tpl.name.startsWith("base-") ? t('components.createGroup.tplDesc.basePlatform', { platform: plat }) : t('components.createGroup.tplDesc.group', { name: tpl.name }), platform: plat })
     }
     await store.createGroup({
       name: name.value.trim(), parent: parent.value.trim() || null, platform: plat.toUpperCase(),
@@ -293,7 +294,7 @@ async function submit() {
     } as any)
     open.value = false
   }
-  catch { toast.error("Create failed", { description: "Couldn't create the group. Check the form for invalid fields, or check the controller logs." }) }
+  catch { toast.error(t('components.createGroup.toast.createFailedTitle'), { description: t('components.createGroup.toast.createFailedDesc') }) }
   finally { loading.value = false }
 }
 
@@ -324,15 +325,49 @@ function selectPlatform(p: string) {
   platform.value = p; activePreset.value = null
   nextTick(() => { if (!platformVersion.value || platformVersion.value === recommendedVersion.value) platformVersion.value = recommendedVersion.value })
 }
+
+// ── Review step ─────────────────────────────
+const reviewCards = computed(() => [
+  { icon: Layers, title: t('components.createGroup.steps.identity.label'), step: 1, rows: [
+    [t('components.createGroup.review.name'), name.value],
+    [t('components.createGroup.review.platform'), `${platform.value || t('components.createGroup.review.custom')} ${platformVersion.value || recommendedVersion.value}`],
+    ...(parent.value ? [[t('components.createGroup.review.parent'), parent.value]] : []),
+    [t('components.createGroup.review.templates'), [...mandatoryTemplateNames.value, ...extraTemplates.value].join(' → ')],
+  ]},
+  { icon: Activity, title: t('components.createGroup.steps.scaling.label'), step: 2, rows: [
+    [t('components.createGroup.review.mode'), scalingMode.value],
+    [t('components.createGroup.review.instances'), scalingMode.value === 'MANUAL' ? t('components.createGroup.review.onDemand') : `${minInstances.value}–${maxInstances.value}`],
+    [t('components.createGroup.review.players'), t('components.createGroup.review.playersPerInstance', { count: maxPlayers.value })],
+    ...(scalingMode.value === 'DYNAMIC' ? [[t('components.createGroup.review.scaleUp'), `${scaleUpThreshold.value}%`]] : []),
+  ]},
+  { icon: Cpu, title: t('components.createGroup.review.resourcesNetwork'), step: 3, rows: [
+    [t('components.createGroup.review.memory'), formatMem(memoryMb.value)],
+    [t('components.createGroup.review.routing'), routing.value.replace(/_/g, ' ').toLowerCase()],
+    [t('components.createGroup.review.ports'), `${portRangeStart.value}–${portRangeEnd.value}`],
+    ...(jvmArgs.value ? [[t('components.createGroup.review.jvm'), jvmArgs.value]] : []),
+    ...(envPairs.value.length ? [[t('components.createGroup.review.envVars'), t('components.createGroup.review.varCount', { count: envPairs.value.length }, envPairs.value.length)]] : []),
+  ]},
+  { icon: Clock, title: t('components.createGroup.review.lifecycleDeployment'), step: 4, rows: [
+    [t('components.createGroup.review.strategy'), updateStrategy.value],
+    [t('components.createGroup.review.startup'), `${startupTimeoutSeconds.value}s`],
+    [t('components.createGroup.review.drain'), drainOnShutdown.value ? t('components.createGroup.yes') : t('components.createGroup.no')],
+    ...(maxLifetimeSeconds.value > 0 ? [[t('components.createGroup.review.maxLife'), `${maxLifetimeSeconds.value}s`]] : []),
+  ]},
+  { icon: GitBranch, title: t('components.createGroup.steps.orchestration.label'), step: 5, rows: [
+    ...(dependsOn.value ? [[t('components.createGroup.review.dependsOn'), dependsOn.value]] : []),
+    ...(defaultGroup.value ? [[t('components.createGroup.review.defaultGroup'), t('components.createGroup.yes')]] : []),
+    ...(maintenance.value ? [[t('components.createGroup.review.maintenance'), t('components.createGroup.yes')]] : []),
+  ]},
+])
 </script>
 
 <template>
   <Dialog :open="open" @update:open="handleOpen">
     <DialogTrigger as-child>
-      <Button class="bg-primary hover:bg-primary/90 text-primary-foreground"><Plus class="size-5 mr-2" /> New Group</Button>
+      <Button class="bg-primary hover:bg-primary/90 text-primary-foreground"><Plus class="size-5 mr-2" /> {{ t('components.createGroup.newGroup') }}</Button>
     </DialogTrigger>
     <DialogContent class="bg-popover backdrop-blur-xl border-glass-border rounded-2xl sm:max-w-4xl [&>button:last-child]:hidden overflow-hidden p-0 max-h-[90vh] flex flex-col" :aria-describedby="undefined">
-      <DialogTitle class="sr-only">Create Server Group</DialogTitle>
+      <DialogTitle class="sr-only">{{ t('components.createGroup.dialogTitle') }}</DialogTitle>
       <div class="flex flex-1 min-h-0">
 
         <!-- ── Stepper sidebar ── -->
@@ -340,7 +375,7 @@ function selectPlatform(p: string) {
           <div class="px-5 pt-6 pb-4">
             <div class="flex items-center gap-2.5">
               <div class="size-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center"><Package class="size-4 text-primary" /></div>
-              <div><p class="text-sm font-bold text-foreground">New Group</p><p class="text-[10px] text-muted-foreground">Setup wizard</p></div>
+              <div><p class="text-sm font-bold text-foreground">{{ t('components.createGroup.newGroup') }}</p><p class="text-[10px] text-muted-foreground">{{ t('components.createGroup.setupWizard') }}</p></div>
             </div>
           </div>
           <Separator class="bg-glass-border" />
@@ -380,23 +415,23 @@ type="button" :disabled="i + 1 > step"
               <div v-if="step === 1" key="s1" class="flex flex-col gap-5">
                 <div class="flex flex-col gap-2">
                   <div class="flex items-center justify-between">
-                    <Label class="uppercase tracking-wider text-xs">Platform</Label>
-                    <button v-if="platform" type="button" class="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1" @click="platform = ''; platformVersion = ''"><X class="size-2.5" /> Clear</button>
+                    <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s1.platform') }}</Label>
+                    <button v-if="platform" type="button" class="text-[11px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1" @click="platform = ''; platformVersion = ''"><X class="size-2.5" /> {{ t('components.createGroup.s1.clear') }}</button>
                   </div>
                   <div v-if="!platform && catalogStore.entries.length > 4" class="relative">
                     <Search class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/40" />
-                    <input v-model="platformSearch" type="text" placeholder="Search platforms..." class="w-full h-9 pl-9 pr-3 bg-glass/60 rounded-xl border border-glass-border text-foreground text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40 transition-colors" >
+                    <input v-model="platformSearch" type="text" :placeholder="t('components.createGroup.s1.searchPlatforms')" class="w-full h-9 pl-9 pr-3 bg-glass/60 rounded-xl border border-glass-border text-foreground text-xs placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary/40 transition-colors" >
                   </div>
                   <div v-if="!platform" class="flex flex-col gap-3">
-                    <div v-if="!hasResults && platformSearch" class="py-8 text-center"><Search class="size-5 text-muted-foreground/30 mx-auto mb-2" /><p class="text-xs text-muted-foreground">No platforms match "{{ platformSearch }}"</p></div>
+                    <div v-if="!hasResults && platformSearch" class="py-8 text-center"><Search class="size-5 text-muted-foreground/30 mx-auto mb-2" /><p class="text-xs text-muted-foreground">{{ t('components.createGroup.s1.noMatch', { q: platformSearch }) }}</p></div>
                     <template v-if="hasResults">
-                      <template v-for="[label, catIcon, catColor, entries] in ([['Servers', Server, 'success', filteredServers], ['Proxies', Network, 'primary', filteredProxies]] as const)" :key="label">
+                      <template v-for="[label, catIcon, catColor, entries] in ([[t('components.createGroup.s1.servers'), Server, 'success', filteredServers], [t('components.createGroup.s1.proxies'), Network, 'primary', filteredProxies]] as const)" :key="label">
                         <template v-if="entries.length">
                           <div class="flex items-center gap-2 pt-1"><component :is="catIcon" class="size-3 text-muted-foreground/40" /><span class="text-[10px] font-medium text-muted-foreground/50 uppercase tracking-widest">{{ label }}</span><div class="flex-1 h-px bg-glass-border/30" /></div>
                           <div class="grid grid-cols-2 gap-2">
                             <button v-for="entry in entries" :key="entry.platform" type="button" class="group/plat flex items-center gap-3 px-3.5 py-3 rounded-xl border border-glass-border bg-glass/20 hover:bg-glass-hover/60 hover:border-primary/30 text-left transition-all hover:-translate-y-0.5" @click="selectPlatform(entry.platform)">
                               <div :class="['size-10 rounded-xl flex items-center justify-center shrink-0 transition-colors', catColor === 'success' ? 'bg-success/8 group-hover/plat:bg-success/15' : 'bg-primary/8 group-hover/plat:bg-primary/15']"><component :is="catIcon" :class="['size-4.5', catColor === 'success' ? 'text-success/70 group-hover/plat:text-success' : 'text-primary/70 group-hover/plat:text-primary']" /></div>
-                              <div class="flex-1 min-w-0"><p class="text-sm font-semibold capitalize text-foreground/80 group-hover/plat:text-foreground truncate">{{ entry.platform }}</p><p class="text-[10px] text-muted-foreground/50 mt-0.5">{{ entry.versions.length }} version{{ entry.versions.length !== 1 ? 's' : '' }}<span v-if="entry.versions.find(v => v.recommended)" class="text-muted-foreground/40"> · {{ entry.versions.find(v => v.recommended)?.version }}</span></p></div>
+                              <div class="flex-1 min-w-0"><p class="text-sm font-semibold capitalize text-foreground/80 group-hover/plat:text-foreground truncate">{{ entry.platform }}</p><p class="text-[10px] text-muted-foreground/50 mt-0.5">{{ t('components.createGroup.s1.versionCount', { count: entry.versions.length }, entry.versions.length) }}<span v-if="entry.versions.find(v => v.recommended)" class="text-muted-foreground/40"> · {{ entry.versions.find(v => v.recommended)?.version }}</span></p></div>
                               <ArrowRight class="size-3.5 text-muted-foreground/20 group-hover/plat:text-primary/50 transition-colors shrink-0" />
                             </button>
                           </div>
@@ -405,30 +440,30 @@ type="button" :disabled="i + 1 > step"
                     </template>
                     <button v-if="!platformSearch" type="button" class="flex items-center gap-3 px-3.5 py-3 rounded-xl border border-dashed border-glass-border/50 hover:bg-glass-hover/40 text-left transition-all group/custom" @click="platform = ''; platformVersion = ''">
                       <div class="size-10 rounded-xl bg-glass flex items-center justify-center shrink-0"><Terminal class="size-4.5 text-muted-foreground/40 group-hover/custom:text-muted-foreground/60 transition-colors" /></div>
-                      <div><p class="text-sm font-medium text-muted-foreground/60 group-hover/custom:text-muted-foreground transition-colors">Custom Platform</p><p class="text-[10px] text-muted-foreground/40">Bring your own JAR</p></div>
+                      <div><p class="text-sm font-medium text-muted-foreground/60 group-hover/custom:text-muted-foreground transition-colors">{{ t('components.createGroup.s1.customPlatform') }}</p><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s1.byoJar') }}</p></div>
                     </button>
                   </div>
                   <div v-if="platform" class="rounded-xl border border-primary/25 bg-primary/5 overflow-hidden">
                     <div class="flex items-center gap-3 px-4 py-3">
                       <div :class="['size-10 rounded-xl flex items-center justify-center', isProxy ? 'bg-primary/15' : 'bg-success/15']"><component :is="isProxy ? Network : Server" :class="['size-4.5', isProxy ? 'text-primary' : 'text-success']" /></div>
-                      <div class="flex-1 min-w-0"><p class="text-sm font-bold text-foreground capitalize">{{ platform }}</p><p class="text-[10px] text-muted-foreground">{{ isProxy ? 'Proxy' : 'Server' }} · {{ availableVersions.length }} versions</p></div>
-                      <Badge variant="outline" class="text-[10px] border-primary/20 text-primary shrink-0">Selected</Badge>
+                      <div class="flex-1 min-w-0"><p class="text-sm font-bold text-foreground capitalize">{{ platform }}</p><p class="text-[10px] text-muted-foreground">{{ isProxy ? t('components.createGroup.proxy') : t('components.createGroup.server') }} · {{ t('components.createGroup.s1.versionsLabel', { count: availableVersions.length }) }}</p></div>
+                      <Badge variant="outline" class="text-[10px] border-primary/20 text-primary shrink-0">{{ t('components.createGroup.s1.selected') }}</Badge>
                     </div>
                     <div class="px-4 py-3 border-t border-primary/15 bg-primary/3">
-                      <p class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium mb-2">Version</p>
+                      <p class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium mb-2">{{ t('components.createGroup.s1.version') }}</p>
                       <div v-if="availableVersions.length" class="flex flex-wrap gap-1.5">
                         <button
 v-for="v in availableVersions" :key="v.version" type="button"
                           :class="['inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all hover:-translate-y-0.5',
                             platformVersion === v.version ? 'border-primary/40 bg-primary/15 ring-1 ring-primary/20 text-foreground' : 'border-glass-border/50 bg-popover/50 text-muted-foreground hover:bg-glass-hover/60 hover:text-foreground']"
-                          @click="platformVersion = v.version">{{ v.version }}<span v-if="v.recommended" class="inline-flex items-center gap-0.5 text-[9px] text-success font-sans font-medium"><CircleDot class="size-2.5" /> rec</span></button>
+                          @click="platformVersion = v.version">{{ v.version }}<span v-if="v.recommended" class="inline-flex items-center gap-0.5 text-[9px] text-success font-sans font-medium"><CircleDot class="size-2.5" /> {{ t('components.createGroup.s1.rec') }}</span></button>
                       </div>
-                      <div v-else><Input v-model="platformVersion" placeholder="e.g. 1.21.4" autocomplete="off" class="bg-glass border-glass-border font-mono h-8 text-xs" /></div>
+                      <div v-else><Input v-model="platformVersion" :placeholder="t('components.createGroup.s1.versionPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono h-8 text-xs" /></div>
                     </div>
                   </div>
                 </div>
                 <div v-if="visiblePresets.length" class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-[10px] text-muted-foreground/60">Quick Start</Label>
+                  <Label class="uppercase tracking-wider text-[10px] text-muted-foreground/60">{{ t('components.createGroup.s1.quickStart') }}</Label>
                   <div :class="['grid gap-2', visiblePresets.length === 1 ? 'grid-cols-1 max-w-xs' : visiblePresets.length === 2 ? 'grid-cols-2' : 'grid-cols-3']">
                     <button
 v-for="preset in visiblePresets" :key="preset.key" type="button"
@@ -442,38 +477,38 @@ v-for="preset in visiblePresets" :key="preset.key" type="button"
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex flex-col gap-1.5">
-                  <Label for="g-name" class="uppercase tracking-wider text-xs">Group Name</Label>
-                  <Input id="g-name" v-model="name" placeholder="e.g. lobby" autocomplete="off" class="bg-glass border-glass-border" />
+                  <Label for="g-name" class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s1.groupName') }}</Label>
+                  <Input id="g-name" v-model="name" :placeholder="t('components.createGroup.s1.namePlaceholder')" autocomplete="off" class="bg-glass border-glass-border" />
                   <p v-if="nameError" class="text-xs text-destructive">{{ nameError }}</p>
                 </div>
 
                 <!-- Template layer — derived from platform + name, shown here so the user sees the connection -->
                 <div v-if="name && (platform || jarFile !== 'server.jar')" class="flex flex-col gap-1.5">
-                  <Label class="uppercase tracking-wider text-xs">Template Layer</Label>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s1.templateLayer') }}</Label>
                   <div class="flex items-center gap-2 p-3 rounded-xl border border-glass-border bg-glass/40 overflow-x-auto">
-                    <template v-for="(t, i) in mandatoryTemplateStatus" :key="t.name">
+                    <template v-for="(tpl, i) in mandatoryTemplateStatus" :key="tpl.name">
                       <div
 class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium font-mono shrink-0"
-                        :class="t.exists ? 'border-success/30 bg-success/5 text-success' : 'border-warning/30 bg-warning/5 text-warning'">
-                        <FileCode class="size-3" /> {{ t.name }} <Check v-if="t.exists" class="size-3" /><Plus v-else class="size-3" />
+                        :class="tpl.exists ? 'border-success/30 bg-success/5 text-success' : 'border-warning/30 bg-warning/5 text-warning'">
+                        <FileCode class="size-3" /> {{ tpl.name }} <Check v-if="tpl.exists" class="size-3" /><Plus v-else class="size-3" />
                       </div>
                       <ArrowRight v-if="i < mandatoryTemplateStatus.length - 1" class="size-3 text-muted-foreground/40 shrink-0" />
                     </template>
                   </div>
-                  <p class="text-[10px] text-muted-foreground/50"><span class="text-success">Green</span> = exists, <span class="text-warning">yellow</span> = created automatically</p>
+                  <p class="text-[10px] text-muted-foreground/50"><span class="text-success">{{ t('components.createGroup.s1.green') }}</span> {{ t('components.createGroup.s1.legendExists') }}, <span class="text-warning">{{ t('components.createGroup.s1.yellow') }}</span> {{ t('components.createGroup.s1.legendAuto') }}</p>
                 </div>
 
                 <div v-if="!platform" class="flex flex-col gap-1.5">
-                  <Label for="g-jar" class="uppercase tracking-wider text-xs">JAR File</Label>
-                  <Input id="g-jar" v-model="jarFile" placeholder="server.jar" autocomplete="off" class="bg-glass border-glass-border font-mono" />
-                  <p class="text-[11px] text-warning/80">Without a catalog platform you must provide the server JAR filename.</p>
+                  <Label for="g-jar" class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s1.jarFile') }}</Label>
+                  <Input id="g-jar" v-model="jarFile" :placeholder="t('components.createGroup.s1.jarPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono" />
+                  <p class="text-[11px] text-warning/80">{{ t('components.createGroup.s1.jarHint') }}</p>
                 </div>
               </div>
 
               <!-- ═══════ STEP 2: Scaling ═══════ -->
               <div v-else-if="step === 2" key="s2" class="flex flex-col gap-5">
                 <div class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-xs">Scaling Mode</Label>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s2.scalingMode') }}</Label>
                   <div class="grid grid-cols-3 gap-2">
                     <button
 v-for="mode in scalingModes" :key="mode.key" type="button"
@@ -489,33 +524,33 @@ v-for="mode in scalingModes" :key="mode.key" type="button"
                 <template v-if="scalingMode === 'DYNAMIC'">
                   <div class="grid grid-cols-2 gap-3">
                     <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-3">
-                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Instance Range</span><span class="text-[10px] font-mono text-muted-foreground/40">0 – 50</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">How many instances can run at once</p></div>
+                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.instanceRange') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">0 – 50</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.instanceRangeHint') }}</p></div>
                       <Slider :model-value="[minInstances, maxInstances]" :min="0" :max="50" :step="1" :min-steps-between-thumbs="1" show-tooltip @update:model-value="onInstanceRangeChange($event!)" />
                       <div class="flex items-center justify-between text-[11px]">
-                        <span class="text-muted-foreground flex items-center gap-1">Min <input type="number" :value="minInstances" :min="0" :max="50" class="inline-number-input" @change="onInlineEdit($event, v => { minInstances = v; if (v > maxInstances) maxInstances = v }, 0, 50)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span>
-                        <span class="text-muted-foreground flex items-center gap-1">Max <input type="number" :value="maxInstances" :min="0" :max="50" class="inline-number-input" @change="onInlineEdit($event, v => { maxInstances = v; if (v < minInstances) minInstances = v }, 0, 50)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span>
+                        <span class="text-muted-foreground flex items-center gap-1">{{ t('components.createGroup.min') }} <input type="number" :value="minInstances" :min="0" :max="50" class="inline-number-input" @change="onInlineEdit($event, v => { minInstances = v; if (v > maxInstances) maxInstances = v }, 0, 50)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span>
+                        <span class="text-muted-foreground flex items-center gap-1">{{ t('components.createGroup.max') }} <input type="number" :value="maxInstances" :min="0" :max="50" class="inline-number-input" @change="onInlineEdit($event, v => { maxInstances = v; if (v < minInstances) minInstances = v }, 0, 50)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span>
                       </div>
                     </div>
                     <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-3">
-                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Players / Instance</span><span class="text-[10px] font-mono text-muted-foreground/40">10 – 500</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">Slots before instance is considered full</p></div>
+                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.playersInstance') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">10 – 500</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.slotsHint') }}</p></div>
                       <Slider :model-value="[maxPlayers]" :min="10" :max="500" :step="10" show-tooltip @update:model-value="maxPlayers = $event![0]!" />
                       <div class="flex items-center justify-between text-[11px]">
-                        <span class="text-muted-foreground flex items-center gap-1">Max <input type="number" :value="maxPlayers" :min="1" :max="500" class="inline-number-input" @change="onInlineEdit($event, v => maxPlayers = v, 1, 500)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span>
-                        <span class="text-muted-foreground">= <span class="font-mono font-semibold text-foreground">{{ maxInstances * maxPlayers }}</span> total</span>
+                        <span class="text-muted-foreground flex items-center gap-1">{{ t('components.createGroup.max') }} <input type="number" :value="maxPlayers" :min="1" :max="500" class="inline-number-input" @change="onInlineEdit($event, v => maxPlayers = v, 1, 500)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span>
+                        <span class="text-muted-foreground">= <span class="font-mono font-semibold text-foreground">{{ maxInstances * maxPlayers }}</span> {{ t('components.createGroup.total') }}</span>
                       </div>
                     </div>
                   </div>
                   <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-3">
-                    <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Scale-up Threshold</span><span class="text-[10px] font-mono text-muted-foreground/40">10% – 100%</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">New instance when <span class="font-mono text-foreground">{{ Math.round(maxPlayers * scaleUpThreshold / 100) }}</span> of {{ maxPlayers }} slots filled</p></div>
+                    <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.scaleUpThreshold') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">10% – 100%</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.newInstanceWhen', { filled: Math.round(maxPlayers * scaleUpThreshold / 100), total: maxPlayers }) }}</p></div>
                     <Slider :model-value="[scaleUpThreshold]" :min="10" :max="100" :step="5" show-tooltip :format-tooltip="fmtPct" @update:model-value="scaleUpThreshold = $event![0]!" />
                   </div>
                   <div class="grid grid-cols-2 gap-3">
                     <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-2">
-                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Scale-down Delay</span><span class="text-[10px] font-mono text-muted-foreground/40">0 – 900s</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">Wait before removing empty instance</p></div>
+                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.scaleDownDelay') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">0 – 900s</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.scaleDownHint') }}</p></div>
                       <Slider :model-value="[scaleDownAfterSeconds]" :min="0" :max="900" :step="30" show-tooltip :format-tooltip="fmtSec" @update:model-value="scaleDownAfterSeconds = $event![0]!" />
                     </div>
                     <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-2">
-                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Cooldown</span><span class="text-[10px] font-mono text-muted-foreground/40">0 – 300s</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">Minimum wait between scaling actions</p></div>
+                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.cooldown') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">0 – 300s</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.cooldownHint') }}</p></div>
                       <Slider :model-value="[scaleCooldownSeconds]" :min="0" :max="300" :step="10" show-tooltip :format-tooltip="fmtSec" @update:model-value="scaleCooldownSeconds = $event![0]!" />
                     </div>
                   </div>
@@ -523,35 +558,35 @@ v-for="mode in scalingModes" :key="mode.key" type="button"
                   <div class="flex items-center justify-between p-3 rounded-xl border border-glass-border bg-glass/20 opacity-50 cursor-not-allowed">
                     <div class="flex items-center gap-2.5">
                       <Sparkles class="size-3.5 text-muted-foreground/40" />
-                      <div><p class="text-xs font-medium text-muted-foreground">Predictive Scaling</p><p class="text-[10px] text-muted-foreground/40">Pre-scale based on historical patterns</p></div>
+                      <div><p class="text-xs font-medium text-muted-foreground">{{ t('components.createGroup.s2.predictive') }}</p><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s2.predictiveHint') }}</p></div>
                     </div>
-                    <Badge variant="outline" class="text-[9px] text-muted-foreground border-glass-border">Coming soon</Badge>
+                    <Badge variant="outline" class="text-[9px] text-muted-foreground border-glass-border">{{ t('components.createGroup.comingSoon') }}</Badge>
                   </div>
                 </template>
 
                 <template v-if="scalingMode === 'STATIC'">
                   <div class="grid grid-cols-2 gap-3">
                     <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-3">
-                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Instance Count</span><span class="text-[10px] font-mono text-muted-foreground/40">1 – 50</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">Fixed number, always kept running</p></div>
+                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.instanceCount') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">1 – 50</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.fixedHint') }}</p></div>
                       <Slider :model-value="[minInstances]" :min="1" :max="50" :step="1" show-tooltip @update:model-value="minInstances = $event![0]!; maxInstances = $event![0]!" />
-                      <div class="flex items-center gap-1 text-[11px] text-muted-foreground">Running: <input type="number" :value="minInstances" :min="1" :max="50" class="inline-number-input" @change="onInlineEdit($event, v => { minInstances = v; maxInstances = v }, 1, 50)" @keydown.enter="($event.target as HTMLInputElement).blur()" > instance{{ minInstances !== 1 ? 's' : '' }}</div>
+                      <div class="flex items-center gap-1 text-[11px] text-muted-foreground">{{ t('components.createGroup.s2.running') }} <input type="number" :value="minInstances" :min="1" :max="50" class="inline-number-input" @change="onInlineEdit($event, v => { minInstances = v; maxInstances = v }, 1, 50)" @keydown.enter="($event.target as HTMLInputElement).blur()" > {{ t('components.createGroup.s2.instanceWord', minInstances) }}</div>
                     </div>
                     <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-3">
-                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Players / Instance</span><span class="text-[10px] font-mono text-muted-foreground/40">10 – 500</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">Slots before instance is considered full</p></div>
+                      <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.playersInstance') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">10 – 500</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.slotsHint') }}</p></div>
                       <Slider :model-value="[maxPlayers]" :min="10" :max="500" :step="10" show-tooltip @update:model-value="maxPlayers = $event![0]!" />
-                      <div class="flex items-center justify-between text-[11px]"><span class="text-muted-foreground flex items-center gap-1">Max <input type="number" :value="maxPlayers" :min="1" :max="500" class="inline-number-input" @change="onInlineEdit($event, v => maxPlayers = v, 1, 500)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span><span class="text-muted-foreground">= <span class="font-mono font-semibold text-foreground">{{ minInstances * maxPlayers }}</span> total</span></div>
+                      <div class="flex items-center justify-between text-[11px]"><span class="text-muted-foreground flex items-center gap-1">{{ t('components.createGroup.max') }} <input type="number" :value="maxPlayers" :min="1" :max="500" class="inline-number-input" @change="onInlineEdit($event, v => maxPlayers = v, 1, 500)" @keydown.enter="($event.target as HTMLInputElement).blur()" ></span><span class="text-muted-foreground">= <span class="font-mono font-semibold text-foreground">{{ minInstances * maxPlayers }}</span> {{ t('components.createGroup.total') }}</span></div>
                     </div>
                   </div>
                   <div class="flex flex-col gap-1.5">
-                    <Label class="uppercase tracking-wider text-xs">Instance Names <span class="normal-case text-muted-foreground font-normal tracking-normal">(optional)</span></Label>
-                    <Input v-model="staticInstanceNames" placeholder="e.g. lobby-1, lobby-2, lobby-vip" autocomplete="off" class="bg-glass border-glass-border font-mono" />
-                    <p class="text-[11px] text-muted-foreground/50">{{ staticInstanceNames.trim() ? `These names override the instance count — exactly ${splitTags(staticInstanceNames).length} instance${splitTags(staticInstanceNames).length !== 1 ? 's' : ''} will run.` : `Leave empty to auto-generate as ${name || 'group'}-1, ${name || 'group'}-2, etc.` }}</p>
+                    <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s2.instanceNames') }} <span class="normal-case text-muted-foreground font-normal tracking-normal">{{ t('components.createGroup.optional') }}</span></Label>
+                    <Input v-model="staticInstanceNames" :placeholder="t('components.createGroup.s2.instanceNamesPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono" />
+                    <p class="text-[11px] text-muted-foreground/50">{{ staticInstanceNames.trim() ? t('components.createGroup.s2.staticHintNames', { count: splitTags(staticInstanceNames).length }, splitTags(staticInstanceNames).length) : t('components.createGroup.s2.staticHintAuto', { name: name || 'group' }) }}</p>
                   </div>
                 </template>
 
                 <template v-if="scalingMode === 'MANUAL'">
                   <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-3">
-                    <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Players / Instance</span><span class="text-[10px] font-mono text-muted-foreground/40">10 – 500</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">Max player slots for each instance you start</p></div>
+                    <div><div class="flex items-center justify-between"><span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s2.playersInstance') }}</span><span class="text-[10px] font-mono text-muted-foreground/40">10 – 500</span></div><p class="text-[10px] text-muted-foreground/40 mt-0.5">{{ t('components.createGroup.s2.manualSlotsHint') }}</p></div>
                     <Slider :model-value="[maxPlayers]" :min="10" :max="500" :step="10" show-tooltip @update:model-value="maxPlayers = $event![0]!" />
                   </div>
                 </template>
@@ -560,8 +595,8 @@ v-for="mode in scalingModes" :key="mode.key" type="button"
               <!-- ═══════ STEP 3: Resources & Networking ═══════ -->
               <div v-else-if="step === 3" key="s3" class="flex flex-col gap-5">
                 <div class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-xs">Memory per Instance</Label>
-                  <p class="text-[10px] text-muted-foreground/40">JVM heap size — also determines which nodes have enough free memory for placement</p>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s3.memory') }}</Label>
+                  <p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s3.memoryHint') }}</p>
                   <div class="grid grid-cols-5 gap-2">
                     <button
 v-for="preset in memoryPresets" :key="preset.mb" type="button"
@@ -576,8 +611,8 @@ v-for="preset in memoryPresets" :key="preset.mb" type="button"
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-xs">Player Routing</Label>
-                  <p class="text-[10px] text-muted-foreground/40">How the proxy assigns incoming players to instances</p>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s3.routing') }}</Label>
+                  <p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s3.routingHint') }}</p>
                   <div class="grid grid-cols-2 gap-2">
                     <button
 v-for="opt in routingOptions" :key="opt.key" type="button"
@@ -591,52 +626,52 @@ v-for="opt in routingOptions" :key="opt.key" type="button"
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-xs">Port Range</Label>
-                  <p class="text-[10px] text-muted-foreground/40">Each instance gets a port from this range — avoid overlapping with other groups</p>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s3.portRange') }}</Label>
+                  <p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s3.portHint') }}</p>
                   <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1.5"><Label class="text-[10px] text-muted-foreground/60">Start</Label><Input v-model.number="portRangeStart" type="number" class="bg-glass border-glass-border font-mono" /></div>
-                    <div class="flex flex-col gap-1.5"><Label class="text-[10px] text-muted-foreground/60">End</Label><Input v-model.number="portRangeEnd" type="number" class="bg-glass border-glass-border font-mono" /></div>
+                    <div class="flex flex-col gap-1.5"><Label class="text-[10px] text-muted-foreground/60">{{ t('components.createGroup.s3.start') }}</Label><Input v-model.number="portRangeStart" type="number" class="bg-glass border-glass-border font-mono" /></div>
+                    <div class="flex flex-col gap-1.5"><Label class="text-[10px] text-muted-foreground/60">{{ t('components.createGroup.s3.end') }}</Label><Input v-model.number="portRangeEnd" type="number" class="bg-glass border-glass-border font-mono" /></div>
                   </div>
-                  <p v-if="portRangeStart > portRangeEnd" class="text-xs text-destructive">Start must be ≤ end</p>
+                  <p v-if="portRangeStart > portRangeEnd" class="text-xs text-destructive">{{ t('components.createGroup.s3.portError') }}</p>
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex flex-col gap-1.5">
-                  <Label class="uppercase tracking-wider text-xs">JVM Arguments <span class="normal-case text-muted-foreground font-normal tracking-normal">(optional)</span></Label>
-                  <Input v-model="jvmArgs" placeholder="e.g. -XX:+UseG1GC, -XX:MaxGCPauseMillis=50" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" />
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s3.jvmArgs') }} <span class="normal-case text-muted-foreground font-normal tracking-normal">{{ t('components.createGroup.optional') }}</span></Label>
+                  <Input v-model="jvmArgs" :placeholder="t('components.createGroup.s3.jvmPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" />
                 </div>
                 <div class="flex flex-col gap-2">
                   <div class="flex items-center justify-between">
-                    <Label class="uppercase tracking-wider text-xs">Environment Variables</Label>
-                    <button type="button" class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors" @click="addEnvPair"><Plus class="size-3" /> Add</button>
+                    <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s3.envVars') }}</Label>
+                    <button type="button" class="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors" @click="addEnvPair"><Plus class="size-3" /> {{ t('components.createGroup.add') }}</button>
                   </div>
                   <div v-if="envPairs.length" class="flex flex-col gap-2">
                     <div v-for="(pair, i) in envPairs" :key="i" class="flex items-center gap-2">
-                      <Input v-model="pair.key" placeholder="KEY" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs flex-1" />
+                      <Input v-model="pair.key" :placeholder="t('components.createGroup.s3.keyPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs flex-1" />
                       <span class="text-xs text-muted-foreground">=</span>
-                      <Input v-model="pair.value" placeholder="value" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs flex-1" />
+                      <Input v-model="pair.value" :placeholder="t('components.createGroup.s3.valuePlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs flex-1" />
                       <button type="button" class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors shrink-0" @click="removeEnvPair(i)"><X class="size-3.5" /></button>
                     </div>
                   </div>
-                  <p v-else class="text-[11px] text-muted-foreground/50">No environment variables — plugins receive CLOUD_CONTROLLER_URL automatically</p>
+                  <p v-else class="text-[11px] text-muted-foreground/50">{{ t('components.createGroup.s3.noEnv') }}</p>
                 </div>
               </div>
 
               <!-- ═══════ STEP 4: Lifecycle & Deployment ═══════ -->
               <div v-else-if="step === 4" key="s4" class="flex flex-col gap-5">
                 <div class="rounded-xl border border-glass-border bg-glass/20 p-4 flex flex-col gap-4">
-                  <span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Instance Timers</span>
-                  <div class="flex flex-col gap-1"><div class="flex items-center justify-between"><Label class="text-xs">Startup timeout</Label><span class="text-[10px] font-mono text-muted-foreground/40">10 – 600s</span></div><p class="text-[10px] text-muted-foreground/40">Time allowed for boot — killed if exceeded</p><Slider :model-value="[startupTimeoutSeconds]" :min="10" :max="600" :step="10" show-tooltip :format-tooltip="fmtSec" @update:model-value="startupTimeoutSeconds = $event![0]!" /></div>
-                  <div class="flex flex-col gap-1"><div class="flex items-center justify-between"><Label class="text-xs">Shutdown grace</Label><span class="text-[10px] font-mono text-muted-foreground/40">0 – 120s</span></div><p class="text-[10px] text-muted-foreground/40">Grace period before force-kill</p><Slider :model-value="[shutdownGraceSeconds]" :min="0" :max="120" :step="5" show-tooltip :format-tooltip="fmtSec" @update:model-value="shutdownGraceSeconds = $event![0]!" /></div>
-                  <div class="flex flex-col gap-1"><div class="flex items-center justify-between"><Label class="text-xs">Max lifetime</Label><span class="text-[10px] font-mono text-muted-foreground/40">0 = unlimited</span></div><p class="text-[10px] text-muted-foreground/40">Auto-recycle after this duration (prevents memory leaks)</p><Slider :model-value="[maxLifetimeSeconds]" :min="0" :max="86400" :step="300" show-tooltip :format-tooltip="fmtLifetime" @update:model-value="maxLifetimeSeconds = $event![0]!" /></div>
+                  <span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s4.instanceTimers') }}</span>
+                  <div class="flex flex-col gap-1"><div class="flex items-center justify-between"><Label class="text-xs">{{ t('components.createGroup.s4.startupTimeout') }}</Label><span class="text-[10px] font-mono text-muted-foreground/40">10 – 600s</span></div><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s4.startupHint') }}</p><Slider :model-value="[startupTimeoutSeconds]" :min="10" :max="600" :step="10" show-tooltip :format-tooltip="fmtSec" @update:model-value="startupTimeoutSeconds = $event![0]!" /></div>
+                  <div class="flex flex-col gap-1"><div class="flex items-center justify-between"><Label class="text-xs">{{ t('components.createGroup.s4.shutdownGrace') }}</Label><span class="text-[10px] font-mono text-muted-foreground/40">0 – 120s</span></div><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s4.graceHint') }}</p><Slider :model-value="[shutdownGraceSeconds]" :min="0" :max="120" :step="5" show-tooltip :format-tooltip="fmtSec" @update:model-value="shutdownGraceSeconds = $event![0]!" /></div>
+                  <div class="flex flex-col gap-1"><div class="flex items-center justify-between"><Label class="text-xs">{{ t('components.createGroup.s4.maxLifetime') }}</Label><span class="text-[10px] font-mono text-muted-foreground/40">0 = unlimited</span></div><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s4.lifetimeHint') }}</p><Slider :model-value="[maxLifetimeSeconds]" :min="0" :max="86400" :step="300" show-tooltip :format-tooltip="fmtLifetime" @update:model-value="maxLifetimeSeconds = $event![0]!" /></div>
                 </div>
                 <div class="flex items-center justify-between p-3 rounded-xl border border-glass-border bg-glass/20">
-                  <div><p class="text-xs font-medium text-foreground">Drain on Shutdown</p><p class="text-[10px] text-muted-foreground/40">Migrate players to other instances before stopping</p></div>
+                  <div><p class="text-xs font-medium text-foreground">{{ t('components.createGroup.s4.drain') }}</p><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s4.drainHint') }}</p></div>
                   <Switch v-model="drainOnShutdown" />
                 </div>
                 <Separator class="bg-glass-border" />
                 <div class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-xs">Update Strategy</Label>
-                  <p class="text-[10px] text-muted-foreground/40">How template changes are rolled out to running instances</p>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s4.updateStrategy') }}</Label>
+                  <p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s4.strategyHint') }}</p>
                   <div class="grid grid-cols-4 gap-1.5">
                     <button
 v-for="strat in updateStrategies" :key="strat.key" type="button"
@@ -649,9 +684,9 @@ v-for="strat in updateStrategies" :key="strat.key" type="button"
                   </div>
                 </div>
                 <div v-if="scalingMode === 'STATIC'" class="flex flex-col gap-1.5">
-                  <Label class="uppercase tracking-wider text-xs">Protected Paths <span class="normal-case text-muted-foreground font-normal tracking-normal">(static instances only)</span></Label>
-                  <Input v-model="protectedPaths" placeholder="e.g. world, plugins/Essentials" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" />
-                  <p class="text-[10px] text-muted-foreground/40">These paths survive template re-application on restart</p>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s4.protectedPaths') }} <span class="normal-case text-muted-foreground font-normal tracking-normal">{{ t('components.createGroup.s4.staticOnly') }}</span></Label>
+                  <Input v-model="protectedPaths" :placeholder="t('components.createGroup.s4.protectedPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" />
+                  <p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s4.protectedHint') }}</p>
                 </div>
               </div>
 
@@ -659,15 +694,15 @@ v-for="strat in updateStrategies" :key="strat.key" type="button"
               <div v-else-if="step === 5" key="s5" class="flex flex-col gap-5">
                 <!-- Extra templates (mandatory ones shown in Step 1) -->
                 <div v-if="availableExtraTemplates.length" class="flex flex-col gap-2">
-                  <Label class="uppercase tracking-wider text-xs">Additional Templates</Label>
-                  <p class="text-[10px] text-muted-foreground/40">Optional template layers merged after the mandatory chain — later templates override earlier ones</p>
+                  <Label class="uppercase tracking-wider text-xs">{{ t('components.createGroup.s5.additionalTemplates') }}</Label>
+                  <p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s5.additionalHint') }}</p>
                   <div class="flex flex-wrap gap-1.5">
                     <button
-v-for="t in availableExtraTemplates" :key="t.name" type="button"
+v-for="tpl in availableExtraTemplates" :key="tpl.name" type="button"
                       :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs transition-all',
-                        extraTemplates.includes(t.name) ? 'border-primary/40 bg-primary/8 text-foreground' : 'border-glass-border text-muted-foreground hover:bg-glass-hover/60']"
-                      @click="extraTemplates.includes(t.name) ? extraTemplates.splice(extraTemplates.indexOf(t.name), 1) : extraTemplates.push(t.name)">
-                      <FileCode class="size-3" /> {{ t.name }} <Check v-if="extraTemplates.includes(t.name)" class="size-3 text-primary" />
+                        extraTemplates.includes(tpl.name) ? 'border-primary/40 bg-primary/8 text-foreground' : 'border-glass-border text-muted-foreground hover:bg-glass-hover/60']"
+                      @click="extraTemplates.includes(tpl.name) ? extraTemplates.splice(extraTemplates.indexOf(tpl.name), 1) : extraTemplates.push(tpl.name)">
+                      <FileCode class="size-3" /> {{ tpl.name }} <Check v-if="extraTemplates.includes(tpl.name)" class="size-3 text-primary" />
                     </button>
                   </div>
                 </div>
@@ -676,28 +711,28 @@ v-for="t in availableExtraTemplates" :key="t.name" type="button"
 
                 <!-- Group relationships -->
                 <div class="flex flex-col gap-3">
-                  <span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">Group Relationships</span>
+                  <span class="text-[10px] text-muted-foreground/60 uppercase tracking-wider font-medium">{{ t('components.createGroup.s5.relationships') }}</span>
                   <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col gap-1.5">
-                      <Label class="text-xs">Parent Group <span class="text-muted-foreground font-normal">(inherit config)</span></Label>
+                      <Label class="text-xs">{{ t('components.createGroup.s5.parentGroup') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.inheritConfig') }}</span></Label>
                       <select v-model="parent" class="h-9 px-3 bg-glass rounded-lg border border-glass-border text-foreground text-sm focus:outline-none focus:border-primary/40">
-                        <option value="">None</option><option v-for="g in otherGroupNames" :key="g" :value="g">{{ g }}</option>
+                        <option value="">{{ t('components.createGroup.none') }}</option><option v-for="g in otherGroupNames" :key="g" :value="g">{{ g }}</option>
                       </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <Label class="text-xs">Depends On <span class="text-muted-foreground font-normal">(startup order)</span></Label>
-                      <Input v-model="dependsOn" placeholder="e.g. proxy, auth" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" />
+                      <Label class="text-xs">{{ t('components.createGroup.s5.dependsOn') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.startupOrder') }}</span></Label>
+                      <Input v-model="dependsOn" :placeholder="t('components.createGroup.s5.dependsPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" />
                     </div>
                   </div>
                   <div class="grid grid-cols-2 gap-3">
                     <div class="flex flex-col gap-1.5">
-                      <Label class="text-xs">Fallback Group <span class="text-muted-foreground font-normal">(overflow)</span></Label>
+                      <Label class="text-xs">{{ t('components.createGroup.s5.fallbackGroup') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.overflow') }}</span></Label>
                       <select v-model="fallbackGroup" class="h-9 px-3 bg-glass rounded-lg border border-glass-border text-foreground text-sm focus:outline-none focus:border-primary/40">
-                        <option value="">None</option><option v-for="g in otherGroupNames" :key="g" :value="g">{{ g }}</option>
+                        <option value="">{{ t('components.createGroup.none') }}</option><option v-for="g in otherGroupNames" :key="g" :value="g">{{ g }}</option>
                       </select>
                     </div>
                     <div class="flex flex-col gap-1.5">
-                      <Label class="text-xs">Startup Weight <span class="text-muted-foreground font-normal">(higher = first)</span></Label>
+                      <Label class="text-xs">{{ t('components.createGroup.s5.startupWeight') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.higherFirst') }}</span></Label>
                       <Slider :model-value="[startupWeight]" :min="0" :max="100" :step="1" show-tooltip @update:model-value="startupWeight = $event![0]!" />
                     </div>
                   </div>
@@ -709,28 +744,28 @@ v-for="t in availableExtraTemplates" :key="t.name" type="button"
                 <div class="grid grid-cols-2 gap-3">
                   <!-- Default group — not available for proxy platforms -->
                   <div :class="['flex items-center justify-between p-3 rounded-xl border border-glass-border bg-glass/20', isProxy ? 'opacity-40 cursor-not-allowed' : '']">
-                    <div><p class="text-xs font-medium text-foreground">Default Group</p><p class="text-[10px] text-muted-foreground/40">{{ isProxy ? 'Not available for proxies' : 'Entry point for new players' }}</p></div>
+                    <div><p class="text-xs font-medium text-foreground">{{ t('components.createGroup.s5.defaultGroup') }}</p><p class="text-[10px] text-muted-foreground/40">{{ isProxy ? t('components.createGroup.s5.notForProxies') : t('components.createGroup.s5.entryPoint') }}</p></div>
                     <Switch v-model="defaultGroup" :disabled="isProxy" />
                   </div>
                   <div class="flex items-center justify-between p-3 rounded-xl border border-glass-border bg-glass/20">
-                    <div><p class="text-xs font-medium text-foreground">Maintenance</p><p class="text-[10px] text-muted-foreground/40">Skip scaling, drain existing</p></div>
+                    <div><p class="text-xs font-medium text-foreground">{{ t('components.createGroup.s5.maintenance') }}</p><p class="text-[10px] text-muted-foreground/40">{{ t('components.createGroup.s5.maintenanceHint') }}</p></div>
                     <Switch v-model="maintenance" />
                   </div>
                 </div>
 
                 <!-- Node placement — collapsed -->
                 <button type="button" class="adv-toggle" @click="showPlacement = !showPlacement">
-                  <div class="flex items-center gap-2.5"><Cpu class="size-3.5 text-muted-foreground" /><span class="text-xs font-medium text-foreground">Node Placement</span><Badge variant="outline" class="text-[9px] text-muted-foreground border-glass-border">Optional</Badge></div>
+                  <div class="flex items-center gap-2.5"><Cpu class="size-3.5 text-muted-foreground" /><span class="text-xs font-medium text-foreground">{{ t('components.createGroup.s5.nodePlacement') }}</span><Badge variant="outline" class="text-[9px] text-muted-foreground border-glass-border">{{ t('components.createGroup.optionalBadge') }}</Badge></div>
                   <ChevronDown :class="['size-3.5 text-muted-foreground transition-transform duration-200', showPlacement ? 'rotate-180' : '']" />
                 </button>
                 <div v-if="showPlacement" class="adv-content">
                   <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1.5"><Label class="text-xs">Node Affinity <span class="text-muted-foreground font-normal">(require)</span></Label><Input v-model="nodeAffinity" :placeholder="connectedNodeNames.slice(0, 2).join(', ') || 'node-1, node-2'" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" /></div>
-                    <div class="flex flex-col gap-1.5"><Label class="text-xs">Node Anti-Affinity <span class="text-muted-foreground font-normal">(exclude)</span></Label><Input v-model="nodeAntiAffinity" placeholder="Exclude nodes" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" /></div>
+                    <div class="flex flex-col gap-1.5"><Label class="text-xs">{{ t('components.createGroup.s5.nodeAffinity') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.require') }}</span></Label><Input v-model="nodeAffinity" :placeholder="connectedNodeNames.slice(0, 2).join(', ') || 'node-1, node-2'" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" /></div>
+                    <div class="flex flex-col gap-1.5"><Label class="text-xs">{{ t('components.createGroup.s5.nodeAntiAffinity') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.exclude') }}</span></Label><Input v-model="nodeAntiAffinity" :placeholder="t('components.createGroup.s5.excludePlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" /></div>
                   </div>
                   <div class="grid grid-cols-2 gap-3">
-                    <div class="flex flex-col gap-1.5"><Label class="text-xs">Spread Constraint</Label><Input v-model="spreadConstraint" placeholder="e.g. zone" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" /></div>
-                    <div class="flex flex-col gap-1.5"><Label class="text-xs">Priority <span class="text-muted-foreground font-normal">(contention)</span></Label><Slider :model-value="[priority]" :min="0" :max="100" :step="1" show-tooltip @update:model-value="priority = $event![0]!" /></div>
+                    <div class="flex flex-col gap-1.5"><Label class="text-xs">{{ t('components.createGroup.s5.spreadConstraint') }}</Label><Input v-model="spreadConstraint" :placeholder="t('components.createGroup.s5.spreadPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs" /></div>
+                    <div class="flex flex-col gap-1.5"><Label class="text-xs">{{ t('components.createGroup.s5.priority') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.contention') }}</span></Label><Slider :model-value="[priority]" :min="0" :max="100" :step="1" show-tooltip @update:model-value="priority = $event![0]!" /></div>
                   </div>
                 </div>
               </div>
@@ -738,37 +773,10 @@ v-for="t in availableExtraTemplates" :key="t.name" type="button"
               <!-- ═══════ STEP 6: Review ═══════ -->
               <div v-else-if="step === 6" key="s6" class="flex flex-col gap-3">
                 <div
-v-for="(card, ci) in [
-                  { icon: Layers, title: 'Identity', step: 1, rows: [
-                    ['Name', name], ['Platform', `${platform || 'Custom'} ${platformVersion || recommendedVersion}`],
-                    ...(parent ? [['Parent', parent]] : []),
-                    ['Templates', [...mandatoryTemplateNames, ...extraTemplates].join(' → ')],
-                  ]},
-                  { icon: Activity, title: 'Scaling', step: 2, rows: [
-                    ['Mode', scalingMode], ['Instances', scalingMode === 'MANUAL' ? 'On demand' : `${minInstances}–${maxInstances}`],
-                    ['Players', `${maxPlayers} / instance`],
-                    ...(scalingMode === 'DYNAMIC' ? [['Scale-up', `${scaleUpThreshold}%`]] : []),
-                  ]},
-                  { icon: Cpu, title: 'Resources & Network', step: 3, rows: [
-                    ['Memory', formatMem(memoryMb)], ['Routing', routing.replace(/_/g, ' ').toLowerCase()],
-                    ['Ports', `${portRangeStart}–${portRangeEnd}`],
-                    ...(jvmArgs ? [['JVM', jvmArgs]] : []),
-                    ...(envPairs.length ? [['Env vars', `${envPairs.length} variable${envPairs.length !== 1 ? 's' : ''}`]] : []),
-                  ]},
-                  { icon: Clock, title: 'Lifecycle & Deployment', step: 4, rows: [
-                    ['Strategy', updateStrategy], ['Startup', `${startupTimeoutSeconds}s`],
-                    ['Drain', drainOnShutdown ? 'Yes' : 'No'],
-                    ...(maxLifetimeSeconds > 0 ? [['Max life', `${maxLifetimeSeconds}s`]] : []),
-                  ]},
-                  { icon: GitBranch, title: 'Orchestration', step: 5, rows: [
-                    ...(dependsOn ? [['Depends on', dependsOn]] : []),
-                    ...(defaultGroup ? [['Default group', 'Yes']] : []),
-                    ...(maintenance ? [['Maintenance', 'Yes']] : []),
-                  ]},
-                ]" :key="ci" class="rounded-xl border border-glass-border bg-glass/30 p-4">
+v-for="(card, ci) in reviewCards" :key="ci" class="rounded-xl border border-glass-border bg-glass/30 p-4">
                   <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center gap-2"><component :is="card.icon" class="size-3.5 text-primary" /><span class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{{ card.title }}</span></div>
-                    <button type="button" class="text-[10px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1" @click="goToStep(card.step)"><Pencil class="size-2.5" /> Edit</button>
+                    <button type="button" class="text-[10px] text-primary hover:text-primary/80 transition-colors flex items-center gap-1" @click="goToStep(card.step)"><Pencil class="size-2.5" /> {{ t('components.createGroup.review.edit') }}</button>
                   </div>
                   <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                     <div v-for="([label, value], ri) in card.rows" :key="ri" :class="['flex justify-between', String(value).length > 30 ? 'col-span-2' : '']">
@@ -785,13 +793,13 @@ v-for="(card, ci) in [
           <!-- Footer -->
           <div class="shrink-0 px-8 pb-5">
             <div class="flex items-center gap-2 pt-4 border-t border-glass-border">
-              <Button v-if="step > 1" variant="outline" class="border-glass-border" @click="goBack"><ArrowLeft class="size-4 mr-1.5" /> Back</Button>
+              <Button v-if="step > 1" variant="outline" class="border-glass-border" @click="goBack"><ArrowLeft class="size-4 mr-1.5" /> {{ t('components.createGroup.back') }}</Button>
               <div class="flex-1" />
               <span class="text-[10px] text-muted-foreground/50 self-center tabular-nums">{{ step }} / {{ steps.length }}</span>
-              <Button v-if="step < steps.length" class="bg-primary hover:bg-primary/90 text-primary-foreground" :disabled="!stepValid" @click="goNext">Continue <ArrowRight class="size-4 ml-1.5" /></Button>
+              <Button v-if="step < steps.length" class="bg-primary hover:bg-primary/90 text-primary-foreground" :disabled="!stepValid" @click="goNext">{{ t('components.createGroup.continue') }} <ArrowRight class="size-4 ml-1.5" /></Button>
               <Button v-else class="bg-primary hover:bg-primary/90 text-primary-foreground" :disabled="loading" @click="submit">
                 <Loader2 v-if="loading" class="size-4 mr-1.5 animate-spin" /><Rocket v-else class="size-4 mr-1.5" />
-                {{ loading ? 'Creating...' : 'Create Group' }}
+                {{ loading ? t('components.createGroup.creating') : t('components.createGroup.createGroupBtn') }}
               </Button>
             </div>
           </div>
