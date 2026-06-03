@@ -197,8 +197,8 @@ function getFileIcon(name: string) {
           @keyup.escape="emit('cancelNewItem')"
           @click.stop
         >
-        <button class="text-success shrink-0" @click.stop="emit('confirmNewItem')"><Check class="size-3" /></button>
-        <button class="text-muted-foreground shrink-0" @click.stop="emit('cancelNewItem')"><X class="size-3" /></button>
+        <button :aria-label="t('components.templateEditor.confirmNewItem')" class="text-success shrink-0" @click.stop="emit('confirmNewItem')"><Check class="size-3" /></button>
+        <button :aria-label="t('components.templateEditor.cancelNewItem')" class="text-muted-foreground shrink-0" @click.stop="emit('cancelNewItem')"><X class="size-3" /></button>
       </div>
 
       <FileTreeNode

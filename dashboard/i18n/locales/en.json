@@ -56,7 +56,18 @@
     "home": "Home",
     "goBack": "Go back",
     "skipToContent": "Skip to content",
-    "optional": "(optional)"
+    "optional": "(optional)",
+    "a11y": {
+      "back": "Back",
+      "close": "Close",
+      "remove": "Remove",
+      "delete": "Delete",
+      "copy": "Copy",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
+    }
   },
   "sidebar": {
     "adminPanel": "Admin panel",
@@ -1936,7 +1947,9 @@
       "stagedChanges": "Staged Changes",
       "unstage": "Unstage",
       "saving": "Saving...",
-      "saveRehash": "Save & Rehash"
+      "saveRehash": "Save & Rehash",
+      "confirmNewItem": "Confirm",
+      "cancelNewItem": "Cancel"
     },
     "createGroup": {
       "newGroup": "New Group",
@@ -2135,7 +2148,8 @@
         "envVars": "Environment Variables",
         "keyPlaceholder": "KEY",
         "valuePlaceholder": "value",
-        "noEnv": "No environment variables — plugins receive CLOUD_CONTROLLER_URL automatically"
+        "noEnv": "No environment variables — plugins receive CLOUD_CONTROLLER_URL automatically",
+        "removeEnvVar": "Remove environment variable"
       },
       "s4": {
         "instanceTimers": "Instance Timers",
@@ -2268,7 +2282,8 @@
         "sidebarText": "Sidebar Text",
         "sidebarAccent": "Sidebar Accent",
         "sidebarBorder": "Sidebar Border"
-      }
+      },
+      "selectColor": "Select color {color}"
     },
     "settings": {
       "custom": "Custom",
@@ -2588,7 +2603,9 @@
         "fallbackHasLobby": "Fallback chain must not include the lobby group",
         "duplicateEntries": "Duplicate entries",
         "notProxyPlatform": "{name} is not a proxy-platform group"
-      }
+      },
+      "removeMemberGroup": "Remove member group",
+      "removeProxyGroup": "Remove proxy group"
     },
     "nodeCache": {
       "title": "Node Cache",

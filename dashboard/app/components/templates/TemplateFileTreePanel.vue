@@ -122,8 +122,8 @@ const { t } = useI18n()
           @keyup.enter="emit('confirmNewItem')"
           @keyup.escape="emit('cancelNewItem')"
         >
-        <button class="text-success" @click="emit('confirmNewItem')"><Check class="size-3.5" /></button>
-        <button class="text-muted-foreground" @click="emit('cancelNewItem')"><X class="size-3.5" /></button>
+        <button :aria-label="t('components.templateEditor.confirmNewItem')" class="text-success" @click="emit('confirmNewItem')"><Check class="size-3.5" /></button>
+        <button :aria-label="t('components.templateEditor.cancelNewItem')" class="text-muted-foreground" @click="emit('cancelNewItem')"><X class="size-3.5" /></button>
       </div>
     </div>
 

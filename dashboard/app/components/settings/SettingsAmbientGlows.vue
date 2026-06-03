@@ -121,6 +121,7 @@ const sliders = computed<ReadonlyArray<{ key: keyof GlowBlob; label: string; ico
             <!-- Delete -->
             <button
               v-if="appearance.glowBlobs.length > 1"
+              :aria-label="t('common.a11y.remove')"
               class="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100"
               @click.stop="appearance.removeGlowBlob(i)"
             >
@@ -306,6 +307,7 @@ const sliders = computed<ReadonlyArray<{ key: keyof GlowBlob; label: string; ico
             <div class="relative w-full max-w-2xl">
               <!-- Close -->
               <button
+                :aria-label="t('common.a11y.close')"
                 class="absolute -top-10 right-0 z-10 p-1.5 rounded-lg bg-glass/80 border border-glass-border text-muted-foreground hover:text-foreground transition-colors"
                 @click="previewExpanded = false"
               >

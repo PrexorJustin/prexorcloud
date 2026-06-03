@@ -212,6 +212,7 @@ function handleLogout() {
             />
             <button
               type="button"
+              :aria-label="showCurrent ? t('common.a11y.hidePassword') : t('common.a11y.showPassword')"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               @click="showCurrent = !showCurrent"
             >
@@ -236,6 +237,7 @@ function handleLogout() {
             />
             <button
               type="button"
+              :aria-label="showNew ? t('common.a11y.hidePassword') : t('common.a11y.showPassword')"
               class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
               @click="showNew = !showNew"
             >

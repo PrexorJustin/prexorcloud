@@ -56,7 +56,18 @@
     "home": "Startseite",
     "goBack": "Zurück",
     "skipToContent": "Zum Inhalt springen",
-    "optional": "(optional)"
+    "optional": "(optional)",
+    "a11y": {
+      "back": "Zurück",
+      "close": "Schließen",
+      "remove": "Entfernen",
+      "delete": "Löschen",
+      "copy": "Kopieren",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "showPassword": "Passwort anzeigen",
+      "hidePassword": "Passwort verbergen"
+    }
   },
   "sidebar": {
     "adminPanel": "Admin-Bereich",
@@ -1936,7 +1947,9 @@
       "stagedChanges": "Vorgemerkte Änderungen",
       "unstage": "Vormerkung aufheben",
       "saving": "Wird gespeichert …",
-      "saveRehash": "Speichern & neu hashen"
+      "saveRehash": "Speichern & neu hashen",
+      "confirmNewItem": "Bestätigen",
+      "cancelNewItem": "Abbrechen"
     },
     "createGroup": {
       "newGroup": "Neue Gruppe",
@@ -2135,7 +2148,8 @@
         "envVars": "Umgebungsvariablen",
         "keyPlaceholder": "KEY",
         "valuePlaceholder": "Wert",
-        "noEnv": "Keine Umgebungsvariablen — Plugins erhalten CLOUD_CONTROLLER_URL automatisch"
+        "noEnv": "Keine Umgebungsvariablen — Plugins erhalten CLOUD_CONTROLLER_URL automatisch",
+        "removeEnvVar": "Umgebungsvariable entfernen"
       },
       "s4": {
         "instanceTimers": "Instanz-Timer",
@@ -2268,7 +2282,8 @@
         "sidebarText": "Seitenleisten-Text",
         "sidebarAccent": "Seitenleisten-Akzent",
         "sidebarBorder": "Seitenleisten-Rand"
-      }
+      },
+      "selectColor": "Farbe {color} auswählen"
     },
     "settings": {
       "custom": "Eigene",
@@ -2588,7 +2603,9 @@
         "fallbackHasLobby": "Die Fallback-Kette darf die Lobby-Gruppe nicht enthalten",
         "duplicateEntries": "Doppelte Einträge",
         "notProxyPlatform": "{name} ist keine Proxy-Plattform-Gruppe"
-      }
+      },
+      "removeMemberGroup": "Mitgliedsgruppe entfernen",
+      "removeProxyGroup": "Proxy-Gruppe entfernen"
     },
     "nodeCache": {
       "title": "Node-Cache",

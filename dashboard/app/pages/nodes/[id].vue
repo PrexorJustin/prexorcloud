@@ -247,8 +247,8 @@ async function uncordonNode() {
   <div class="flex flex-col gap-5 flex-1">
     <!-- Back + Header -->
     <div class="flex items-center gap-4">
-      <Button variant="ghost" size="icon" as-child>
-        <NuxtLink to="/nodes">
+      <Button variant="ghost" size="icon" as-child :aria-label="t('common.a11y.back')">
+        <NuxtLink to="/nodes" :aria-label="t('common.a11y.back')">
           <ArrowLeft class="size-5" />
         </NuxtLink>
       </Button>
@@ -561,6 +561,7 @@ async function uncordonNode() {
                 variant="outline"
                 size="icon"
                 class="shrink-0 border-glass-border"
+                :aria-label="t('common.a11y.copy')"
                 @click="copyToken"
               >
                 <Check v-if="copied" class="size-4 text-success" />

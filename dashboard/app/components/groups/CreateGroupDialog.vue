@@ -649,7 +649,7 @@ v-for="opt in routingOptions" :key="opt.key" type="button"
                       <Input v-model="pair.key" :placeholder="t('components.createGroup.s3.keyPlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs flex-1" />
                       <span class="text-xs text-muted-foreground">=</span>
                       <Input v-model="pair.value" :placeholder="t('components.createGroup.s3.valuePlaceholder')" autocomplete="off" class="bg-glass border-glass-border font-mono text-xs flex-1" />
-                      <button type="button" class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors shrink-0" @click="removeEnvPair(i)"><X class="size-3.5" /></button>
+                      <button type="button" :aria-label="t('components.createGroup.s3.removeEnvVar')" class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors shrink-0" @click="removeEnvPair(i)"><X class="size-3.5" /></button>
                     </div>
                   </div>
                   <p v-else class="text-[11px] text-muted-foreground/50">{{ t('components.createGroup.s3.noEnv') }}</p>

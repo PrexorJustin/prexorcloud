@@ -318,6 +318,7 @@ async function selectCompareFile(path: string) {
                   <Button
                     variant="ghost"
                     size="sm"
+                    :aria-label="t('common.a11y.delete')"
                     class="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
                     @click="confirmDeleteHash = v.hash; confirmRollbackHash = null"
                   >

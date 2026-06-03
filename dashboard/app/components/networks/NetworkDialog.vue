@@ -284,9 +284,9 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
             <li v-for="(g, i) in fallbackGroups" :key="g" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-glass/40 border border-glass-border/60">
               <span class="text-xs tabular-nums text-muted-foreground w-5 text-right">{{ i + 1 }}.</span>
               <span class="text-sm text-foreground flex-1">{{ g }}</span>
-              <button type="button" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === 0" @click="moveFallback(i, -1)"><ArrowUp class="size-3.5" /></button>
-              <button type="button" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === fallbackGroups.length - 1" @click="moveFallback(i, 1)"><ArrowDown class="size-3.5" /></button>
-              <button type="button" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10" @click="removeFallback(i)"><X class="size-3.5" /></button>
+              <button type="button" :aria-label="t('common.a11y.moveUp')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === 0" @click="moveFallback(i, -1)"><ArrowUp class="size-3.5" /></button>
+              <button type="button" :aria-label="t('common.a11y.moveDown')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === fallbackGroups.length - 1" @click="moveFallback(i, 1)"><ArrowDown class="size-3.5" /></button>
+              <button type="button" :aria-label="t('common.a11y.remove')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10" @click="removeFallback(i)"><X class="size-3.5" /></button>
             </li>
           </ol>
         </div>
@@ -314,7 +314,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
           <div v-if="memberGroups.length" class="flex flex-wrap gap-1.5">
             <Badge v-for="g in memberGroups" :key="g" variant="outline" class="text-xs pl-2.5 pr-1 py-0 h-6 gap-1.5 border-glass-border bg-glass/40">
               {{ g }}
-              <button type="button" class="size-4 rounded flex items-center justify-center hover:bg-destructive/20 hover:text-destructive" @click="removeMember(g)"><X class="size-3" /></button>
+              <button type="button" :aria-label="t('components.networkDialog.removeMemberGroup')" class="size-4 rounded flex items-center justify-center hover:bg-destructive/20 hover:text-destructive" @click="removeMember(g)"><X class="size-3" /></button>
             </Badge>
           </div>
         </div>
@@ -343,7 +343,7 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
           <div v-if="proxyGroups.length" class="flex flex-wrap gap-1.5">
             <Badge v-for="g in proxyGroups" :key="g" variant="outline" class="text-xs pl-2.5 pr-1 py-0 h-6 gap-1.5 border-glass-border bg-glass/40">
               {{ g }}
-              <button type="button" class="size-4 rounded flex items-center justify-center hover:bg-destructive/20 hover:text-destructive" @click="removeProxy(g)"><X class="size-3" /></button>
+              <button type="button" :aria-label="t('components.networkDialog.removeProxyGroup')" class="size-4 rounded flex items-center justify-center hover:bg-destructive/20 hover:text-destructive" @click="removeProxy(g)"><X class="size-3" /></button>
             </Badge>
           </div>
         </div>

@@ -107,6 +107,7 @@ async function save() {
               class="flex-1 rounded-lg border border-glass-border bg-glass/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 font-mono focus:outline-none focus:ring-1 focus:ring-primary"
             >
             <button
+              :aria-label="t('common.a11y.remove')"
               class="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
               @click="removeMotd(i)"
             >

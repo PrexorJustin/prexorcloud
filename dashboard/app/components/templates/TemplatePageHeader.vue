@@ -5,6 +5,8 @@ import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { formatBytes } from "~/lib/utils"
 
+const { t } = useI18n()
+
 defineProps<{
   templateName: string
   template: Template | null
@@ -23,7 +25,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="flex items-center gap-4">
-    <Button variant="ghost" size="icon" class="size-9 shrink-0" @click="emit('back')">
+    <Button variant="ghost" size="icon" :aria-label="t('common.a11y.back')" class="size-9 shrink-0" @click="emit('back')">
       <ArrowLeft class="size-5" />
     </Button>
     <div class="flex-1 min-w-0">

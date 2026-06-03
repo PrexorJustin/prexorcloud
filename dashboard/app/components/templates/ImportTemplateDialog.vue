@@ -171,6 +171,7 @@ function handleOpen(value: boolean) {
             </div>
             <button
               type="button"
+              :aria-label="t('common.a11y.remove')"
               class="size-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
               @click.stop="clearFile"
             >

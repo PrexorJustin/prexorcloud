@@ -151,6 +151,7 @@ async function upload() {
               </p>
             </div>
             <button
+              :aria-label="t('common.a11y.remove')"
               class="absolute top-2 right-2 size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors"
               @click.stop="clearSelection"
             >

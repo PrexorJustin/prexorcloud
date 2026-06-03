@@ -109,7 +109,7 @@ async function markRecommended(version: string) {
   <div class="flex flex-col gap-5 flex-1">
     <!-- Header -->
     <div class="flex items-center gap-4">
-      <Button variant="ghost" size="icon" class="size-9 shrink-0" @click="router.push('/catalog')">
+      <Button variant="ghost" size="icon" class="size-9 shrink-0" :aria-label="t('common.a11y.back')" @click="router.push('/catalog')">
         <ArrowLeft class="size-5" />
       </Button>
       <div class="flex-1 min-w-0">

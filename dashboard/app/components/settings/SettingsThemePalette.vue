@@ -479,6 +479,7 @@ function applyImport() {
             <button
               v-for="color in ['#6366f1', '#ec4899', '#f97316', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444', '#eab308', '#3b82f6', '#14b8a6', '#f43f5e', '#a855f7']"
               :key="color"
+              :aria-label="t('components.themePalette.selectColor', { color })"
               class="size-6 rounded-md border border-black/10 transition-transform hover:scale-110 cursor-pointer"
               :class="customBaseColor === color ? 'ring-2 ring-primary ring-offset-1 ring-offset-background' : ''"
               :style="{ backgroundColor: color }"
