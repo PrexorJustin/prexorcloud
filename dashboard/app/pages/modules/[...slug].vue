@@ -3,6 +3,7 @@ import type { Component } from 'vue'
 import { AlertTriangle, Loader2, Puzzle } from 'lucide-vue-next'
 import { Button } from '~/components/ui/button'
 
+const { t } = useI18n()
 const route = useRoute()
 const moduleStore = useModuleStore()
 
@@ -22,7 +23,7 @@ watch(slug, async (s) => {
 
   const resolved = moduleStore.resolveRoute(s)
   if (!resolved) {
-    error.value = 'Module page not found'
+    error.value = t('pages.moduleLoader.notFound')
     loading.value = false
     return
   }
@@ -31,14 +32,14 @@ watch(slug, async (s) => {
     const exports = await moduleStore.ensureLoaded(resolved.moduleName)
     const comp = exports[resolved.componentName]
     if (!comp) {
-      error.value = `Component "${resolved.componentName}" not found in module "${resolved.moduleName}"`
+      error.value = t('pages.moduleLoader.componentNotFound', { component: resolved.componentName, module: resolved.moduleName })
     }
     else {
       ModuleComponent.value = comp
     }
   }
   catch (e) {
-    error.value = e instanceof Error ? e.message : 'Failed to load module'
+    error.value = e instanceof Error ? e.message : t('pages.moduleLoader.loadFailed')
   }
   finally {
     loading.value = false
@@ -52,7 +53,7 @@ watch(slug, async (s) => {
     <div class="flex size-12 items-center justify-center rounded-2xl border border-glass-border bg-glass/60">
       <Loader2 class="size-6 animate-spin text-muted-foreground" />
     </div>
-    <p class="text-sm text-muted-foreground">Loading module…</p>
+    <p class="text-sm text-muted-foreground">{{ t('pages.moduleLoader.loading') }}</p>
   </div>
 
   <div v-else-if="error" class="flex h-64 flex-col items-center justify-center gap-4">
@@ -60,10 +61,10 @@ watch(slug, async (s) => {
       <AlertTriangle class="size-6 text-destructive" />
     </div>
     <div class="text-center">
-      <p class="text-sm font-semibold">Can't load module</p>
+      <p class="text-sm font-semibold">{{ t('pages.moduleLoader.cantLoad') }}</p>
       <p class="mt-1 text-sm text-muted-foreground">{{ error }}</p>
     </div>
-    <Button variant="outline" size="sm" @click="navigateTo('/')">Back to overview</Button>
+    <Button variant="outline" size="sm" @click="navigateTo('/')">{{ t('pages.moduleLoader.backToOverview') }}</Button>
   </div>
 
   <ModuleErrorBoundary v-else-if="ModuleComponent">
@@ -74,6 +75,6 @@ watch(slug, async (s) => {
     <div class="flex size-12 items-center justify-center rounded-2xl border border-glass-border bg-glass/60">
       <Puzzle class="size-6 text-muted-foreground" />
     </div>
-    <p class="text-sm text-muted-foreground">No module loaded.</p>
+    <p class="text-sm text-muted-foreground">{{ t('pages.moduleLoader.noModule') }}</p>
   </div>
 </template>

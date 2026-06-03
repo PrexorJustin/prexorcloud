@@ -5,6 +5,7 @@ import { StatusBadge } from "~/components/ui/status-badge"
 import type { StatusDotTone } from "~/components/ui/status-dot"
 import { timeAgo } from "~/lib/utils"
 
+const { t } = useI18n()
 const store = useDeploymentsAggregateStore()
 
 onMounted(() => store.fetchAll())
@@ -32,13 +33,13 @@ function statePulse(state: string) {
 
 <template>
   <div class="flex flex-1 flex-col gap-5">
-    <PageHeader title="Deployments" description="Cluster-wide rollout history. Click a row for the per-group view." />
+    <PageHeader :title="t('pages.deployments.title')" :description="t('pages.deployments.description')" />
 
     <FilterToolbar
       v-model:search="search"
       :filters="[]"
       :active-filters="new Set(['ALL'])"
-      search-placeholder="Search by group, strategy, state…"
+      :search-placeholder="t('pages.deployments.searchPlaceholder')"
       :show-view-toggle="false"
     />
 
@@ -47,19 +48,19 @@ function statePulse(state: string) {
     <EmptyState
       v-else-if="filteredDeployments.length === 0"
       :icon="Rocket"
-      :title="search ? 'No matches' : 'No deployments yet'"
-      :description="search ? 'Try clearing the filter.' : 'Trigger a deploy from a group to see history here.'"
+      :title="search ? t('pages.deployments.emptyMatchesTitle') : t('pages.deployments.emptyTitle')"
+      :description="search ? t('pages.deployments.emptyMatchesHint') : t('pages.deployments.emptyHint')"
     />
 
     <div v-else class="overflow-hidden rounded-2xl border border-glass-border bg-glass/60 backdrop-blur-xl">
       <div class="flex h-10 items-center border-b border-glass-border px-4 eyebrow">
-        <div class="w-44 shrink-0">Group</div>
-        <div class="w-20 shrink-0 text-right">Rev</div>
-        <div class="w-32 shrink-0">Strategy</div>
-        <div class="w-32 shrink-0">State</div>
-        <div class="w-32 shrink-0 text-right">Progress</div>
-        <div class="w-32 shrink-0">Trigger</div>
-        <div class="flex-1 text-right">Started</div>
+        <div class="w-44 shrink-0">{{ t('pages.deployments.columns.group') }}</div>
+        <div class="w-20 shrink-0 text-right">{{ t('pages.deployments.columns.rev') }}</div>
+        <div class="w-32 shrink-0">{{ t('pages.deployments.columns.strategy') }}</div>
+        <div class="w-32 shrink-0">{{ t('pages.deployments.columns.state') }}</div>
+        <div class="w-32 shrink-0 text-right">{{ t('pages.deployments.columns.progress') }}</div>
+        <div class="w-32 shrink-0">{{ t('pages.deployments.columns.trigger') }}</div>
+        <div class="flex-1 text-right">{{ t('pages.deployments.columns.started') }}</div>
       </div>
       <NuxtLink
         v-for="d in filteredDeployments"

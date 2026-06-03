@@ -4,6 +4,7 @@ import { useVirtualList } from "@vueuse/core"
 import { Badge } from "~/components/ui/badge"
 import type { FilterOption } from "~/composables/useFilteredList"
 
+const { t } = useI18n()
 const store = useCatalogStore()
 
 const search = ref("")
@@ -14,16 +15,16 @@ onMounted(() => {
   store.fetchCatalog()
 })
 
-const categoryFilters: FilterOption[] = [
-  { key: "ALL", label: "All", icon: Package },
-  { key: "SERVER", label: "Servers", icon: Server },
-  { key: "PROXY", label: "Proxies", icon: Network },
-]
+const categoryFilters = computed<FilterOption[]>(() => [
+  { key: "ALL", label: t("pages.catalog.filters.all"), icon: Package },
+  { key: "SERVER", label: t("pages.catalog.filters.servers"), icon: Server },
+  { key: "PROXY", label: t("pages.catalog.filters.proxies"), icon: Network },
+])
 
-const categoryConfig: Record<string, { label: string; color: string }> = {
-  SERVER: { label: "Server", color: "text-success" },
-  PROXY: { label: "Proxy", color: "text-primary" },
-}
+const categoryConfig = computed<Record<string, { label: string; color: string }>>(() => ({
+  SERVER: { label: t("pages.catalog.category.server"), color: "text-success" },
+  PROXY: { label: t("pages.catalog.category.proxy"), color: "text-primary" },
+}))
 
 function toggleFilter(key: string) {
   if (key === "ALL") {
@@ -90,8 +91,8 @@ function getRecommended(entry: typeof store.entries[number]) {
 <template>
   <div class="flex flex-col gap-5 flex-1">
     <PageHeader
-      title="Catalog"
-      description="Server platforms and the versions available to instances."
+      :title="t('pages.catalog.title')"
+      :description="t('pages.catalog.description')"
     >
       <template #actions>
         <CatalogAddVersionDialog />
@@ -101,12 +102,12 @@ function getRecommended(entry: typeof store.entries[number]) {
     <!-- Toolbar -->
     <FilterToolbar
       v-model:search="search"
-      search-placeholder="Search platforms..."
+      :search-placeholder="t('pages.catalog.searchPlaceholder')"
       :filters="categoryFilters"
       :active-filters="activeFilters"
       :view-mode="viewMode"
       :count="filteredEntries.length"
-      count-label="platforms"
+      :count-label="t('pages.catalog.countLabel')"
       @toggle-filter="toggleFilter"
       @update:view-mode="viewMode = $event"
     />
@@ -123,8 +124,8 @@ function getRecommended(entry: typeof store.entries[number]) {
       <!-- Empty state -->
       <div v-else-if="filteredEntries.length === 0" class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border py-48 flex flex-col items-center justify-center text-center">
         <Package class="size-16 text-muted-foreground/30 mb-4" />
-        <p class="text-foreground font-semibold text-lg">No platforms found</p>
-        <p class="text-muted-foreground mt-1">{{ search || !activeFilters.has('ALL') ? 'Try adjusting your filters' : 'Add a platform to get started' }}</p>
+        <p class="text-foreground font-semibold text-lg">{{ t('pages.catalog.emptyTitle') }}</p>
+        <p class="text-muted-foreground mt-1">{{ search || !activeFilters.has('ALL') ? t('pages.catalog.emptyFilterHint') : t('pages.catalog.emptyHint') }}</p>
         <div v-if="!search && activeFilters.has('ALL')" class="mt-4"><CatalogAddVersionDialog /></div>
       </div>
 
@@ -146,11 +147,11 @@ function getRecommended(entry: typeof store.entries[number]) {
       <template v-else>
         <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border overflow-hidden">
           <div class="flex items-center h-10 px-4 border-b border-glass-border text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            <div class="w-44 shrink-0">Platform</div>
-            <div class="w-24 shrink-0 text-center">Category</div>
-            <div class="w-28 shrink-0 text-center">Format</div>
-            <div class="w-20 shrink-0 text-right">Versions</div>
-            <div class="flex-1 text-right">Recommended</div>
+            <div class="w-44 shrink-0">{{ t('pages.catalog.columns.platform') }}</div>
+            <div class="w-24 shrink-0 text-center">{{ t('pages.catalog.columns.category') }}</div>
+            <div class="w-28 shrink-0 text-center">{{ t('pages.catalog.columns.format') }}</div>
+            <div class="w-20 shrink-0 text-right">{{ t('pages.catalog.columns.versions') }}</div>
+            <div class="flex-1 text-right">{{ t('pages.catalog.columns.recommended') }}</div>
           </div>
           <div v-if="filteredEntries.length <= 50">
             <div v-for="entry in filteredEntries" :key="entry.platform" class="flex items-center h-12 px-4 border-b border-glass-border/50 last:border-0 cursor-pointer transition-colors select-none hover:bg-glass-hover" @click="navigateTo(`/catalog/${entry.platform}`)">

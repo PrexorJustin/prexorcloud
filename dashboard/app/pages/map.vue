@@ -9,6 +9,7 @@ import TopologyCanvas from "~/components/topology/TopologyCanvas.vue"
 import { formatUptime } from "~/lib/utils"
 import type { NodeEntry, ServerInstance } from "~/types/api"
 
+const { t } = useI18n()
 const nodesStore = useNodesStore()
 const instancesStore = useInstancesStore()
 
@@ -72,14 +73,14 @@ function fit() { canvasRef.value?.fitView({ padding: 0.15 }) }
 
 <template>
   <div class="flex flex-1 flex-col gap-4">
-    <PageHeader title="Map" description="Cluster topology — every node and the instances running on it.">
+    <PageHeader :title="t('pages.map.title')" :description="t('pages.map.description')">
       <template #actions>
-        <Input v-model="search" placeholder="Filter by node or instance…" class="w-64" />
+        <Input v-model="search" :placeholder="t('pages.map.filterPlaceholder')" class="w-64" />
         <Button variant="outline" size="sm" @click="fit">
-          <Maximize2 class="mr-1.5 size-3.5" /> Fit
+          <Maximize2 class="mr-1.5 size-3.5" /> {{ t('pages.map.fit') }}
         </Button>
         <Button variant="outline" size="sm" @click="reset">
-          <RotateCcw class="mr-1.5 size-3.5" /> Reset layout
+          <RotateCcw class="mr-1.5 size-3.5" /> {{ t('pages.map.resetLayout') }}
         </Button>
       </template>
     </PageHeader>
@@ -87,8 +88,8 @@ function fit() { canvasRef.value?.fitView({ padding: 0.15 }) }
     <EmptyState
       v-if="!nodesStore.loading && filteredNodes.length === 0"
       :icon="Server"
-      :title="search ? 'No matches' : 'No nodes connected'"
-      :description="search ? 'Try clearing the filter or searching by another term.' : 'Start a daemon with a join token to see the cluster.'"
+      :title="search ? t('pages.map.emptyMatchesTitle') : t('pages.map.emptyTitle')"
+      :description="search ? t('pages.map.emptyMatchesHint') : t('pages.map.emptyHint')"
     />
 
     <div
@@ -108,7 +109,7 @@ function fit() { canvasRef.value?.fitView({ padding: 0.15 }) }
     <DetailSheet
       :open="sheetOpen"
       :title="sheetInstance?.id"
-      eyebrow="Instance"
+      :eyebrow="t('pages.map.instanceEyebrow')"
       :full-page-path="sheetInstance ? `/instances/${sheetInstance.id}` : undefined"
       @update:open="sheetOpen = $event"
     >
@@ -118,28 +119,28 @@ function fit() { canvasRef.value?.fitView({ padding: 0.15 }) }
 
       <div v-if="sheetInstance" class="space-y-4 text-sm">
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Group</span>
+          <span class="text-muted-foreground">{{ t('pages.map.details.group') }}</span>
           <NuxtLink :to="`/groups/${sheetInstance.group}`" class="mono text-primary hover:underline">{{ sheetInstance.group }}</NuxtLink>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Node</span>
+          <span class="text-muted-foreground">{{ t('pages.map.details.node') }}</span>
           <NuxtLink :to="`/nodes/${sheetInstance.node}`" class="mono text-primary hover:underline">{{ sheetInstance.node }}</NuxtLink>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Port</span>
+          <span class="text-muted-foreground">{{ t('pages.map.details.port') }}</span>
           <span class="tabular">{{ sheetInstance.port }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Players</span>
+          <span class="text-muted-foreground">{{ t('pages.map.details.players') }}</span>
           <span class="tabular">{{ sheetInstance.playerCount }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Uptime</span>
+          <span class="text-muted-foreground">{{ t('pages.map.details.uptime') }}</span>
           <span class="tabular">{{ formatUptime(sheetInstance.uptimeMs) }}</span>
         </div>
         <div class="flex justify-between">
-          <span class="text-muted-foreground">Deployment</span>
-          <span class="tabular">rev {{ sheetInstance.deploymentRevision }}</span>
+          <span class="text-muted-foreground">{{ t('pages.map.details.deployment') }}</span>
+          <span class="tabular">{{ t('pages.map.details.rev', { revision: sheetInstance.deploymentRevision }) }}</span>
         </div>
       </div>
     </DetailSheet>

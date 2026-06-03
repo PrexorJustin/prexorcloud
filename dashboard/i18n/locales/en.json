@@ -1125,6 +1125,79 @@
         "permissions": "Permissions",
         "users": "Users"
       }
+    },
+    "deployments": {
+      "title": "Deployments",
+      "description": "Cluster-wide rollout history. Click a row for the per-group view.",
+      "searchPlaceholder": "Search by group, strategy, state…",
+      "emptyTitle": "No deployments yet",
+      "emptyHint": "Trigger a deploy from a group to see history here.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "columns": {
+        "group": "Group",
+        "rev": "Rev",
+        "strategy": "Strategy",
+        "state": "State",
+        "progress": "Progress",
+        "trigger": "Trigger",
+        "started": "Started"
+      }
+    },
+    "map": {
+      "title": "Map",
+      "description": "Cluster topology — every node and the instances running on it.",
+      "filterPlaceholder": "Filter by node or instance…",
+      "fit": "Fit",
+      "resetLayout": "Reset layout",
+      "emptyTitle": "No nodes connected",
+      "emptyHint": "Start a daemon with a join token to see the cluster.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter or searching by another term.",
+      "instanceEyebrow": "Instance",
+      "details": {
+        "group": "Group",
+        "node": "Node",
+        "port": "Port",
+        "players": "Players",
+        "uptime": "Uptime",
+        "deployment": "Deployment",
+        "rev": "rev {revision}"
+      }
+    },
+    "moduleLoader": {
+      "notFound": "Module page not found",
+      "componentNotFound": "Component \"{component}\" not found in module \"{module}\"",
+      "loadFailed": "Failed to load module",
+      "loading": "Loading module…",
+      "cantLoad": "Can't load module",
+      "backToOverview": "Back to overview",
+      "noModule": "No module loaded."
+    },
+    "catalog": {
+      "title": "Catalog",
+      "description": "Server platforms and the versions available to instances.",
+      "searchPlaceholder": "Search platforms...",
+      "countLabel": "platforms",
+      "filters": {
+        "all": "All",
+        "servers": "Servers",
+        "proxies": "Proxies"
+      },
+      "category": {
+        "server": "Server",
+        "proxy": "Proxy"
+      },
+      "emptyTitle": "No platforms found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyHint": "Add a platform to get started",
+      "columns": {
+        "platform": "Platform",
+        "category": "Category",
+        "format": "Format",
+        "versions": "Versions",
+        "recommended": "Recommended"
+      }
     }
   },
   "components": {

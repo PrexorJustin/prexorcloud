@@ -1125,6 +1125,79 @@
         "permissions": "Berechtigungen",
         "users": "Benutzer"
       }
+    },
+    "deployments": {
+      "title": "Deployments",
+      "description": "Clusterweite Rollout-Historie. Klicke eine Zeile für die Pro-Gruppe-Ansicht.",
+      "searchPlaceholder": "Nach Gruppe, Strategie, Status suchen …",
+      "emptyTitle": "Noch keine Deployments",
+      "emptyHint": "Löse aus einer Gruppe ein Deployment aus, um die Historie hier zu sehen.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen.",
+      "columns": {
+        "group": "Gruppe",
+        "rev": "Rev",
+        "strategy": "Strategie",
+        "state": "Status",
+        "progress": "Fortschritt",
+        "trigger": "Auslöser",
+        "started": "Gestartet"
+      }
+    },
+    "map": {
+      "title": "Karte",
+      "description": "Cluster-Topologie — jeder Node und die darauf laufenden Instanzen.",
+      "filterPlaceholder": "Nach Node oder Instanz filtern …",
+      "fit": "Einpassen",
+      "resetLayout": "Layout zurücksetzen",
+      "emptyTitle": "Keine Nodes verbunden",
+      "emptyHint": "Starte einen Daemon mit einem Join-Token, um das Cluster zu sehen.",
+      "emptyMatchesTitle": "Keine Treffer",
+      "emptyMatchesHint": "Versuche, den Filter zu löschen oder nach einem anderen Begriff zu suchen.",
+      "instanceEyebrow": "Instanz",
+      "details": {
+        "group": "Gruppe",
+        "node": "Node",
+        "port": "Port",
+        "players": "Spieler",
+        "uptime": "Laufzeit",
+        "deployment": "Deployment",
+        "rev": "Rev {revision}"
+      }
+    },
+    "moduleLoader": {
+      "notFound": "Modul-Seite nicht gefunden",
+      "componentNotFound": "Komponente „{component}“ nicht im Modul „{module}“ gefunden",
+      "loadFailed": "Modul konnte nicht geladen werden",
+      "loading": "Modul wird geladen …",
+      "cantLoad": "Modul kann nicht geladen werden",
+      "backToOverview": "Zurück zur Übersicht",
+      "noModule": "Kein Modul geladen."
+    },
+    "catalog": {
+      "title": "Katalog",
+      "description": "Server-Plattformen und die für Instanzen verfügbaren Versionen.",
+      "searchPlaceholder": "Plattformen suchen …",
+      "countLabel": "Plattformen",
+      "filters": {
+        "all": "Alle",
+        "servers": "Server",
+        "proxies": "Proxies"
+      },
+      "category": {
+        "server": "Server",
+        "proxy": "Proxy"
+      },
+      "emptyTitle": "Keine Plattformen gefunden",
+      "emptyFilterHint": "Versuche, deine Filter anzupassen",
+      "emptyHint": "Füge eine Plattform hinzu, um zu starten",
+      "columns": {
+        "platform": "Plattform",
+        "category": "Kategorie",
+        "format": "Format",
+        "versions": "Versionen",
+        "recommended": "Empfohlen"
+      }
     }
   },
   "components": {
