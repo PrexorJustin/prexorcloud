@@ -4,6 +4,7 @@ import { Button } from "~/components/ui/button"
 import { generateLightPalette, generateDarkPalette } from "~/lib/palette-generator"
 import { lightPresets, darkPresets } from "~/lib/theme-data"
 
+const { t } = useI18n()
 const colorMode = useColorMode()
 const appearance = useAppearanceStore()
 
@@ -40,47 +41,47 @@ function resetPaletteForMode() {
 const showCustomBuilder = ref(false)
 const customBaseColor = ref("#6366f1")
 const customEditVars = ref<Record<string, string>>({})
-const customPaletteName = ref("Custom")
+const customPaletteName = ref(t('components.themePalette.customDefault'))
 
 const customPaletteForMode = computed(() => {
   return paletteMode.value === "dark" ? appearance.customDarkPalette : appearance.customLightPalette
 })
 
-const colorVarGroups = [
+const colorVarGroups = computed(() => [
   {
-    label: "Background",
+    label: t('components.themePalette.groups.background'),
     vars: [
-      { key: "--background", label: "Page Background" },
-      { key: "--foreground", label: "Text Color" },
+      { key: "--background", label: t('components.themePalette.vars.pageBackground') },
+      { key: "--foreground", label: t('components.themePalette.vars.textColor') },
     ],
   },
   {
-    label: "Cards & Glass",
+    label: t('components.themePalette.groups.cardsGlass'),
     vars: [
-      { key: "--card", label: "Card Background" },
-      { key: "--glass", label: "Glass Surface" },
-      { key: "--glass-hover", label: "Glass Hover" },
-      { key: "--glass-border", label: "Glass Border" },
+      { key: "--card", label: t('components.themePalette.vars.cardBackground') },
+      { key: "--glass", label: t('components.themePalette.vars.glassSurface') },
+      { key: "--glass-hover", label: t('components.themePalette.vars.glassHover') },
+      { key: "--glass-border", label: t('components.themePalette.vars.glassBorder') },
     ],
   },
   {
-    label: "Muted & Accent",
+    label: t('components.themePalette.groups.mutedAccent'),
     vars: [
-      { key: "--muted", label: "Muted Background" },
-      { key: "--muted-foreground", label: "Muted Text" },
-      { key: "--border", label: "Border" },
+      { key: "--muted", label: t('components.themePalette.vars.mutedBackground') },
+      { key: "--muted-foreground", label: t('components.themePalette.vars.mutedText') },
+      { key: "--border", label: t('components.themePalette.vars.border') },
     ],
   },
   {
-    label: "Sidebar",
+    label: t('components.themePalette.groups.sidebar'),
     vars: [
-      { key: "--sidebar", label: "Sidebar Background" },
-      { key: "--sidebar-foreground", label: "Sidebar Text" },
-      { key: "--sidebar-accent", label: "Sidebar Accent" },
-      { key: "--sidebar-border", label: "Sidebar Border" },
+      { key: "--sidebar", label: t('components.themePalette.vars.sidebarBackground') },
+      { key: "--sidebar-foreground", label: t('components.themePalette.vars.sidebarText') },
+      { key: "--sidebar-accent", label: t('components.themePalette.vars.sidebarAccent') },
+      { key: "--sidebar-border", label: t('components.themePalette.vars.sidebarBorder') },
     ],
   },
-]
+])
 
 function regenerateFromBase() {
   const generated = paletteMode.value === "dark"
@@ -115,9 +116,9 @@ function openCustomBuilder() {
   if (existing) {
     customBaseColor.value = existing.baseColor
     customEditVars.value = { ...existing.vars }
-    customPaletteName.value = existing.name || "Custom"
+    customPaletteName.value = existing.name || t('components.themePalette.customDefault')
   } else {
-    customPaletteName.value = "Custom"
+    customPaletteName.value = t('components.themePalette.customDefault')
     regenerateFromBase()
   }
   showCustomBuilder.value = true
@@ -174,7 +175,7 @@ function uploadPaletteFile() {
 
 function copyEditorText() {
   navigator.clipboard.writeText(editorText.value)
-  copyTooltip.value = "Copied!"
+  copyTooltip.value = t('components.themePalette.copied')
   setTimeout(() => { copyTooltip.value = "" }, 2000)
 }
 
@@ -193,7 +194,7 @@ function applyImport() {
   try {
     const data = JSON.parse(editorText.value)
     if (!data.baseColor || !data.vars || typeof data.vars !== "object") {
-      editorError.value = "Invalid palette format — needs baseColor and vars"
+      editorError.value = t('components.themePalette.invalidFormat')
       return
     }
     customBaseColor.value = data.baseColor
@@ -204,7 +205,7 @@ function applyImport() {
     }
     editorMode.value = null
   } catch {
-    editorError.value = "Invalid JSON"
+    editorError.value = t('components.themePalette.invalidJson')
   }
 }
 </script>
@@ -213,8 +214,8 @@ function applyImport() {
   <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
     <div class="flex items-center justify-between mb-4">
       <div>
-        <h3 class="text-base font-semibold text-foreground">Theme Palette</h3>
-        <p class="text-sm text-muted-foreground mt-0.5">Color palettes for each theme mode</p>
+        <h3 class="text-base font-semibold text-foreground">{{ t('components.themePalette.title') }}</h3>
+        <p class="text-sm text-muted-foreground mt-0.5">{{ t('components.themePalette.subtitle') }}</p>
       </div>
       <div class="flex items-center gap-2">
         <Button
@@ -225,7 +226,7 @@ function applyImport() {
           @click="resetPaletteForMode()"
         >
           <RotateCcw class="size-3 mr-1.5" />
-          Reset
+          {{ t('components.themePalette.reset') }}
         </Button>
       </div>
     </div>
@@ -249,9 +250,9 @@ function applyImport() {
         <div>
           <p class="text-sm font-medium text-foreground flex items-center gap-1.5">
             <Sun class="size-3.5" />
-            Light Palettes
+            {{ t('components.themePalette.lightPalettes') }}
           </p>
-          <p class="text-[10px] text-muted-foreground">{{ lightPresets.length + (customPaletteForMode && paletteMode === 'light' ? 1 : 0) }} themes</p>
+          <p class="text-[10px] text-muted-foreground">{{ lightPresets.length + (customPaletteForMode && paletteMode === 'light' ? 1 : 0) }} {{ t('components.themePalette.themes') }}</p>
         </div>
       </button>
       <button
@@ -271,9 +272,9 @@ function applyImport() {
         <div>
           <p class="text-sm font-medium text-foreground flex items-center gap-1.5">
             <Moon class="size-3.5" />
-            Dark Palettes
+            {{ t('components.themePalette.darkPalettes') }}
           </p>
-          <p class="text-[10px] text-muted-foreground">{{ darkPresets.length + (customPaletteForMode && paletteMode === 'dark' ? 1 : 0) }} themes</p>
+          <p class="text-[10px] text-muted-foreground">{{ darkPresets.length + (customPaletteForMode && paletteMode === 'dark' ? 1 : 0) }} {{ t('components.themePalette.themes') }}</p>
         </div>
       </button>
     </div>
@@ -370,17 +371,17 @@ function applyImport() {
         <div class="flex items-end justify-between">
           <div>
             <div class="flex items-center gap-1.5">
-              <p class="text-xs font-semibold text-foreground">{{ customPaletteForMode.name || 'Custom' }}</p>
+              <p class="text-xs font-semibold text-foreground">{{ customPaletteForMode.name || t('components.themePalette.customDefault') }}</p>
               <Check v-if="activePaletteForMode === 'Custom'" class="size-3 text-primary shrink-0" />
             </div>
-            <p class="text-[10px] text-muted-foreground mt-0.5">Based on {{ customPaletteForMode.baseColor }}</p>
+            <p class="text-[10px] text-muted-foreground mt-0.5">{{ t('components.themePalette.basedOn', { color: customPaletteForMode.baseColor }) }}</p>
           </div>
           <button
             class="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-muted-foreground hover:text-foreground hover:bg-glass transition-colors"
             @click.stop="openCustomBuilder()"
           >
             <Paintbrush class="size-3" />
-            Edit
+            {{ t('components.themePalette.edit') }}
           </button>
         </div>
       </div>
@@ -394,7 +395,7 @@ function applyImport() {
         <div class="size-10 rounded-xl bg-glass flex items-center justify-center">
           <Wand2 class="size-5 text-muted-foreground" />
         </div>
-        <span class="text-xs font-medium text-muted-foreground">Create Custom</span>
+        <span class="text-xs font-medium text-muted-foreground">{{ t('components.themePalette.createCustom') }}</span>
       </button>
     </div>
 
@@ -406,20 +407,20 @@ function applyImport() {
           <input
             v-model="customPaletteName"
             type="text"
-            placeholder="Palette name"
+            :placeholder="t('components.themePalette.paletteName')"
             class="text-sm font-semibold text-foreground bg-transparent border-b border-transparent hover:border-glass-border focus:border-primary focus:outline-none px-0.5 py-0 w-40 transition-colors"
           >
         </div>
         <div class="flex items-center gap-2">
           <Button variant="ghost" size="sm" class="h-7 px-2 text-xs text-muted-foreground" @click="openExportEditor">
             <Copy class="size-3 mr-1" />
-            Export
+            {{ t('components.themePalette.export') }}
           </Button>
           <Button variant="ghost" size="sm" class="h-7 px-2 text-xs text-muted-foreground" @click="openImportEditor">
             <ClipboardPaste class="size-3 mr-1" />
-            Import
+            {{ t('components.themePalette.import') }}
           </Button>
-          <button class="text-xs text-muted-foreground hover:text-foreground" @click="showCustomBuilder = false">Cancel</button>
+          <button class="text-xs text-muted-foreground hover:text-foreground" @click="showCustomBuilder = false">{{ t('components.themePalette.cancel') }}</button>
         </div>
       </div>
 
@@ -427,21 +428,21 @@ function applyImport() {
       <div v-if="editorMode" class="rounded-xl border border-glass-border p-4 mb-5">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs font-semibold text-foreground">
-            {{ editorMode === "export" ? "Palette JSON" : "Paste palette JSON" }}
+            {{ editorMode === 'export' ? t('components.themePalette.paletteJson') : t('components.themePalette.pastePaletteJson') }}
           </p>
           <div v-if="editorMode === 'import'" class="flex items-center gap-1">
-            <button class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors" title="Load from file" @click="uploadPaletteFile">
+            <button class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors" :title="t('components.themePalette.loadFromFile')" @click="uploadPaletteFile">
               <Upload class="size-3.5" />
             </button>
           </div>
           <div v-if="editorMode === 'export'" class="flex items-center gap-1">
             <div class="relative">
-              <button class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors" title="Copy to clipboard" @click="copyEditorText">
+              <button class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors" :title="t('components.themePalette.copyToClipboard')" @click="copyEditorText">
                 <Copy class="size-3.5" />
               </button>
               <span v-if="copyTooltip" class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-primary whitespace-nowrap">{{ copyTooltip }}</span>
             </div>
-            <button class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors" title="Download as file" @click="downloadPalette">
+            <button class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-glass-hover transition-colors" :title="t('components.themePalette.downloadAsFile')" @click="downloadPalette">
               <Download class="size-3.5" />
             </button>
           </div>
@@ -455,14 +456,14 @@ function applyImport() {
         />
         <p v-if="editorError" class="text-[10px] text-destructive mt-1.5">{{ editorError }}</p>
         <div class="flex items-center justify-end gap-2 mt-3">
-          <Button variant="ghost" size="sm" class="text-xs" @click="editorMode = null">Close</Button>
-          <Button v-if="editorMode === 'import'" size="sm" class="text-xs" @click="applyImport">Apply</Button>
+          <Button variant="ghost" size="sm" class="text-xs" @click="editorMode = null">{{ t('components.themePalette.close') }}</Button>
+          <Button v-if="editorMode === 'import'" size="sm" class="text-xs" @click="applyImport">{{ t('components.themePalette.apply') }}</Button>
         </div>
       </div>
 
       <!-- Generate from base color -->
       <div class="rounded-xl border border-glass-border p-4 mb-5">
-        <p class="text-xs font-semibold text-foreground mb-3">Generate from Base Color</p>
+        <p class="text-xs font-semibold text-foreground mb-3">{{ t('components.themePalette.generateFromBase') }}</p>
         <div class="flex items-center gap-3">
           <input
             v-model="customBaseColor"
@@ -486,7 +487,7 @@ function applyImport() {
           </div>
           <Button variant="outline" size="sm" class="shrink-0 text-xs border-glass-border" @click="randomizeAndRegenerate">
             <Wand2 class="size-3 mr-1.5" />
-            Randomize
+            {{ t('components.themePalette.randomize') }}
           </Button>
         </div>
       </div>
@@ -495,7 +496,7 @@ function applyImport() {
       <div class="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
         <!-- Color editors -->
         <div class="flex flex-col gap-4">
-          <p class="text-xs font-semibold text-foreground">Fine-tune Colors</p>
+          <p class="text-xs font-semibold text-foreground">{{ t('components.themePalette.fineTune') }}</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div v-for="group in colorVarGroups" :key="group.label" class="rounded-xl border border-glass-border p-3">
               <p class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">{{ group.label }}</p>
@@ -525,7 +526,7 @@ function applyImport() {
 
         <!-- Live preview (sticky) -->
         <div class="lg:sticky lg:top-20 self-start">
-          <p class="text-xs font-semibold text-foreground mb-2">Live Preview</p>
+          <p class="text-xs font-semibold text-foreground mb-2">{{ t('components.themePalette.livePreview') }}</p>
           <div class="w-full aspect-video rounded-xl overflow-hidden border border-glass-border flex shadow-lg text-[0]">
             <div class="w-1/5 flex flex-col p-2 gap-1.5 border-r" :style="{ backgroundColor: customEditVars['--sidebar'], borderColor: customEditVars['--sidebar-border'] }">
               <div class="h-2 rounded-sm w-3/4 mb-0.5" :style="{ backgroundColor: customEditVars['--sidebar-accent'] }" />
@@ -556,18 +557,18 @@ function applyImport() {
 
           <!-- Text preview -->
           <div class="mt-3 rounded-xl border p-3 text-[0]" :style="{ backgroundColor: customEditVars['--background'], borderColor: customEditVars['--glass-border'] }">
-            <div class="text-[11px] font-semibold mb-1" :style="{ color: customEditVars['--foreground'] }">Sample Text</div>
-            <div class="text-[9px] mb-2" :style="{ color: customEditVars['--muted-foreground'] }">Muted description text</div>
+            <div class="text-[11px] font-semibold mb-1" :style="{ color: customEditVars['--foreground'] }">{{ t('components.themePalette.sampleText') }}</div>
+            <div class="text-[9px] mb-2" :style="{ color: customEditVars['--muted-foreground'] }">{{ t('components.themePalette.mutedDesc') }}</div>
             <div class="flex gap-1.5">
-              <div class="h-4 px-2 rounded-md text-[8px] flex items-center font-medium text-primary-foreground" style="background-color: var(--primary)">Button</div>
-              <div class="h-4 px-2 rounded-md text-[8px] flex items-center border" :style="{ borderColor: customEditVars['--border'], color: customEditVars['--foreground'] }">Outline</div>
+              <div class="h-4 px-2 rounded-md text-[8px] flex items-center font-medium text-primary-foreground" style="background-color: var(--primary)">{{ t('components.themePalette.button') }}</div>
+              <div class="h-4 px-2 rounded-md text-[8px] flex items-center border" :style="{ borderColor: customEditVars['--border'], color: customEditVars['--foreground'] }">{{ t('components.themePalette.outline') }}</div>
             </div>
           </div>
 
           <!-- Apply button -->
           <Button class="w-full mt-4" @click="applyCustomPalette()">
             <Pipette class="size-4 mr-2" />
-            Apply Custom Palette
+            {{ t('components.themePalette.applyCustom') }}
           </Button>
         </div>
       </div>

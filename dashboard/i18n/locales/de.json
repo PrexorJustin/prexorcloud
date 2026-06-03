@@ -2126,6 +2126,62 @@
         "defaultGroup": "Standard-Gruppe",
         "maintenance": "Wartung"
       }
+    },
+    "themePalette": {
+      "title": "Theme-Palette",
+      "subtitle": "Farbpaletten für jeden Theme-Modus",
+      "reset": "Zurücksetzen",
+      "lightPalettes": "Helle Paletten",
+      "darkPalettes": "Dunkle Paletten",
+      "themes": "Themes",
+      "basedOn": "Basiert auf {color}",
+      "edit": "Bearbeiten",
+      "createCustom": "Eigene erstellen",
+      "customDefault": "Eigene",
+      "paletteName": "Paletten-Name",
+      "export": "Exportieren",
+      "import": "Importieren",
+      "cancel": "Abbrechen",
+      "paletteJson": "Paletten-JSON",
+      "pastePaletteJson": "Paletten-JSON einfügen",
+      "loadFromFile": "Aus Datei laden",
+      "copyToClipboard": "In Zwischenablage kopieren",
+      "downloadAsFile": "Als Datei herunterladen",
+      "close": "Schließen",
+      "apply": "Anwenden",
+      "copied": "Kopiert!",
+      "invalidFormat": "Ungültiges Paletten-Format — benötigt baseColor und vars",
+      "invalidJson": "Ungültiges JSON",
+      "generateFromBase": "Aus Basisfarbe generieren",
+      "randomize": "Zufällig",
+      "fineTune": "Farben feinjustieren",
+      "livePreview": "Live-Vorschau",
+      "sampleText": "Beispieltext",
+      "mutedDesc": "Gedämpfter Beschreibungstext",
+      "button": "Button",
+      "outline": "Umriss",
+      "applyCustom": "Eigene Palette anwenden",
+      "groups": {
+        "background": "Hintergrund",
+        "cardsGlass": "Karten & Glas",
+        "mutedAccent": "Gedämpft & Akzent",
+        "sidebar": "Seitenleiste"
+      },
+      "vars": {
+        "pageBackground": "Seiten-Hintergrund",
+        "textColor": "Textfarbe",
+        "cardBackground": "Karten-Hintergrund",
+        "glassSurface": "Glas-Oberfläche",
+        "glassHover": "Glas-Hover",
+        "glassBorder": "Glas-Rand",
+        "mutedBackground": "Gedämpfter Hintergrund",
+        "mutedText": "Gedämpfter Text",
+        "border": "Rand",
+        "sidebarBackground": "Seitenleisten-Hintergrund",
+        "sidebarText": "Seitenleisten-Text",
+        "sidebarAccent": "Seitenleisten-Akzent",
+        "sidebarBorder": "Seitenleisten-Rand"
+      }
     }
   }
 }

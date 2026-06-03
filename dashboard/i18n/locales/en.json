@@ -2126,6 +2126,62 @@
         "defaultGroup": "Default group",
         "maintenance": "Maintenance"
       }
+    },
+    "themePalette": {
+      "title": "Theme Palette",
+      "subtitle": "Color palettes for each theme mode",
+      "reset": "Reset",
+      "lightPalettes": "Light Palettes",
+      "darkPalettes": "Dark Palettes",
+      "themes": "themes",
+      "basedOn": "Based on {color}",
+      "edit": "Edit",
+      "createCustom": "Create Custom",
+      "customDefault": "Custom",
+      "paletteName": "Palette name",
+      "export": "Export",
+      "import": "Import",
+      "cancel": "Cancel",
+      "paletteJson": "Palette JSON",
+      "pastePaletteJson": "Paste palette JSON",
+      "loadFromFile": "Load from file",
+      "copyToClipboard": "Copy to clipboard",
+      "downloadAsFile": "Download as file",
+      "close": "Close",
+      "apply": "Apply",
+      "copied": "Copied!",
+      "invalidFormat": "Invalid palette format — needs baseColor and vars",
+      "invalidJson": "Invalid JSON",
+      "generateFromBase": "Generate from Base Color",
+      "randomize": "Randomize",
+      "fineTune": "Fine-tune Colors",
+      "livePreview": "Live Preview",
+      "sampleText": "Sample Text",
+      "mutedDesc": "Muted description text",
+      "button": "Button",
+      "outline": "Outline",
+      "applyCustom": "Apply Custom Palette",
+      "groups": {
+        "background": "Background",
+        "cardsGlass": "Cards & Glass",
+        "mutedAccent": "Muted & Accent",
+        "sidebar": "Sidebar"
+      },
+      "vars": {
+        "pageBackground": "Page Background",
+        "textColor": "Text Color",
+        "cardBackground": "Card Background",
+        "glassSurface": "Glass Surface",
+        "glassHover": "Glass Hover",
+        "glassBorder": "Glass Border",
+        "mutedBackground": "Muted Background",
+        "mutedText": "Muted Text",
+        "border": "Border",
+        "sidebarBackground": "Sidebar Background",
+        "sidebarText": "Sidebar Text",
+        "sidebarAccent": "Sidebar Accent",
+        "sidebarBorder": "Sidebar Border"
+      }
     }
   }
 }
