@@ -123,6 +123,25 @@ jobs:
         working-directory: dashboard
       - run: pnpm build
         working-directory: dashboard
+      # Runtime a11y scan (axe-core) — the complement to the hard static a11y
+      # lint above: catches color-contrast and computed-role issues that need a
+      # real browser, which the static scan can't see. Soft signal (the dashboard
+      # is an authed SPA, so only the unauthed surface — login + root shell — is
+      # scannable here; contrast isn't at zero yet). Mirrors the website axe job.
+      - name: a11y runtime scan (axe-core, soft)
+        continue-on-error: true
+        working-directory: dashboard
+        run: |
+          pnpm preview &
+          APP_PID=$!
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/login > /dev/null && break
+            sleep 1
+          done
+          npm i --no-save @axe-core/cli
+          npx axe http://127.0.0.1:3000/login http://127.0.0.1:3000/ --exit || \
+            echo "::warning::axe found runtime a11y issues on the login surface — see logs (soft until H.2 contrast pass)"
+          kill $APP_PID 2>/dev/null || true
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
