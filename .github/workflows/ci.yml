@@ -85,12 +85,11 @@ jobs:
       - name: i18n locale parity
         run: pnpm i18n:check
         working-directory: dashboard
-      # Hardcoded-string guard runs as a soft signal: the page batches left ~105
-      # user-facing literals in components/dialogs not yet routed through t().
-      # Surfaces as a GH Actions warning; hardens to a fail once the residuals
-      # are extracted (tracked in northstar-plan H.3).
-      - name: i18n hardcoded strings (soft)
-        run: pnpm i18n:check-hardcoded || echo "::warning::hardcoded user-facing strings remain — see logs (non-fatal until H.3 residual extraction)"
+      # Hardcoded-string guard — hard gate. The H.3 batches drove the inventory
+      # to zero, so any new user-facing literal not routed through t() now fails
+      # CI (keeps en/de coverage from regressing).
+      - name: i18n hardcoded strings
+        run: pnpm i18n:check-hardcoded
         working-directory: dashboard
       # ESLint runs as a soft signal — pre-existing debt surfaces as a
       # GH Actions warning but does not fail the run. Track via v1.0.1.

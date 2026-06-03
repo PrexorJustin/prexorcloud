@@ -10,9 +10,9 @@
 //      enum/identifier tokens are allowed (see isTranslatable).
 //
 // Zero dependencies (`pnpm i18n:check-hardcoded`), independent of the vitest
-// suite. Wired as a SOFT CI gate today — the page batches left ~105 residual
-// literals in components/dialogs — and hardens to a fail once those are
-// extracted (tracked in northstar-plan H.3). The template is walked with a small
+// suite. Wired as a HARD CI gate — the H.3 batches drove the residual inventory
+// to zero, so any newly-introduced user-facing literal fails the build. The
+// template is walked with a small
 // tag/text/quote state machine rather than a regex, because Vue bindings carry
 // ">" inside quoted attribute values (v-if="a > 0", :class="[i >= 1]") which a
 // naive >…< scan would mistake for text-node boundaries.
