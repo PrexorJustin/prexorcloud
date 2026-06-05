@@ -32,7 +32,7 @@ const (
 	// callers that still pass the legacy "cloud-module-<kebab>" form.
 	templateModulePrefix       = ""
 	templateModuleLegacyPrefix = "cloud-module-"
-	settingsAnchor       = "// ---- MODULES ---- //"
+	settingsAnchor             = "// ---- MODULES ---- //"
 )
 
 var (
@@ -158,10 +158,135 @@ func Generate(opts Options) (*Result, error) {
 			return nil, err
 		}
 	}
+	// Prune the module.yaml `extensions:` list to the selected --mc-plugin/Targets
+	// platforms. walkTemplate already drops the unselected plugin/<target> dirs;
+	// without this the manifest would still advertise every template platform.
+	if err := filterManifestExtensions(destRoot, opts.Targets, opts.Dry); err != nil {
+		return nil, err
+	}
 	if err := patchSettings(settingsFile, kebab, opts.Dry, opts.Targets, res); err != nil {
 		return nil, err
 	}
 	return res, nil
+}
+
+// filterManifestExtensions rewrites the generated module.yaml so its top-level
+// `extensions:` list only contains the selected targets. No-op when the caller
+// didn't pick targets (keep == nil), on dry runs, or when the template carries
+// no manifest.
+func filterManifestExtensions(destRoot string, targets []string, dry bool) error {
+	if dry {
+		return nil
+	}
+	keep := normaliseTargets(targets)
+	if keep == nil {
+		return nil
+	}
+	manifestPath := filepath.Join(destRoot, "src", "main", "module", "module.yaml")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // template without a manifest — nothing to prune
+		}
+		return fmt.Errorf("read generated module.yaml: %w", err)
+	}
+	pruned := pruneExtensionsBlock(string(raw), keep)
+	if pruned == string(raw) {
+		return nil
+	}
+	if err := os.WriteFile(manifestPath, []byte(pruned), 0o644); err != nil {
+		return fmt.Errorf("write generated module.yaml: %w", err)
+	}
+	return nil
+}
+
+// pruneExtensionsBlock filters the top-level `extensions:` list down to entries
+// whose `target:` last path segment (e.g. "paper" from "server/paper") is in
+// keep. Entries with no recognisable target are left in place (defensive).
+// Returns the text unchanged when there is no extensions block.
+func pruneExtensionsBlock(text string, keep map[string]bool) string {
+	if keep == nil {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+	i := 0
+	for i < len(lines) {
+		if lines[i] != "extensions:" {
+			out = append(out, lines[i])
+			i++
+			continue
+		}
+		out = append(out, lines[i]) // the "extensions:" header
+		i++
+		// The block body runs until the next top-level (unindented) key or EOF.
+		start := i
+		for i < len(lines) {
+			l := lines[i]
+			if l != "" && !strings.HasPrefix(l, " ") && !strings.HasPrefix(l, "\t") {
+				break
+			}
+			i++
+		}
+		out = append(out, pruneExtensionItems(lines[start:i], keep)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+// pruneExtensionItems splits a block body into YAML list items (each starting at
+// a "  - " line) and keeps only the selected ones, preserving any leading lines
+// and a single file-final blank line.
+func pruneExtensionItems(body []string, keep map[string]bool) []string {
+	trailingBlank := len(body) > 0 && strings.TrimSpace(body[len(body)-1]) == ""
+	end := len(body)
+	for end > 0 && strings.TrimSpace(body[end-1]) == "" {
+		end--
+	}
+
+	var prefix []string
+	var items [][]string
+	var cur []string
+	for _, l := range body[:end] {
+		if strings.HasPrefix(l, "  - ") {
+			if cur != nil {
+				items = append(items, cur)
+			}
+			cur = []string{l}
+		} else if cur != nil {
+			cur = append(cur, l)
+		} else {
+			prefix = append(prefix, l)
+		}
+	}
+	if cur != nil {
+		items = append(items, cur)
+	}
+
+	out := append([]string{}, prefix...)
+	for _, item := range items {
+		if keepExtensionItem(item, keep) {
+			out = append(out, item...)
+		}
+	}
+	if trailingBlank {
+		out = append(out, "")
+	}
+	return out
+}
+
+func keepExtensionItem(item []string, keep map[string]bool) bool {
+	for _, l := range item {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "target:") {
+			target := strings.TrimSpace(strings.TrimPrefix(t, "target:"))
+			short := target
+			if idx := strings.LastIndex(target, "/"); idx >= 0 {
+				short = target[idx+1:]
+			}
+			return keep[short]
+		}
+	}
+	return true // no target line — keep defensively
 }
 
 // applyWizardOverrides post-processes the freshly-written module so it matches

@@ -44,6 +44,26 @@ public class ExamplePlaytimeModule {
 		`if you see this in the output the build/ filter is broken
 `)
 
+	// Minimal module.yaml carrying an extensions list with all template
+	// platforms, so selective scaffolds can be asserted to prune it.
+	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "src", "main", "module", "module.yaml"),
+		`manifestVersion: 1
+id: example-playtime
+extensions:
+  - id: example-playtime-folia
+    target: server/folia
+    activation: explicit-group-attach
+  - id: example-playtime-paper
+    target: server/paper
+    activation: explicit-group-attach
+  - id: example-playtime-velocity
+    target: proxy/velocity
+    activation: explicit-group-attach
+  - id: example-playtime-bedrock-geyser
+    target: server/bedrock-geyser
+    activation: explicit-group-attach
+`)
+
 	mustWrite(t, filepath.Join(root, "java", "settings.gradle.kts"),
 		`rootProject.name = "prexorcloud"
 include(
@@ -280,6 +300,20 @@ func TestGenerateSelectiveTargets(t *testing.T) {
 	if !res.SettingsPatched {
 		t.Error("expected settings.gradle.kts to be patched")
 	}
+
+	// The generated module.yaml extensions: list must only advertise the
+	// selected platforms — paper + folia, never velocity or bedrock-geyser.
+	manifest := readFile(t, filepath.Join(dest, "src", "main", "module", "module.yaml"))
+	for _, want := range []string{"target: server/paper", "target: server/folia"} {
+		if !strings.Contains(manifest, want) {
+			t.Errorf("module.yaml should keep %q:\n%s", want, manifest)
+		}
+	}
+	for _, unwanted := range []string{"target: proxy/velocity", "target: server/bedrock-geyser"} {
+		if strings.Contains(manifest, unwanted) {
+			t.Errorf("module.yaml should have pruned %q:\n%s", unwanted, manifest)
+		}
+	}
 }
 
 func TestGenerateAllTargetsByDefault(t *testing.T) {
@@ -292,6 +326,41 @@ func TestGenerateAllTargetsByDefault(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dest, "plugin", target, "build.gradle.kts")); err != nil {
 			t.Errorf("plugin/%s missing: %v", target, err)
 		}
+	}
+	// No target selection → the extensions list is left intact (all platforms).
+	manifest := readFile(t, filepath.Join(dest, "src", "main", "module", "module.yaml"))
+	for _, want := range []string{"server/paper", "server/folia", "proxy/velocity", "server/bedrock-geyser"} {
+		if !strings.Contains(manifest, "target: "+want) {
+			t.Errorf("default scaffold should keep all extensions, missing %q:\n%s", want, manifest)
+		}
+	}
+}
+
+func TestPruneExtensionsBlock(t *testing.T) {
+	manifest := `id: m
+extensions:
+  - id: m-paper
+    target: server/paper
+  - id: m-velocity
+    target: proxy/velocity
+storage:
+  mongo: true
+`
+	pruned := pruneExtensionsBlock(manifest, map[string]bool{"paper": true})
+	if !strings.Contains(pruned, "target: server/paper") {
+		t.Errorf("kept target missing:\n%s", pruned)
+	}
+	if strings.Contains(pruned, "proxy/velocity") {
+		t.Errorf("velocity should be pruned:\n%s", pruned)
+	}
+	// The following top-level block must survive untouched.
+	if !strings.Contains(pruned, "storage:\n  mongo: true") {
+		t.Errorf("block after extensions was clobbered:\n%s", pruned)
+	}
+
+	// nil keep (no selection) is a no-op.
+	if got := pruneExtensionsBlock(manifest, nil); got != manifest {
+		t.Errorf("nil keep should be a no-op")
 	}
 }
 
