@@ -15,13 +15,14 @@
 
 **Gesamt ≈ 69 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
 
-**Track-Stand:** A 100 % · B 100 % · C ~96 % · D ~96 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
 
 **Zuletzt geliefert (Session 2026-06-05, Teil 2):**
 - **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. `MongoCommandTracerTest` (5).
 - **D.1 Redis/Lettuce-OTel-Instrumentation** — `RedisTracing` adaptiert Lettuces native Tracing-SPI auf OTel; nur bei `telemetry.enabled` auf `ClientResources` installiert, Command-Args ausgeschlossen. Telemetry-Bau nach vorn gezogen (vor Redis-Connect). `RedisTracingTest` (3). → D.1 nur noch gRPC offen (Javaagent-Domäne).
 - **D.3 MC-Plugin→Controller-Trace-Hop (SDK-frei)** — `W3CTraceparent` mintet pro Plugin-Request einen gesampleten `traceparent`; Controller continued die Trace. `W3CTraceparentTest` (3). → D.3 komplett (bis auf aufgezeichnete Plugin-Span, die ein Plugin-SDK bräuchte).
 - **C.5 backup-orchestrator periodische Snapshots** — `BackupSchedule` (env-getrieben) + `scheduleAtFixedRate` in `onStart`; opt-in via `PREXORCLOUD_BACKUP_INTERVAL_MINUTES`+`PREXORCLOUD_BACKUP_TARGETS`, sonst REST-only. `BackupScheduleTest` (6).
+- **C.4 Scaffolder extensions-Pruning** — `module new --mc-plugin X` prunt jetzt den `module.yaml`-`extensions:`-Block auf die gewählten Plattformen (vorher: nur Verzeichnisse gefiltert, Manifest listete alle). Go-Tests `TestPruneExtensionsBlock` u.a.
 
 **Zuletzt geliefert (Session 2026-06-05):**
 - **A.8 Config-Version-History/Diff-UI** — neue Dashboard-Seite `/cluster/config` (Versionsverlauf + `DiffViewer` patch-vs-parent + Rollback-Dialog), Nav-Eintrag, Store-Actions, i18n en+de, 8 neue Store-Tests. Reine Frontend-Verdrahtung (Backend war schon da). → **v1.1 komplett.**
@@ -316,7 +317,9 @@ prexorctl module scaffold my-cool-module \
 - Pre-Link-Gate des Root-Kommandos (`prexorctl` ohne Cluster-Kontext) kennt jetzt `Annotations["local-only"]="true"`. `module new`/`module scaffold` ist damit ohne `prexorctl login` benutzbar — passt zu dem von der Plan-Aussage „5-Minuten-Hürde" geforderten First-Run-UX.
 - Tests: `cli/cmd/module_scaffold_flags_test.go` lockt Version-Range-Parsing, `--no-frontend`/`--no-plugin`-Semantik und Default-Versions/Ranges fest. Scaffold-Suite (`internal/scaffold/`) blieb intakt, Paths-Sed durch alle Test-Fixtures gezogen.
 
-**Bewusst out of scope (eigenes follow-up):** `extensions:`-Block in `module.yaml` reflektiert die `--mc-plugin`-Auswahl noch nicht — die `plugin/<platform>/`-Verzeichnisse werden korrekt gefiltert, aber der Manifest-Block listet weiterhin alle Templates auf. WithRest/WithMongo-Strip-Out wartet auf den eigenen Pass; die Wizard-Spec ist vorbereitet.
+**Nachgezogen (2026-06-05):** der `extensions:`-Block in `module.yaml` reflektiert die `--mc-plugin`-Auswahl jetzt — `filterManifestExtensions`/`pruneExtensionsBlock` prunt die Liste auf die gewählten Plattformen (Match über das letzte Pfadsegment von `target:`, z.B. `server/paper`→`paper`); ohne Selektion bleibt die volle Liste. Tests: `TestPruneExtensionsBlock` + erweiterte `TestGenerateSelectiveTargets`/`TestGenerateAllTargetsByDefault`.
+
+**Bewusst out of scope (eigenes follow-up):** WithRest/WithMongo-Strip-Out wartet auf den eigenen Pass; die Wizard-Spec ist vorbereitet.
 
 ### C.5 Erweiterung First-Party-Module (~3 d) — ⏳ **teilweise shipped**
 
