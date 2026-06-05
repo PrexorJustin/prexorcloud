@@ -13,11 +13,12 @@
 
 ## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-05)
 
-**Gesamt ≈ 72 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 80 %** (C+D quasi fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
+**Gesamt ≈ 73 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 80 %** (C+D quasi fertig, **E ist die Lücke**) · **v1.3 ≈ 20 %** (F angefangen — F.1-Sichtbarkeit, H ≈ 45 %).
 
-**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~50 % · F 0 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~50 % · F ~8 % · G 100 % · H ~45 %.
 
 **Zuletzt geliefert (Session 2026-06-05, Teil 2):**
+- **F.1 Bedrock-vs-Java-Spieler-Sichtbarkeit** — Controller leitet pro Spieler eine `edition` aus der UUID ab (Floodgate-Konvention, kein Plugin-Change); Dashboard zeigt den Java/Bedrock-Split (Stat-Card, Detail-Zeile, Bedrock-Badge). `PlayerEditionTest` + Mapper/Store-Tests; OpenAPI + i18n en/de in sync. Routing-Verhalten + Geyser-Proxy bleiben offen. → erster Anstoß für Track F.
 - **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. `MongoCommandTracerTest` (5).
 - **D.1 Redis/Lettuce-OTel-Instrumentation** — `RedisTracing` adaptiert Lettuces native Tracing-SPI auf OTel; nur bei `telemetry.enabled` auf `ClientResources` installiert, Command-Args ausgeschlossen. Telemetry-Bau nach vorn gezogen (vor Redis-Connect). `RedisTracingTest` (3). → D.1 nur noch gRPC offen (Javaagent-Domäne).
 - **D.3 MC-Plugin→Controller-Trace-Hop (SDK-frei)** — `W3CTraceparent` mintet pro Plugin-Request einen gesampleten `traceparent`; Controller continued die Trace. `W3CTraceparentTest` (3). → D.3 komplett (bis auf aufgezeichnete Plugin-Span, die ein Plugin-SDK bräuchte).
@@ -430,11 +431,11 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 
 **Ziel:** Wir unterstützen heute Paper/Folia/Spigot/Velocity/BungeeCord + Bedrock via Geyser-Beispielmodul. Erweitern.
 
-### F.1 First-Class Bedrock-Routing (~7 d)
+### F.1 First-Class Bedrock-Routing (~7 d) — ⏳ **Spieler-Sichtbarkeit (Edition-Tracking + Dashboard-Split) shipped; Routing + dedizierter Geyser-Proxy offen**
 
-- Dedicated Proxy-Plugin: `cloud-plugins:proxy:geyser` — eigene Implementierung über Geyser-Spigot oder Geyser-Standalone als Sidecar.
-- BedrockProtocol-Adapter im `cloud-controller/network/`: Bedrock-Clients in `NetworkComposition` erstklassig behandeln (ein-/auschecken in Lobby-Gruppen, Fallback-Routing).
-- Dashboard zeigt Bedrock-vs-Java-Spieler getrennt.
+- ✅ **Dashboard zeigt Bedrock-vs-Java-Spieler getrennt.** Der Controller leitet pro Spieler eine `edition` (`java`/`bedrock`) ab — **aus der UUID**: Floodgate vergibt Bedrock-Spielern eine UUID mit Null-High-Bits (`new UUID(0, xuid)`), der kanonische programmatische Bedrock-Check, also **kein** Plugin-/Transport-/Event-Change nötig (`PlayerEdition.detect`, `PlayerInfo.edition` via Compact-Ctor auch für Jackson-Rehydration alter Daten). Surfaced in den Player-REST-DTOs (main + workload) + `PlayerDto`-Schema (+ OpenAPI). Dashboard: `editionCounts`-Getter, „Edition"-Split-Stat-Card, Detail-Sheet-Zeile, Bedrock-Badge auf der `PlayerCard` (i18n en+de). Tests: `PlayerEditionTest`, erweiterte Mapper- + `players`-Store-Tests. **Scope ehrlich:** erkennt Floodgate-Bedrock (UUID-Konvention); Standalone-Geyser ohne Floodgate vergibt Java-UUIDs und ist nicht unterscheidbar → wird als `java` gemeldet.
+- ⏳ **Offen:** BedrockProtocol-Adapter im `cloud-controller/network/` — Bedrock-Clients in `NetworkComposition` erstklassig behandeln (Lobby-Gruppen-Ein-/Auschecken, Fallback-Routing). Das ist Routing-**Verhalten** und braucht Laufzeit-Verifikation.
+- ⏳ **Offen:** Dedizierter Proxy-Plugin `cloud-plugins:proxy:geyser` (Geyser-Spigot/Standalone-Sidecar).
 
 ### F.2 Fabric-Server-Plugin (~5 d)
 
