@@ -323,9 +323,6 @@ func unsupportedToggleNotices(spec *scaffold.ModuleSpec) []string {
 	if !spec.WithMongo {
 		notices = append(notices, "storage=No: Mongo wiring stays in place; remove src/main/java/.../data/ by hand for now")
 	}
-	if !spec.WithRest {
-		notices = append(notices, "rest=No: rest/ package stays in place; remove src/main/java/.../rest/ by hand for now")
-	}
 	for _, t := range spec.PluginTargets {
 		switch t.Platform {
 		case "bedrock-geyser":

@@ -336,6 +336,99 @@ func TestGenerateAllTargetsByDefault(t *testing.T) {
 	}
 }
 
+func TestStripOnRegisterRoutes(t *testing.T) {
+	src := `package me.prexorjustin.prexorcloud.modules.demo.platform;
+
+import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
+import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
+import me.prexorjustin.prexorcloud.api.module.rest.RouteRegistrar;
+import me.prexorjustin.prexorcloud.modules.demo.config.Config;
+import me.prexorjustin.prexorcloud.modules.demo.rest.PlaytimeRoutes;
+
+public final class DemoModule implements PlatformModule {
+
+    @Override
+    public void onLoad(ModuleContext context) {
+        // keep me
+    }
+
+    @Override
+    public void onRegisterRoutes(RouteRegistrar registrar) {
+        new PlaytimeRoutes(repository, Config.defaults()).register(registrar);
+    }
+
+    @Override
+    public void onStart(ModuleContext context) {
+        // keep me too
+    }
+}
+`
+	out := stripOnRegisterRoutes(src)
+	if strings.Contains(out, "onRegisterRoutes") {
+		t.Errorf("onRegisterRoutes method not removed:\n%s", out)
+	}
+	if strings.Contains(out, ".rest.") {
+		t.Errorf("rest imports not removed:\n%s", out)
+	}
+	if strings.Contains(out, "RouteRegistrar") {
+		t.Errorf("RouteRegistrar reference survived:\n%s", out)
+	}
+	for _, want := range []string{"onLoad", "onStart", "config.Config", "implements PlatformModule"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q to survive the strip:\n%s", want, out)
+		}
+	}
+}
+
+func TestGenerateStripsRest(t *testing.T) {
+	root := fakeTemplate(t)
+	// Enrich the fixture: a rest/ package + an entrypoint with onRegisterRoutes.
+	pkgDir := filepath.Join(root, "java", "cloud-modules", "example",
+		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "example")
+	mustWrite(t, filepath.Join(pkgDir, "rest", "PlaytimeRoutes.java"),
+		"package me.prexorjustin.prexorcloud.modules.example.rest;\npublic final class PlaytimeRoutes {}\n")
+	mustWrite(t, filepath.Join(pkgDir, "platform", "ExamplePlaytimeModule.java"),
+		`package me.prexorjustin.prexorcloud.modules.example.platform;
+
+import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
+import me.prexorjustin.prexorcloud.api.module.rest.RouteRegistrar;
+import me.prexorjustin.prexorcloud.modules.example.rest.PlaytimeRoutes;
+
+public final class ExamplePlaytimeModule implements PlatformModule {
+    @Override
+    public void onRegisterRoutes(RouteRegistrar registrar) {
+        new PlaytimeRoutes().register(registrar);
+    }
+}
+`)
+
+	// WithFrontend:true keeps the wizard path active (so applyWizardOverrides runs)
+	// without stripping anything else; WithRest:false triggers the rest strip.
+	if _, err := Generate(Options{
+		RepoRoot:     root,
+		Name:         "rest-stripped",
+		WithFrontend: true,
+		WithRest:     false,
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	dest := filepath.Join(root, "java", "cloud-modules", "rest-stripped")
+	if _, err := os.Stat(filepath.Join(dest, "src", "main", "java", "me", "prexorjustin", "prexorcloud",
+		"modules", "reststripped", "rest")); err == nil {
+		t.Errorf("rest/ package should have been removed")
+	}
+	// "ExamplePlaytimeModule" → token-renamed to "RestStrippedModule".
+	entry := readFile(t, filepath.Join(dest, "src", "main", "java", "me", "prexorjustin", "prexorcloud",
+		"modules", "reststripped", "platform", "RestStrippedModule.java"))
+	if strings.Contains(entry, "onRegisterRoutes") {
+		t.Errorf("onRegisterRoutes not stripped from entrypoint:\n%s", entry)
+	}
+	if strings.Contains(entry, ".rest.") || strings.Contains(entry, "RouteRegistrar") {
+		t.Errorf("rest imports not stripped from entrypoint:\n%s", entry)
+	}
+}
+
 func TestPruneExtensionsBlock(t *testing.T) {
 	manifest := `id: m
 extensions:

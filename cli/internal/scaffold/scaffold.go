@@ -68,10 +68,10 @@ type Options struct {
 	//
 	// Implementation status (Phase B v1):
 	//   WithFrontend(false) → frontend/ dir + module.yaml frontend block stripped
+	//   WithRest(false)     → rest/ dir + onRegisterRoutes override + .rest. imports stripped
 	//   Provides/Requires   → module.yaml capabilities block rewritten
-	//   WithMongo / WithRest are accepted by callers but currently emit a
-	//   warning when set to false and leave the template defaults in place —
-	//   the storage/REST removal pass is its own follow-up turn.
+	//   WithMongo(false) is accepted but still leaves the template defaults in
+	//   place (the Mongo wiring is too interconnected for safe string surgery).
 	WithMongo    bool
 	WithRest     bool
 	WithFrontend bool
@@ -294,13 +294,15 @@ func keepExtensionItem(item []string, keep map[string]bool) bool {
 // (minus unselected plugin targets); this pass strips/edits files based on the
 // wizard's higher-level toggles.
 //
-// Implemented overrides (Phase B v1):
+// Implemented overrides:
 //   - WithFrontend == false:     delete frontend/ and the module.yaml `frontend:` block
+//   - WithRest == false:         delete rest/ and drop the onRegisterRoutes override + imports
 //   - Provides / Requires        rewrite module.yaml capabilities: block from wizard input
 //
-// Deferred to Phase B.2:
+// Deferred:
 //   - WithMongo == false:        rip out data/, repository, requireMongoStorage(), module.yaml storage block
-//   - WithRest == false:         rip out rest/, route registration call sites
+//     (the example's repository → queryService → capability/health chain is
+//     too interconnected for safe string surgery — needs a template restructure)
 func applyWizardOverrides(destRoot string, opts Options) error {
 	if opts.Dry {
 		// Dry runs don't touch the filesystem and the template wasn't actually
@@ -322,6 +324,12 @@ func applyWizardOverrides(destRoot string, opts Options) error {
 		text = stripManifestBlock(text, "frontend:")
 	}
 
+	if !opts.WithRest {
+		if err := stripRest(destRoot); err != nil {
+			return fmt.Errorf("strip rest/: %w", err)
+		}
+	}
+
 	if len(opts.Provides) > 0 || len(opts.Requires) > 0 {
 		text = rewriteCapabilities(text, opts.Provides, opts.Requires)
 	}
@@ -330,6 +338,97 @@ func applyWizardOverrides(destRoot string, opts Options) error {
 		return fmt.Errorf("write generated module.yaml: %w", err)
 	}
 	return nil
+}
+
+// stripRest removes REST scaffolding from a freshly-generated module: the
+// rest/ package(s) and, in the entrypoint, the `onRegisterRoutes` override (a
+// no-op default on PlatformModule, so dropping it is safe) plus the now-dead
+// `.rest.` imports. Mongo/capabilities/health wiring is untouched.
+func stripRest(destRoot string) error {
+	// Cover both src/main and src/test — the template ships a rest/ package and a
+	// rest/PlaytimeRoutesTest, both of which must go or compileTestJava breaks.
+	srcRoot := filepath.Join(destRoot, "src")
+
+	// 1. Delete every rest/ package under the source tree.
+	_ = filepath.WalkDir(srcRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() && d.Name() == "rest" {
+			_ = os.RemoveAll(path)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+
+	// 2. Strip the onRegisterRoutes override + rest imports from the entrypoint.
+	return filepath.WalkDir(srcRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".java") {
+			return err
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		src := string(raw)
+		if !strings.Contains(src, "onRegisterRoutes(RouteRegistrar") {
+			return nil
+		}
+		return os.WriteFile(path, []byte(stripOnRegisterRoutes(src)), 0o644)
+	})
+}
+
+// stripOnRegisterRoutes removes `import ... .rest. ...` lines and the
+// `onRegisterRoutes(RouteRegistrar ...)` method (including a preceding
+// `@Override`) from a Java source string. Brace-matched; assumes the simple
+// generated-template shape (no braces inside strings/comments in the method).
+func stripOnRegisterRoutes(src string) string {
+	// Drop rest imports.
+	lines := strings.Split(src, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "import ") && strings.Contains(t, ".rest.") {
+			continue
+		}
+		kept = append(kept, l)
+	}
+	src = strings.Join(kept, "\n")
+
+	idx := strings.Index(src, "public void onRegisterRoutes(")
+	if idx < 0 {
+		return src
+	}
+	start := strings.LastIndex(src[:idx], "\n") + 1 // start of the signature line
+	if prevEnd := start - 1; prevEnd > 0 {
+		prevStart := strings.LastIndex(src[:prevEnd], "\n") + 1
+		if strings.TrimSpace(src[prevStart:prevEnd]) == "@Override" {
+			start = prevStart
+		}
+	}
+	braceOpen := strings.IndexByte(src[idx:], '{')
+	if braceOpen < 0 {
+		return src
+	}
+	braceOpen += idx
+	depth := 0
+	end := -1
+	for i := braceOpen; i < len(src); i++ {
+		if src[i] == '{' {
+			depth++
+		} else if src[i] == '}' {
+			depth--
+			if depth == 0 {
+				end = i + 1
+				break
+			}
+		}
+	}
+	if end < 0 {
+		return src
+	}
+	result := src[:start] + src[end:]
+	return multiBlank.ReplaceAllString(result, "\n\n")
 }
 
 // stripManifestBlock removes a top-level YAML block whose key matches `key`
