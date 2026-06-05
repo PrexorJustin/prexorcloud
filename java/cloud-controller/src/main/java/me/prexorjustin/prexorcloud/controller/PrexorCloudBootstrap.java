@@ -153,6 +153,8 @@ public final class PrexorCloudBootstrap {
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
     private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
     private me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry telemetry;
+    private final me.prexorjustin.prexorcloud.controller.observability.telemetry.MongoCommandTracer mongoCommandTracer =
+            new me.prexorjustin.prexorcloud.controller.observability.telemetry.MongoCommandTracer();
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -187,6 +189,9 @@ public final class PrexorCloudBootstrap {
             controller.authManager().setTracer(telemetry.tracer());
         }
         clusterControlService.attachTracer(telemetry.tracer());
+        if (telemetry.isEnabled()) {
+            mongoCommandTracer.attachTracer(telemetry.tracer());
+        }
         var pasteClient = new me.prexorjustin.prexorcloud.controller.share.PasteClient(config.share());
         controller.setShareService(new me.prexorjustin.prexorcloud.controller.share.ShareService(
                 config.share(),
@@ -411,7 +416,13 @@ public final class PrexorCloudBootstrap {
     }
 
     private StateStore initStorage() {
-        mongoClient = MongoClients.create(config.database().uri());
+        // Register the OTel command listener at client-build time (Track D.1). It stays inert
+        // until attachTracer() runs after the telemetry SDK is up — see start().
+        var mongoSettings = com.mongodb.MongoClientSettings.builder()
+                .applyConnectionString(new com.mongodb.ConnectionString(config.database().uri()))
+                .addCommandListener(mongoCommandTracer)
+                .build();
+        mongoClient = MongoClients.create(mongoSettings);
         mongoDatabase = mongoClient.getDatabase(config.database().database());
         var stateStore = new MongoStateStore(mongoClient, mongoDatabase);
         stateStore.initialize();
