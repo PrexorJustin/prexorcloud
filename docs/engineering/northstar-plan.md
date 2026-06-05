@@ -15,7 +15,11 @@
 
 **Gesamt ≈ 69 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
 
-**Track-Stand:** A 100 % · B 100 % · C ~95 % · D ~85 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~96 % · D ~88 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
+
+**Zuletzt geliefert (Session 2026-06-05, Teil 2):**
+- **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. Schließt die Mongo-Hälfte der D.1-Auto-Instrumentation-Lücke (gRPC/Lettuce bleiben offen). `MongoCommandTracerTest` (5).
+- **C.5 backup-orchestrator periodische Snapshots** — `BackupSchedule` (env-getrieben) + `scheduleAtFixedRate` in `onStart`; opt-in via `PREXORCLOUD_BACKUP_INTERVAL_MINUTES`+`PREXORCLOUD_BACKUP_TARGETS`, sonst REST-only. `BackupScheduleTest` (6).
 
 **Zuletzt geliefert (Session 2026-06-05):**
 - **A.8 Config-Version-History/Diff-UI** — neue Dashboard-Seite `/cluster/config` (Versionsverlauf + `DiffViewer` patch-vs-parent + Rollback-Dialog), Nav-Eintrag, Store-Actions, i18n en+de, 8 neue Store-Tests. Reine Frontend-Verdrahtung (Backend war schon da). → **v1.1 komplett.**
@@ -323,7 +327,7 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 - Neues Capability `InstanceFileAccess` (`prexor.instance.files`) in `cloud-api` — modules-public Interface über die bisher controller-internen `InstanceFileTreeService` + `InstanceFileContentService`. Built-in Handle wird in `PrexorCloudBootstrap.registerBuiltinCapabilities` registriert, bevor `loadStoredModules()` läuft (sodass abhängige Module schon beim Erststart resolven).
 - Modul `cloud-modules/backup-orchestrator/`: walk → read → `tar.gz` in `<PREXORCLOUD_BACKUP_DIR | /var/lib/prexorcloud/snapshots>/<instance>/<timestamp>.tar.gz`, Metadaten in der eigenen Mongo-Storage. REST `/api/v1/modules/backup-orchestrator/snapshots` (GET/POST/{id} GET/DELETE).
 - **Scope-Grenze ehrlich dokumentiert:** Daemon-RPC `ReadInstanceFile` deckelt Reads bei 64 KiB pro File und encodet als UTF-8. Brauchbar für `server.properties`, `ops.json`, Plugin-YAML, Whitelist/Banlist — **nicht** für Region-Files / NBT / Welt-Daten. Echte Welt-Snapshots brauchen daemon-side tar (`SnapshotInstance` proto-Erweiterung); ist als follow-up im Service-Javadoc und in der Module-`scope`-Sektion vermerkt. Truncierte Reads landen mit voller Pfadliste in `SnapshotMetadata.truncatedFiles`.
-- Periodische Scheduler-Anbindung ist bewusst nicht in v1 — die REST-POST-Trigger reichen für externe Cron/Systemd-Timer, der `TaskScheduler` aus `ModuleContext` ist im Lifecycle vorhanden, sodass ein Folge-Commit nur noch ein `scheduleAtFixedRate` aufruft.
+- ✅ **Periodische Scheduler-Anbindung (Folge-Commit) geliefert:** `BackupSchedule` (env-getrieben, reiner totaler Parser) + `scheduleAtFixedRate` in `onStart`. Opt-in über `PREXORCLOUD_BACKUP_INTERVAL_MINUTES` (>0) **und** `PREXORCLOUD_BACKUP_TARGETS` (Komma-Liste `nodeId/group/instanceId`-Triples; `PREXORCLOUD_BACKUP_INITIAL_DELAY_MINUTES` default 1). Fehlt eins → REST-only wie zuvor. Modul-Kontext kann Instanzen nicht enumerieren, daher **explizite** Target-Liste statt Discovery (passt für persistente Lobbys/Hubs). Per-Target-Fehler werden geloggt + übersprungen (eine unerreichbare Instanz killt den Task nicht). Periodischer Pfad nutzt das Default-Pattern-Set; Per-Target-Filter bleiben Follow-up. Tests: `BackupScheduleTest` (6). **Scope-Grenze unverändert:** weiterhin Config-Files only (64-KiB-Daemon-Read-Cap), keine Welt-Daten.
 
 **Track-C-Gesamt: ~28 eng-days. Beginnt nach Track A. Hängt teilweise von Raft ab (Trust-Roots in `clusterFiles`).**
 
@@ -333,14 +337,15 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 
 **Ziel:** Verteilte Traces über Controller → Daemon → MC-Plugin. Heute fehlt das komplett.
 
-### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation + HTTP-Instrumentation shipped; gRPC/Mongo/Lettuce-Auto-Instrumentation offen**
+### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation + HTTP- + MongoDB-Instrumentation shipped; gRPC/Lettuce-Auto-Instrumentation offen**
 
 - ✅ `io.opentelemetry:opentelemetry-bom` (1.45.0) + `-api`/`-sdk`/`-exporter-otlp` (okhttp-Sender, kein gRPC-Konflikt) im `libs.versions.toml` + `cloud-controller`-Build; `-sdk-testing` als testImplementation.
 - ✅ `TelemetryConfig` (`controller.yml` → `telemetry`: `enabled`/`otlpEndpoint`/`serviceName`/`samplerRatio`, Ratio auf `[0,1]` geklammert). Top-level statt `clusterConfig.telemetry`, da Tracing keine Raft-replizierte State ist (analog `modules.signing`).
 - ✅ `Telemetry` (`controller/observability/telemetry/`): baut bei `enabled` ein `OpenTelemetrySdk` (BatchSpanProcessor → OTLP/gRPC, `parentBased(traceIdRatio)`-Sampler, `service.name`-Resource, W3C-Propagation); sonst `OpenTelemetry.noop()` → **Null-Overhead by default**. `tracer()`/`flush()`/`close()` (Flush+Shutdown im Shutdown-Hook, vor dem Quota-Enforcer). Exporter-Seam `fromExporter(...)` für Tests. Verdrahtet in `PrexorCloudBootstrap` → `controller.telemetry()`.
 - ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
 - ✅ **Javalin-HTTP-Instrumentation** (manuell, ohne Javaagent): `HttpServerTracing` (`controller/observability/telemetry/`) öffnet pro Request eine SERVER-Span (`HTTP <method>`, Attribute `http.request.method`/`url.path`/`http.response.status_code`, 5xx → ERROR), **extrahiert eingehenden W3C-`traceparent`** (inbound-Hälfte von D.3 — externe Traces / Dashboard laufen durch) und macht die Span für den Request-Thread current, sodass Domain-Spans (`auth.login` …) darunter nisten. Verdrahtet im `RestServer`-before/after-Filter, nur wenn `telemetry.enabled`; SSE/Stream-Pfade (`*stream*`, `/console`) werden übersprungen (deren Span würde nie enden). Tests: `HttpServerTracingTest` (2, inkl. Inbound-Trace-Continuation + 5xx-Status).
-- ⏳ **Offen:** Auto-Instrumentation für gRPC / MongoDB / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte) — bewusst ausgeklammert.
+- ✅ **MongoDB-Instrumentation** (manuell, ohne Javaagent): `MongoCommandTracer` (`controller/observability/telemetry/`) ist ein `com.mongodb.event.CommandListener`, der pro Command eine CLIENT-Span (`mongodb <op> <collection>`, Attribute `db.system`/`db.operation`/`db.namespace`/`db.collection.name`) öffnet, geparentet an `Context.current()` — DB-Calls nisten so unter der HTTP-/Domain-Span, die sie auslöste. Registriert auf den `MongoClientSettings` zur Client-Bauzeit (vor dem Telemetry-SDK in Bootstrap), inert bis `attachTracer()` nach dem Telemetry-Boot läuft und **nur** wenn `telemetry.enabled` → ein volatile-Read pro Command wenn aus, **kein** Span-Overhead. Korrelation über `requestId` (synchroner Treiber: ein `succeeded`/`failed` pro `started` auf demselben Thread). Monitoring-Chatter (`hello`/`ping`/`endSessions` …) wird übersprungen. Tests: `MongoCommandTracerTest` (5, inkl. ERROR-Span + Disabled-Pfad).
+- ⏳ **Offen:** Auto-Instrumentation für gRPC / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte; der Controller↔Daemon-gRPC ist zudem ein Long-lived-Bidi-Stream, für den ein generischer ServerInterceptor keine sinnvollen Per-Command-Spans liefert — der Trace-Context reist bereits im Payload, siehe D.3) — bewusst ausgeklammert.
 
 ### D.2 Eigene Spans für Domain-Flows (~3 d) — ✅ **shipped**
 
