@@ -18,6 +18,7 @@
       "instances": "Instanzen",
       "deployments": "Deployments",
       "controllers": "Controller",
+      "clusterConfig": "Cluster-Konfiguration",
       "nodes": "Nodes",
       "networks": "Netzwerke",
       "players": "Spieler",
@@ -331,7 +332,11 @@
       "tokenRevoked": "Beitritts-Token widerrufen",
       "tokenRevokeFailed": "Token konnte nicht widerrufen werden. Prüfe die Controller-Logs.",
       "seedRotated": "Cluster-Seed rotiert",
-      "seedRotateFailed": "Cluster-Seed konnte nicht rotiert werden."
+      "seedRotateFailed": "Cluster-Seed konnte nicht rotiert werden.",
+      "configVersionsLoadFailed": "Cluster-Konfigurationsverlauf konnte nicht geladen werden.",
+      "configVersionLoadFailed": "Diese Konfigurationsversion konnte nicht geladen werden.",
+      "rolledBack": "Cluster-Konfiguration auf v{version} zurückgesetzt.",
+      "rollbackFailed": "Cluster-Konfiguration konnte nicht zurückgesetzt werden. Prüfe die Controller-Logs."
     },
     "maintenance": {
       "loadFailed": "Wartungsstatus kann nicht geladen werden",
@@ -1281,6 +1286,43 @@
         "recommended": "Empfohlen"
       }
     },
+    "clusterConfig": {
+      "title": "Cluster-Konfiguration",
+      "description": "Append-only-Verlauf der Raft-replizierten Cluster-Konfiguration. Jede Version gegen ihren Parent vergleichen und zurückrollen.",
+      "summary": {
+        "activeVersion": "Aktive Version",
+        "totalVersions": "Versionen"
+      },
+      "historyHeading": "Versionsverlauf ({count})",
+      "columns": {
+        "version": "Version",
+        "parent": "Parent",
+        "mutator": "Geändert von",
+        "changedAt": "Geändert am",
+        "reason": "Grund"
+      },
+      "active": "aktiv",
+      "rootSeed": "Seed",
+      "noReason": "—",
+      "emptyTitle": "Keine Konfigurationsversionen",
+      "emptyBody": "Der Cluster-Konfigurationsverlauf ist leer. Versionen erscheinen hier, sobald Operatoren die Cluster-Konfiguration patchen.",
+      "rollback": "Zurückrollen",
+      "rollbackToThisAria": "Auf diese Version zurückrollen",
+      "diffHeading": "Diff gegen Parent",
+      "diffHint": "Jede Version speichert den Patch, den sie auf ihren Parent angewendet hat. Der Diff vergleicht den Patch dieser Version mit dem ihres Parents.",
+      "selectPrompt": "Wähle eine Version aus dem Verlauf, um ihren Diff anzuzeigen.",
+      "maskedNote": "Sensible Werte (Secrets, URIs) werden als \"***\" maskiert.",
+      "parentLabel": "v{version} (Parent)",
+      "versionLabel": "v{version}",
+      "seedLabel": "(Seed)",
+      "rollbackDialog": {
+        "title": "Cluster-Konfiguration zurückrollen",
+        "body": "Dies setzt die aktive Cluster-Konfiguration als neuen Raft-Commit auf v{version}. Live-Reloader (CORS, Rate-Limit, JWT) wenden die effektive Konfiguration erneut an. Fortfahren?",
+        "reasonLabel": "Grund (optional)",
+        "reasonPlaceholder": "Warum rollst du zurück?",
+        "confirm": "Zurückrollen"
+      }
+    },
     "players": {
       "title": "Spieler",
       "description": "Verbundene Clients im gesamten Cluster.",
@@ -1885,6 +1927,7 @@
       "connected": "Verbunden",
       "disconnected": "Getrennt",
       "commandPlaceholder": "Befehl eingeben …",
+      "commandLabel": "Konsolen-Befehlseingabe",
       "send": "Befehl senden"
     },
     "sidebar": {

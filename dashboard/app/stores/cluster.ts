@@ -43,6 +43,19 @@ export interface ClusterLease {
   renewedAt: string
 }
 
+export interface ClusterConfigVersionMeta {
+  version: number
+  parentVersion: number
+  mutator: string | null
+  mutatedAt: string
+  reason: string | null
+  isActive: boolean
+}
+
+export interface ClusterConfigVersionDetail extends ClusterConfigVersionMeta {
+  patch: Record<string, unknown>
+}
+
 type LooseClient = {
   GET: (path: string) => Promise<{ data: unknown }>
   POST: (path: string, init?: unknown) => Promise<{ data: unknown }>
@@ -64,11 +77,14 @@ export const useClusterStore = defineStore("cluster", () => {
   const members = ref<ClusterMember[]>([])
   const joinTokens = ref<ClusterJoinToken[]>([])
   const leases = ref<ClusterLease[]>([])
+  const configVersions = ref<ClusterConfigVersionMeta[]>([])
+  const configActiveVersion = ref<number | null>(null)
 
   const loadingStatus = ref(false)
   const loadingMembers = ref(false)
   const loadingTokens = ref(false)
   const loadingLeases = ref(false)
+  const loadingConfigVersions = ref(false)
 
   function loose(): LooseClient {
     return useApiClient() as unknown as LooseClient
@@ -182,19 +198,70 @@ export const useClusterStore = defineStore("cluster", () => {
     }
   }
 
+  /** Append-only cluster_config version metadata (newest first). */
+  async function fetchConfigVersions() {
+    loadingConfigVersions.value = true
+    try {
+      const { data } = await loose().GET("/api/v1/cluster/config/versions")
+      const resp = data as { activeVersion?: number; versions?: ClusterConfigVersionMeta[] }
+      configActiveVersion.value = resp.activeVersion ?? null
+      // Newest version first so the most recent change is at the top of the table.
+      configVersions.value = (resp.versions ?? []).slice().sort((a, b) => b.version - a.version)
+    } catch {
+      toast.error(t("store.cluster.configVersionsLoadFailed"))
+      configVersions.value = []
+    } finally {
+      loadingConfigVersions.value = false
+    }
+  }
+
+  /**
+   * Fetch one version's full content (metadata + masked patch). Returns null on
+   * failure so the diff view can degrade rather than throw. Sensitive paths come
+   * back masked as "***" unless the caller holds CLUSTER_MANAGE (server-side).
+   */
+  async function fetchConfigVersion(version: number): Promise<ClusterConfigVersionDetail | null> {
+    try {
+      const { data } = await loose().GET(`/api/v1/cluster/config/versions/${version}`)
+      return data as ClusterConfigVersionDetail
+    } catch {
+      toast.error(t("store.cluster.configVersionLoadFailed"))
+      return null
+    }
+  }
+
+  async function rollbackConfig(targetVersion: number, reason?: string) {
+    try {
+      await loose().POST("/api/v1/cluster/config/rollback", {
+        body: reason ? { targetVersion, reason } : { targetVersion },
+      })
+      toast.success(t("store.cluster.rolledBack", { version: targetVersion }))
+      await Promise.all([fetchConfigVersions(), fetchStatus()])
+    } catch {
+      toast.error(t("store.cluster.rollbackFailed"))
+      throw new Error("cluster-config-rollback")
+    }
+  }
+
   return {
     status,
     members,
     joinTokens,
     leases,
+    configVersions,
+    configActiveVersion,
     loadingStatus,
     loadingMembers,
     loadingTokens,
     loadingLeases,
+    loadingConfigVersions,
     fetchStatus,
     fetchMembers,
     fetchJoinTokens,
     fetchLeases,
+    fetchConfigVersions,
+    fetchConfigVersion,
+    rollbackConfig,
     ejectMember,
     leaveCluster,
     issueJoinToken,

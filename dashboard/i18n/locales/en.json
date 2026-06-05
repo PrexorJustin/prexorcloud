@@ -18,6 +18,7 @@
       "instances": "Instances",
       "deployments": "Deployments",
       "controllers": "Controllers",
+      "clusterConfig": "Cluster config",
       "nodes": "Nodes",
       "networks": "Networks",
       "players": "Players",
@@ -331,7 +332,11 @@
       "tokenRevoked": "Join token revoked",
       "tokenRevokeFailed": "Couldn't revoke the token. Check the controller logs.",
       "seedRotated": "Cluster seed rotated",
-      "seedRotateFailed": "Couldn't rotate the cluster seed."
+      "seedRotateFailed": "Couldn't rotate the cluster seed.",
+      "configVersionsLoadFailed": "Couldn't load the cluster config history.",
+      "configVersionLoadFailed": "Couldn't load that config version.",
+      "rolledBack": "Cluster config rolled back to v{version}.",
+      "rollbackFailed": "Couldn't roll back the cluster config. Check the controller logs."
     },
     "maintenance": {
       "loadFailed": "Can't load maintenance state",
@@ -1281,6 +1286,43 @@
         "recommended": "Recommended"
       }
     },
+    "clusterConfig": {
+      "title": "Cluster configuration",
+      "description": "Append-only history of the Raft-replicated cluster config. Inspect any version's diff against its parent and roll back.",
+      "summary": {
+        "activeVersion": "Active version",
+        "totalVersions": "Versions"
+      },
+      "historyHeading": "Version history ({count})",
+      "columns": {
+        "version": "Version",
+        "parent": "Parent",
+        "mutator": "Changed by",
+        "changedAt": "Changed at",
+        "reason": "Reason"
+      },
+      "active": "active",
+      "rootSeed": "seed",
+      "noReason": "—",
+      "emptyTitle": "No config versions",
+      "emptyBody": "The cluster config history is empty. Versions appear here as operators patch the cluster config.",
+      "rollback": "Roll back",
+      "rollbackToThisAria": "Roll back to this version",
+      "diffHeading": "Diff against parent",
+      "diffHint": "Each version stores the patch it applied on top of its parent. The diff compares this version's patch against its parent's.",
+      "selectPrompt": "Select a version from the history to view its diff.",
+      "maskedNote": "Sensitive values (secrets, URIs) are masked as \"***\".",
+      "parentLabel": "v{version} (parent)",
+      "versionLabel": "v{version}",
+      "seedLabel": "(seed)",
+      "rollbackDialog": {
+        "title": "Roll back cluster config",
+        "body": "This sets the active cluster config to v{version} as a new Raft commit. Live reloaders (CORS, rate-limit, JWT) re-apply the effective config. Continue?",
+        "reasonLabel": "Reason (optional)",
+        "reasonPlaceholder": "Why are you rolling back?",
+        "confirm": "Roll back"
+      }
+    },
     "players": {
       "title": "Players",
       "description": "Connected clients across the cluster.",
@@ -1885,6 +1927,7 @@
       "connected": "Connected",
       "disconnected": "Disconnected",
       "commandPlaceholder": "Enter command…",
+      "commandLabel": "Console command input",
       "send": "Send command"
     },
     "sidebar": {

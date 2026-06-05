@@ -100,4 +100,71 @@ describe("useClusterStore", () => {
     expect(mockDELETE).toHaveBeenCalledWith("/api/v1/cluster/join-tokens/jti-1")
     expect(toast.success).toHaveBeenCalledTimes(1)
   })
+
+  it("fetchConfigVersions unwraps and sorts versions newest-first", async () => {
+    mockGET.mockResolvedValue({
+      data: {
+        activeVersion: 2,
+        versions: [
+          { version: 1, parentVersion: 0, mutator: "seed", mutatedAt: "2030", reason: null, isActive: false },
+          { version: 3, parentVersion: 2, mutator: "bob", mutatedAt: "2030", reason: "x", isActive: false },
+          { version: 2, parentVersion: 1, mutator: "alice", mutatedAt: "2030", reason: null, isActive: true },
+        ],
+      },
+    })
+    const store = useClusterStore()
+    await store.fetchConfigVersions()
+    expect(store.configActiveVersion).toBe(2)
+    expect(store.configVersions.map(v => v.version)).toEqual([3, 2, 1])
+  })
+
+  it("fetchConfigVersions degrades to empty + error toast on failure", async () => {
+    mockGET.mockRejectedValue(new Error("boom"))
+    const store = useClusterStore()
+    await store.fetchConfigVersions()
+    expect(store.configVersions).toEqual([])
+    expect(toast.error).toHaveBeenCalledTimes(1)
+  })
+
+  it("fetchConfigVersion returns the version detail with its patch", async () => {
+    mockGET.mockResolvedValue({ data: { version: 5, parentVersion: 4, patch: { security: { jwtSecret: "***" } } } })
+    const store = useClusterStore()
+    const detail = await store.fetchConfigVersion(5)
+    expect(mockGET).toHaveBeenCalledWith("/api/v1/cluster/config/versions/5")
+    expect(detail?.patch).toEqual({ security: { jwtSecret: "***" } })
+  })
+
+  it("fetchConfigVersion returns null (not throw) on failure", async () => {
+    mockGET.mockRejectedValue(new Error("404"))
+    const store = useClusterStore()
+    const detail = await store.fetchConfigVersion(9)
+    expect(detail).toBeNull()
+  })
+
+  it("rollbackConfig POSTs the target version with reason and refetches", async () => {
+    mockPOST.mockResolvedValue({ data: { activeVersion: 2 } })
+    mockGET.mockResolvedValue({ data: { activeVersion: 2, versions: [] } })
+    const store = useClusterStore()
+    await store.rollbackConfig(2, "bad patch")
+    expect(mockPOST).toHaveBeenCalledWith("/api/v1/cluster/config/rollback", {
+      body: { targetVersion: 2, reason: "bad patch" },
+    })
+    expect(toast.success).toHaveBeenCalledTimes(1)
+  })
+
+  it("rollbackConfig omits reason from the body when not provided", async () => {
+    mockPOST.mockResolvedValue({ data: { activeVersion: 1 } })
+    mockGET.mockResolvedValue({ data: { activeVersion: 1, versions: [] } })
+    const store = useClusterStore()
+    await store.rollbackConfig(1)
+    expect(mockPOST).toHaveBeenCalledWith("/api/v1/cluster/config/rollback", {
+      body: { targetVersion: 1 },
+    })
+  })
+
+  it("rollbackConfig surfaces failures with a typed error", async () => {
+    mockPOST.mockRejectedValue(new Error("409"))
+    const store = useClusterStore()
+    await expect(store.rollbackConfig(2)).rejects.toThrow("cluster-config-rollback")
+  })
 })
