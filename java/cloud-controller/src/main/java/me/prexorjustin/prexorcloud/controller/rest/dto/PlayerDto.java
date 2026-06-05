@@ -6,4 +6,5 @@ public record PlayerDto(
         String currentInstance,
         String currentGroup,
         String proxyInstance,
-        String connectedSince) {}
+        String connectedSince,
+        String edition) {}

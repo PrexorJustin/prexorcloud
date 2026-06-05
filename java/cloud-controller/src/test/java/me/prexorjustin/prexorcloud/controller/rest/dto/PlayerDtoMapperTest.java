@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+import me.prexorjustin.prexorcloud.controller.state.PlayerEdition;
 import me.prexorjustin.prexorcloud.controller.state.PlayerInfo;
 
 import org.junit.jupiter.api.DisplayName;
@@ -23,7 +24,8 @@ class PlayerDtoMapperTest {
                 "lobby-a3f1",
                 "lobby",
                 "proxy-1",
-                Instant.parse("2026-04-17T10:15:00Z"));
+                Instant.parse("2026-04-17T10:15:00Z"),
+                PlayerEdition.JAVA);
 
         Map<String, Object> dto = PlayerDtoMapper.toDto(player);
 
@@ -31,5 +33,19 @@ class PlayerDtoMapperTest {
         assertEquals("lobby", dto.get("currentGroup"));
         assertEquals("proxy-1", dto.get("proxyInstance"));
         assertEquals("2026-04-17T10:15:00Z", dto.get("connectedSince"));
+        assertEquals("java", dto.get("edition"));
+    }
+
+    @Test
+    @DisplayName("edition is derived from a Floodgate-shaped UUID when not supplied")
+    void derivesBedrockEditionFromUuid() {
+        // Floodgate UUID: high 64 bits zero. Passing a blank edition exercises the
+        // PlayerInfo compact-constructor derivation (also the Jackson-rehydration path).
+        PlayerInfo bedrock = new PlayerInfo(
+                new UUID(0L, 12345L), "BedrockSteve", "lobby-a3f1", "lobby", "proxy-1", Instant.EPOCH, "");
+
+        Map<String, Object> dto = PlayerDtoMapper.toDto(bedrock);
+
+        assertEquals("bedrock", dto.get("edition"));
     }
 }

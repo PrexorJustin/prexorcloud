@@ -23,7 +23,8 @@ public final class PlayerSessionRegistry {
             boolean created = existing == null;
             String proxyId = existing != null ? existing.proxyInstanceId() : "";
             Instant connectedAt = existing != null ? existing.connectedAt() : Instant.now();
-            var updated = new PlayerInfo(uuid, name, instanceId, group, proxyId, connectedAt);
+            var updated =
+                    new PlayerInfo(uuid, name, instanceId, group, proxyId, connectedAt, PlayerEdition.detect(uuid));
             result[0] = new PlayerMutationResult(updated, existing, created);
             return updated;
         });
@@ -32,7 +33,8 @@ public final class PlayerSessionRegistry {
 
     public PlayerMutationResult addReportedByProxy(
             UUID uuid, String name, String instanceId, String group, String proxyInstanceId) {
-        var updated = new PlayerInfo(uuid, name, instanceId, group, proxyInstanceId, Instant.now());
+        var updated = new PlayerInfo(
+                uuid, name, instanceId, group, proxyInstanceId, Instant.now(), PlayerEdition.detect(uuid));
         var previous = players.put(uuid, updated);
         return new PlayerMutationResult(updated, previous, previous == null);
     }
