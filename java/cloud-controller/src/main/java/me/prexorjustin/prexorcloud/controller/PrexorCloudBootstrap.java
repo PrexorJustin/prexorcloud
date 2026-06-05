@@ -169,6 +169,9 @@ public final class PrexorCloudBootstrap {
         startClusterControlPlane();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
+        // Distributed tracing (Track D). Built here — after the effective cluster config resolves —
+        // so the Redis client can be instrumented at connection time. No-op unless telemetry.enabled.
+        telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         runtime = initRuntimeServices();
         var core = initCore(runtime.runtimeStore(), store);
         clusterControlService.attachEventBus(core.eventBus());
@@ -182,8 +185,6 @@ public final class PrexorCloudBootstrap {
 
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
         controller.setClusterControlPlane(clusterControlService.controlPlane());
-        // Distributed tracing (Track D). No-op unless telemetry.enabled — see TelemetryConfig.
-        telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         controller.setTelemetry(telemetry);
         if (controller.authManager() != null) {
             controller.authManager().setTracer(telemetry.tracer());
@@ -314,7 +315,13 @@ public final class PrexorCloudBootstrap {
                     + " running multiple controllers or load-testing against production behaviour.");
             return new InMemoryRuntimeServices();
         }
-        return new RedisRuntimeServices(new RedisConnection(config.redis().uri()), REDIS_MAPPER, config.uuid());
+        // Instrument Redis only when telemetry is on; Lettuce is built without the adapter otherwise
+        // and behaves exactly as before (Track D.1).
+        io.lettuce.core.tracing.Tracing redisTracing = telemetry != null && telemetry.isEnabled()
+                ? new me.prexorjustin.prexorcloud.controller.observability.telemetry.RedisTracing(telemetry.tracer())
+                : null;
+        return new RedisRuntimeServices(
+                new RedisConnection(config.redis().uri(), redisTracing), REDIS_MAPPER, config.uuid());
     }
 
     private PrexorController.CoreServices initCore(
