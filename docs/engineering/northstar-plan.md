@@ -13,7 +13,7 @@
 
 ## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-05)
 
-**Gesamt ≈ 69 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
+**Gesamt ≈ 72 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 80 %** (C+D quasi fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
 
 **Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~50 % · F 0 % · G 100 % · H ~45 %.
 
