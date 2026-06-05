@@ -15,10 +15,11 @@
 
 **Gesamt ≈ 69 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
 
-**Track-Stand:** A 100 % · B 100 % · C ~96 % · D ~88 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~96 % · D ~92 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
 
 **Zuletzt geliefert (Session 2026-06-05, Teil 2):**
-- **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. Schließt die Mongo-Hälfte der D.1-Auto-Instrumentation-Lücke (gRPC/Lettuce bleiben offen). `MongoCommandTracerTest` (5).
+- **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. `MongoCommandTracerTest` (5).
+- **D.1 Redis/Lettuce-OTel-Instrumentation** — `RedisTracing` adaptiert Lettuces native Tracing-SPI auf OTel; nur bei `telemetry.enabled` auf `ClientResources` installiert, Command-Args ausgeschlossen. Telemetry-Bau nach vorn gezogen (vor Redis-Connect). `RedisTracingTest` (3). → D.1 nur noch gRPC offen (Javaagent-Domäne).
 - **C.5 backup-orchestrator periodische Snapshots** — `BackupSchedule` (env-getrieben) + `scheduleAtFixedRate` in `onStart`; opt-in via `PREXORCLOUD_BACKUP_INTERVAL_MINUTES`+`PREXORCLOUD_BACKUP_TARGETS`, sonst REST-only. `BackupScheduleTest` (6).
 
 **Zuletzt geliefert (Session 2026-06-05):**
@@ -337,7 +338,7 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 
 **Ziel:** Verteilte Traces über Controller → Daemon → MC-Plugin. Heute fehlt das komplett.
 
-### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation + HTTP- + MongoDB-Instrumentation shipped; gRPC/Lettuce-Auto-Instrumentation offen**
+### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation + HTTP- + MongoDB- + Redis-Instrumentation shipped; gRPC-Auto-Instrumentation offen**
 
 - ✅ `io.opentelemetry:opentelemetry-bom` (1.45.0) + `-api`/`-sdk`/`-exporter-otlp` (okhttp-Sender, kein gRPC-Konflikt) im `libs.versions.toml` + `cloud-controller`-Build; `-sdk-testing` als testImplementation.
 - ✅ `TelemetryConfig` (`controller.yml` → `telemetry`: `enabled`/`otlpEndpoint`/`serviceName`/`samplerRatio`, Ratio auf `[0,1]` geklammert). Top-level statt `clusterConfig.telemetry`, da Tracing keine Raft-replizierte State ist (analog `modules.signing`).
@@ -345,7 +346,8 @@ Konkrete Module, die heute fehlen und Differenzierung schaffen:
 - ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
 - ✅ **Javalin-HTTP-Instrumentation** (manuell, ohne Javaagent): `HttpServerTracing` (`controller/observability/telemetry/`) öffnet pro Request eine SERVER-Span (`HTTP <method>`, Attribute `http.request.method`/`url.path`/`http.response.status_code`, 5xx → ERROR), **extrahiert eingehenden W3C-`traceparent`** (inbound-Hälfte von D.3 — externe Traces / Dashboard laufen durch) und macht die Span für den Request-Thread current, sodass Domain-Spans (`auth.login` …) darunter nisten. Verdrahtet im `RestServer`-before/after-Filter, nur wenn `telemetry.enabled`; SSE/Stream-Pfade (`*stream*`, `/console`) werden übersprungen (deren Span würde nie enden). Tests: `HttpServerTracingTest` (2, inkl. Inbound-Trace-Continuation + 5xx-Status).
 - ✅ **MongoDB-Instrumentation** (manuell, ohne Javaagent): `MongoCommandTracer` (`controller/observability/telemetry/`) ist ein `com.mongodb.event.CommandListener`, der pro Command eine CLIENT-Span (`mongodb <op> <collection>`, Attribute `db.system`/`db.operation`/`db.namespace`/`db.collection.name`) öffnet, geparentet an `Context.current()` — DB-Calls nisten so unter der HTTP-/Domain-Span, die sie auslöste. Registriert auf den `MongoClientSettings` zur Client-Bauzeit (vor dem Telemetry-SDK in Bootstrap), inert bis `attachTracer()` nach dem Telemetry-Boot läuft und **nur** wenn `telemetry.enabled` → ein volatile-Read pro Command wenn aus, **kein** Span-Overhead. Korrelation über `requestId` (synchroner Treiber: ein `succeeded`/`failed` pro `started` auf demselben Thread). Monitoring-Chatter (`hello`/`ping`/`endSessions` …) wird übersprungen. Tests: `MongoCommandTracerTest` (5, inkl. ERROR-Span + Disabled-Pfad).
-- ⏳ **Offen:** Auto-Instrumentation für gRPC / Lettuce (braucht den OTel-Javaagent oder per-Library-Instrumentation-Artefakte; der Controller↔Daemon-gRPC ist zudem ein Long-lived-Bidi-Stream, für den ein generischer ServerInterceptor keine sinnvollen Per-Command-Spans liefert — der Trace-Context reist bereits im Payload, siehe D.3) — bewusst ausgeklammert.
+- ✅ **Redis/Lettuce-Instrumentation** (manuell, ohne Javaagent): `RedisTracing` (`controller/observability/telemetry/`) adaptiert Lettuces **native** Tracing-SPI (`io.lettuce.core.tracing.Tracing`) auf OTel — pro Command eine CLIENT-Span (`redis <op>`, Attribute `db.system`/`db.operation`), geparentet an `Context.current()`. Auf `ClientResources` **nur** installiert, wenn `telemetry.enabled` (sonst wird der Client ohne den Adapter gebaut → identisch zu vorher; Lettuce gated alles Tracing über `isEnabled()`). Command-Args sind aus den Span-Tags ausgeschlossen (`includeCommandArgsInSpanTags()=false`), damit Redis-Werte (Tokens, Lease-Payloads, Revocation-Einträge) nicht in Traces lecken. Telemetry wird dafür direkt nach dem Auflösen der effektiven Cluster-Config gebaut (statt später), sodass Redis zur Connection-Zeit instrumentiert werden kann. Tests: `RedisTracingTest` (3, inkl. ERROR-Span + Args-Exclusion).
+- ⏳ **Offen:** Auto-Instrumentation für gRPC (braucht den OTel-Javaagent; der Controller↔Daemon-gRPC ist zudem ein Long-lived-Bidi-Stream, für den ein generischer ServerInterceptor keine sinnvollen Per-Command-Spans liefert — der Trace-Context reist bereits im Payload, siehe D.3) — bewusst ausgeklammert.
 
 ### D.2 Eigene Spans für Domain-Flows (~3 d) — ✅ **shipped**
 
