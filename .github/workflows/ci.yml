@@ -121,7 +121,11 @@ jobs:
       - name: Run pnpm test:coverage (soft)
         run: pnpm test:coverage || echo "::warning::vitest teardown errors — see logs (non-fatal in v1.0, all assertions pass)"
         working-directory: dashboard
-      - run: pnpm build
+      # Built with VITE_DEV_MOCK=1 so the authed a11y scan below can drive the app
+      # past login against the dev-mock backend. The flag is opt-in and never set
+      # in release builds, so the mock tree-shakes out of production.
+      - name: pnpm build (dev-mock baked in for the authed a11y scan)
+        run: VITE_DEV_MOCK=1 pnpm build
         working-directory: dashboard
       # Runtime a11y scan (axe-core) — the complement to the hard static a11y
       # lint above: catches color-contrast and computed-role issues that need a
@@ -142,6 +146,25 @@ jobs:
           npx axe http://127.0.0.1:3000/login http://127.0.0.1:3000/ --exit || \
             echo "::warning::axe found runtime a11y issues on the login surface — see logs (soft until H.2 contrast pass)"
           kill $APP_PID 2>/dev/null || true
+      # Authed-flow a11y scan (E-P1.1) — drives the app past login via the dev-mock
+      # layer (build above) and runs axe-core in a real browser over the critical
+      # authed routes. Soft until proven stable in CI; then it becomes the hard
+      # E-P1.1 gate (0 serious/critical). See docs/engineering/track-e-plan.md.
+      - name: a11y authed scan (axe-core via playwright, soft)
+        continue-on-error: true
+        working-directory: dashboard
+        run: |
+          pnpm preview &
+          APP_PID=$!
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/login > /dev/null && break
+            sleep 1
+          done
+          npm i --no-save @axe-core/playwright playwright
+          npx playwright install --with-deps chromium
+          node scripts/axe-authed.mjs || \
+            echo "::warning::authed axe found serious/critical a11y issues — see logs (soft until E-P1.1 hardened)"
+          kill $APP_PID 2>/dev/null || true
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
@@ -150,7 +173,7 @@ jobs:
           retention-days: 14
 
   installer:
-    name: Installer Wizard Typecheck, Test & Build
+    name: Installer Wizard A11y, Typecheck, Test & Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -165,6 +188,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
         working-directory: installer
       - run: pnpm format:check
+        working-directory: installer
+      # Hard a11y gate (Track E E-P2): the installer wizard is the first surface
+      # an operator sees. Static lint for <img> alt + icon-only-control names,
+      # mirroring the dashboard gate. Zero-dep.
+      - run: pnpm a11y:check
         working-directory: installer
       - run: pnpm typecheck
         working-directory: installer
