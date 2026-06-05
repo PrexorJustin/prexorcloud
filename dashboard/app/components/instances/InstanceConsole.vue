@@ -210,6 +210,7 @@ onUnmounted(() => {
         v-model="command"
         type="text"
         :placeholder="t('components.console.commandPlaceholder')"
+        :aria-label="t('components.console.commandLabel')"
         class="flex-1 bg-transparent mono text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none"
         @keydown.enter="sendCommand"
         @keydown="onKeyDown"

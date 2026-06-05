@@ -1,5 +1,6 @@
 /**
- * Dev-mock interceptors. Installed only when `import.meta.env.DEV` is true
+ * Dev-mock interceptors. Installed only when `DEV_MOCK_ENABLED` is true
+ * (local `pnpm dev`, or a `VITE_DEV_MOCK=1` build for the CI authed-axe scan)
  * AND the auth token equals `DEV_MOCK_TOKEN`.
  *
  * Patches:
@@ -48,13 +49,14 @@ import {
   paginated,
 } from "./data"
 import { AUTH_TOKEN_KEY } from "~/lib/auth-storage"
+import { DEV_MOCK_ENABLED } from "./enabled"
 
 let installed = false
 
 export function installDevMock() {
   if (installed) return
   if (!import.meta.client) return
-  if (!import.meta.env.DEV) return
+  if (!DEV_MOCK_ENABLED) return
   installed = true
 
   patchFetch()

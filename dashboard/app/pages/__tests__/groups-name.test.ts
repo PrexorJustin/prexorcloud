@@ -158,6 +158,22 @@ describe('Group detail page', () => {
     expect(wrapper.text()).not.toContain('other-1')
   })
 
+  it('exposes Deploy and Restart as keyboard-operable, accessibly-named buttons (E-P1.3)', async () => {
+    setupGET()
+    const wrapper = await mountSuspended(GroupDetail)
+    await flush()
+    const buttons = wrapper.findAll('button')
+    const deploy = buttons.find(b => b.text().includes('Deploy'))!
+    const restart = buttons.find(b => b.text().includes('Restart'))!
+    // Native <button>s are focusable + Enter/Space-activatable for free; their
+    // visible text is the accessible name. Guards against a regression to a
+    // div-onclick or icon-only control with no name.
+    for (const btn of [deploy, restart]) {
+      expect(btn.element.tagName).toBe('BUTTON')
+      expect((btn.text().trim() || btn.attributes('aria-label') || '').length).toBeGreaterThan(0)
+    }
+  })
+
   it('triggers a deploy and toasts success when the Deploy button is clicked', async () => {
     setupGET()
     const wrapper = await mountSuspended(GroupDetail)

@@ -57,6 +57,13 @@ describe('InstanceConsole', () => {
     expect(wrapper.text()).toContain('Disconnected')
   })
 
+  it('gives the command input an accessible name (WCAG 4.1.2)', async () => {
+    const wrapper = await mountSuspended(InstanceConsole, { props: { instanceId: 'lobby-1' } })
+    const input = wrapper.find('input')
+    // A placeholder is not an accessible name — an explicit aria-label is.
+    expect(input.attributes('aria-label')).toBeTruthy()
+  })
+
   it('disables the Send button until a command is typed', async () => {
     const wrapper = await mountSuspended(InstanceConsole, { props: { instanceId: 'lobby-1' } })
     const send = wrapper.find('button[aria-label="Send command"]')

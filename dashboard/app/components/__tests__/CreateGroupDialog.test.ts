@@ -155,6 +155,18 @@ describe('CreateGroupDialog', () => {
     expect(toastError).toHaveBeenCalledWith('Create failed', expect.anything())
   })
 
+  it('moves focus into the new step after advancing (WCAG 2.4.3 focus order)', async () => {
+    await mountOpen()
+    await setInput('g-name', 'lobby')
+    await advance()
+    expect(document.body.textContent).toContain('2 / 6')
+    // Focus followed the step change instead of being stranded on the footer:
+    // it now sits on a focusable control inside the dialog content.
+    const activeEl = document.activeElement as HTMLElement | null
+    expect(activeEl).not.toBe(document.body)
+    expect(activeEl?.closest('.styled-scrollbar')).not.toBeNull()
+  })
+
   it('Back returns to the previous step', async () => {
     await mountOpen()
     await setInput('g-name', 'lobby')

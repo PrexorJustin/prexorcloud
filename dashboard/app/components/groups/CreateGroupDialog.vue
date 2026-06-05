@@ -15,6 +15,7 @@ import { Switch } from "~/components/ui/switch"
 import { Slider } from "~/components/ui/slider"
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogTrigger } from "~/components/ui/dialog"
 import { toast } from "vue-sonner"
+import { focusFirst } from "~/lib/a11y/focus"
 import type { CatalogEntry } from "~/types/api"
 
 const { t } = useI18n()
@@ -261,6 +262,12 @@ function goNext() {
 function goBack() { direction.value = "backward"; step.value-- }
 function goToStep(target: number) { if (target < step.value) { direction.value = "backward"; step.value = target } }
 
+// A11y (WCAG 2.4.3): when a step finishes transitioning in, move focus to its
+// first control so keyboard/SR users follow the change instead of being left on
+// the Next/Back button of the previous step. Fires only on step swaps — the
+// dialog's own open-focus is handled by the Reka-UI DialogContent.
+function onStepEntered(el: Element) { focusFirst(el as HTMLElement) }
+
 const showPlacement = ref(false)
 
 // ── Submit ──────────────────────────────────
@@ -409,7 +416,7 @@ type="button" :disabled="i + 1 > step"
         <!-- ── Content ── -->
         <div class="flex-1 flex flex-col min-h-0">
           <div class="flex-1 overflow-y-auto styled-scrollbar px-8 py-6">
-            <Transition :name="direction === 'forward' ? 'slide-left' : 'slide-right'" mode="out-in">
+            <Transition :name="direction === 'forward' ? 'slide-left' : 'slide-right'" mode="out-in" @after-enter="onStepEntered">
 
               <!-- ═══════ STEP 1: Identity ═══════ -->
               <div v-if="step === 1" key="s1" class="flex flex-col gap-5">
