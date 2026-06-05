@@ -15,7 +15,7 @@
 
 **Gesamt ≈ 69 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
 
-**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~50 % · F 0 % · G 100 % · H ~45 %.
 
 **Zuletzt geliefert (Session 2026-06-05, Teil 2):**
 - **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. `MongoCommandTracerTest` (5).
@@ -412,8 +412,9 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 - Vue 3 + Vite bleibt (Single-File-HTML-Constraint), aber Components aus `@prexorcloud/design-system` importieren.
 - Vermeidet doppelte Button/Input-Implementationen.
 
-### E.4 Website-Theme aus Design-System ziehen (~2 d)
+### E.4 Website-Theme aus Design-System ziehen (~2 d) — ✅ **shipped (2026-06-05)**
 
+- ✅ **Starlight-`--sl-color-*`-Block generiert:** `website/scripts/gen-starlight-theme.mjs` mappt die Starlight-Surface-Farben auf die DS-Semantik-Tokens (`dist/tokens.json`) → `src/styles/starlight-theme.generated.css`, via `astro.config` `customCss` nach `starlight.css` geladen. DS-Werte sind Canon; `predev`/`prebuild` + harter Freshness-Guard in `website.yml`; `astro check` clean. Richere Website-only-Tokens (Accent-Ramp/Spacing/`--z-*`) bleiben hand-gepflegt.
 - Starlight-Custom-CSS aus `design-system/dist/tokens.css` generieren. _(Jetzt entsperrt: Canon wurde 2026-06-02 auf die Quiet-Studio/Reef-Palette reconciled — b736c50 —, also würde Generieren die Surfaces nicht mehr umfärben. Aber `website/src/styles/tokens.css` ist reicher als das DS-Token-Set (HSL-Tripletts, `--bg`/`--surface`/`--raised`, eigene Type-Scale), daher kein reiner Drop-in — erst das DS-Token-Set angleichen.)_
 - ✅ Mermaid-Palette nicht mehr hardcoded: `website/scripts/gen-mermaid-theme.mjs` generiert sie aus `design-system/dist/tokens.json` (predev/prebuild), `mermaid.ts` konsumiert die generierte Datei. CI-Frische-Guard in `website.yml`. Erster Consumer der E.1-Pipeline (ea223ff).
 

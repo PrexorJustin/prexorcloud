@@ -98,7 +98,9 @@ Reihenfolge-Constraint: **E-P1 zuerst** (Erfolgskriterium des Milestones). E-P2/
 
 ---
 
-## 4. E-P3 — Website-Starlight-Theme aus DS-Tokens (E.4, ~3 d) — ⏳ **DS-HSL-Foundation shipped (2026-06-05); Website-Wiring offen (visuell)**
+## 4. E-P3 — Website-Starlight-Theme aus DS-Tokens (E.4, ~3 d) — ✅ **shipped (2026-06-05)**
+
+**Website-Wiring geliefert (2026-06-05):** `website/scripts/gen-starlight-theme.mjs` (Vorbild `gen-mermaid-theme.mjs`) erzeugt den `--sl-color-*`→Semantik-Block aus `design-system/dist/tokens.json` nach `src/styles/starlight-theme.generated.css`; geladen via `astro.config` `customCss` **nach** `starlight.css` (autoritativ). Die hand-gepflegten `:root[data-theme]`-Blöcke in `starlight.css` sind raus. **Entscheidung: DS-Werte sind Canon** — der Accent übernimmt das DS-Reef-Rounding (`187 61% 57%` statt der Website-`188 58% 57%`), Delta sub-perzeptuell und auf die Starlight-Chrome begrenzt. `predev`/`prebuild`-Hook + `gen:starlight`-Script + **harter Freshness-Guard** in `website.yml` (`git diff --exit-code`). Generator-Output ist prettier-clean (koexistiert mit `format:check`). `astro check` 0 Errors. Richere Website-only-Tokens (Accent-Ramp, Spacing, `--z-*`) bleiben hand-gepflegt in `tokens.css`.
 
 **Geliefert (DS-Foundation):**
 - **`build-tokens.mjs` erweitert** → emittiert zusätzlich `dist/tokens.hsl.css`: dieselben Semantik-Tokens (dark+light) als **`h s% l%`-Tripletts** (Use-Site-Alpha, z.B. `--primary-glow: 187 61% 57% / 0.251`, `--border: 0 0% 100% / 0.059`) — exakt die Form, die die Website (Tailwind/HSL, `hsl(var(--x) / a)`) konsumiert. `hexToHslTriplet()` deckt `#rgb`/`#rrggbb`/`#rrggbbaa`. Raw-Scales bleiben in `tokens.css` (Hex); Spacing ist dort schon als `--space-*` (theme-agnostisch, keine HSL-Variante nötig).
@@ -166,7 +168,7 @@ E-P4 (DS-Closeout)── unabhängig ──┘
 | 2 | Token-Contrast-Test: alle Body-Paare ≥ 4.5:1, Floor 3.0:1 (dark+light) — ✅ **shipped** | E-P1.2 | **hart** |
 | 3 | Group-Create → Deploy vollständig per Tastatur (+ Regressions-Tests) — ✅ **shipped** (E2E-Browser-Check via E-P1.1) | E-P1.3 | **hart** |
 | 4 | Installer-a11y-Lint grün ✅ (hart in CI); Drift-Guard deckt Installer-Semantik ⏳ | E-P2 | **hart** |
-| 5 | Starlight-Theme aus `dist/`; Freshness-Guard — ⏳ DS-HSL-Foundation ✅, Website-Wiring offen | E-P3 | **hart** |
+| 5 | Starlight-Theme aus `dist/`; Freshness-Guard — ✅ **shipped** (gen-starlight-theme.mjs + website.yml-Guard, astro check clean) | E-P3 | **hart** ✅ |
 | 6 | `components.css` +5 Primitives ✅; ADR-Closeout (ADR 33) ✅ | E-P4 | **hart** ✅ |
 
 **Milestone-Bezug:** Gates 1–3 erfüllen das v1.2-Kriterium „Lighthouse-A11y ≥ 90 auf Dashboard". Gate 1 auf `≥ 95` angehoben erfüllt das v1.3-Kriterium „A11y ≥ 95".
