@@ -5,28 +5,32 @@
 **Zielhorizont:** v1.1 (HA-Foundation) → v1.2 (Ökosystem-Reife) → v1.3 (Plattform-Ausbau).
 **Verwandte Dokumente:**
 - [`cluster-join-plan.md`](./cluster-join-plan.md) — Raft-Control-Plane-Detailplan (in diesen Plan eingebettet als **Track A**)
+- [`track-e-plan.md`](./track-e-plan.md) — Frontend- & A11y-Detailplan (**Track E**, phasiert)
 - [`MASTER_PLAN.md`](./MASTER_PLAN.md) — bisheriger Rahmenplan
 - [`WEBSITE_PLAN.md`](./WEBSITE_PLAN.md) — Public-Site (geliefert v1.0)
 
 ---
 
-## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-03)
+## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-05)
 
-**Gesamt ≈ 67 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 95 %** (faktisch geshippt, nur A.8-Config-History-UI offen) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 16 %** (F unangetastet, H ≈ 40 %).
+**Gesamt ≈ 69 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 75 %** (C+D fertig, **E ist die Lücke**) · **v1.3 ≈ 18 %** (F unangetastet, H ≈ 45 %).
 
-**Track-Stand:** A ~90 % · B 100 % · C ~95 % · D ~85 % · E ~40 % · F 0 % · G 100 % · H ~40 %.
+**Track-Stand:** A 100 % · B 100 % · C ~95 % · D ~85 % · E ~40 % · F 0 % · G 100 % · H ~45 %.
 
-**Zuletzt geliefert (Session 2026-06-03):**
+**Zuletzt geliefert (Session 2026-06-05):**
+- **A.8 Config-Version-History/Diff-UI** — neue Dashboard-Seite `/cluster/config` (Versionsverlauf + `DiffViewer` patch-vs-parent + Rollback-Dialog), Nav-Eintrag, Store-Actions, i18n en+de, 8 neue Store-Tests. Reine Frontend-Verdrahtung (Backend war schon da). → **v1.1 komplett.**
+- **H.1 Audit-Log-Keyset-Pagination** — `getAuditLogSeek(cursor,limit)` (Range-Scan über `_id`, kein `skip`), REST-`?cursor=`-Pfad + `nextCursor`, Dashboard-Audit-Seite auf Cursor-Stack migriert. Legacy-Offset-Pfad bleibt. Harness + Vitest-Tests grün; pre-existing Harness-Compile-Break (`TestCluster`/`TelemetryDaemonConfig`) nebenbei gefixt.
+
+**Zuvor (Session 2026-06-03):**
 - **H.3 Dashboard-i18n vollständig** — alle 104 Rest-Hardcode-Strings extrahiert (Batches 20–22), `i18n:check-hardcoded` jetzt **harter** CI-Gate (2072 Keys, en+de).
 - **H.2 statische A11y** — `a11y-lint.mjs` (harter Gate) + 26 Icon-only-Controls mit `aria-label` benannt; **Runtime-axe-Job** (soft) gegen Login-Oberfläche.
 - **Track A Loose Ends** — `/cluster/leases`-Endpoint, `cluster.member.joined`-Audit, tote `ClusterJoinRoutes` entfernt.
-- **Audit-Korrekturen** — zwei Plan-Overclaims (H.3 „0 hardcoded", A.8 totes Endpoint) der Realität angeglichen; drei neue harte CI-Gates schützen das jetzt.
 
-**👉 Hier weitermachen:** Die billigen Quick-Wins sind durch. Was bleibt, sitzt in den zwei großen Tracks:
+**👉 Hier weitermachen:** v1.1 ist vollständig, A.8 + H.1-Pagination durch. Was bleibt, sitzt in den zwei großen Tracks plus H-Resten:
 - **Track E** (~12 d) — Frontend-Konsolidierung + A11y-**Runtime**-Härtung (authed-Flow-axe mit Test-Login, Voll-Contrast-Audit, Keyboard-Nav).
 - **Track F** (~15 d) — Bedrock/Fabric/Forge, echte neue Subsysteme (kein Batch-Job).
-- Kleinere H-Reste: H.1 Audit-Log-`skip(offset)`-Pagination-Refactor; A.8 Config-Version-History/Diff-UI im Dashboard.
-- **Nächster sinnvoller Schritt:** Track E oder F sauber in einen phasierten Implementierungsplan scopen (statt weiterer Klein-Edits).
+- H-Reste: H.1 Perf-Trend-Review + Scheduler-Tick-Profiling; H.2 Runtime-axe über authed-Flows.
+- **Track E ist gescopet:** [`track-e-plan.md`](./track-e-plan.md) (4 Phasen, ~13–14 d). Empfohlener Einstieg **E-P1.1** — authed-Flow-axe via dem schon existierenden `dev-mock`-Layer (billigster Weg zum v1.2-A11y-Gate „Lighthouse ≥ 90").
 
 ---
 
@@ -156,14 +160,12 @@ clusterLeases.takeLease("scheduler", ttl = 30s,
 
 `installer/`-Wizard bekommt die zweite Hauptfrage: „Hast du ein Join-Token?". Wenn ja: Token einkleben, Bootstrap-Vars für den Day-N-Pfad einrichten, Pending-Token in `data/pending-join-token` schreiben.
 
-### A.8 Dashboard „Cluster"-Page — *Phase 10* (~3 d)
+### A.8 Dashboard „Cluster"-Page — *Phase 10* (~3 d) — ✅ **shipped**
 
-Neue Seite `/cluster` im Dashboard:
-- Mitglieder-Tabelle mit Leader-Indikator, Raft-Term, Log-Index-Lag
-- Config-Version-History mit Diff-Viewer (CodeMirror diff-mode)
-- Lease-Holder-Übersicht
-- Join-Token-Management
-- Force-Eject-Button mit Confirmation-Modal
+Dashboard-Seiten unter `/cluster/*`:
+- ✅ **Mitglieder-Tabelle** + Force-Eject-Button mit Confirmation, Join-Token-Management, Lease-Holder-Übersicht — `pages/cluster/controllers.vue` (bereits vorher geliefert).
+- ✅ **Config-Version-History mit Diff-Viewer (2026-06-05)** — neue Seite `pages/cluster/config.vue` + Nav-Eintrag „Cluster config" unter der Cluster-Gruppe (perm `cluster.view`). Zeigt den append-only `cluster_config`-Verlauf (Version/Parent/Mutator/Zeit/Grund, Active-Badge, neueste zuerst); Auswahl einer Zeile diffed deren `patch` gegen den `patch` der Parent-Version über die bestehende `DiffViewer`-Komponente (unified/split, JSON). Rollback-Button pro Nicht-Active-Version (perm `cluster.config.write`) mit Reason-Dialog → `POST /cluster/config/rollback`. Store-Actions `fetchConfigVersions`/`fetchConfigVersion`/`rollbackConfig` (`stores/cluster.ts`), i18n en+de (harter Parity- + Hardcode-Gate grün), Tests in `stores/__tests__/cluster.test.ts` (8 neue, 16 gesamt grün).
+  - **Scope ehrlich:** (1) Der Diff vergleicht den **Per-Version-Patch** gegen den Parent-Patch (jede Version speichert ihr eigenes Delta), nicht die gefoldete *effektive* Config — letzteres bräuchte einen „effective config at version N"-Endpoint (nur die aktive Version ist heute foldbar via `GET /cluster/config`). (2) Sensible Felder kommen maskiert (`"***"`) zurück, solange der Aufrufer kein `CLUSTER_MANAGE` hält — bewusst, kein Reveal-Toggle im UI. (3) Backend (alle 5 `/cluster/config*`-Routen) war bereits geshippt; dies ist reine Frontend-Verdrahtung.
 
 ### A.9 Recovery-Tooling — *Phase 11* (~2 d)
 
@@ -366,6 +368,8 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 
 ## 6. Track E — Frontend & Design-System Konsolidierung
 
+> **Detailplan:** [`track-e-plan.md`](./track-e-plan.md) — phasiertes Vor-Start-Scoping (2026-06-05). Kernkorrektur: ADR 32 hat das gemeinsame Component-Package abgewählt, daher ist Track E **Tokens + Drift-Guard + A11y**, nicht Shared-Code; der messbare Hebel ist die A11y-Runtime-Härtung (E-P1). Reframte Schätzung ~13–14 d statt ~20 d.
+
 **Ziel:** Heute existieren drei Vue-/JS-Stacks (Nuxt 4 für Dashboard, Vite-Vue für Installer, Astro + Vue-Islands für Website). Plus ein Design-System-Verzeichnis, das von keinem davon konsumiert wird. Konsolidieren.
 
 ### E.1 Design-System operationalisieren (~5 d)
@@ -382,8 +386,8 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
   und dist-Frische. Dabei zwei echte Drifts gefixt: Light-Primary `#0891b2`→`#0c8aa8`
   (cyan-8, wie alle Surfaces), Light-`glass-border-hover` `#a8a59c`→`#aba8a0` (sand-8).
 - **NPM-Workspace:** _(entschieden gegen — siehe ADR 32.)_ Statt Surfaces auf ein `@prexorcloud/design-system`-Package zu migrieren, bleiben sie ge-mirror-t und werden per CI-Drift-Guard an den Canon gepinnt (`design-system/__tests__/surface-drift.test.mjs`). Das löste das eigentliche Problem (stilles Drift) zu einem Bruchteil der Kosten. Package-Stub + `dist/` stehen falls ein echter Consumer-Bedarf entsteht; die Mermaid-Palette konsumiert `dist/` bereits.
-- **Komponenten-Library:** ⏳ _Erste Schicht shipped als **token-only CSS-Layer** (`design-system/components.css`: button/input/badge/card), nicht als Vue/Radix-Komponenten._ Bewusst: Vue+Histoire würde schweres Frontend-Tooling in das absichtlich dependency-freie DS-Package ziehen UND die „importieren vs. mirrorn"-Frage neu öffnen, die ADR 32 für Tokens entschieden hat. Der CSS-Layer ist dieselbe Referenz-Mechanik wie `colors_and_type.css` (Surfaces mirror-n), und ein CI-Test (`__tests__/components.test.mjs`) erzwingt „Styling nur über Tokens" (kein hardcoded Farbwert). Echte Vue-Headless-Komponenten + deren Consumption bleiben an die Workspace-Entscheidung (ADR 32 Boundary) gekoppelt — eigener, bewusst gescopeter Pass (vgl. §14: „Track E vor Start sauber scopen").
-- **Histoire-Stories:** offen — kommt mit den Vue-Komponenten (s.o.), nicht mit dem CSS-Layer.
+- **Komponenten-Library:** ✅ _Geliefert als **token-only CSS-Layer** (`design-system/components.css`), bewusst **keine** Vue/Radix-Runtime — formal entschieden in **ADR 33**._ Deckt jetzt button/input/**select**/**checkbox**/**switch**/badge/card/**table**/**tooltip** (E-P4, 2026-06-05: select/checkbox/switch/table/tooltip ergänzt). Dieselbe Referenz-Mechanik wie `colors_and_type.css` (Surfaces mirror-n); `__tests__/components.test.mjs` erzwingt „Styling nur über Tokens" (kein hardcoded Farbwert, keine dangling Token-Refs) — 16/16 grün. Echte Vue-Headless-Komponenten bleiben an die Workspace-Entscheidung (ADR 32/33 Boundary) gekoppelt, falls je ein echter Bedarf entsteht.
+- **Histoire-Stories:** ✅ _bewusst gestrichen_ (ADR 33) — kein Component-Runtime, also keine Story-App; das zöge Vue+Histoire in das dependency-freie DS-Package. Surfaces stylen über den CSS-Layer + Tokens.
 
 ### E.2 Dashboard auf konsolidierten Stack (~10 d)
 
@@ -464,11 +468,12 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 
 **Ziel:** Letzter Schliff vor v1.3.
 
-### H.1 Performance-Tuning (~4 d)
+### H.1 Performance-Tuning (~4 d) — ⏳ **Audit-Log-Keyset-Pagination shipped; Perf-Trend-Review + Scheduler-Profiling offen**
 
-- Perf-Baseline-Trend-Reports der letzten 60 Tage anschauen, Drift-Hotspots identifizieren.
+- Perf-Baseline-Trend-Reports der letzten 60 Tage anschauen, Drift-Hotspots identifizieren. — **offen**
 - Mongo-Indices auditieren — die Audit-Log-Queries sind die wahrscheinlichsten Bottlenecks bei großen Clustern.
-- Scheduler-Tick-Profiling: lässt sich der Tick unter 50 ms p99 halten bei 100 Groups?
+  - ✅ **Audit-Log `skip(offset)`-Deep-Pagination ersetzt (2026-06-05):** Der in H.2 identifizierte Hotspot war nicht ein fehlender Index, sondern `getAuditLog(limit, offset)` mit `skip(offset)` — offset-proportionaler Scan-and-Discard auf tiefen Seiten. Neu: `StateStore.getAuditLogSeek(cursor, limit)` → `AuditLogPage(entries, nextCursor)`, Keyset/Seek über `Filters.lt("_id", cursor)` + `sort(_id desc)` (ObjectId ist insertion-monoton → „älter als Cursor" = Range-Scan über den primären `_id`-Index, **kein** `skip`, **kein** neuer Index → kein Index-Wildwuchs). Fetch von `limit+1` entscheidet `nextCursor` ohne Extra-Count. REST: `/api/v1/audit?cursor=<token>&pageSize=N` (blank = neueste Seite) liefert `{data, pageSize, nextCursor, total}`; ungültiger Cursor → 400 `BAD_CURSOR`. Der Legacy-`page`/`offset`-Pfad bleibt unverändert (Backward-Compat, dokumentierter OpenAPI-Contract). Dashboard-Audit-Seite migriert auf Cursor-Stack (Prev/Next ohne Backend-`skip`; loose-typed, da `cursor`/`nextCursor` noch nicht im SDK-Snapshot). Tests: Harness `AuditTest` (Seek-Walk deckt jeden Eintrag genau einmal, kein Overlap; Garbage-Cursor→400), Dashboard `audit.test.ts` (+2 Cursor-Stack) / `audit-index.test.ts`. **Nebenbei gefixt:** ein pre-existing Compile-Break im Test-Harness (`TestCluster` baute `DaemonConfig` ohne das von Track D.3 ergänzte `TelemetryDaemonConfig`-Feld) — `new TelemetryDaemonConfig()` (disabled) nachgereicht, sonst kompiliert die Harness-Test-Quelle nicht.
+- Scheduler-Tick-Profiling: lässt sich der Tick unter 50 ms p99 halten bei 100 Groups? — **offen**
 
 ### H.2 Accessibility-Audit (~3 d) — ⏳ **statischer A11y-Gate + Icon-Control-Naming shipped; Runtime-axe/Contrast/Keyboard offen**
 
