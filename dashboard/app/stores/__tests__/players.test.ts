@@ -40,6 +40,25 @@ describe('usePlayersStore', () => {
     expect(store.total).toBe(1)
   })
 
+  it('carries the player edition through and splits java/bedrock counts', async () => {
+    mockGET.mockResolvedValue({
+      data: {
+        data: [
+          { id: 'p1', uuid: 'u1', username: 'alice', edition: 'java' },
+          { id: 'p2', uuid: 'u2', username: 'bob', edition: 'bedrock' },
+          { id: 'p3', uuid: 'u3', username: 'carol' }, // missing edition → counts as java
+        ],
+        total: 3,
+        page: 1,
+        pageSize: 500,
+      },
+    })
+    const store = usePlayersStore()
+    await store.fetchPlayers()
+    expect(store.players[1]!.edition).toBe('bedrock')
+    expect(store.editionCounts).toEqual({ java: 2, bedrock: 1 })
+  })
+
   it('fetchPlayers toasts and clears loading on failure', async () => {
     mockGET.mockRejectedValue(new Error('boom'))
     const store = usePlayersStore()

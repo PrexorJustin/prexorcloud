@@ -1,7 +1,9 @@
 import { defineStore } from "pinia"
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { toast } from "vue-sonner"
 import { t } from "~/lib/translate"
+
+export type PlayerEdition = "java" | "bedrock"
 
 export interface Player {
   id: string
@@ -11,6 +13,8 @@ export interface Player {
   group?: string
   ping?: number
   connectedAt?: string
+  /** "java" | "bedrock" — derived controller-side from the player UUID (Floodgate). */
+  edition?: PlayerEdition
 }
 
 export interface PlayerJourneyEntry {
@@ -35,6 +39,16 @@ export const usePlayersStore = defineStore("players", () => {
   const loading = ref(false)
   const total = ref(0)
   const truncated = ref(false)
+
+  // Java/Bedrock split of the currently-loaded players. Anything not explicitly
+  // "bedrock" counts as Java (the controller defaults unknown editions to java).
+  const editionCounts = computed(() => {
+    let bedrock = 0
+    for (const p of players.value) {
+      if (p.edition === "bedrock") bedrock++
+    }
+    return { java: players.value.length - bedrock, bedrock }
+  })
 
   function loose(): LooseClient {
     return useApiClient() as unknown as LooseClient
@@ -91,5 +105,5 @@ export const usePlayersStore = defineStore("players", () => {
     }
   }
 
-  return { players, loading, total, truncated, fetchPlayers, fetchJourney, transfer }
+  return { players, loading, total, truncated, editionCounts, fetchPlayers, fetchJourney, transfer }
 })

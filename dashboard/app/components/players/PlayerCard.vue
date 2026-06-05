@@ -14,6 +14,8 @@ const emit = defineEmits<{
   select: [player: Player]
 }>()
 
+const { t } = useI18n()
+
 function pingTone(ping?: number): StatusDotTone {
   if (ping === undefined) return "muted"
   if (ping < 80) return "success"
@@ -42,7 +44,14 @@ function pingLabel(ping?: number) {
           <p class="truncate mono text-[11px] text-muted-foreground">{{ props.player.uuid }}</p>
         </div>
       </div>
-      <StatusBadge :tone="pingTone(props.player.ping)" :label="pingLabel(props.player.ping)" class="shrink-0" />
+      <div class="flex shrink-0 items-center gap-2">
+        <StatusBadge
+          v-if="props.player.edition === 'bedrock'"
+          tone="primary"
+          :label="t('pages.players.editions.bedrock')"
+        />
+        <StatusBadge :tone="pingTone(props.player.ping)" :label="pingLabel(props.player.ping)" />
+      </div>
     </div>
 
     <div class="grid grid-cols-2 gap-3 text-sm">

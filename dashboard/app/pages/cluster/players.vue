@@ -110,7 +110,7 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
   >
     <PageHeader :title="t('pages.players.title')" :description="t('pages.players.description')" />
 
-    <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
         <p class="eyebrow mb-2">{{ t('pages.players.online') }}</p>
         <p class="text-2xl font-semibold tabular">{{ store.total || store.players.length }}</p>
@@ -126,6 +126,14 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
       <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
         <p class="eyebrow mb-2">{{ t('pages.players.groupsInUse') }}</p>
         <p class="text-2xl font-semibold tabular">{{ new Set(store.players.map(p => p.group).filter(Boolean)).size }}</p>
+      </div>
+      <div class="rounded-xl border border-glass-border bg-glass/50 p-4">
+        <p class="eyebrow mb-2">{{ t('pages.players.editionSplit') }}</p>
+        <p class="text-2xl font-semibold tabular">
+          {{ t('pages.players.editions.java') }} {{ store.editionCounts.java }}
+          <span class="text-muted-foreground">·</span>
+          {{ t('pages.players.editions.bedrock') }} {{ store.editionCounts.bedrock }}
+        </p>
       </div>
     </div>
 
@@ -255,6 +263,10 @@ function journeyTone(t: PlayerJourneyEntry["type"]): StatusDotTone {
             <div class="flex items-center justify-between text-sm">
               <span class="text-muted-foreground">{{ t('pages.players.details.group') }}</span>
               <span class="mono">{{ sheetPlayer.group ?? '—' }}</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-muted-foreground">{{ t('pages.players.details.edition') }}</span>
+              <span>{{ sheetPlayer.edition === 'bedrock' ? t('pages.players.editions.bedrock') : t('pages.players.editions.java') }}</span>
             </div>
             <div class="flex items-center justify-between text-sm">
               <span class="text-muted-foreground">{{ t('pages.players.details.connected') }}</span>
