@@ -19,7 +19,7 @@ func fakeTemplate(t *testing.T) string {
 
 	// Plugin subprojects — one tiny file per target so we can assert which
 	// of them survive a selective scaffold.
-	for _, target := range []string{"paper", "folia", "velocity"} {
+	for _, target := range []string{"paper", "folia", "velocity", "bedrock-geyser"} {
 		mustWrite(t,
 			filepath.Join(root, "java", "cloud-modules", "example",
 				"plugin", target, "build.gradle.kts"),
@@ -154,12 +154,13 @@ func TestGenerateBasic(t *testing.T) {
 		`"cloud-modules:stats-aggregator:plugin:paper",`,
 		`"cloud-modules:stats-aggregator:plugin:folia",`,
 		`"cloud-modules:stats-aggregator:plugin:velocity",`,
+		`"cloud-modules:stats-aggregator:plugin:bedrock-geyser",`,
 	} {
 		if !strings.Contains(settings, expected) {
 			t.Errorf("settings missing %s:\n%s", expected, settings)
 		}
 	}
-	if !res.SettingsPatched || res.IncludesAdded != 4 {
+	if !res.SettingsPatched || res.IncludesAdded != 5 {
 		t.Errorf("settings result wrong: %+v", res)
 	}
 
@@ -347,7 +348,7 @@ func TestGenerateAllTargetsByDefault(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 	dest := filepath.Join(root, "java", "cloud-modules", "fat-mod")
-	for _, target := range []string{"paper", "folia", "velocity"} {
+	for _, target := range []string{"paper", "folia", "velocity", "bedrock-geyser"} {
 		if _, err := os.Stat(filepath.Join(dest, "plugin", target, "build.gradle.kts")); err != nil {
 			t.Errorf("plugin/%s missing: %v", target, err)
 		}

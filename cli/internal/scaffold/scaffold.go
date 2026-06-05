@@ -57,9 +57,9 @@ type Options struct {
 	Force         bool
 	Dry           bool
 	// Targets selects which plugin/<target> subprojects to copy. Recognised
-	// values (subset of the example template): "paper", "folia", "velocity".
-	// Empty (zero value) means copy all targets — preserves the prior
-	// behaviour for callers that haven't been updated to pick.
+	// values (the example template's set): "paper", "folia", "velocity",
+	// "bedrock-geyser". Empty (zero value) means copy all targets — preserves the
+	// prior behaviour for callers that haven't been updated to pick.
 	Targets []string
 
 	// Wizard-driven toggles. The legacy CLI path leaves these at their
@@ -86,9 +86,10 @@ func (o Options) wizardDefaults() bool {
 	return !o.WithMongo && !o.WithRest && !o.WithFrontend && len(o.Provides) == 0 && len(o.Requires) == 0
 }
 
-// AllTargets returns the targets the example template currently provides.
-// Used as the default for --interactive prompts.
-func AllTargets() []string { return []string{"paper", "folia", "velocity"} }
+// AllTargets returns the targets the example template provides — the full
+// platform set, matching the reference module's plugin/ subprojects. Used as the
+// default selection and for --interactive prompts.
+func AllTargets() []string { return []string{"paper", "folia", "velocity", "bedrock-geyser"} }
 
 // Result reports what the scaffolder did. Useful for tests + CLI output.
 type Result struct {
@@ -682,7 +683,7 @@ func patchSettings(settingsFile, kebab string, dry bool, targets []string, res *
 		fmt.Sprintf("    \"cloud-modules:%s\",", kebab),
 	}
 	keep := normaliseTargets(targets)
-	for _, t := range []string{"paper", "folia", "velocity"} {
+	for _, t := range []string{"paper", "folia", "velocity", "bedrock-geyser"} {
 		if keep != nil && !keep[t] {
 			continue
 		}
