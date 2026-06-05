@@ -1,6 +1,9 @@
 package me.prexorjustin.prexorcloud.controller.rest.route;
 
 import static io.javalin.apibuilder.ApiBuilder.*;
+import static me.prexorjustin.prexorcloud.controller.rest.RestServer.errorResponse;
+
+import java.util.LinkedHashMap;
 
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
@@ -17,6 +20,7 @@ import io.javalin.openapi.OpenApiContent;
 import io.javalin.openapi.OpenApiParam;
 import io.javalin.openapi.OpenApiResponse;
 import io.javalin.openapi.OpenApiSecurity;
+import org.bson.types.ObjectId;
 
 public final class AuditRoutes {
 
@@ -69,6 +73,16 @@ public final class AuditRoutes {
             })
     private void listAuditLog(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.AUDIT_VIEW);
+
+        // Keyset/seek mode: presence of the `cursor` param (blank = newest page)
+        // opts into flat-cost pagination that never uses skip(offset). The
+        // legacy page/offset path below stays for callers that page-jump.
+        String cursor = ctx.queryParam("cursor");
+        if (cursor != null) {
+            listAuditLogSeek(ctx, cursor);
+            return;
+        }
+
         AuditPageRequest request = resolveAuditPageRequest(
                 ctx.queryParam("page") != null
                         ? ctx.queryParamAsClass("page", Integer.class).getOrDefault(1)
@@ -88,6 +102,33 @@ public final class AuditRoutes {
                 .toList();
         ApiResponse.paginated(
                 ctx, entries, controller.stateStore().countAuditLog(), request.page(), request.pageSize());
+    }
+
+    /**
+     * Seek-mode listing: {@code {data, pageSize, nextCursor, total}}. {@code cursor}
+     * is the opaque token from a prior page's {@code nextCursor} (blank for the
+     * newest page); {@code nextCursor} is null when no older entries remain.
+     */
+    private void listAuditLogSeek(Context ctx, String cursor) {
+        if (!cursor.isBlank() && !ObjectId.isValid(cursor)) {
+            ctx.status(400);
+            ctx.json(errorResponse("BAD_CURSOR", "cursor must be a valid audit entry token", 400));
+            return;
+        }
+        int pageSize = Math.clamp(
+                ctx.queryParam("pageSize") != null
+                        ? ctx.queryParamAsClass("pageSize", Integer.class).getOrDefault(100)
+                        : 100,
+                1,
+                500);
+        var page = controller.stateStore().getAuditLogSeek(cursor, pageSize);
+        var data = page.entries().stream().map(AuditDtoMapper::toDto).toList();
+        var body = new LinkedHashMap<String, Object>(4);
+        body.put("data", data);
+        body.put("pageSize", pageSize);
+        body.put("nextCursor", page.nextCursor());
+        body.put("total", controller.stateStore().countAuditLog());
+        ctx.json(body);
     }
 
     static AuditPageRequest resolveAuditPageRequest(

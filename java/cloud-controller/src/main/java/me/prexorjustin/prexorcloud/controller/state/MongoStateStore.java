@@ -31,6 +31,7 @@ import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.model.Updates;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -539,19 +540,51 @@ public final class MongoStateStore implements StateStore {
         var list = new ArrayList<AuditEntry>();
         for (var doc :
                 auditLog.find().sort(Sorts.descending("_id")).skip(offset).limit(cappedLimit)) {
-            list.add(new AuditEntry(
-                    doc.getObjectId("_id").hashCode() & 0x7FFFFFFFL,
-                    doc.getString("username"),
-                    doc.getString("action"),
-                    doc.getString("resourceType"),
-                    doc.getString("resourceId"),
-                    doc.getString("details"),
-                    doc.getString("before"),
-                    doc.getString("after"),
-                    doc.getString("ipAddress"),
-                    formatDate(doc.getDate("createdAt"))));
+            list.add(toAuditEntry(doc));
         }
         return list;
+    }
+
+    @Override
+    public AuditLogPage getAuditLogSeek(String cursor, int limit) {
+        int cappedLimit = Math.clamp(limit, 1, 1000);
+        // Sort by _id descending (newest first). ObjectId is monotonic by insertion
+        // time, so "older than cursor" is _id < cursor — a range scan over the
+        // primary _id index, no skip() and no offset-proportional work.
+        var query = auditLog.find();
+        if (cursor != null && !cursor.isBlank()) {
+            query = auditLog.find(Filters.lt("_id", new ObjectId(cursor)));
+        }
+        // Fetch one extra to decide whether a further page exists without a count.
+        var docs = new ArrayList<Document>(cappedLimit + 1);
+        query.sort(Sorts.descending("_id")).limit(cappedLimit + 1).into(docs);
+
+        String nextCursor = null;
+        if (docs.size() > cappedLimit) {
+            // The last in-page doc is the boundary; its _id is the next cursor.
+            Document lastInPage = docs.get(cappedLimit - 1);
+            nextCursor = lastInPage.getObjectId("_id").toHexString();
+            docs.subList(cappedLimit, docs.size()).clear();
+        }
+        var entries = new ArrayList<AuditEntry>(docs.size());
+        for (var doc : docs) {
+            entries.add(toAuditEntry(doc));
+        }
+        return new AuditLogPage(entries, nextCursor);
+    }
+
+    private static AuditEntry toAuditEntry(Document doc) {
+        return new AuditEntry(
+                doc.getObjectId("_id").hashCode() & 0x7FFFFFFFL,
+                doc.getString("username"),
+                doc.getString("action"),
+                doc.getString("resourceType"),
+                doc.getString("resourceId"),
+                doc.getString("details"),
+                doc.getString("before"),
+                doc.getString("after"),
+                doc.getString("ipAddress"),
+                formatDate(doc.getDate("createdAt")));
     }
 
     @Override

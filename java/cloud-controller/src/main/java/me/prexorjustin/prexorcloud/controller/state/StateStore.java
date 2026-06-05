@@ -141,6 +141,16 @@ public interface StateStore {
 
     List<AuditEntry> getAuditLog(int limit, int offset);
 
+    /**
+     * Keyset/seek page of the audit log, newest first. Returns at most
+     * {@code limit} entries strictly older than {@code cursor} — an opaque token
+     * taken from a prior page's {@link AuditLogPage#nextCursor()} — or the newest
+     * page when {@code cursor} is {@code null} or blank. Unlike
+     * {@link #getAuditLog(int, int)} this never uses {@code skip(offset)}, so the
+     * cost of fetching deep pages stays flat instead of growing with the offset.
+     */
+    AuditLogPage getAuditLogSeek(String cursor, int limit);
+
     int countAuditLog();
 
     /** Deletes audit log entries older than {@code days} days. */
@@ -242,6 +252,13 @@ public interface StateStore {
     // --- Records ---
 
     record ConsoleLineRecord(Instant timestamp, String line) {}
+
+    /**
+     * One keyset page of audit entries plus the cursor to fetch the next
+     * (older) page. {@code nextCursor} is {@code null} when the page is the last
+     * one — i.e. fewer than the requested limit remained.
+     */
+    record AuditLogPage(List<AuditEntry> entries, String nextCursor) {}
 
     record AuditEntry(
             long id,

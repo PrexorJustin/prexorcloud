@@ -1483,6 +1483,11 @@ class InstanceCompositionPlannerTest {
         }
 
         @Override
+        public AuditLogPage getAuditLogSeek(String cursor, int limit) {
+            return new AuditLogPage(List.of(), null);
+        }
+
+        @Override
         public int countAuditLog() {
             return 0;
         }
