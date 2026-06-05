@@ -17,14 +17,14 @@ const { search, filteredItems: filteredEntries } = useFilteredList(
 
 onMounted(() => { store.fetchEntries() })
 
-const canPrev = computed(() => store.offset > 0)
+const canPrev = computed(() => store.canPrev)
 const canNext = computed(() => store.hasMore)
 
 function prevPage() {
-  if (canPrev.value) store.fetchEntries(store.offset - store.pageSize)
+  store.prevPage()
 }
 function nextPage() {
-  if (canNext.value) store.fetchEntries(store.offset + store.pageSize)
+  store.nextPage()
 }
 
 const expandedIds = ref<Set<number>>(new Set())

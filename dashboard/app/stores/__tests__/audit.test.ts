@@ -85,4 +85,42 @@ describe('useAuditStore', () => {
     await store.fetchEntries()
     expect(toast.error).toHaveBeenCalledWith('Failed to load audit log')
   })
+
+  it('sends an empty cursor and exposes nextCursor as hasMore on the first page', async () => {
+    mockGET.mockResolvedValueOnce({ data: { data: [{ id: 1 }], total: 3, nextCursor: 'c1' } })
+    const store = useAuditStore()
+    await store.fetchEntries()
+
+    expect(mockGET).toHaveBeenCalledWith('/api/v1/audit', { params: { query: { cursor: '', pageSize: 50 } } })
+    expect(store.hasMore).toBe(true)
+    expect(store.canPrev).toBe(false)
+    expect(store.offset).toBe(0)
+  })
+
+  it('walks forward with nextCursor and back via the cursor stack', async () => {
+    const store = useAuditStore()
+    mockGET.mockResolvedValueOnce({ data: { data: [{ id: 1 }], total: 3, nextCursor: 'c1' } })
+    await store.fetchEntries()
+
+    // Next page passes the live nextCursor and advances the display offset.
+    mockGET.mockResolvedValueOnce({ data: { data: [{ id: 2 }], total: 3, nextCursor: null } })
+    await store.nextPage()
+    expect(mockGET).toHaveBeenLastCalledWith('/api/v1/audit', { params: { query: { cursor: 'c1', pageSize: 50 } } })
+    expect(store.entries[0]!.id).toBe(2)
+    expect(store.offset).toBe(50)
+    expect(store.canPrev).toBe(true)
+    expect(store.hasMore).toBe(false) // nextCursor was null → last page
+
+    // nextPage is a no-op on the last page (no nextCursor).
+    mockGET.mockClear()
+    await store.nextPage()
+    expect(mockGET).not.toHaveBeenCalled()
+
+    // Previous page pops back to the newest page (empty cursor).
+    mockGET.mockResolvedValueOnce({ data: { data: [{ id: 1 }], total: 3, nextCursor: 'c1' } })
+    await store.prevPage()
+    expect(mockGET).toHaveBeenLastCalledWith('/api/v1/audit', { params: { query: { cursor: '', pageSize: 50 } } })
+    expect(store.offset).toBe(0)
+    expect(store.canPrev).toBe(false)
+  })
 })

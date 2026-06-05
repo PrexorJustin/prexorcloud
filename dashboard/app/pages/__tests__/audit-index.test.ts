@@ -3,19 +3,22 @@ import { reactive } from 'vue'
 import { mountSuspended } from '@nuxt/test-utils/runtime'
 import AuditIndex from '../audit/index.vue'
 
-const { fetchEntries, auditStore } = vi.hoisted(() => ({
+const { fetchEntries, nextPage, prevPage, auditStore } = vi.hoisted(() => ({
   fetchEntries: vi.fn(),
+  nextPage: vi.fn(),
+  prevPage: vi.fn(),
   auditStore: {
     entries: [] as Record<string, unknown>[],
     loading: false,
     offset: 0,
     pageSize: 50,
     hasMore: false,
+    canPrev: false,
   },
 }))
 
 vi.mock('~/stores/audit', () => ({
-  useAuditStore: () => reactive(Object.assign(auditStore, { fetchEntries })),
+  useAuditStore: () => reactive(Object.assign(auditStore, { fetchEntries, nextPage, prevPage })),
 }))
 
 function entry(overrides: Record<string, unknown> = {}) {
@@ -36,10 +39,13 @@ async function flush() {
 
 beforeEach(() => {
   fetchEntries.mockReset()
+  nextPage.mockReset()
+  prevPage.mockReset()
   auditStore.entries = []
   auditStore.loading = false
   auditStore.offset = 0
   auditStore.hasMore = false
+  auditStore.canPrev = false
 })
 
 describe('AuditIndex', () => {
@@ -95,7 +101,7 @@ describe('AuditIndex', () => {
     const wrapper = await mountSuspended(AuditIndex)
     const next = wrapper.findAll('button').find(b => b.text() === 'Next')
     await next!.trigger('click')
-    expect(fetchEntries).toHaveBeenCalledWith(50)
+    expect(nextPage).toHaveBeenCalled()
   })
 
   it('filters entries by the search term', async () => {
