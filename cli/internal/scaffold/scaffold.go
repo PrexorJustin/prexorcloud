@@ -158,10 +158,17 @@ func Generate(opts Options) (*Result, error) {
 			return nil, err
 		}
 	}
-	// Prune the module.yaml `extensions:` list to the selected --mc-plugin/Targets
-	// platforms. walkTemplate already drops the unselected plugin/<target> dirs;
-	// without this the manifest would still advertise every template platform.
+	// Prune the module.yaml `extensions:` list AND the build.gradle.kts
+	// `extensionArtifacts` map to the selected --mc-plugin/Targets platforms, in
+	// lockstep. walkTemplate already drops the unselected plugin/<target> dirs;
+	// the manifest and the build's declared artifacts must agree or the
+	// `preparePlatformManifest` gate fails ("declared … not referenced"). This
+	// also drops the bedrock-geyser entry (no subproject ships for it), which is
+	// what makes a target-selected scaffold actually buildable.
 	if err := filterManifestExtensions(destRoot, opts.Targets, opts.Dry); err != nil {
+		return nil, err
+	}
+	if err := filterBuildGradleArtifacts(destRoot, opts.Targets, opts.Dry); err != nil {
 		return nil, err
 	}
 	if err := patchSettings(settingsFile, kebab, opts.Dry, opts.Targets, res); err != nil {
@@ -198,6 +205,71 @@ func filterManifestExtensions(destRoot string, targets []string, dry bool) error
 		return fmt.Errorf("write generated module.yaml: %w", err)
 	}
 	return nil
+}
+
+var pluginTargetRe = regexp.MustCompile(`:plugin:([a-z0-9-]+)`)
+
+// filterBuildGradleArtifacts prunes the `extensionArtifacts` map in build.gradle.kts
+// to the selected targets, matching filterManifestExtensions. No-op when no targets
+// were picked, on dry runs, or when build.gradle.kts is absent.
+func filterBuildGradleArtifacts(destRoot string, targets []string, dry bool) error {
+	if dry {
+		return nil
+	}
+	keep := normaliseTargets(targets)
+	if keep == nil {
+		return nil
+	}
+	path := filepath.Join(destRoot, "build.gradle.kts")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read generated build.gradle.kts: %w", err)
+	}
+	pruned := pruneExtensionArtifacts(string(raw), keep)
+	if pruned == string(raw) {
+		return nil
+	}
+	if err := os.WriteFile(path, []byte(pruned), 0o644); err != nil {
+		return fmt.Errorf("write generated build.gradle.kts: %w", err)
+	}
+	return nil
+}
+
+// pruneExtensionArtifacts removes `"…artifact…" to ":…:plugin:<target>",` map
+// entries (each 1–2 physical lines) whose target isn't kept. Structural lines
+// (mapOf( … )) pass through untouched.
+func pruneExtensionArtifacts(text string, keep map[string]bool) string {
+	if keep == nil {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+	var entry []string
+	flush := func() {
+		if len(entry) == 0 {
+			return
+		}
+		m := pluginTargetRe.FindStringSubmatch(strings.Join(entry, "\n"))
+		if m == nil || keep[m[1]] {
+			out = append(out, entry...)
+		}
+		entry = nil
+	}
+	for _, l := range lines {
+		if len(entry) > 0 || strings.Contains(l, `"extensions/`) {
+			entry = append(entry, l)
+			if strings.HasSuffix(strings.TrimSpace(l), ",") && pluginTargetRe.MatchString(strings.Join(entry, "\n")) {
+				flush()
+			}
+			continue
+		}
+		out = append(out, l)
+	}
+	flush()
+	return strings.Join(out, "\n")
 }
 
 // pruneExtensionsBlock filters the top-level `extensions:` list down to entries

@@ -30,6 +30,17 @@ func fakeTemplate(t *testing.T) string {
 	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "build.gradle.kts"),
 		`plugins { id("prexorcloud.java21-api") }
 // module: example-playtime
+prexorcloudModule {
+    extensionArtifacts.set(
+        mapOf(
+            "extensions/server/folia/example-playtime-folia.jar" to ":cloud-modules:example:plugin:folia",
+            "extensions/proxy/velocity/example-playtime-velocity.jar" to ":cloud-modules:example:plugin:velocity",
+            "extensions/server/paper/example-playtime-paper.jar" to ":cloud-modules:example:plugin:paper",
+            "extensions/server/bedrock-geyser/example-playtime-bedrock-geyser.jar"
+                to ":cloud-modules:example:plugin:bedrock-geyser",
+        ),
+    )
+}
 `)
 	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example",
 		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "example",
@@ -314,6 +325,20 @@ func TestGenerateSelectiveTargets(t *testing.T) {
 			t.Errorf("module.yaml should have pruned %q:\n%s", unwanted, manifest)
 		}
 	}
+
+	// build.gradle.kts extensionArtifacts must be pruned in lockstep with the
+	// manifest — keep paper + folia, drop velocity + bedrock-geyser.
+	build := readFile(t, filepath.Join(dest, "build.gradle.kts"))
+	for _, want := range []string{":plugin:paper", ":plugin:folia"} {
+		if !strings.Contains(build, want) {
+			t.Errorf("build.gradle.kts should keep %q:\n%s", want, build)
+		}
+	}
+	for _, gone := range []string{":plugin:velocity", ":plugin:bedrock-geyser"} {
+		if strings.Contains(build, gone) {
+			t.Errorf("build.gradle.kts should have pruned %q:\n%s", gone, build)
+		}
+	}
 }
 
 func TestGenerateAllTargetsByDefault(t *testing.T) {
@@ -453,6 +478,40 @@ storage:
 
 	// nil keep (no selection) is a no-op.
 	if got := pruneExtensionsBlock(manifest, nil); got != manifest {
+		t.Errorf("nil keep should be a no-op")
+	}
+}
+
+func TestPruneExtensionArtifacts(t *testing.T) {
+	build := `prexorcloudModule {
+    archiveName.set("m")
+    extensionArtifacts.set(
+        mapOf(
+            "extensions/server/folia/m-folia.jar" to ":cloud-modules:m:plugin:folia",
+            "extensions/proxy/velocity/m-velocity.jar" to ":cloud-modules:m:plugin:velocity",
+            "extensions/server/paper/m-paper.jar" to ":cloud-modules:m:plugin:paper",
+            "extensions/server/bedrock-geyser/m-bedrock-geyser.jar"
+                to ":cloud-modules:m:plugin:bedrock-geyser",
+        ),
+    )
+}
+`
+	pruned := pruneExtensionArtifacts(build, map[string]bool{"paper": true})
+	if !strings.Contains(pruned, ":plugin:paper") {
+		t.Errorf("paper artifact dropped:\n%s", pruned)
+	}
+	for _, gone := range []string{":plugin:folia", ":plugin:velocity", ":plugin:bedrock-geyser", "bedrock-geyser.jar"} {
+		if strings.Contains(pruned, gone) {
+			t.Errorf("%s should have been pruned:\n%s", gone, pruned)
+		}
+	}
+	// Structure survives.
+	for _, want := range []string{"extensionArtifacts.set(", "mapOf(", "archiveName.set"} {
+		if !strings.Contains(pruned, want) {
+			t.Errorf("structural line %q lost:\n%s", want, pruned)
+		}
+	}
+	if got := pruneExtensionArtifacts(build, nil); got != build {
 		t.Errorf("nil keep should be a no-op")
 	}
 }
