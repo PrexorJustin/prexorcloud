@@ -24,6 +24,7 @@ test('dist/ is freshly generated from tokens.json', () => {
   const out = generate(tokens)
   for (const [name, key] of [
     ['dist/tokens.css', 'css'],
+    ['dist/tokens.hsl.css', 'hslCss'],
     ['dist/tokens.ts', 'ts'],
     ['dist/tokens.json', 'json'],
   ]) {

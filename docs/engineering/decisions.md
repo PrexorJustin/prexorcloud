@@ -555,3 +555,20 @@ When enabled, spans are batch-exported over OTLP to any compatible collector (Ja
 
 **Trade-off.** Each surface keeps a hand-maintained token block that must be updated alongside `tokens.json` — but the guard tells you exactly when one drifts, and each copy is in the form its stack actually needs. We accept N guarded copies over a workspace + package import + per-surface build transforms, which is more moving parts than a single-operator project with an already-closed drift risk can justify. See `docs/engineering/northstar-plan.md` Track E.
 
+## ADR 33: Design-system is a token + CSS reference, not a component runtime
+
+> Closes the open "component library" and "Histoire stories" items in **`docs/engineering/northstar-plan.md` Track E.1**. The corollary of ADR 32 for components: the same import-vs-mirror logic that kept tokens out of a shared package keeps components out of one too.
+
+**Decision.** `design-system/` ships component *primitives* as a **token-only CSS reference** (`components.css`: button, input, select, checkbox, switch, badge, card, table, tooltip) — never as a runtime Vue/React component package and never with a Histoire/Storybook app. Each surface keeps implementing its own components (dashboard: Reka-UI primitives; installer: native `<button>` + `.btn`; website: Starlight) and uses `components.css` the way it uses `colors_and_type.css` — as the canonical spec to mirror. CI (`__tests__/components.test.mjs`) enforces the headless rule: `components.css` may carry **no** hardcoded colour, and every `var(--token)` it references must be defined in the canon, so the primitives stay restyleable purely by swapping tokens.
+
+**Why not a Vue component package + Histoire.**
+- It would pull heavy frontend tooling (Vue, a bundler, Histoire) into the deliberately zero-dependency design-system package — the same supply-chain cost ADR 32 rejected for a token toolchain.
+- It would reopen the **import-vs-mirror** question ADR 32 settled: four independent pnpm projects, no workspace, surfaces that each need their own component idioms (Reka-UI a11y wiring vs native vs Starlight). A shared runtime component wouldn't drop cleanly into all three.
+- The actual recurring failure mode is **visual/contrast drift**, which `components.test.mjs` (no hardcoded colour) + the token contrast guard (ADR-32 suite, `contrast.test.mjs`) already catch — without a component runtime.
+
+**Boundary — what this is not.**
+- **Not "no components."** `components.css` is real and broadenable; new shared primitives are added there (token-only, CI-guarded), not in a JS package.
+- **Not a ban on a future package.** If a workspace is ever introduced (the ADR-32 escape hatch), real headless components could live alongside the CSS reference. Not a v1.x need.
+
+**Trade-off.** Surfaces re-implement component markup/behaviour rather than importing it — accepted, because the per-surface idioms differ anyway and the only thing that must not drift (token-driven styling) is mechanically guarded. See `docs/engineering/northstar-plan.md` Track E (E-P4).
+

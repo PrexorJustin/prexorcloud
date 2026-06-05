@@ -158,3 +158,142 @@
   border-radius: var(--radius-xl);
   padding: var(--space-5);
 }
+
+/* ── Select ─────────────────────────────────────────────────────────────────
+   Mirrors .input; appearance reset so the box reads as part of the token system.
+   The chevron is a surface concern (asset/SVG), kept out of the token-only layer. */
+.select {
+  display: block;
+  width: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--foreground);
+  background-color: var(--glass);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.select:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.select:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Checkbox ───────────────────────────────────────────────────────────────
+   Square control that fills with the primary token when checked. The check
+   glyph itself is a surface concern (mask/SVG); state is carried by the fill. */
+.checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xs);
+  background-color: var(--glass);
+  cursor: pointer;
+  transition:
+    background-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.checkbox:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+.checkbox:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.checkbox:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Switch ─────────────────────────────────────────────────────────────────
+   Pill track + sliding knob. Track is muted when off, primary when on; the knob
+   uses --foreground, which contrasts with both the muted and primary tracks in
+   either theme (it is the canonical "ink on background" token). */
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  width: var(--space-8);
+  height: var(--space-5);
+  border-radius: var(--radius-full);
+  background-color: var(--muted);
+  cursor: pointer;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.switch:checked {
+  background-color: var(--primary);
+}
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: var(--space-1);
+  transform: translateY(-50%);
+  width: var(--space-3);
+  height: var(--space-3);
+  border-radius: var(--radius-full);
+  background-color: var(--foreground);
+  transition: left 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.switch:checked::after {
+  left: calc(100% - var(--space-3) - var(--space-1));
+}
+.switch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.switch:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Table ──────────────────────────────────────────────────────────────────
+   Header in muted-foreground, token-bordered rows, glass hover. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--foreground);
+}
+.table th {
+  text-align: left;
+  font-weight: var(--weight-semibold);
+  color: var(--muted-foreground);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--glass-border);
+}
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--glass-border);
+}
+.table tbody tr:hover {
+  background-color: var(--glass-hover);
+}
+
+/* ── Tooltip ────────────────────────────────────────────────────────────────
+   Floating label on the popover surface. Positioning is a surface concern. */
+.tooltip {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--leading-normal);
+  color: var(--popover-foreground);
+  background-color: var(--popover);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
