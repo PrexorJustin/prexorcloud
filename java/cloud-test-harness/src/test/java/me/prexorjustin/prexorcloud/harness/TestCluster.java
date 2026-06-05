@@ -738,6 +738,7 @@ public final class TestCluster implements AutoCloseable {
                 new LoggingConfig("WARN", LoggingConfig.LogFormat.HUMAN),
                 new ReconnectConfig(),
                 daemonModulesConfig,
+                new TelemetryDaemonConfig(),
                 Map.of());
     }
 
