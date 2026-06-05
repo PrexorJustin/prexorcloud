@@ -61,6 +61,13 @@ jobs:
           pnpm gen:mermaid
           git diff --exit-code src/scripts/mermaid-theme.generated.ts
 
+      # Same guard for the Starlight --sl-color-* theme generated from DS tokens.
+      - name: verify generated starlight theme is fresh
+        working-directory: website
+        run: |
+          pnpm gen:starlight
+          git diff --exit-code src/styles/starlight-theme.generated.css
+
       - name: format:check
         working-directory: website
         run: pnpm format:check

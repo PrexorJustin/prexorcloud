@@ -251,6 +251,9 @@ export default defineConfig({
         //    Lives only here, not on landing/playground/404.
         './src/styles/tokens.css',
         './src/styles/starlight.css',
+        // Generated from design-system/dist — maps --sl-color-* onto DS tokens.
+        // Loaded after starlight.css so the generated mapping is authoritative.
+        './src/styles/starlight-theme.generated.css',
         './src/styles/docs-theme.css',
       ],
       head: [
