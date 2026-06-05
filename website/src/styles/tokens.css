@@ -164,7 +164,7 @@
   --muted-foreground: var(--ink-7);
 
   --accent: var(--reef-dark);
-  --accent-foreground: var(--ink-9);
+  --accent-foreground: var(--ink-1); /* dark text on the bright reef accent — was ink-9 (1.75:1, illegible) */
   --accent-soft: var(--reef-soft-dark);
   --accent-glow: 188 58% 57% / 0.2;
 

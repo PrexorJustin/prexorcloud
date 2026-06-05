@@ -65,7 +65,7 @@
   --muted-foreground: var(--ink-7);
 
   --accent: var(--reef-dark);
-  --accent-foreground: var(--ink-9);
+  --accent-foreground: var(--ink-1);
 
   --destructive: var(--danger-dark);
   --destructive-foreground: #ffffff;
