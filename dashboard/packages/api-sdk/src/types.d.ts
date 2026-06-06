@@ -1392,6 +1392,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/modules/platform/registry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse modules offered by the configured registries
+         * @description Aggregates every configured module registry's index. Optional ?q= filters by case-insensitive substring of moduleId or tags.
+         */
+        get: operations["listRegistryModules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/platform/registry/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Install a module pulled from a configured registry
+         * @description Resolves {moduleId, version?} against the configured registries, downloads the signed JAR, verifies its sha256 against the index and its signature against the controller trust root, then installs it. Optional registryUrl must be one of the configured registries.
+         */
+        post: operations["installModuleFromRegistry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/modules/platform/upload": {
         parameters: {
             query?: never;
@@ -1457,6 +1497,40 @@ export interface paths {
          * @description Accepts a zipped frontend bundle (same structure as META-INF/frontend/ inside a module jar) and re-stages it on disk. Publishes MODULE_FRONTEND_RELOADED so the dashboard re-imports the bundle. The platform module's REST routes, capabilities, and module-data stay live — only the dashboard-facing assets are swapped. Used by `prexorctl module dev` for fast frontend iteration.
          */
         post: operations["reloadPlatformModuleFrontend"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/platform/{moduleId}/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest self-reported health of a platform module */
+        get: operations["getPlatformModuleHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/modules/platform/{moduleId}/resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-module resource usage (CPU, allocation, threads) */
+        get: operations["getPlatformModuleResources"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3489,6 +3563,7 @@ export interface components {
             currentGroup?: string;
             proxyInstance?: string;
             connectedSince?: string;
+            edition?: string;
         };
         PlayerPage: {
             data?: components["schemas"]["PlayerDto"][];
@@ -6377,6 +6452,90 @@ export interface operations {
             };
         };
     };
+    listRegistryModules: {
+        parameters: {
+            query?: {
+                /** @description Substring filter over moduleId and tags */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregated registry module list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    installModuleFromRegistry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Module installed */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing moduleId or unconfigured registryUrl */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Module/version not found in any registry */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description No registries configured or install conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description sha256/signature/validation failure */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Registry fetch/download failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     uploadPlatformModule: {
         parameters: {
             query?: never;
@@ -6518,6 +6677,60 @@ export interface operations {
             };
             /** @description Bundle missing module-frontend.json manifest */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPlatformModuleHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                moduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Health status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Module not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    getPlatformModuleResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                moduleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Resource snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Module not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
