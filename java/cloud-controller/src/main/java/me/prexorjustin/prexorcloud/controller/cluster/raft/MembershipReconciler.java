@@ -87,7 +87,8 @@ public final class MembershipReconciler implements AutoCloseable {
                 if (members.isEmpty()) {
                     return; // nothing to configure
                 }
-                List<RaftPeer> peers = members.stream().map(MembershipReconciler::toPeer).toList();
+                List<RaftPeer> peers =
+                        members.stream().map(MembershipReconciler::toPeer).toList();
                 raft.setConfiguration(peers);
                 logger.info(
                         "Raft membership reconciled to {} peer(s) on attempt {}: {}",
@@ -123,9 +124,9 @@ public final class MembershipReconciler implements AutoCloseable {
      * the SM's current member list. Empty member list returns an empty-peer group, which is what
      * Day-0 single-node startup needs before AddMember commits.
      */
-    public static RaftGroup currentGroup(
-            org.apache.ratis.protocol.RaftGroupId groupId, List<Member> members) {
-        return RaftGroup.valueOf(groupId, members.stream().map(MembershipReconciler::toPeer).toList());
+    public static RaftGroup currentGroup(org.apache.ratis.protocol.RaftGroupId groupId, List<Member> members) {
+        return RaftGroup.valueOf(
+                groupId, members.stream().map(MembershipReconciler::toPeer).toList());
     }
 
     @Override

@@ -189,6 +189,7 @@ Envelope: controller -&gt; daemon
 | module_event | [ModuleEvent](#me-prexorjustin-prexorcloud-protocol-ModuleEvent) |  | Forward a controller-bus event the daemon subscribed to |
 | walk_instance_files | [WalkInstanceFiles](#me-prexorjustin-prexorcloud-protocol-WalkInstanceFiles) |  | Request a structure-only filetree of an instance dir |
 | read_instance_file | [ReadInstanceFile](#me-prexorjustin-prexorcloud-protocol-ReadInstanceFile) |  | Request the bytes of a single file under an instance dir |
+| traceparent | [string](#string) |  | W3C traceparent of the controller span that produced this message (Track D.3). Empty when tracing is off or no span is active. Additive scalar (not a payload variant), so old daemons ignore it and no PROTOCOL_VERSION bump is needed. |
 
 
 

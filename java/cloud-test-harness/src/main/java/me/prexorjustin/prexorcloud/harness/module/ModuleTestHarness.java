@@ -148,6 +148,11 @@ public final class ModuleTestHarness implements AutoCloseable {
 
         int httpPort = findFreePort();
         int grpcPort = findFreePort();
+        // Each harness instance gets its own Raft port. The default RaftConfig
+        // hardcodes 9190, so two harness-using tests in the same JVM would both
+        // try to bind it — the second fails to start its control plane and
+        // awaitLeader() times out. (Surfaces in CI where shutdown lingers.)
+        int raftPort = findFreePort();
 
         byte[] secretBytes = new byte[32];
         new SecureRandom().nextBytes(secretBytes);
@@ -175,7 +180,15 @@ public final class ModuleTestHarness implements AutoCloseable {
                 new DashboardConfig(),
                 new BackupConfig(controllerDir.resolve("backups").toString(), 10),
                 new me.prexorjustin.prexorcloud.controller.config.ShareConfig(),
-                new RedisConfig(redisUri));
+                java.util.List.of(),
+                java.util.List.of(),
+                new RedisConfig(redisUri),
+                null,
+                new me.prexorjustin.prexorcloud.controller.config.RaftConfig(
+                        "127.0.0.1",
+                        raftPort,
+                        controllerDir.resolve("data/raft").toString(),
+                        java.util.List.of()));
 
         String previousUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", controllerDir.toString());

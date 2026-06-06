@@ -39,6 +39,7 @@ prexorctl module [command]
 - [`new`](./module-new/)
 - [`search`](./module-search/)
 - [`test`](./module-test/)
+- [`upgrade`](./module-upgrade/)
 - [`upload`](./module-upload/)
 
 ## Parent

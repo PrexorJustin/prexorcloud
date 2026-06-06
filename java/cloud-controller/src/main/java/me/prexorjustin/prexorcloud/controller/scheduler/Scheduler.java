@@ -283,9 +283,7 @@ public final class Scheduler implements LeaseGate {
             spanScope.close();
             span.setAttribute("scheduler.groups_evaluated", (long) groupsEvaluated);
             span.setStatus(
-                    success
-                            ? io.opentelemetry.api.trace.StatusCode.OK
-                            : io.opentelemetry.api.trace.StatusCode.ERROR);
+                    success ? io.opentelemetry.api.trace.StatusCode.OK : io.opentelemetry.api.trace.StatusCode.ERROR);
             span.end();
             if (metricsCollector != null) {
                 metricsCollector.recordSchedulerTick(
@@ -396,7 +394,8 @@ public final class Scheduler implements LeaseGate {
         // Cluster-singleton: pre-Phase-8 every controller iterated this list in
         // parallel and raced on Mongo. Skipping when another controller holds
         // the lease is the desired behaviour — next tick retries.
-        mgr.runUnderLease("deployment-reconciler", DEPLOYMENT_RECONCILER_LEASE_TTL, this::reconcilePersistedDeploymentsBody);
+        mgr.runUnderLease(
+                "deployment-reconciler", DEPLOYMENT_RECONCILER_LEASE_TTL, this::reconcilePersistedDeploymentsBody);
     }
 
     private void reconcilePersistedDeploymentsBody() {

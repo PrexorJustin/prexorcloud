@@ -120,6 +120,7 @@ public final class PrexorCloudBootstrap {
      * so the operator can retry by restarting.
      */
     private static final Path PENDING_JOIN_TOKEN_FILE = SECURITY_DIR.resolve("pending-join-token");
+
     private static final Path CLUSTER_MATERIALS_DIR = SECURITY_DIR.resolve("cluster");
 
     private static final Path TEMPLATE_FILES_DIR = Path.of("templates");
@@ -269,8 +270,7 @@ public final class PrexorCloudBootstrap {
     private void startClusterControlPlane() throws Exception {
         Files.createDirectories(SECURITY_DIR);
         FilePermissions.setOwnerOnly(SECURITY_DIR);
-        var materials = new me.prexorjustin.prexorcloud.controller.cluster.LocalClusterMaterials(
-                CLUSTER_MATERIALS_DIR);
+        var materials = new me.prexorjustin.prexorcloud.controller.cluster.LocalClusterMaterials(CLUSTER_MATERIALS_DIR);
 
         if (Files.isRegularFile(PENDING_JOIN_TOKEN_FILE)) {
             String token = Files.readString(PENDING_JOIN_TOKEN_FILE).trim();
@@ -426,7 +426,8 @@ public final class PrexorCloudBootstrap {
         // Register the OTel command listener at client-build time (Track D.1). It stays inert
         // until attachTracer() runs after the telemetry SDK is up — see start().
         var mongoSettings = com.mongodb.MongoClientSettings.builder()
-                .applyConnectionString(new com.mongodb.ConnectionString(config.database().uri()))
+                .applyConnectionString(
+                        new com.mongodb.ConnectionString(config.database().uri()))
                 .addCommandListener(mongoCommandTracer)
                 .build();
         mongoClient = MongoClients.create(mongoSettings);
@@ -473,8 +474,7 @@ public final class PrexorCloudBootstrap {
         }
         if (yamlId == null) {
             persistClusterIdentity(mongoId);
-            logger.info(
-                    "v1.0 → v1.1 migration: adopted cluster.id={} from legacy Mongo cluster_meta", mongoId);
+            logger.info("v1.0 → v1.1 migration: adopted cluster.id={} from legacy Mongo cluster_meta", mongoId);
         }
         stateStore.dropClusterMeta();
         logger.info("v1.0 → v1.1 migration: dropped legacy cluster_meta collection — Raft is now the source of truth");
@@ -1035,9 +1035,8 @@ public final class PrexorCloudBootstrap {
                 controller.jwtManager(),
                 subnetAutoReg);
         var adminService = new AdminServiceImpl(controller.joinTokenStore());
-        var clusterMembershipService =
-                new me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl(
-                        clusterControlService.controlPlane(), java.time.Clock.systemUTC(), controller.stateStore());
+        var clusterMembershipService = new me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl(
+                clusterControlService.controlPlane(), java.time.Clock.systemUTC(), controller.stateStore());
 
         var mtlsInterceptor = new MtlsEnforcementInterceptor(runtime.nodeCertRevocationStore());
         var subnetGuard =
