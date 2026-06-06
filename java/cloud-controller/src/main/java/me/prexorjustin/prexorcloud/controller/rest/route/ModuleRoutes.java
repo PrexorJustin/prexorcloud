@@ -96,8 +96,7 @@ public final class ModuleRoutes {
 
     /** Built per request so it always reflects the currently-configured registry URLs. */
     private ModuleRegistryClient registryClient() {
-        return new ModuleRegistryClient(
-                controller.config().modules().registries(), registryFetcher, REGISTRY_MAPPER);
+        return new ModuleRegistryClient(controller.config().modules().registries(), registryFetcher, REGISTRY_MAPPER);
     }
 
     public void register() {
@@ -112,7 +111,7 @@ public final class ModuleRoutes {
                 post("/registry/install", this::installFromRegistry);
                 post("/upload", this::uploadPlatformModule);
                 get("/{moduleId}/resources", this::getPlatformModuleResources);
-            get("/{moduleId}/health", this::getPlatformModuleHealth);
+                get("/{moduleId}/health", this::getPlatformModuleHealth);
                 post("/{moduleId}/upgrade", this::upgradePlatformModule);
                 post("/{moduleId}/frontend/reload", this::reloadPlatformModuleFrontend);
                 delete("/{moduleId}", this::deletePlatformModule);
@@ -876,8 +875,16 @@ public final class ModuleRoutes {
                 }
             }
 
-            installPreparedModule(ctx, controller, platformManager, frontendManager, expectedModuleId, tempFile,
-                    auditAction, conflictCode, successStatus);
+            installPreparedModule(
+                    ctx,
+                    controller,
+                    platformManager,
+                    frontendManager,
+                    expectedModuleId,
+                    tempFile,
+                    auditAction,
+                    conflictCode,
+                    successStatus);
         } finally {
             Files.deleteIfExists(tempFile);
             if (sidecarFile != null) {
@@ -910,8 +917,8 @@ public final class ModuleRoutes {
         try {
             PlatformModuleManifest manifest = readPlatformModuleManifest(jarPath);
             if (expectedModuleId != null && !expectedModuleId.equals(manifest.id())) {
-                throw new IllegalArgumentException("module id '" + manifest.id()
-                        + "' does not match requested module '" + expectedModuleId + "'");
+                throw new IllegalArgumentException(
+                        "module id '" + manifest.id() + "' does not match requested module '" + expectedModuleId + "'");
             }
 
             PlatformCompatibilityReport compatibilityReport =
@@ -1091,8 +1098,7 @@ public final class ModuleRoutes {
         JwtAuthMiddleware.requirePermission(ctx, Permission.MODULES_VIEW);
         ModuleRegistryClient client = registryClient();
         String query = ctx.queryParam("q");
-        List<ModuleRegistryClient.ResolvedEntry> entries =
-                query == null ? client.aggregate() : client.search(query);
+        List<ModuleRegistryClient.ResolvedEntry> entries = query == null ? client.aggregate() : client.search(query);
         List<Map<String, Object>> rows =
                 entries.stream().map(this::registryEntryToJson).toList();
         Map<String, Object> body = new LinkedHashMap<>();
