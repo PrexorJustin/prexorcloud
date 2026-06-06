@@ -50,58 +50,71 @@ const ROUTES = [
 
 const SEVERITIES = new Set(["serious", "critical"])
 
+// Both color schemes are gated. The dashboard uses @nuxtjs/color-mode with
+// preference "system", so prefers-color-scheme picks the theme — and dark is
+// the fallback most users see. A light-only scan misses every dark-theme
+// contrast defect (and vice versa), so we scan each route in both.
+const SCHEMES = ["light", "dark"]
+
 async function main() {
   const browser = await chromium.launch()
-  const context = await browser.newContext()
-
-  // Seed the dev-mock auth token before any document script runs, on every
-  // navigation in this context — so each page.goto() boots authenticated.
-  await context.addInitScript(
-    ([key, token]) => {
-      try {
-        localStorage.setItem(key, token)
-      } catch {
-        /* about:blank etc. — ignored; set succeeds on the real origin */
-      }
-    },
-    [AUTH_TOKEN_KEY, DEV_MOCK_TOKEN],
-  )
-
-  const page = await context.newPage()
   const offenders = []
   let scanned = 0
 
-  for (const route of ROUTES) {
-    const url = BASE_URL + route
-    try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 })
-      // Guard against silent redirect-to-login (auth didn't rehydrate).
-      if (new URL(page.url()).pathname.startsWith("/login") && route !== "/login") {
-        console.log(`::warning::${route} redirected to /login — auth did not rehydrate, skipped`)
-        continue
-      }
-      const results = await new AxeBuilder({ page })
-        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-        .analyze()
-      scanned++
-      const serious = results.violations.filter((v) => SEVERITIES.has(v.impact))
-      if (serious.length) {
-        offenders.push([route, serious])
-        console.log(`✗ ${route} — ${serious.length} serious/critical`)
-        for (const v of serious) {
-          console.log(`    [${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} node(s))`)
+  for (const scheme of SCHEMES) {
+    const context = await browser.newContext({ colorScheme: scheme })
+
+    // Seed the dev-mock auth token before any document script runs, on every
+    // navigation in this context — so each page.goto() boots authenticated.
+    await context.addInitScript(
+      ([key, token]) => {
+        try {
+          localStorage.setItem(key, token)
+        } catch {
+          /* about:blank etc. — ignored; set succeeds on the real origin */
         }
-      } else {
-        console.log(`✓ ${route}`)
+      },
+      [AUTH_TOKEN_KEY, DEV_MOCK_TOKEN],
+    )
+
+    const page = await context.newPage()
+
+    for (const route of ROUTES) {
+      const url = BASE_URL + route
+      try {
+        await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 })
+        // Guard against silent redirect-to-login (auth didn't rehydrate).
+        if (new URL(page.url()).pathname.startsWith("/login") && route !== "/login") {
+          console.log(`::warning::[${scheme}] ${route} redirected to /login — auth did not rehydrate, skipped`)
+          continue
+        }
+        const results = await new AxeBuilder({ page })
+          .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+          .analyze()
+        scanned++
+        const serious = results.violations.filter((v) => SEVERITIES.has(v.impact))
+        if (serious.length) {
+          offenders.push([scheme, route, serious])
+          console.log(`✗ [${scheme}] ${route} — ${serious.length} serious/critical`)
+          for (const v of serious) {
+            console.log(`    [${v.impact}] ${v.id}: ${v.help} (${v.nodes.length} node(s))`)
+          }
+        } else {
+          console.log(`✓ [${scheme}] ${route}`)
+        }
+      } catch (err) {
+        console.log(`::warning::[${scheme}] ${route} failed to scan: ${err.message}`)
       }
-    } catch (err) {
-      console.log(`::warning::${route} failed to scan: ${err.message}`)
     }
+
+    await context.close()
   }
 
   await browser.close()
 
-  console.log(`\nScanned ${scanned}/${ROUTES.length} routes; ${offenders.length} with serious/critical violations.`)
+  console.log(
+    `\nScanned ${scanned}/${ROUTES.length * SCHEMES.length} route×theme combos; ${offenders.length} with serious/critical violations.`,
+  )
   if (offenders.length) process.exit(1)
 }
 

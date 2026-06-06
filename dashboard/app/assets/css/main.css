@@ -152,7 +152,9 @@
 
   --text:       var(--ink-9);
   --text-soft:  var(--ink-8);
-  --faint:      var(--ink-6);
+  /* ink-6 (#4a4a55) is far below AA on the raised dark surfaces (2.1:1).
+     Lightened to clear 4.5:1 on the worst dark surface while staying faint. */
+  --faint:      #858592;
 
   --accent-soft: var(--reef-soft-dark);
   --accent-fg:   #0a0a10;
@@ -176,7 +178,9 @@
   --secondary-foreground: #ffffff;
 
   --muted:                var(--ink-4);
-  --muted-foreground:     var(--ink-7);
+  /* ink-7 (#7c7c8a) renders at 4.45:1 on the raised #14141d surface — just
+     under AA. Lightened to clear 4.5:1 with margin on every dark surface. */
+  --muted-foreground:     #9a9aa8;
 
   /* shadcn convention: --accent is a NEUTRAL hover background, not the
      brand colour. Brand lives on --primary (and on --brand below for
@@ -225,7 +229,7 @@
   --chart-5: var(--danger-dark);
 
   --sidebar:                    var(--ink-1);
-  --sidebar-foreground:         var(--ink-7);
+  --sidebar-foreground:         #9a9aa8;
   --sidebar-primary:            var(--reef-dark);
   --sidebar-primary-foreground: #0a0a10;
   --sidebar-accent:             var(--ink-3);
