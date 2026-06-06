@@ -101,7 +101,13 @@ function actionTone(action: string): StatusDotTone {
           rules out virtua VList here; the store caps pages at 50 entries so
           a plain v-for is the right tool.
         -->
-        <div class="styled-scrollbar overflow-auto" style="max-height: calc(100vh - 360px); min-height: 280px;">
+        <div
+          class="styled-scrollbar overflow-auto"
+          style="max-height: calc(100vh - 360px); min-height: 280px;"
+          role="region"
+          :aria-label="t('pages.audit.title')"
+          tabindex="0"
+        >
           <template v-for="entry in filteredEntries" :key="entry.id">
             <div
               class="flex h-12 select-none items-center border-b border-glass-border/50 px-4 transition-colors"

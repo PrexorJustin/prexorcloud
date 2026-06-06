@@ -151,7 +151,7 @@ async function handleLogout() {
                 class="size-3 mr-1.5 text-sidebar-foreground/40 transition-transform duration-200 group-data-[collapsible=icon]:hidden"
                 :class="open ? 'rotate-90' : ''"
               />
-              <span class="flex-1 text-left uppercase text-[10.5px] font-semibold tracking-[0.16em] text-sidebar-foreground/50 group-hover/trigger:text-sidebar-foreground/70 transition-colors duration-150">{{ label(group.labelKey, group.label) }}</span>
+              <span class="flex-1 text-left uppercase text-[10.5px] font-semibold tracking-[0.16em] text-sidebar-foreground group-hover/trigger:text-foreground transition-colors duration-150">{{ label(group.labelKey, group.label) }}</span>
             </CollapsibleTrigger>
           </SidebarGroupLabel>
           <CollapsibleContent>

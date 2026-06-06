@@ -188,6 +188,10 @@
      Distinct from shadcn's neutral --accent. */
   --brand:                var(--reef-dark);
   --brand-foreground:     #0a0a10;
+  /* Brand teal rendered as TEXT. On the dark spine the bright reef clears AA;
+     light theme overrides this with a darkened teal (the bright reef only hits
+     ~3.8:1 on near-white). See the light block. */
+  --accent-text:          var(--reef-dark);
 
   --destructive:          var(--danger-dark);
   --destructive-foreground: #ffffff;
@@ -249,7 +253,9 @@
 
   --text:       var(--sand-9);
   --text-soft:  var(--sand-8);
-  --faint:      var(--sand-6);
+  /* sand-6 (#a8a399) is too light for AA text on the raised sand surfaces
+     (2.5:1 on white). Darkened to clear 4.5:1 on the worst case (#e6e1d3). */
+  --faint:      #5c594f;
 
   --accent-soft: var(--reef-soft-light);
   --accent-fg:   #ffffff;
@@ -272,13 +278,19 @@
   --secondary-foreground: #ffffff;
 
   --muted:                var(--sand-5);
-  --muted-foreground:     var(--sand-7);
+  /* sand-7 (#6e6a62) renders at 4.36:1 on the raised #ebe7dc surface — just
+     under AA. Darkened to clear 4.5:1 on every light surface (min 5.8:1). */
+  --muted-foreground:     #57544b;
 
   --accent:               var(--sand-5);
   --accent-foreground:    var(--sand-9);
 
   --brand:                var(--reef-light);
   --brand-foreground:     #ffffff;
+  /* Darkened reef for teal-as-text on light surfaces — clears AA 4.5:1 down to
+     the #ebe7dc raised surface (4.65:1). The brand teal (--reef-light, canon-
+     pinned) stays for fills/buttons where white sits on it. */
+  --accent-text:          #097082;
 
   --destructive:          var(--danger-light);
   --destructive-foreground: #ffffff;
@@ -310,7 +322,9 @@
   --chart-5: var(--danger-light);
 
   --sidebar:                    var(--sand-2);
-  --sidebar-foreground:         var(--sand-7);
+  /* Matches --muted-foreground: clears AA on the #ebe7dc sidebar surface so
+     full-opacity sidebar text passes (group labels drop their opacity below). */
+  --sidebar-foreground:         #57544b;
   --sidebar-primary:            var(--reef-light);
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent:             var(--sand-3);
@@ -458,7 +472,7 @@
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
   letter-spacing: var(--tracking-widest);
-  color: var(--brand);
+  color: var(--accent-text);
 }
 .eyebrow-muted {
   color: var(--muted-foreground);
