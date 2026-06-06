@@ -149,10 +149,8 @@ jobs:
           kill $APP_PID 2>/dev/null || true
       # Authed-flow a11y scan (E-P1.1) — drives the app past login via the dev-mock
       # layer (build above) and runs axe-core in a real browser over the critical
-      # authed routes. Soft until proven stable in CI; then it becomes the hard
-      # E-P1.1 gate (0 serious/critical). See docs/engineering/track-e-plan.md.
-      - name: a11y authed scan (axe-core via playwright, soft)
-        continue-on-error: true
+      # authed routes. HARD gate: 0 serious/critical. See track-e-plan.md.
+      - name: a11y authed scan (axe-core via playwright, hard gate)
         working-directory: dashboard
         run: |
           pnpm preview &
@@ -168,9 +166,10 @@ jobs:
           AXE_DIR=$(mktemp -d)
           ( cd "$AXE_DIR" && npm init -y >/dev/null 2>&1 && npm i @axe-core/playwright playwright && npx playwright install --with-deps chromium )
           cp scripts/axe-authed.mjs "$AXE_DIR/"
-          ( cd "$AXE_DIR" && BASE_URL=http://127.0.0.1:3000 node axe-authed.mjs ) || \
-            echo "::warning::authed axe found serious/critical a11y issues — see logs (soft until E-P1.1 hardened)"
+          ( cd "$AXE_DIR" && BASE_URL=http://127.0.0.1:3000 node axe-authed.mjs )
+          RC=$?
           kill $APP_PID 2>/dev/null || true
+          exit $RC
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         with:
