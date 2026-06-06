@@ -85,7 +85,8 @@ class WorkloadDtoMapperTest {
                 "inst-1",
                 "lobby",
                 "proxy-1",
-                Instant.parse("2026-04-17T10:05:00Z"));
+                Instant.parse("2026-04-17T10:05:00Z"),
+                "java");
 
         Map<String, Object> instanceDto = WorkloadDtoMapper.toInstanceDto(instance, "10.0.0.5");
         Map<String, Object> groupDto = WorkloadDtoMapper.toGroupDto(group, 7);

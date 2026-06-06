@@ -142,6 +142,7 @@ public abstract class BaseControllerClient {
             HttpResponse<String> response = sendWithRefresh(() -> HttpRequest.newBuilder()
                     .uri(URI.create(controllerUrl + path))
                     .header("Authorization", "Bearer " + pluginTokenRef.get())
+                    .header("traceparent", W3CTraceparent.random())
                     .GET()
                     .timeout(Duration.ofSeconds(10))
                     .build());
@@ -161,6 +162,7 @@ public abstract class BaseControllerClient {
                     .header("Authorization", "Bearer " + pluginTokenRef.get())
                     .header(SEQUENCE_HEADER, nextSequence())
                     .header("Content-Type", "application/json")
+                    .header("traceparent", W3CTraceparent.random())
                     .POST(HttpRequest.BodyPublishers.ofString(body))
                     .timeout(Duration.ofSeconds(10))
                     .build());

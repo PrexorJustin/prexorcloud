@@ -17,6 +17,7 @@ public final class PlayerDtoMapper {
         dto.put("currentGroup", player.group());
         dto.put("proxyInstance", player.proxyInstanceId());
         dto.put("connectedSince", player.connectedAt().toString());
+        dto.put("edition", player.edition());
         return dto;
     }
 }

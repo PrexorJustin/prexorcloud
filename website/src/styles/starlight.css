@@ -16,29 +16,11 @@
   --sl-font-mono: 'JetBrains Mono', ui-monospace, monospace;
 }
 
-/* Theme-aware Starlight surface tokens. Starlight reads `--sl-color-*`;
- * we point them at the semantic tokens already defined in `tokens.css` so
- * design-system updates flow through without a second source-of-truth.
+/* Theme-aware Starlight surface tokens (`--sl-color-*`) are GENERATED from the
+ * design-system tokens into `starlight-theme.generated.css` and loaded via
+ * astro.config customCss (after this file). Run `pnpm gen:starlight` to refresh;
+ * a CI freshness guard fails the build if it drifts from design-system/dist/.
  */
-:root[data-theme='dark'] {
-  --sl-color-bg: hsl(var(--background));
-  --sl-color-bg-nav: hsl(var(--sidebar));
-  --sl-color-bg-sidebar: hsl(var(--sidebar));
-  --sl-color-text: hsl(var(--foreground));
-  --sl-color-text-accent: hsl(var(--primary));
-  --sl-color-hairline: hsl(var(--border));
-  --sl-color-hairline-light: hsl(var(--border));
-}
-
-:root[data-theme='light'] {
-  --sl-color-bg: hsl(var(--background));
-  --sl-color-bg-nav: hsl(var(--sidebar));
-  --sl-color-bg-sidebar: hsl(var(--sidebar));
-  --sl-color-text: hsl(var(--foreground));
-  --sl-color-text-accent: hsl(var(--primary));
-  --sl-color-hairline: hsl(var(--border));
-  --sl-color-hairline-light: hsl(var(--border));
-}
 
 /* ── Design-system signature utilities ────────────────────────────────
  * Promoted to `@layer utilities` so they compose with Tailwind's

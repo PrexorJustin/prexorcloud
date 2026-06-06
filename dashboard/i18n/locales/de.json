@@ -1329,6 +1329,11 @@
       "online": "Online",
       "avgPing": "Ø Ping",
       "groupsInUse": "Genutzte Gruppen",
+      "editionSplit": "Edition",
+      "editions": {
+        "java": "Java",
+        "bedrock": "Bedrock"
+      },
       "searchPlaceholder": "Nach Benutzername, UUID, Instanz oder Gruppe suchen …",
       "emptyTitle": "Keine Spieler online",
       "emptyHint": "Neue Verbindungen erscheinen hier, sobald Spieler beitreten.",
@@ -1348,6 +1353,7 @@
         "uuid": "UUID",
         "currentInstance": "Aktuelle Instanz",
         "group": "Gruppe",
+        "edition": "Edition",
         "connected": "Verbunden"
       },
       "transfer": "Transfer",

@@ -32,7 +32,7 @@ const (
 	// callers that still pass the legacy "cloud-module-<kebab>" form.
 	templateModulePrefix       = ""
 	templateModuleLegacyPrefix = "cloud-module-"
-	settingsAnchor       = "// ---- MODULES ---- //"
+	settingsAnchor             = "// ---- MODULES ---- //"
 )
 
 var (
@@ -57,9 +57,9 @@ type Options struct {
 	Force         bool
 	Dry           bool
 	// Targets selects which plugin/<target> subprojects to copy. Recognised
-	// values (subset of the example template): "paper", "folia", "velocity".
-	// Empty (zero value) means copy all targets — preserves the prior
-	// behaviour for callers that haven't been updated to pick.
+	// values (the example template's set): "paper", "folia", "velocity",
+	// "bedrock-geyser". Empty (zero value) means copy all targets — preserves the
+	// prior behaviour for callers that haven't been updated to pick.
 	Targets []string
 
 	// Wizard-driven toggles. The legacy CLI path leaves these at their
@@ -68,10 +68,10 @@ type Options struct {
 	//
 	// Implementation status (Phase B v1):
 	//   WithFrontend(false) → frontend/ dir + module.yaml frontend block stripped
+	//   WithRest(false)     → rest/ dir + onRegisterRoutes override + .rest. imports stripped
 	//   Provides/Requires   → module.yaml capabilities block rewritten
-	//   WithMongo / WithRest are accepted by callers but currently emit a
-	//   warning when set to false and leave the template defaults in place —
-	//   the storage/REST removal pass is its own follow-up turn.
+	//   WithMongo(false) is accepted but still leaves the template defaults in
+	//   place (the Mongo wiring is too interconnected for safe string surgery).
 	WithMongo    bool
 	WithRest     bool
 	WithFrontend bool
@@ -86,9 +86,10 @@ func (o Options) wizardDefaults() bool {
 	return !o.WithMongo && !o.WithRest && !o.WithFrontend && len(o.Provides) == 0 && len(o.Requires) == 0
 }
 
-// AllTargets returns the targets the example template currently provides.
-// Used as the default for --interactive prompts.
-func AllTargets() []string { return []string{"paper", "folia", "velocity"} }
+// AllTargets returns the targets the example template provides — the full
+// platform set, matching the reference module's plugin/ subprojects. Used as the
+// default selection and for --interactive prompts.
+func AllTargets() []string { return []string{"paper", "folia", "velocity", "bedrock-geyser"} }
 
 // Result reports what the scaffolder did. Useful for tests + CLI output.
 type Result struct {
@@ -158,10 +159,207 @@ func Generate(opts Options) (*Result, error) {
 			return nil, err
 		}
 	}
+	// Prune the module.yaml `extensions:` list AND the build.gradle.kts
+	// `extensionArtifacts` map to the selected --mc-plugin/Targets platforms, in
+	// lockstep. walkTemplate already drops the unselected plugin/<target> dirs;
+	// the manifest and the build's declared artifacts must agree or the
+	// `preparePlatformManifest` gate fails ("declared … not referenced"). This
+	// also drops the bedrock-geyser entry (no subproject ships for it), which is
+	// what makes a target-selected scaffold actually buildable.
+	if err := filterManifestExtensions(destRoot, opts.Targets, opts.Dry); err != nil {
+		return nil, err
+	}
+	if err := filterBuildGradleArtifacts(destRoot, opts.Targets, opts.Dry); err != nil {
+		return nil, err
+	}
 	if err := patchSettings(settingsFile, kebab, opts.Dry, opts.Targets, res); err != nil {
 		return nil, err
 	}
 	return res, nil
+}
+
+// filterManifestExtensions rewrites the generated module.yaml so its top-level
+// `extensions:` list only contains the selected targets. No-op when the caller
+// didn't pick targets (keep == nil), on dry runs, or when the template carries
+// no manifest.
+func filterManifestExtensions(destRoot string, targets []string, dry bool) error {
+	if dry {
+		return nil
+	}
+	keep := normaliseTargets(targets)
+	if keep == nil {
+		return nil
+	}
+	manifestPath := filepath.Join(destRoot, "src", "main", "module", "module.yaml")
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // template without a manifest — nothing to prune
+		}
+		return fmt.Errorf("read generated module.yaml: %w", err)
+	}
+	pruned := pruneExtensionsBlock(string(raw), keep)
+	if pruned == string(raw) {
+		return nil
+	}
+	if err := os.WriteFile(manifestPath, []byte(pruned), 0o644); err != nil {
+		return fmt.Errorf("write generated module.yaml: %w", err)
+	}
+	return nil
+}
+
+var pluginTargetRe = regexp.MustCompile(`:plugin:([a-z0-9-]+)`)
+
+// filterBuildGradleArtifacts prunes the `extensionArtifacts` map in build.gradle.kts
+// to the selected targets, matching filterManifestExtensions. No-op when no targets
+// were picked, on dry runs, or when build.gradle.kts is absent.
+func filterBuildGradleArtifacts(destRoot string, targets []string, dry bool) error {
+	if dry {
+		return nil
+	}
+	keep := normaliseTargets(targets)
+	if keep == nil {
+		return nil
+	}
+	path := filepath.Join(destRoot, "build.gradle.kts")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read generated build.gradle.kts: %w", err)
+	}
+	pruned := pruneExtensionArtifacts(string(raw), keep)
+	if pruned == string(raw) {
+		return nil
+	}
+	if err := os.WriteFile(path, []byte(pruned), 0o644); err != nil {
+		return fmt.Errorf("write generated build.gradle.kts: %w", err)
+	}
+	return nil
+}
+
+// pruneExtensionArtifacts removes `"…artifact…" to ":…:plugin:<target>",` map
+// entries (each 1–2 physical lines) whose target isn't kept. Structural lines
+// (mapOf( … )) pass through untouched.
+func pruneExtensionArtifacts(text string, keep map[string]bool) string {
+	if keep == nil {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+	var entry []string
+	flush := func() {
+		if len(entry) == 0 {
+			return
+		}
+		m := pluginTargetRe.FindStringSubmatch(strings.Join(entry, "\n"))
+		if m == nil || keep[m[1]] {
+			out = append(out, entry...)
+		}
+		entry = nil
+	}
+	for _, l := range lines {
+		if len(entry) > 0 || strings.Contains(l, `"extensions/`) {
+			entry = append(entry, l)
+			if strings.HasSuffix(strings.TrimSpace(l), ",") && pluginTargetRe.MatchString(strings.Join(entry, "\n")) {
+				flush()
+			}
+			continue
+		}
+		out = append(out, l)
+	}
+	flush()
+	return strings.Join(out, "\n")
+}
+
+// pruneExtensionsBlock filters the top-level `extensions:` list down to entries
+// whose `target:` last path segment (e.g. "paper" from "server/paper") is in
+// keep. Entries with no recognisable target are left in place (defensive).
+// Returns the text unchanged when there is no extensions block.
+func pruneExtensionsBlock(text string, keep map[string]bool) string {
+	if keep == nil {
+		return text
+	}
+	lines := strings.Split(text, "\n")
+	out := make([]string, 0, len(lines))
+	i := 0
+	for i < len(lines) {
+		if lines[i] != "extensions:" {
+			out = append(out, lines[i])
+			i++
+			continue
+		}
+		out = append(out, lines[i]) // the "extensions:" header
+		i++
+		// The block body runs until the next top-level (unindented) key or EOF.
+		start := i
+		for i < len(lines) {
+			l := lines[i]
+			if l != "" && !strings.HasPrefix(l, " ") && !strings.HasPrefix(l, "\t") {
+				break
+			}
+			i++
+		}
+		out = append(out, pruneExtensionItems(lines[start:i], keep)...)
+	}
+	return strings.Join(out, "\n")
+}
+
+// pruneExtensionItems splits a block body into YAML list items (each starting at
+// a "  - " line) and keeps only the selected ones, preserving any leading lines
+// and a single file-final blank line.
+func pruneExtensionItems(body []string, keep map[string]bool) []string {
+	trailingBlank := len(body) > 0 && strings.TrimSpace(body[len(body)-1]) == ""
+	end := len(body)
+	for end > 0 && strings.TrimSpace(body[end-1]) == "" {
+		end--
+	}
+
+	var prefix []string
+	var items [][]string
+	var cur []string
+	for _, l := range body[:end] {
+		if strings.HasPrefix(l, "  - ") {
+			if cur != nil {
+				items = append(items, cur)
+			}
+			cur = []string{l}
+		} else if cur != nil {
+			cur = append(cur, l)
+		} else {
+			prefix = append(prefix, l)
+		}
+	}
+	if cur != nil {
+		items = append(items, cur)
+	}
+
+	out := append([]string{}, prefix...)
+	for _, item := range items {
+		if keepExtensionItem(item, keep) {
+			out = append(out, item...)
+		}
+	}
+	if trailingBlank {
+		out = append(out, "")
+	}
+	return out
+}
+
+func keepExtensionItem(item []string, keep map[string]bool) bool {
+	for _, l := range item {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "target:") {
+			target := strings.TrimSpace(strings.TrimPrefix(t, "target:"))
+			short := target
+			if idx := strings.LastIndex(target, "/"); idx >= 0 {
+				short = target[idx+1:]
+			}
+			return keep[short]
+		}
+	}
+	return true // no target line — keep defensively
 }
 
 // applyWizardOverrides post-processes the freshly-written module so it matches
@@ -169,13 +367,15 @@ func Generate(opts Options) (*Result, error) {
 // (minus unselected plugin targets); this pass strips/edits files based on the
 // wizard's higher-level toggles.
 //
-// Implemented overrides (Phase B v1):
+// Implemented overrides:
 //   - WithFrontend == false:     delete frontend/ and the module.yaml `frontend:` block
+//   - WithRest == false:         delete rest/ and drop the onRegisterRoutes override + imports
 //   - Provides / Requires        rewrite module.yaml capabilities: block from wizard input
 //
-// Deferred to Phase B.2:
+// Deferred:
 //   - WithMongo == false:        rip out data/, repository, requireMongoStorage(), module.yaml storage block
-//   - WithRest == false:         rip out rest/, route registration call sites
+//     (the example's repository → queryService → capability/health chain is
+//     too interconnected for safe string surgery — needs a template restructure)
 func applyWizardOverrides(destRoot string, opts Options) error {
 	if opts.Dry {
 		// Dry runs don't touch the filesystem and the template wasn't actually
@@ -197,6 +397,12 @@ func applyWizardOverrides(destRoot string, opts Options) error {
 		text = stripManifestBlock(text, "frontend:")
 	}
 
+	if !opts.WithRest {
+		if err := stripRest(destRoot); err != nil {
+			return fmt.Errorf("strip rest/: %w", err)
+		}
+	}
+
 	if len(opts.Provides) > 0 || len(opts.Requires) > 0 {
 		text = rewriteCapabilities(text, opts.Provides, opts.Requires)
 	}
@@ -205,6 +411,97 @@ func applyWizardOverrides(destRoot string, opts Options) error {
 		return fmt.Errorf("write generated module.yaml: %w", err)
 	}
 	return nil
+}
+
+// stripRest removes REST scaffolding from a freshly-generated module: the
+// rest/ package(s) and, in the entrypoint, the `onRegisterRoutes` override (a
+// no-op default on PlatformModule, so dropping it is safe) plus the now-dead
+// `.rest.` imports. Mongo/capabilities/health wiring is untouched.
+func stripRest(destRoot string) error {
+	// Cover both src/main and src/test — the template ships a rest/ package and a
+	// rest/PlaytimeRoutesTest, both of which must go or compileTestJava breaks.
+	srcRoot := filepath.Join(destRoot, "src")
+
+	// 1. Delete every rest/ package under the source tree.
+	_ = filepath.WalkDir(srcRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() && d.Name() == "rest" {
+			_ = os.RemoveAll(path)
+			return filepath.SkipDir
+		}
+		return nil
+	})
+
+	// 2. Strip the onRegisterRoutes override + rest imports from the entrypoint.
+	return filepath.WalkDir(srcRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".java") {
+			return err
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		src := string(raw)
+		if !strings.Contains(src, "onRegisterRoutes(RouteRegistrar") {
+			return nil
+		}
+		return os.WriteFile(path, []byte(stripOnRegisterRoutes(src)), 0o644)
+	})
+}
+
+// stripOnRegisterRoutes removes `import ... .rest. ...` lines and the
+// `onRegisterRoutes(RouteRegistrar ...)` method (including a preceding
+// `@Override`) from a Java source string. Brace-matched; assumes the simple
+// generated-template shape (no braces inside strings/comments in the method).
+func stripOnRegisterRoutes(src string) string {
+	// Drop rest imports.
+	lines := strings.Split(src, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, l := range lines {
+		t := strings.TrimSpace(l)
+		if strings.HasPrefix(t, "import ") && strings.Contains(t, ".rest.") {
+			continue
+		}
+		kept = append(kept, l)
+	}
+	src = strings.Join(kept, "\n")
+
+	idx := strings.Index(src, "public void onRegisterRoutes(")
+	if idx < 0 {
+		return src
+	}
+	start := strings.LastIndex(src[:idx], "\n") + 1 // start of the signature line
+	if prevEnd := start - 1; prevEnd > 0 {
+		prevStart := strings.LastIndex(src[:prevEnd], "\n") + 1
+		if strings.TrimSpace(src[prevStart:prevEnd]) == "@Override" {
+			start = prevStart
+		}
+	}
+	braceOpen := strings.IndexByte(src[idx:], '{')
+	if braceOpen < 0 {
+		return src
+	}
+	braceOpen += idx
+	depth := 0
+	end := -1
+	for i := braceOpen; i < len(src); i++ {
+		if src[i] == '{' {
+			depth++
+		} else if src[i] == '}' {
+			depth--
+			if depth == 0 {
+				end = i + 1
+				break
+			}
+		}
+	}
+	if end < 0 {
+		return src
+	}
+	result := src[:start] + src[end:]
+	return multiBlank.ReplaceAllString(result, "\n\n")
 }
 
 // stripManifestBlock removes a top-level YAML block whose key matches `key`
@@ -386,7 +683,7 @@ func patchSettings(settingsFile, kebab string, dry bool, targets []string, res *
 		fmt.Sprintf("    \"cloud-modules:%s\",", kebab),
 	}
 	keep := normaliseTargets(targets)
-	for _, t := range []string{"paper", "folia", "velocity"} {
+	for _, t := range []string{"paper", "folia", "velocity", "bedrock-geyser"} {
 		if keep != nil && !keep[t] {
 			continue
 		}

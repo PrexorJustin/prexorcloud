@@ -2,12 +2,14 @@ package me.prexorjustin.prexorcloud.modules.backup.platform;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 
 import me.prexorjustin.prexorcloud.api.ScheduledTask;
 import me.prexorjustin.prexorcloud.api.module.capability.InstanceFileAccess;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
 import me.prexorjustin.prexorcloud.api.module.rest.RouteRegistrar;
+import me.prexorjustin.prexorcloud.modules.backup.data.SnapshotMetadata;
 import me.prexorjustin.prexorcloud.modules.backup.data.SnapshotRepository;
 import me.prexorjustin.prexorcloud.modules.backup.rest.BackupRoutes;
 import me.prexorjustin.prexorcloud.modules.backup.service.SnapshotService;
@@ -30,8 +32,10 @@ import org.slf4j.Logger;
  *
  * <p>The archive root defaults to {@code /var/lib/prexorcloud/snapshots/}
  * and can be overridden via the {@code PREXORCLOUD_BACKUP_DIR} environment
- * variable. Per-instance schedules and pattern filters land in a future
- * release; v1 exposes manual REST triggering only.
+ * variable. Manual REST triggering is always available; opt-in periodic
+ * snapshots of a fixed target list are configured via the environment — see
+ * {@link BackupSchedule}. Per-target pattern filters still land in a future
+ * release (the periodic path uses the default pattern set).
  */
 public final class BackupOrchestratorModule implements PlatformModule {
 
@@ -65,10 +69,45 @@ public final class BackupOrchestratorModule implements PlatformModule {
 
     @Override
     public void onStart(ModuleContext context) {
-        // Periodic scheduling intentionally not wired in v1 — REST triggers
-        // are the only entrypoint. The scheduler primitive is here so a
-        // follow-up can attach per-group schedules without re-architecting.
-        this.periodicTask = null;
+        BackupSchedule schedule = BackupSchedule.fromEnv();
+        if (!schedule.enabled()) {
+            logger.info(
+                    "backup-orchestrator: periodic snapshots disabled (set {} and {} to enable; REST triggers remain)",
+                    BackupSchedule.INTERVAL_ENV,
+                    BackupSchedule.TARGETS_ENV);
+            this.periodicTask = null;
+            return;
+        }
+        this.periodicTask = context.scheduler()
+                .scheduleAtFixedRate(
+                        schedule.initialDelay(), schedule.period(), () -> runScheduledSnapshots(schedule.targets()));
+        logger.info(
+                "backup-orchestrator: periodic snapshots every {} for {} target(s), first run in {}",
+                schedule.period(),
+                schedule.targets().size(),
+                schedule.initialDelay());
+    }
+
+    /**
+     * Snapshot each configured target on the scheduler thread. Per-target failures are logged and
+     * skipped — a single unreachable instance must not abort the rest of the run or kill the task.
+     */
+    private void runScheduledSnapshots(List<BackupSchedule.Target> targets) {
+        SnapshotService svc = this.service;
+        if (svc == null) {
+            return; // module stopped between tick scheduling and execution
+        }
+        for (BackupSchedule.Target target : targets) {
+            try {
+                SnapshotMetadata result =
+                        svc.snapshotInstance(target.nodeId(), target.group(), target.instanceId(), null);
+                if (!result.ok()) {
+                    logger.warn("scheduled snapshot of {} failed: {}", target.instanceId(), result.error());
+                }
+            } catch (RuntimeException e) {
+                logger.warn("scheduled snapshot of {} threw: {}", target.instanceId(), e.toString());
+            }
+        }
     }
 
     @Override

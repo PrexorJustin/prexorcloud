@@ -10250,6 +10250,9 @@
           },
           "connectedSince": {
             "type": "string"
+          },
+          "edition": {
+            "type": "string"
           }
         }
       },

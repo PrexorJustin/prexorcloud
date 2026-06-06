@@ -19,7 +19,7 @@ func fakeTemplate(t *testing.T) string {
 
 	// Plugin subprojects — one tiny file per target so we can assert which
 	// of them survive a selective scaffold.
-	for _, target := range []string{"paper", "folia", "velocity"} {
+	for _, target := range []string{"paper", "folia", "velocity", "bedrock-geyser"} {
 		mustWrite(t,
 			filepath.Join(root, "java", "cloud-modules", "example",
 				"plugin", target, "build.gradle.kts"),
@@ -30,6 +30,17 @@ func fakeTemplate(t *testing.T) string {
 	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "build.gradle.kts"),
 		`plugins { id("prexorcloud.java21-api") }
 // module: example-playtime
+prexorcloudModule {
+    extensionArtifacts.set(
+        mapOf(
+            "extensions/server/folia/example-playtime-folia.jar" to ":cloud-modules:example:plugin:folia",
+            "extensions/proxy/velocity/example-playtime-velocity.jar" to ":cloud-modules:example:plugin:velocity",
+            "extensions/server/paper/example-playtime-paper.jar" to ":cloud-modules:example:plugin:paper",
+            "extensions/server/bedrock-geyser/example-playtime-bedrock-geyser.jar"
+                to ":cloud-modules:example:plugin:bedrock-geyser",
+        ),
+    )
+}
 `)
 	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example",
 		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "example",
@@ -42,6 +53,26 @@ public class ExamplePlaytimeModule {
 `)
 	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "build", "should-be-ignored.txt"),
 		`if you see this in the output the build/ filter is broken
+`)
+
+	// Minimal module.yaml carrying an extensions list with all template
+	// platforms, so selective scaffolds can be asserted to prune it.
+	mustWrite(t, filepath.Join(root, "java", "cloud-modules", "example", "src", "main", "module", "module.yaml"),
+		`manifestVersion: 1
+id: example-playtime
+extensions:
+  - id: example-playtime-folia
+    target: server/folia
+    activation: explicit-group-attach
+  - id: example-playtime-paper
+    target: server/paper
+    activation: explicit-group-attach
+  - id: example-playtime-velocity
+    target: proxy/velocity
+    activation: explicit-group-attach
+  - id: example-playtime-bedrock-geyser
+    target: server/bedrock-geyser
+    activation: explicit-group-attach
 `)
 
 	mustWrite(t, filepath.Join(root, "java", "settings.gradle.kts"),
@@ -123,12 +154,13 @@ func TestGenerateBasic(t *testing.T) {
 		`"cloud-modules:stats-aggregator:plugin:paper",`,
 		`"cloud-modules:stats-aggregator:plugin:folia",`,
 		`"cloud-modules:stats-aggregator:plugin:velocity",`,
+		`"cloud-modules:stats-aggregator:plugin:bedrock-geyser",`,
 	} {
 		if !strings.Contains(settings, expected) {
 			t.Errorf("settings missing %s:\n%s", expected, settings)
 		}
 	}
-	if !res.SettingsPatched || res.IncludesAdded != 4 {
+	if !res.SettingsPatched || res.IncludesAdded != 5 {
 		t.Errorf("settings result wrong: %+v", res)
 	}
 
@@ -280,6 +312,34 @@ func TestGenerateSelectiveTargets(t *testing.T) {
 	if !res.SettingsPatched {
 		t.Error("expected settings.gradle.kts to be patched")
 	}
+
+	// The generated module.yaml extensions: list must only advertise the
+	// selected platforms — paper + folia, never velocity or bedrock-geyser.
+	manifest := readFile(t, filepath.Join(dest, "src", "main", "module", "module.yaml"))
+	for _, want := range []string{"target: server/paper", "target: server/folia"} {
+		if !strings.Contains(manifest, want) {
+			t.Errorf("module.yaml should keep %q:\n%s", want, manifest)
+		}
+	}
+	for _, unwanted := range []string{"target: proxy/velocity", "target: server/bedrock-geyser"} {
+		if strings.Contains(manifest, unwanted) {
+			t.Errorf("module.yaml should have pruned %q:\n%s", unwanted, manifest)
+		}
+	}
+
+	// build.gradle.kts extensionArtifacts must be pruned in lockstep with the
+	// manifest — keep paper + folia, drop velocity + bedrock-geyser.
+	build := readFile(t, filepath.Join(dest, "build.gradle.kts"))
+	for _, want := range []string{":plugin:paper", ":plugin:folia"} {
+		if !strings.Contains(build, want) {
+			t.Errorf("build.gradle.kts should keep %q:\n%s", want, build)
+		}
+	}
+	for _, gone := range []string{":plugin:velocity", ":plugin:bedrock-geyser"} {
+		if strings.Contains(build, gone) {
+			t.Errorf("build.gradle.kts should have pruned %q:\n%s", gone, build)
+		}
+	}
 }
 
 func TestGenerateAllTargetsByDefault(t *testing.T) {
@@ -288,10 +348,172 @@ func TestGenerateAllTargetsByDefault(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 	dest := filepath.Join(root, "java", "cloud-modules", "fat-mod")
-	for _, target := range []string{"paper", "folia", "velocity"} {
+	for _, target := range []string{"paper", "folia", "velocity", "bedrock-geyser"} {
 		if _, err := os.Stat(filepath.Join(dest, "plugin", target, "build.gradle.kts")); err != nil {
 			t.Errorf("plugin/%s missing: %v", target, err)
 		}
+	}
+	// No target selection → the extensions list is left intact (all platforms).
+	manifest := readFile(t, filepath.Join(dest, "src", "main", "module", "module.yaml"))
+	for _, want := range []string{"server/paper", "server/folia", "proxy/velocity", "server/bedrock-geyser"} {
+		if !strings.Contains(manifest, "target: "+want) {
+			t.Errorf("default scaffold should keep all extensions, missing %q:\n%s", want, manifest)
+		}
+	}
+}
+
+func TestStripOnRegisterRoutes(t *testing.T) {
+	src := `package me.prexorjustin.prexorcloud.modules.demo.platform;
+
+import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
+import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
+import me.prexorjustin.prexorcloud.api.module.rest.RouteRegistrar;
+import me.prexorjustin.prexorcloud.modules.demo.config.Config;
+import me.prexorjustin.prexorcloud.modules.demo.rest.PlaytimeRoutes;
+
+public final class DemoModule implements PlatformModule {
+
+    @Override
+    public void onLoad(ModuleContext context) {
+        // keep me
+    }
+
+    @Override
+    public void onRegisterRoutes(RouteRegistrar registrar) {
+        new PlaytimeRoutes(repository, Config.defaults()).register(registrar);
+    }
+
+    @Override
+    public void onStart(ModuleContext context) {
+        // keep me too
+    }
+}
+`
+	out := stripOnRegisterRoutes(src)
+	if strings.Contains(out, "onRegisterRoutes") {
+		t.Errorf("onRegisterRoutes method not removed:\n%s", out)
+	}
+	if strings.Contains(out, ".rest.") {
+		t.Errorf("rest imports not removed:\n%s", out)
+	}
+	if strings.Contains(out, "RouteRegistrar") {
+		t.Errorf("RouteRegistrar reference survived:\n%s", out)
+	}
+	for _, want := range []string{"onLoad", "onStart", "config.Config", "implements PlatformModule"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q to survive the strip:\n%s", want, out)
+		}
+	}
+}
+
+func TestGenerateStripsRest(t *testing.T) {
+	root := fakeTemplate(t)
+	// Enrich the fixture: a rest/ package + an entrypoint with onRegisterRoutes.
+	pkgDir := filepath.Join(root, "java", "cloud-modules", "example",
+		"src", "main", "java", "me", "prexorjustin", "prexorcloud", "modules", "example")
+	mustWrite(t, filepath.Join(pkgDir, "rest", "PlaytimeRoutes.java"),
+		"package me.prexorjustin.prexorcloud.modules.example.rest;\npublic final class PlaytimeRoutes {}\n")
+	mustWrite(t, filepath.Join(pkgDir, "platform", "ExamplePlaytimeModule.java"),
+		`package me.prexorjustin.prexorcloud.modules.example.platform;
+
+import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
+import me.prexorjustin.prexorcloud.api.module.rest.RouteRegistrar;
+import me.prexorjustin.prexorcloud.modules.example.rest.PlaytimeRoutes;
+
+public final class ExamplePlaytimeModule implements PlatformModule {
+    @Override
+    public void onRegisterRoutes(RouteRegistrar registrar) {
+        new PlaytimeRoutes().register(registrar);
+    }
+}
+`)
+
+	// WithFrontend:true keeps the wizard path active (so applyWizardOverrides runs)
+	// without stripping anything else; WithRest:false triggers the rest strip.
+	if _, err := Generate(Options{
+		RepoRoot:     root,
+		Name:         "rest-stripped",
+		WithFrontend: true,
+		WithRest:     false,
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	dest := filepath.Join(root, "java", "cloud-modules", "rest-stripped")
+	if _, err := os.Stat(filepath.Join(dest, "src", "main", "java", "me", "prexorjustin", "prexorcloud",
+		"modules", "reststripped", "rest")); err == nil {
+		t.Errorf("rest/ package should have been removed")
+	}
+	// "ExamplePlaytimeModule" → token-renamed to "RestStrippedModule".
+	entry := readFile(t, filepath.Join(dest, "src", "main", "java", "me", "prexorjustin", "prexorcloud",
+		"modules", "reststripped", "platform", "RestStrippedModule.java"))
+	if strings.Contains(entry, "onRegisterRoutes") {
+		t.Errorf("onRegisterRoutes not stripped from entrypoint:\n%s", entry)
+	}
+	if strings.Contains(entry, ".rest.") || strings.Contains(entry, "RouteRegistrar") {
+		t.Errorf("rest imports not stripped from entrypoint:\n%s", entry)
+	}
+}
+
+func TestPruneExtensionsBlock(t *testing.T) {
+	manifest := `id: m
+extensions:
+  - id: m-paper
+    target: server/paper
+  - id: m-velocity
+    target: proxy/velocity
+storage:
+  mongo: true
+`
+	pruned := pruneExtensionsBlock(manifest, map[string]bool{"paper": true})
+	if !strings.Contains(pruned, "target: server/paper") {
+		t.Errorf("kept target missing:\n%s", pruned)
+	}
+	if strings.Contains(pruned, "proxy/velocity") {
+		t.Errorf("velocity should be pruned:\n%s", pruned)
+	}
+	// The following top-level block must survive untouched.
+	if !strings.Contains(pruned, "storage:\n  mongo: true") {
+		t.Errorf("block after extensions was clobbered:\n%s", pruned)
+	}
+
+	// nil keep (no selection) is a no-op.
+	if got := pruneExtensionsBlock(manifest, nil); got != manifest {
+		t.Errorf("nil keep should be a no-op")
+	}
+}
+
+func TestPruneExtensionArtifacts(t *testing.T) {
+	build := `prexorcloudModule {
+    archiveName.set("m")
+    extensionArtifacts.set(
+        mapOf(
+            "extensions/server/folia/m-folia.jar" to ":cloud-modules:m:plugin:folia",
+            "extensions/proxy/velocity/m-velocity.jar" to ":cloud-modules:m:plugin:velocity",
+            "extensions/server/paper/m-paper.jar" to ":cloud-modules:m:plugin:paper",
+            "extensions/server/bedrock-geyser/m-bedrock-geyser.jar"
+                to ":cloud-modules:m:plugin:bedrock-geyser",
+        ),
+    )
+}
+`
+	pruned := pruneExtensionArtifacts(build, map[string]bool{"paper": true})
+	if !strings.Contains(pruned, ":plugin:paper") {
+		t.Errorf("paper artifact dropped:\n%s", pruned)
+	}
+	for _, gone := range []string{":plugin:folia", ":plugin:velocity", ":plugin:bedrock-geyser", "bedrock-geyser.jar"} {
+		if strings.Contains(pruned, gone) {
+			t.Errorf("%s should have been pruned:\n%s", gone, pruned)
+		}
+	}
+	// Structure survives.
+	for _, want := range []string{"extensionArtifacts.set(", "mapOf(", "archiveName.set"} {
+		if !strings.Contains(pruned, want) {
+			t.Errorf("structural line %q lost:\n%s", want, pruned)
+		}
+	}
+	if got := pruneExtensionArtifacts(build, nil); got != build {
+		t.Errorf("nil keep should be a no-op")
 	}
 }
 

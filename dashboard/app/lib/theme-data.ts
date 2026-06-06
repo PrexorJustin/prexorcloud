@@ -5,16 +5,20 @@ export interface AccentColor {
   light: string  // light mode
 }
 
+// `light` values clear WCAG AA (4.5:1) both as text on the light sand surfaces
+// and as a fill under white button text. Cyan/Orange/Green/Yellow/Pink were
+// darkened from their original mid-tones (which sat at 2.8–3.7:1) — see the
+// authed-axe gate (E-P1.1). Blue/Violet/Rose/Red already passed.
 export const accentColors: AccentColor[] = [
-  { name: 'Cyan', value: '#06b6d4', light: '#0891b2' },
+  { name: 'Cyan', value: '#06b6d4', light: '#06708a' },
   { name: 'Blue', value: '#3b82f6', light: '#2563eb' },
   { name: 'Violet', value: '#8b5cf6', light: '#7c3aed' },
   { name: 'Rose', value: '#f43f5e', light: '#e11d48' },
-  { name: 'Orange', value: '#f97316', light: '#ea580c' },
-  { name: 'Green', value: '#10b981', light: '#059669' },
-  { name: 'Yellow', value: '#eab308', light: '#ca8a04' },
+  { name: 'Orange', value: '#f97316', light: '#b34309' },
+  { name: 'Green', value: '#10b981', light: '#047653' },
+  { name: 'Yellow', value: '#eab308', light: '#8a5f03' },
   { name: 'Red', value: '#ef4444', light: '#dc2626' },
-  { name: 'Pink', value: '#ec4899', light: '#db2777' },
+  { name: 'Pink', value: '#ec4899', light: '#c12269' },
 ]
 
 export const radii = [0, 0.25, 0.5, 0.75, 1] as const

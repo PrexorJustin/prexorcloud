@@ -153,6 +153,8 @@ public final class PrexorCloudBootstrap {
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
     private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
     private me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry telemetry;
+    private final me.prexorjustin.prexorcloud.controller.observability.telemetry.MongoCommandTracer mongoCommandTracer =
+            new me.prexorjustin.prexorcloud.controller.observability.telemetry.MongoCommandTracer();
 
     public PrexorCloudBootstrap(ControllerConfig config) {
         this.config = config;
@@ -167,6 +169,9 @@ public final class PrexorCloudBootstrap {
         startClusterControlPlane();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
+        // Distributed tracing (Track D). Built here — after the effective cluster config resolves —
+        // so the Redis client can be instrumented at connection time. No-op unless telemetry.enabled.
+        telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         runtime = initRuntimeServices();
         var core = initCore(runtime.runtimeStore(), store);
         clusterControlService.attachEventBus(core.eventBus());
@@ -180,13 +185,14 @@ public final class PrexorCloudBootstrap {
 
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
         controller.setClusterControlPlane(clusterControlService.controlPlane());
-        // Distributed tracing (Track D). No-op unless telemetry.enabled — see TelemetryConfig.
-        telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         controller.setTelemetry(telemetry);
         if (controller.authManager() != null) {
             controller.authManager().setTracer(telemetry.tracer());
         }
         clusterControlService.attachTracer(telemetry.tracer());
+        if (telemetry.isEnabled()) {
+            mongoCommandTracer.attachTracer(telemetry.tracer());
+        }
         var pasteClient = new me.prexorjustin.prexorcloud.controller.share.PasteClient(config.share());
         controller.setShareService(new me.prexorjustin.prexorcloud.controller.share.ShareService(
                 config.share(),
@@ -309,7 +315,13 @@ public final class PrexorCloudBootstrap {
                     + " running multiple controllers or load-testing against production behaviour.");
             return new InMemoryRuntimeServices();
         }
-        return new RedisRuntimeServices(new RedisConnection(config.redis().uri()), REDIS_MAPPER, config.uuid());
+        // Instrument Redis only when telemetry is on; Lettuce is built without the adapter otherwise
+        // and behaves exactly as before (Track D.1).
+        io.lettuce.core.tracing.Tracing redisTracing = telemetry != null && telemetry.isEnabled()
+                ? new me.prexorjustin.prexorcloud.controller.observability.telemetry.RedisTracing(telemetry.tracer())
+                : null;
+        return new RedisRuntimeServices(
+                new RedisConnection(config.redis().uri(), redisTracing), REDIS_MAPPER, config.uuid());
     }
 
     private PrexorController.CoreServices initCore(
@@ -411,7 +423,13 @@ public final class PrexorCloudBootstrap {
     }
 
     private StateStore initStorage() {
-        mongoClient = MongoClients.create(config.database().uri());
+        // Register the OTel command listener at client-build time (Track D.1). It stays inert
+        // until attachTracer() runs after the telemetry SDK is up — see start().
+        var mongoSettings = com.mongodb.MongoClientSettings.builder()
+                .applyConnectionString(new com.mongodb.ConnectionString(config.database().uri()))
+                .addCommandListener(mongoCommandTracer)
+                .build();
+        mongoClient = MongoClients.create(mongoSettings);
         mongoDatabase = mongoClient.getDatabase(config.database().database());
         var stateStore = new MongoStateStore(mongoClient, mongoDatabase);
         stateStore.initialize();

@@ -70,6 +70,7 @@ public final class WorkloadDtoMapper {
         dto.put("name", player.name());
         dto.put("instanceId", player.instanceId());
         dto.put("group", player.group());
+        dto.put("edition", player.edition());
         return dto;
     }
 
