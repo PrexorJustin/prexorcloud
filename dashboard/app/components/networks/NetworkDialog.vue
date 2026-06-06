@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Plus, Network as NetworkIcon, Loader2, X, Search, ArrowDown, ArrowUp, Server, GitBranch } from "lucide-vue-next"
+import { Plus, Network as NetworkIcon, Loader2, X, ArrowDown, ArrowUp, Server, GitBranch, Smartphone } from "lucide-vue-next"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
@@ -47,6 +47,8 @@ const fallbackGroups = ref<string[]>([])
 const memberGroups = ref<string[]>([])
 const proxyGroups = ref<string[]>([])
 const kickMessage = ref("")
+const bedrockLobbyGroup = ref("")
+const bedrockFallbackGroups = ref<string[]>([])
 
 const PROXY_PLATFORMS = new Set(["velocity", "bungeecord", "waterfall"])
 const allServerGroupNames = computed(() => groupsStore.groups
@@ -83,6 +85,18 @@ const proxyError = computed(() => {
   }
   return null
 })
+const bedrockLobbyError = computed(() => {
+  if (!bedrockLobbyGroup.value) return null
+  if (!allServerGroupNames.value.includes(bedrockLobbyGroup.value)) return t("components.networkDialog.errors.bedrockLobbyInvalid")
+  return null
+})
+// The implicit last-resort Bedrock lobby is the dedicated one when set, else the shared Java lobby.
+const effectiveBedrockLobby = computed(() => bedrockLobbyGroup.value || lobbyGroup.value)
+const bedrockFallbackError = computed(() => {
+  if (bedrockFallbackGroups.value.includes(effectiveBedrockLobby.value)) return t("components.networkDialog.errors.bedrockFallbackHasLobby")
+  if (new Set(bedrockFallbackGroups.value).size !== bedrockFallbackGroups.value.length) return t("components.networkDialog.errors.duplicateEntries")
+  return null
+})
 
 const formValid = computed(() =>
   nameValid.value
@@ -90,6 +104,8 @@ const formValid = computed(() =>
   && !lobbyError.value
   && !fallbackError.value
   && !proxyError.value
+  && !bedrockLobbyError.value
+  && !bedrockFallbackError.value
   && (kickMessage.value.length <= 256)
   && (description.value.length <= 256),
 )
@@ -103,6 +119,8 @@ function reset() {
     memberGroups.value = [...(props.network.memberGroups ?? [])]
     proxyGroups.value = [...(props.network.proxyGroups ?? [])]
     kickMessage.value = props.network.kickMessage ?? ""
+    bedrockLobbyGroup.value = props.network.bedrockLobbyGroup ?? ""
+    bedrockFallbackGroups.value = [...(props.network.bedrockFallbackGroups ?? [])]
   } else {
     name.value = ""
     description.value = ""
@@ -111,6 +129,8 @@ function reset() {
     memberGroups.value = []
     proxyGroups.value = []
     kickMessage.value = ""
+    bedrockLobbyGroup.value = ""
+    bedrockFallbackGroups.value = []
   }
 }
 
@@ -128,6 +148,8 @@ async function submit() {
     memberGroups: [...memberGroups.value],
     proxyGroups: [...proxyGroups.value],
     kickMessage: kickMessage.value.trim(),
+    bedrockLobbyGroup: bedrockLobbyGroup.value.trim(),
+    bedrockFallbackGroups: [...bedrockFallbackGroups.value],
   }
   try {
     if (isEdit.value) await store.updateNetwork(props.network!.name, body)
@@ -164,6 +186,32 @@ function moveFallback(i: number, dir: -1 | 1) {
   const next = [...fallbackGroups.value]
   ;[next[i], next[j]] = [next[j]!, next[i]!]
   fallbackGroups.value = next
+}
+
+// ── Bedrock fallback chain editor (ordered, optional) ──
+const bedrockFallbackPicker = ref("")
+const bedrockFallbackPickerOptions = computed(() =>
+  allServerGroupNames.value
+    .filter(g => g !== effectiveBedrockLobby.value && !bedrockFallbackGroups.value.includes(g)),
+)
+function addBedrockFallback() {
+  const v = bedrockFallbackPicker.value.trim()
+  if (!v) return
+  if (!allServerGroupNames.value.includes(v)) { toast.error(t("toast.networks.notBackendGroup", { name: `"${v}"` })); return }
+  if (v === effectiveBedrockLobby.value) { toast.error(t("toast.networks.lobbyInFallback")); return }
+  if (bedrockFallbackGroups.value.includes(v)) return
+  bedrockFallbackGroups.value = [...bedrockFallbackGroups.value, v]
+  bedrockFallbackPicker.value = ""
+}
+function removeBedrockFallback(i: number) {
+  bedrockFallbackGroups.value = bedrockFallbackGroups.value.filter((_, idx) => idx !== i)
+}
+function moveBedrockFallback(i: number, dir: -1 | 1) {
+  const j = i + dir
+  if (j < 0 || j >= bedrockFallbackGroups.value.length) return
+  const next = [...bedrockFallbackGroups.value]
+  ;[next[i], next[j]] = [next[j]!, next[i]!]
+  bedrockFallbackGroups.value = next
 }
 
 // ── Member / proxy chip editors ─────────────────
@@ -287,6 +335,54 @@ function removeProxy(g: string) { proxyGroups.value = proxyGroups.value.filter(x
               <button type="button" :aria-label="t('common.a11y.moveUp')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === 0" @click="moveFallback(i, -1)"><ArrowUp class="size-3.5" /></button>
               <button type="button" :aria-label="t('common.a11y.moveDown')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === fallbackGroups.length - 1" @click="moveFallback(i, 1)"><ArrowDown class="size-3.5" /></button>
               <button type="button" :aria-label="t('common.a11y.remove')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10" @click="removeFallback(i)"><X class="size-3.5" /></button>
+            </li>
+          </ol>
+        </div>
+
+        <!-- Bedrock routing (optional, Track F.1) -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <Label class="flex items-center gap-1.5"><Smartphone class="size-3.5 text-muted-foreground" /> {{ t('components.networkDialog.bedrockRoutingLabel') }}</Label>
+            <span class="text-[11px] text-muted-foreground">{{ t('components.networkDialog.bedrockRoutingHint') }}</span>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <Label for="net-bedrock-lobby" class="text-xs">{{ t('components.networkDialog.bedrockLobbyGroupLabel') }} <span class="text-muted-foreground font-normal">{{ t('components.networkDialog.bedrockLobbyGroupHint') }}</span></Label>
+            <Input
+              id="net-bedrock-lobby"
+              v-model="bedrockLobbyGroup"
+              list="bedrock-lobby-options"
+              :placeholder="t('components.networkDialog.bedrockLobbyGroupPlaceholder')"
+              autocomplete="off"
+              class="bg-glass border-glass-border"
+            />
+            <datalist id="bedrock-lobby-options">
+              <option v-for="g in allServerGroupNames" :key="g" :value="g" />
+            </datalist>
+            <p v-if="bedrockLobbyError" class="text-xs text-destructive">{{ bedrockLobbyError }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <Input
+              v-model="bedrockFallbackPicker"
+              list="bedrock-fallback-options"
+              :placeholder="t('components.networkDialog.addBedrockBackendGroupPlaceholder')"
+              autocomplete="off"
+              class="bg-glass border-glass-border flex-1"
+              @keydown.enter.prevent="addBedrockFallback"
+            />
+            <datalist id="bedrock-fallback-options">
+              <option v-for="g in bedrockFallbackPickerOptions" :key="g" :value="g" />
+            </datalist>
+            <Button variant="outline" class="border-glass-border" :disabled="!bedrockFallbackPicker.trim()" @click="addBedrockFallback">{{ t('components.networkDialog.add') }}</Button>
+          </div>
+          <p v-if="bedrockFallbackError" class="text-xs text-destructive">{{ bedrockFallbackError }}</p>
+          <div v-if="bedrockFallbackGroups.length === 0" class="text-xs text-muted-foreground py-2 px-3 rounded-lg bg-glass/30 border border-dashed border-glass-border/50">{{ t('components.networkDialog.noBedrockFallbackGroups') }}</div>
+          <ol v-else class="flex flex-col gap-1.5">
+            <li v-for="(g, i) in bedrockFallbackGroups" :key="g" class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-glass/40 border border-glass-border/60">
+              <span class="text-xs tabular-nums text-muted-foreground w-5 text-right">{{ i + 1 }}.</span>
+              <span class="text-sm text-foreground flex-1">{{ g }}</span>
+              <button type="button" :aria-label="t('common.a11y.moveUp')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === 0" @click="moveBedrockFallback(i, -1)"><ArrowUp class="size-3.5" /></button>
+              <button type="button" :aria-label="t('common.a11y.moveDown')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-glass-hover disabled:opacity-30 disabled:hover:bg-transparent" :disabled="i === bedrockFallbackGroups.length - 1" @click="moveBedrockFallback(i, 1)"><ArrowDown class="size-3.5" /></button>
+              <button type="button" :aria-label="t('common.a11y.remove')" class="size-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10" @click="removeBedrockFallback(i)"><X class="size-3.5" /></button>
             </li>
           </ol>
         </div>

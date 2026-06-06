@@ -2631,6 +2631,13 @@
       "addBackendGroupPlaceholder": "Add backend group…",
       "add": "Add",
       "noFallbackGroups": "No fallback groups configured. Lobby is the only target.",
+      "bedrockRoutingLabel": "Bedrock routing",
+      "bedrockRoutingHint": "Optional — separate route for Bedrock players.",
+      "bedrockLobbyGroupLabel": "Bedrock lobby group",
+      "bedrockLobbyGroupHint": "(blank = use the Java lobby)",
+      "bedrockLobbyGroupPlaceholder": "Leave blank to reuse the Java lobby",
+      "addBedrockBackendGroupPlaceholder": "Add Bedrock backend group…",
+      "noBedrockFallbackGroups": "No Bedrock-specific fallbacks. Bedrock follows the Java chain.",
       "memberGroupsLabel": "Member backend groups",
       "memberGroupsHint": "Empty = no restriction.",
       "proxyGroupsLabel": "Proxy groups",
@@ -2651,7 +2658,9 @@
         "lobbyInvalid": "Group does not exist or is a proxy",
         "fallbackHasLobby": "Fallback chain must not include the lobby group",
         "duplicateEntries": "Duplicate entries",
-        "notProxyPlatform": "{name} is not a proxy-platform group"
+        "notProxyPlatform": "{name} is not a proxy-platform group",
+        "bedrockLobbyInvalid": "Group does not exist or is a proxy",
+        "bedrockFallbackHasLobby": "Bedrock fallback chain must not include the Bedrock lobby"
       },
       "removeMemberGroup": "Remove member group",
       "removeProxyGroup": "Remove proxy group"

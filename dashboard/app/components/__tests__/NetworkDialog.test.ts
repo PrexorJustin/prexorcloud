@@ -152,6 +152,47 @@ describe('NetworkDialog', () => {
     expect(toastError).toHaveBeenCalledWith('Failed to create network')
   })
 
+  it('includes Bedrock routing in the create payload when set', async () => {
+    await mountCreateOpen()
+    await setInput(bodyInput('net-name'), 'main')
+    await setInput(bodyInput('net-lobby'), 'lobby')
+    await setInput(bodyInput('net-bedrock-lobby'), 'creative')
+    const bedrockPicker = document.body.querySelector('input[placeholder="Add Bedrock backend group…"]') as HTMLInputElement
+    await setInput(bedrockPicker, 'survival')
+    addButtonFor(bedrockPicker).click()
+    await nextTick()
+    findButton('Create network')!.click()
+    await new Promise((r) => setTimeout(r))
+    expect(createNetwork).toHaveBeenCalledWith(expect.objectContaining({
+      bedrockLobbyGroup: 'creative',
+      bedrockFallbackGroups: ['survival'],
+    }))
+  })
+
+  it('rejects a Bedrock fallback equal to the Bedrock lobby with a toast', async () => {
+    await mountCreateOpen()
+    await setInput(bodyInput('net-bedrock-lobby'), 'creative')
+    const bedrockPicker = document.body.querySelector('input[placeholder="Add Bedrock backend group…"]') as HTMLInputElement
+    await setInput(bedrockPicker, 'creative')
+    addButtonFor(bedrockPicker).click()
+    await nextTick()
+    expect(toastError).toHaveBeenCalled()
+  })
+
+  it('seeds Bedrock routing fields in edit mode', async () => {
+    const network = {
+      name: 'main', description: '', lobbyGroup: 'lobby',
+      fallbackGroups: [], memberGroups: [], proxyGroups: [], kickMessage: '',
+      bedrockLobbyGroup: 'creative', bedrockFallbackGroups: ['survival'],
+    }
+    const wrapper = await mountSuspended(NetworkDialog, { props: { network, open: false } })
+    active = wrapper
+    await wrapper.setProps({ open: true })
+    await nextTick()
+    expect(bodyInput('net-bedrock-lobby').value).toBe('creative')
+    expect(document.body.textContent).toContain('survival')
+  })
+
   it('seeds fields and calls updateNetwork in edit mode', async () => {
     const network = {
       name: 'main', description: 'd', lobbyGroup: 'lobby',
