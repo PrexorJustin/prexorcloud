@@ -24,7 +24,7 @@ Dadurch schrumpft die ehrliche Effort-Schätzung von ~20 auf **~13–14 eng-days
 
 | Phase | Inhalt | Effort | northstar-Mapping | Gate |
 |---|---|---|---|---|
-| **E-P1** | A11y-Runtime-Härtung (authed-axe ⏳scaffold, Contrast ✅, Keyboard-Nav ✅) | ~5–6 d (E-P1.2 ✅, E-P1.3 ✅, E-P1.1 scaffold) | E.2 (A11y-Pass) | **Hart**: axe 0 serious/critical über authed-Flows |
+| **E-P1** | A11y-Runtime-Härtung (authed-axe ⏳funktional+soft, Contrast ✅, Keyboard-Nav ✅) | ~5–6 d (E-P1.2 ✅, E-P1.3 ✅, E-P1.1 funktional, Hart blockiert auf Accent-Palette) | E.2 (A11y-Pass) | **Hart**: axe 0 serious/critical über authed-Flows |
 | **E-P2** | Installer-Entdoppelung + Installer-A11y-Lint ✅ | ~3–4 d (A11y-Lint ✅) | E.3 | Hart: Installer-a11y-Lint grün ✅, Drift-Guard erweitert ⏳ |
 | **E-P3** | Website-Starlight-Theme aus DS-Tokens generieren | ~3 d (HSL-Foundation ✅) | E.4 | Hart: Theme-Freshness-Guard |
 | **E-P4** | DS-Component-Library-Close-out (Entscheidung + components.css-Ausbau) ✅ | ~1 d ✅ | E.1-Rest | components.test.mjs grün ✅, ADR 33 ✅ |
@@ -46,9 +46,15 @@ Reihenfolge-Constraint: **E-P1 zuerst** (Erfolgskriterium des Milestones). E-P2/
 - **Authed-axe-Script** `dashboard/scripts/axe-authed.mjs` (standalone, `playwright` + `@axe-core/playwright`): seedet `auth_token` via `context.addInitScript` vor jeder Navigation, scannt 16 statische Critical-Routes (inkl. `/cluster/config`), filtert auf `serious`+`critical`, erkennt Silent-Redirect-zu-`/login` (Auth nicht rehydriert → skip+Warnung), Exit 1 bei Findings. Detail-Routen (`/groups/[name]`, `/instances/[id]`) via `AXE_EXTRA_ROUTES` (brauchen deterministische Fixtures → Follow-up).
 - **CI-Step** (`ci.yml`, dashboard-Job): Build mit `VITE_DEV_MOCK=1`, dann `pnpm preview` + `npm i --no-save @axe-core/playwright playwright` + `npx playwright install --with-deps chromium` + `node scripts/axe-authed.mjs`. **Soft** (`continue-on-error`) — kein Lockfile-Change (`--no-save`-Pattern wie der bestehende unauthed-axe-Job), kann den Build nicht brechen, solange noch nicht in CI validiert.
 
-**Noch offen (Härtung):**
-- Ersten CI-Lauf abwarten, Browser-Install + Route-Rehydration verifizieren, axe-`serious`-Backlog sichten.
-- Gate von **soft → hart** ziehen (`serious`+`critical` = 0), mit Allow-List für bewusst akzeptierte Findings (analog i18n-`ALLOW`).
+**Nachgezogen (2026-06-06) — der Scaffold war ein stiller False-Green, jetzt real:**
+- **Gate lief nie:** `VITE_DEV_MOCK=1 pnpm build` erreichte den Client nicht. Vite liest `import.meta.env` nur aus `.env`-Dateien, nicht aus Shell-Vars — `DEV_MOCK_ENABLED` kompilierte zu `false`, der Mock patchte `fetch` nie, jede authed-Route bounce-te still nach `/login`, und der Scan meldete `0/16 Routen → 0 Findings` (grün, aber blind). Fix: Flag über ein `vite.define`-Global (`__DEV_MOCK__`) in `nuxt.config` einspeisen (`enabled.ts` liest es mit `typeof`-Guard für vitest). Release-Build verifiziert: `__DEV_MOCK__=false` → Mock dead-code-eliminated, **0** Chunks patchen `globalThis.fetch`.
+- **CI-Install war kaputt:** beide axe-Steps liefen `npm i --no-save` in `dashboard/` — plain npm scheitert an den `workspace:*`-Deps (`EUNSUPPORTEDPROTOCOL`), d.h. der Scan-Step brach vor dem Scan ab (vom `continue-on-error` geschluckt). Fix: CLI via `npx --yes`, Playwright-Scan in einem `mktemp`-Dir (ESM kann `playwright` nicht über `NODE_PATH` auflösen; das Script hat keine lokalen Datei-Deps).
+- **Nebenbei: `pnpm build` war auf `main` kaputt** — `types.d.ts` war seit dem F.1-`edition`-Feld nicht regeneriert, `sdk:check` (erster Build-Schritt) failte. Regeneriert.
+- **Realer Backlog gesichtet + zum Großteil gefixt** (16/16 Routen jetzt wirklich gescannt): `html-has-lang` (alle 16 → `<html lang>` gesetzt), `scrollable-region-focusable` (`/audit`), und die systemischen Neutral-Text-Kontraste (`--faint`/`--muted-foreground`/`--sidebar-foreground` zu hell auf den Sand-Surfaces; Sidebar-Group-Labels mit Sub-AA-`/50`-Opacity; `.eyebrow`-Teal-als-Text → neues `--accent-text`). Von **16 Routen × (2–3 serious)** runter auf **11 Routen × 1–4 Kontrast-Nodes**.
+
+**Noch offen (Härtung) — der Rest ist EINE Design-Entscheidung:**
+- **Der gesamte Residual-Backlog ist die Accent-Palette** (`app/lib/theme-data.ts`): 5 der 9 wählbaren Light-Accents erfüllen AA nicht — als Nav-Text **und** als Button-Fläche unter weißem Text. Gemessen (Text auf `#fbfaf8` / weiß-auf-Fläche): **Cyan** 3.53/3.68, **Orange** 3.41/3.56, **Green** 3.61/3.77, **Yellow** 2.82/2.94, **Pink** 4.41/ok. Blue/Violet/Rose/Red bestehen. Das ist ein sichtbarer Produkt-Change (Yellow müsste z.B. zu dunklem Amber werden) — **Design-Owner-Entscheidung**, nicht unilateral; der Scan trifft nur den aktiven Accent (Default Cyan), die anderen 4 sind latent.
+- Erst wenn die Palette AA-konform ist (oder Active-Nav/Primary-Button die Teal-als-Text/Weiß-auf-Teal-Muster vermeiden), kann das Gate **soft → hart** (`serious`+`critical` = 0). Bis dahin bleibt es **soft, aber funktional** — es fängt jetzt echte Regressionen.
 - Detail-Routen-Fixtures + `/groups/[name]`, `/instances/[id]` in den Scan ziehen.
 
 **Akzeptanz (bei Härtung):** CI failed, wenn eine authed-Critical-Route ein `serious`/`critical` axe-Finding hat. Grüner Lauf = Dashboard-A11y-Baseline ≥ 90 (Milestone-v1.2-Kriterium).
@@ -164,7 +170,7 @@ E-P4 (DS-Closeout)── unabhängig ──┘
 
 | # | Gate | Phase | Hart/Soft |
 |---|---|---|---|
-| 1 | authed-Flow-axe: 0 `serious`/`critical` über die Critical-Routes — ⏳ **scaffolded (soft)**, Härtung nach 1. CI-Lauf | E-P1.1 | soft → **hart** |
+| 1 | authed-Flow-axe: 0 `serious`/`critical` über die Critical-Routes — ⏳ **funktional (soft)**: Gate lief nie (dev-mock kompilierte aus), jetzt real scannend; Backlog bis auf 5 sub-AA-Accents gefixt → hart blockiert auf Accent-Palette-Entscheidung | E-P1.1 | soft → **hart** |
 | 2 | Token-Contrast-Test: alle Body-Paare ≥ 4.5:1, Floor 3.0:1 (dark+light) — ✅ **shipped** | E-P1.2 | **hart** |
 | 3 | Group-Create → Deploy vollständig per Tastatur (+ Regressions-Tests) — ✅ **shipped** (E2E-Browser-Check via E-P1.1) | E-P1.3 | **hart** |
 | 4 | Installer-a11y-Lint grün ✅ (hart in CI); Drift-Guard deckt Installer-Semantik ⏳ | E-P2 | **hart** |
