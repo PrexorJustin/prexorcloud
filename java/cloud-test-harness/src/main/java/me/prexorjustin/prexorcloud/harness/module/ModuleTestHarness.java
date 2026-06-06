@@ -185,7 +185,10 @@ public final class ModuleTestHarness implements AutoCloseable {
                 new RedisConfig(redisUri),
                 null,
                 new me.prexorjustin.prexorcloud.controller.config.RaftConfig(
-                        "127.0.0.1", raftPort, controllerDir.resolve("data/raft").toString(), java.util.List.of()));
+                        "127.0.0.1",
+                        raftPort,
+                        controllerDir.resolve("data/raft").toString(),
+                        java.util.List.of()));
 
         String previousUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", controllerDir.toString());
