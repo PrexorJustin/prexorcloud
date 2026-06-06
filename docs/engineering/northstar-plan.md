@@ -15,7 +15,10 @@
 
 **Gesamt ≈ 73 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 80 %** (C+D quasi fertig, **E ist die Lücke**) · **v1.3 ≈ 20 %** (F angefangen — F.1-Sichtbarkeit, H ≈ 45 %).
 
-**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~50 % · F ~8 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~75 % · F ~8 % · G 100 % · H ~45 %.
+
+**Zuletzt geliefert (Session 2026-06-06):**
+- **E-P1.1 authed-Flow-axe als harter Gate — v1.2-A11y-Kriterium erfüllt.** Der Scan war ein stiller False-Green (dev-mock kompilierte aus → 0/16 Routen gescannt, „grün"). Drei Infra-Bugs gefixt (dev-mock `vite.define`-Bridge, `pnpm build` auf `main` durch stale SDK-Types kaputt, CI-axe-Install scheiterte an `workspace:*`), dann den realen Backlog abgearbeitet: `<html lang>`, Audit-Scroll-Region, Neutral-Text-Kontraste, und 5 sub-AA-Accents abgedunkelt. **0 serious/critical über alle 16 authed-Routen**, CI-Gate ist jetzt **hart**. Track E ≈ 75 %.
 
 **Zuletzt geliefert (Session 2026-06-05, Teil 2):**
 - **F.1 Bedrock-vs-Java-Spieler-Sichtbarkeit** — Controller leitet pro Spieler eine `edition` aus der UUID ab (Floodgate-Konvention, kein Plugin-Change); Dashboard zeigt den Java/Bedrock-Split (Stat-Card, Detail-Zeile, Bedrock-Badge). `PlayerEditionTest` + Mapper/Store-Tests; OpenAPI + i18n en/de in sync. Routing-Verhalten + Geyser-Proxy bleiben offen. → erster Anstoß für Track F.
@@ -561,7 +564,7 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 **Erfolgs-Kriterien:**
 - 3 externe Module aus Community-Registry installiert + signaturgeprüft
 - Trace-Pfad Controller → Daemon → MC-Plugin sichtbar in Jaeger/Tempo
-- Lighthouse-A11y >= 90 auf Dashboard
+- ✅ Lighthouse-A11y >= 90 auf Dashboard — **erfüllt (2026-06-06)**: authed-Flow-axe (E-P1.1) ist 0 serious/critical über alle 16 Critical-Routes und ein **harter** CI-Gate
 
 **Aufwand: ~56 eng-days. Realistisch: 10–14 Wochen bei 1 FTE.**
 

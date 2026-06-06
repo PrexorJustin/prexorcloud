@@ -24,7 +24,7 @@ Dadurch schrumpft die ehrliche Effort-Schätzung von ~20 auf **~13–14 eng-days
 
 | Phase | Inhalt | Effort | northstar-Mapping | Gate |
 |---|---|---|---|---|
-| **E-P1** | A11y-Runtime-Härtung (authed-axe ⏳funktional+soft, Contrast ✅, Keyboard-Nav ✅) | ~5–6 d (E-P1.2 ✅, E-P1.3 ✅, E-P1.1 funktional, Hart blockiert auf Accent-Palette) | E.2 (A11y-Pass) | **Hart**: axe 0 serious/critical über authed-Flows |
+| **E-P1** | A11y-Runtime-Härtung (authed-axe ✅hart, Contrast ✅, Keyboard-Nav ✅) | ~5–6 d (E-P1.1/1.2/1.3 ✅) | E.2 (A11y-Pass) | **Hart** ✅: axe 0 serious/critical über authed-Flows |
 | **E-P2** | Installer-Entdoppelung + Installer-A11y-Lint ✅ | ~3–4 d (A11y-Lint ✅) | E.3 | Hart: Installer-a11y-Lint grün ✅, Drift-Guard erweitert ⏳ |
 | **E-P3** | Website-Starlight-Theme aus DS-Tokens generieren | ~3 d (HSL-Foundation ✅) | E.4 | Hart: Theme-Freshness-Guard |
 | **E-P4** | DS-Component-Library-Close-out (Entscheidung + components.css-Ausbau) ✅ | ~1 d ✅ | E.1-Rest | components.test.mjs grün ✅, ADR 33 ✅ |
@@ -52,10 +52,11 @@ Reihenfolge-Constraint: **E-P1 zuerst** (Erfolgskriterium des Milestones). E-P2/
 - **Nebenbei: `pnpm build` war auf `main` kaputt** — `types.d.ts` war seit dem F.1-`edition`-Feld nicht regeneriert, `sdk:check` (erster Build-Schritt) failte. Regeneriert.
 - **Realer Backlog gesichtet + zum Großteil gefixt** (16/16 Routen jetzt wirklich gescannt): `html-has-lang` (alle 16 → `<html lang>` gesetzt), `scrollable-region-focusable` (`/audit`), und die systemischen Neutral-Text-Kontraste (`--faint`/`--muted-foreground`/`--sidebar-foreground` zu hell auf den Sand-Surfaces; Sidebar-Group-Labels mit Sub-AA-`/50`-Opacity; `.eyebrow`-Teal-als-Text → neues `--accent-text`). Von **16 Routen × (2–3 serious)** runter auf **11 Routen × 1–4 Kontrast-Nodes**.
 
-**Noch offen (Härtung) — der Rest ist EINE Design-Entscheidung:**
-- **Der gesamte Residual-Backlog ist die Accent-Palette** (`app/lib/theme-data.ts`): 5 der 9 wählbaren Light-Accents erfüllen AA nicht — als Nav-Text **und** als Button-Fläche unter weißem Text. Gemessen (Text auf `#fbfaf8` / weiß-auf-Fläche): **Cyan** 3.53/3.68, **Orange** 3.41/3.56, **Green** 3.61/3.77, **Yellow** 2.82/2.94, **Pink** 4.41/ok. Blue/Violet/Rose/Red bestehen. Das ist ein sichtbarer Produkt-Change (Yellow müsste z.B. zu dunklem Amber werden) — **Design-Owner-Entscheidung**, nicht unilateral; der Scan trifft nur den aktiven Accent (Default Cyan), die anderen 4 sind latent.
-- Erst wenn die Palette AA-konform ist (oder Active-Nav/Primary-Button die Teal-als-Text/Weiß-auf-Teal-Muster vermeiden), kann das Gate **soft → hart** (`serious`+`critical` = 0). Bis dahin bleibt es **soft, aber funktional** — es fängt jetzt echte Regressionen.
-- Detail-Routen-Fixtures + `/groups/[name]`, `/instances/[id]` in den Scan ziehen.
+**Accent-Palette AA-konform + Gate HART (2026-06-06):** Der Residual-Backlog war die Accent-Palette (`app/lib/theme-data.ts`) — 5 der 9 wählbaren Light-Accents erfüllten AA nicht (Text auf Surface **und** weiß-auf-Fläche): Cyan 3.53/3.68, Orange 3.41/3.56, Green 3.61/3.77, Yellow 2.82/2.94, Pink 4.41. Auf Design-Owner-Entscheidung abgedunkelt (Hue erhalten, lichteste AA-konforme Variante): Cyan→`#06708a`, Orange→`#b34309`, Green→`#047653`, Yellow→`#8a5f03` (dunkles Amber), Pink→`#c12269`; Blue/Violet/Rose/Red bestanden bereits. **Scan jetzt 0 serious/critical über alle 16 Routen** → CI-Step verliert `continue-on-error`, ist also der **harte** E-P1.1-Gate. Damit ist das **v1.2-Kriterium „Lighthouse-A11y ≥ 90 auf Dashboard" erfüllt** (axe 0 serious/critical über die authed-Flows).
+
+**Noch offen (klein):**
+- Detail-Routen-Fixtures + `/groups/[name]`, `/instances/[id]` in den Scan ziehen (heute via `AXE_EXTRA_ROUTES`, brauchen deterministische Mock-IDs).
+- Andere Accents (Blue/Violet/…) sind per Rechnung AA, aber der Scan trifft nur den aktiven (Default Cyan) — ein Multi-Accent-Sweep wäre eine spätere Zusatz-Härtung.
 
 **Akzeptanz (bei Härtung):** CI failed, wenn eine authed-Critical-Route ein `serious`/`critical` axe-Finding hat. Grüner Lauf = Dashboard-A11y-Baseline ≥ 90 (Milestone-v1.2-Kriterium).
 
@@ -170,7 +171,7 @@ E-P4 (DS-Closeout)── unabhängig ──┘
 
 | # | Gate | Phase | Hart/Soft |
 |---|---|---|---|
-| 1 | authed-Flow-axe: 0 `serious`/`critical` über die Critical-Routes — ⏳ **funktional (soft)**: Gate lief nie (dev-mock kompilierte aus), jetzt real scannend; Backlog bis auf 5 sub-AA-Accents gefixt → hart blockiert auf Accent-Palette-Entscheidung | E-P1.1 | soft → **hart** |
+| 1 | authed-Flow-axe: 0 `serious`/`critical` über die Critical-Routes — ✅ **hart (2026-06-06)**: 0 serious/critical über alle 16 authed-Routen, CI-Step ohne `continue-on-error` | E-P1.1 | **hart** ✅ |
 | 2 | Token-Contrast-Test: alle Body-Paare ≥ 4.5:1, Floor 3.0:1 (dark+light) — ✅ **shipped** | E-P1.2 | **hart** |
 | 3 | Group-Create → Deploy vollständig per Tastatur (+ Regressions-Tests) — ✅ **shipped** (E2E-Browser-Check via E-P1.1) | E-P1.3 | **hart** |
 | 4 | Installer-a11y-Lint grün ✅ (hart in CI); Drift-Guard deckt Installer-Semantik ⏳ | E-P2 | **hart** |
