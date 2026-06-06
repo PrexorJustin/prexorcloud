@@ -8,6 +8,8 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+import me.prexorjustin.prexorcloud.api.domain.PlayerEdition;
+
 public final class PlayerSessionRegistry {
 
     private final Map<UUID, PlayerInfo> players = new ConcurrentHashMap<>();

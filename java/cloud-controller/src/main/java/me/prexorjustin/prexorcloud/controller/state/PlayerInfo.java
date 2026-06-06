@@ -3,6 +3,8 @@ package me.prexorjustin.prexorcloud.controller.state;
 import java.time.Instant;
 import java.util.UUID;
 
+import me.prexorjustin.prexorcloud.api.domain.PlayerEdition;
+
 public record PlayerInfo(
         UUID uuid,
         String name,

@@ -3186,6 +3186,8 @@ export interface components {
             memberGroups?: string[];
             proxyGroups?: string[];
             kickMessage?: string;
+            bedrockLobbyGroup?: string;
+            bedrockFallbackGroups?: string[];
         };
         PlayerJourneyEntry: {
             playerUuid?: string;

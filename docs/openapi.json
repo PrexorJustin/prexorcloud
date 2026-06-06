@@ -9076,6 +9076,15 @@
           },
           "kickMessage": {
             "type": "string"
+          },
+          "bedrockLobbyGroup": {
+            "type": "string"
+          },
+          "bedrockFallbackGroups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

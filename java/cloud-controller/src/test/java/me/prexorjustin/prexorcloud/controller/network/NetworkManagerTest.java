@@ -60,6 +60,12 @@ class NetworkManagerTest {
         return new NetworkComposition(name, "", lobby, fallbacks, members, proxies, "");
     }
 
+    private static NetworkComposition bedrockNet(
+            String name, String lobby, String bedrockLobby, List<String> bedrockFallbacks) {
+        return new NetworkComposition(
+                name, "", lobby, List.of(), List.of(), List.of(), "", bedrockLobby, bedrockFallbacks);
+    }
+
     @Test
     @DisplayName("create stores a network and exposes it via get/snapshot")
     void create_stores() {
@@ -159,6 +165,45 @@ class NetworkManagerTest {
     void create_rejectsDuplicateMember() {
         var n = net("main", "lobby", List.of(), List.of("a", "a"), List.of());
         assertThrows(IllegalArgumentException.class, () -> manager.create(n));
+    }
+
+    @Test
+    @DisplayName("create accepts a valid Bedrock lobby + fallback chain")
+    void create_acceptsBedrockRouting() {
+        manager.create(bedrockNet("main", "lobby", "bedrock-lobby", List.of("bedrock-survival")));
+        assertEquals("bedrock-lobby", manager.get("main").orElseThrow().bedrockLobbyGroup());
+    }
+
+    @Test
+    @DisplayName("create rejects when bedrockLobbyGroup does not exist")
+    void create_rejectsMissingBedrockLobby() {
+        when(groupManager.exists("ghost")).thenReturn(false);
+        assertThrows(
+                IllegalArgumentException.class, () -> manager.create(bedrockNet("main", "lobby", "ghost", List.of())));
+    }
+
+    @Test
+    @DisplayName("create rejects a Bedrock fallback equal to the Bedrock lobby")
+    void create_rejectsBedrockFallbackEqualsBedrockLobby() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> manager.create(bedrockNet("main", "lobby", "bedrock-lobby", List.of("bedrock-lobby"))));
+    }
+
+    @Test
+    @DisplayName("create rejects a Bedrock fallback equal to the shared lobby when no Bedrock lobby is set")
+    void create_rejectsBedrockFallbackEqualsSharedLobbyWhenNoBedrockLobby() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> manager.create(bedrockNet("main", "lobby", "", List.of("lobby"))));
+    }
+
+    @Test
+    @DisplayName("create rejects duplicate Bedrock fallback entries")
+    void create_rejectsDuplicateBedrockFallback() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> manager.create(bedrockNet("main", "lobby", "bedrock-lobby", List.of("a", "a"))));
     }
 
     @Test

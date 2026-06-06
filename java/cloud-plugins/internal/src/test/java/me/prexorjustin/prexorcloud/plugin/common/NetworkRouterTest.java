@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 
 import me.prexorjustin.prexorcloud.api.domain.NetworkComposition;
+import me.prexorjustin.prexorcloud.api.domain.PlayerEdition;
 import me.prexorjustin.prexorcloud.plugin.common.dto.GroupDto;
 
 import org.junit.jupiter.api.Test;
@@ -130,6 +131,106 @@ final class NetworkRouterTest {
         assertEquals("default", router.kickMessage("default"));
     }
 
+    @Test
+    void bedrockJoinTargetPrefersBedrockLobbyWhenSet() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(List.of(bedrockNetwork(
+                "main",
+                "lobby",
+                List.of("survival"),
+                "bedrock-lobby",
+                List.of("bedrock-survival"),
+                List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals(
+                "bedrock-lobby", router.joinTargetGroup(PlayerEdition.BEDROCK).orElseThrow());
+    }
+
+    @Test
+    void bedrockJoinTargetFallsBackToSharedLobbyWhenBedrockLobbyUnset() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(
+                List.of(bedrockNetwork("main", "lobby", List.of("survival"), "", List.of(), List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals("lobby", router.joinTargetGroup(PlayerEdition.BEDROCK).orElseThrow());
+    }
+
+    @Test
+    void javaJoinTargetIgnoresBedrockLobby() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(List.of(bedrockNetwork(
+                "main",
+                "lobby",
+                List.of("survival"),
+                "bedrock-lobby",
+                List.of("bedrock-survival"),
+                List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals("lobby", router.joinTargetGroup(PlayerEdition.JAVA).orElseThrow());
+    }
+
+    @Test
+    void bedrockFallbackChainUsesBedrockLobbyAndBedrockFallbacks() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(List.of(bedrockNetwork(
+                "main",
+                "lobby",
+                List.of("survival"),
+                "bedrock-lobby",
+                List.of("bedrock-survival"),
+                List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals(List.of("bedrock-lobby", "bedrock-survival"), router.fallbackChain(null, PlayerEdition.BEDROCK));
+    }
+
+    @Test
+    void bedrockFallbackChainUsesSharedChainWhenBedrockFallbacksEmpty() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(List.of(
+                bedrockNetwork("main", "lobby", List.of("survival"), "bedrock-lobby", List.of(), List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals(List.of("bedrock-lobby", "survival"), router.fallbackChain(null, PlayerEdition.BEDROCK));
+    }
+
+    @Test
+    void bedrockFallbackChainEqualsJavaChainWhenNoBedrockRouting() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(
+                List.of(bedrockNetwork("main", "lobby", List.of("survival"), "", List.of(), List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals(router.fallbackChain(null), router.fallbackChain(null, PlayerEdition.BEDROCK));
+    }
+
+    @Test
+    void bedrockFallbackChainExcludesSourceGroupForFailover() {
+        CloudStateCache cache = newCache();
+        cache.applyNetworkSnapshot(List.of(bedrockNetwork(
+                "main",
+                "lobby",
+                List.of("survival"),
+                "bedrock-lobby",
+                List.of("bedrock-survival", "bedrock-creative"),
+                List.of("primary"))));
+
+        NetworkRouter router = new NetworkRouter(cache, "primary");
+
+        assertEquals(
+                List.of("bedrock-lobby", "bedrock-creative"),
+                router.fallbackChain("bedrock-survival", PlayerEdition.BEDROCK));
+    }
+
     private static CloudStateCache newCache() {
         return new CloudStateCache(new ThrowingControllerClient(), 0);
     }
@@ -137,6 +238,17 @@ final class NetworkRouterTest {
     private static NetworkComposition network(
             String name, String lobby, List<String> fallbacks, List<String> proxyGroups, String kickMessage) {
         return new NetworkComposition(name, "", lobby, fallbacks, List.of(), proxyGroups, kickMessage);
+    }
+
+    private static NetworkComposition bedrockNetwork(
+            String name,
+            String lobby,
+            List<String> fallbacks,
+            String bedrockLobby,
+            List<String> bedrockFallbacks,
+            List<String> proxyGroups) {
+        return new NetworkComposition(
+                name, "", lobby, fallbacks, List.of(), proxyGroups, "", bedrockLobby, bedrockFallbacks);
     }
 
     private static GroupDto group(String name, boolean defaultGroup) {

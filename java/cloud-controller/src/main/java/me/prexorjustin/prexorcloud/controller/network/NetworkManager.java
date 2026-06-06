@@ -178,6 +178,30 @@ public final class NetworkManager {
         if (network.proxyGroups().size() != Set.copyOf(network.proxyGroups()).size()) {
             throw new IllegalArgumentException("proxyGroups contains duplicates");
         }
+
+        // Bedrock-edition routing (Track F.1): optional — validated only when configured.
+        String bedrockLobby = network.bedrockLobbyGroup();
+        if (!bedrockLobby.isBlank() && !groupManager.exists(bedrockLobby)) {
+            throw new IllegalArgumentException("bedrockLobbyGroup not found: " + bedrockLobby);
+        }
+        // The implicit last-resort Bedrock lobby is the dedicated one when set, else the shared lobby.
+        String effectiveBedrockLobby = bedrockLobby.isBlank() ? network.lobbyGroup() : bedrockLobby;
+        var bedrockFallbackSeen = new HashSet<String>();
+        for (String fallback : network.bedrockFallbackGroups()) {
+            if (fallback == null || fallback.isBlank()) {
+                throw new IllegalArgumentException("bedrockFallbackGroups must not contain blank values");
+            }
+            if (!groupManager.exists(fallback)) {
+                throw new IllegalArgumentException("bedrockFallbackGroups entry not found: " + fallback);
+            }
+            if (fallback.equals(effectiveBedrockLobby)) {
+                throw new IllegalArgumentException("bedrockFallbackGroups must not include the Bedrock lobby '"
+                        + effectiveBedrockLobby + "' (lobby is the implicit last-resort fallback)");
+            }
+            if (!bedrockFallbackSeen.add(fallback)) {
+                throw new IllegalArgumentException("bedrockFallbackGroups contains duplicate: " + fallback);
+            }
+        }
     }
 
     private Set<String> collectProxyPlatforms() {
