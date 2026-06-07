@@ -13,9 +13,11 @@
 
 ## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-07)
 
-**Gesamt ≈ 74 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 80 %** (C+D quasi fertig, **E ist die Lücke**) · **v1.3 ≈ 25 %** (F.1-Routing geshippt, dedizierter Geyser-Proxy offen; H ≈ 45 %).
+**Gesamt ≈ 81 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 90 %** (C+D fertig; E ≈ 90 %, Rest visuell/Browser-bound) · **v1.3 ≈ 65 %** (F.1/F.2/F.3 alle code-complete inkl. Geyser-Daemon-Provisioning, nur Laufzeit-Verifikation offen; H ≈ 88 %) · **v1.4 (Docs, Track I) ≈ 8 %** (I.0-Style-Spec geliefert).
 
-**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~75 % · F ~30 % · G 100 % · H ~45 %.
+**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~90 % · F ~88 % · G 100 % · H ~88 % · I ~8 %.
+
+**Was zum „fertig" noch fehlt (Stand 2026-06-07):** fast nur noch **Laufzeit-/Infra-Verifikation** (F.1/F.2/F.3 echte MC-Server + Bedrock-Client; H.1 Scheduler-p99 @100 Groups auf Mongo; H.1 Perf-Trend über 60 d; H.2 axe ≥95 mit CI-Test-Login; C.1 Registry-Hosting) **plus Track I (Docs-Rewrite)**. Genuin offene Implementierung ist nur dünner Polish: E-P2 Installer-CSS-Dedup + E-P3 Website-Theme-Wiring (beide visuell zu verifizieren). Bewusst out-of-scope: D.1 gRPC-Auto-Instrumentation.
 
 **Zuletzt geliefert (Session 2026-06-07):**
 - **F.1 Edition-bewusstes Bedrock-Routing.** `NetworkComposition` bekommt optionale `bedrockLobbyGroup` + `bedrockFallbackGroups` (leer ⇒ Bedrock folgt der Java-Route); `PlayerEdition` nach `cloud-api` gezogen, damit Controller **und** Proxy denselben UUID-Detektor teilen. `NetworkRouter.joinTargetGroup(edition)` / `fallbackChain(exclude, edition)` lösen pro Edition auf; Velocity- + Bungee-Listener leiten die Edition aus der Spieler-UUID ab (Initial-Join + Failover). Cross-Reference-Validierung im `NetworkManager`, Dashboard-Editor-Sektion (i18n en+de), OpenAPI + SDK-Typen regeneriert. Tests: `NetworkComposition`, `NetworkRouter` (7 Bedrock-Fälle), `NetworkManager`, `PlayerEdition`, `NetworkDialog` (3 neu).
@@ -192,7 +194,7 @@ Dashboard-Seiten unter `/cluster/*`:
 
 `prexorctl cluster recover --i-have-only-survivor` — single-member Raft-Reset für Majority-Loss. Interaktive Confirmation, Audit-Eintrag der den Reset überlebt. Doku in `docs/runbooks/cluster-recovery.md`.
 
-### A.10 ADR + Migration-Guide — *Phase 12* (~2 d) — ⏳ **teilweise shipped**: ADR 29 (embedded Ratis) + ADR 4 Update in `decisions.md` ✅; Migration-Runbook `docs/runbooks/v1.0-to-v1.1.md` und Recovery-Runbook noch ausstehend
+### A.10 ADR + Migration-Guide — *Phase 12* (~2 d) — ✅ **shipped**: ADR 29 (embedded Ratis) + ADR 4 Update in `decisions.md` ✅; Migration-Runbook (`docs/runbooks/upgrade-v1.0-to-v1.1.md`) + Recovery-Runbook (`docs/runbooks/recover-cluster.md`) unter G.2 geliefert
 
 ADR-Eintrag in `docs/decisions.md`: „Embedded Raft via Apache Ratis als Cluster-Control-Plane (statt Mongo-CAS / externem Coordinator)". Migration-Guide in `docs/runbooks/v1.0-to-v1.1.md`: Schritt-für-Schritt für die zwei Operator-Szenarien (Single-Controller-Upgrade, Multi-Controller-Upgrade).
 
