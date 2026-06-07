@@ -420,7 +420,17 @@ public final class ClusterState {
      * Register a player from the proxy with explicit proxy instance tracking.
      */
     public void addPlayer(UUID uuid, String name, String instanceId, String group, String proxyInstanceId) {
-        var updated = playerSessionRegistry.addReportedByProxy(uuid, name, instanceId, group, proxyInstanceId);
+        addPlayer(uuid, name, instanceId, group, proxyInstanceId, null);
+    }
+
+    /**
+     * Register a player from the proxy with explicit proxy instance tracking and an authoritative
+     * edition (blank ⇒ derived from the UUID). The Geyser sidecar passes {@code bedrock} so its
+     * sessions aren't mis-detected as Java.
+     */
+    public void addPlayer(
+            UUID uuid, String name, String instanceId, String group, String proxyInstanceId, String edition) {
+        var updated = playerSessionRegistry.addReportedByProxy(uuid, name, instanceId, group, proxyInstanceId, edition);
         if (runtimeStore != null) runtimeStore.savePlayer(uuid, updated.player());
         if (updated.created()) {
             eventBus.publish(new PlayerConnectedEvent(uuid, name, instanceId, group));

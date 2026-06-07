@@ -35,8 +35,18 @@ public final class PlayerSessionRegistry {
 
     public PlayerMutationResult addReportedByProxy(
             UUID uuid, String name, String instanceId, String group, String proxyInstanceId) {
-        var updated = new PlayerInfo(
-                uuid, name, instanceId, group, proxyInstanceId, Instant.now(), PlayerEdition.detect(uuid));
+        return addReportedByProxy(uuid, name, instanceId, group, proxyInstanceId, null);
+    }
+
+    /**
+     * Register a player from the proxy with an explicit edition. A blank/null edition falls back to
+     * UUID-based detection (see {@link PlayerInfo} / {@link PlayerEdition}); a proxy that
+     * authoritatively knows the client kind — e.g. the Geyser sidecar, which sees only Bedrock
+     * sessions — passes it directly so non-Floodgate Bedrock players aren't mis-detected as Java.
+     */
+    public PlayerMutationResult addReportedByProxy(
+            UUID uuid, String name, String instanceId, String group, String proxyInstanceId, String edition) {
+        var updated = new PlayerInfo(uuid, name, instanceId, group, proxyInstanceId, Instant.now(), edition);
         var previous = players.put(uuid, updated);
         return new PlayerMutationResult(updated, previous, previous == null);
     }
