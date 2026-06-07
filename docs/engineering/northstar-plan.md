@@ -553,8 +553,8 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 
 **Sequencing-Entscheidung:** **Zuletzt** ausführen — erst wenn E/F/H feature-complete sind, sonst churnt die Doku mit jedem User-facing-Change. **Ausnahme: I.0 (Style-/Voice-Spec) wird FRÜH definiert**, damit der spätere Rewrite mechanisch statt zur Diskussion wird.
 
-### I.0 Docs/README-Style- & Voice-Spec (~1 d) — **früh definieren**
-- Eine `docs/engineering/DOCS_STYLE.md`: Zielgruppen-Matrix (Operator vs. Developer), Voice/Tone-Regeln (aktiv, knapp, kein AI-Hedging — wiederverwendet die Dashboard-`lint-voice`-Prinzipien), Begriffs-Glossar, und ein **kanonisches README-Template** (Hero/Badges/Quickstart/Architektur/Contributing/Lizenz) im Design-System-Look. Optional ein `readme:lint`-Gate analog `i18n:check`.
+### I.0 Docs/README-Style- & Voice-Spec (~1 d) — ✅ **shipped (2026-06-07, vorgezogen)**
+- `docs/engineering/DOCS_STYLE.md` geliefert: Zielgruppen-Matrix (Operator / Integrator-Developer / Contributor), Voice-Regeln (aktiv, konkret, ruhig; Banned-Phrases-Liste gegen AI-Hedging; reuse der `lint:voice`-Prinzipien), Sentence-Case + CLI-Glyph-Konvention, Begriffs-Glossar (eine Schreibweise pro Term), Struktur-Standard (task-first), README-Standard (Pflicht-Sektionen + Badge-/Diagramm-/Screenshot-Visual-Language im Reef-Palette-Look) inkl. Per-Package-Matrix für alle 16 READMEs, Code-Beispiel-Bar und Enforcement-Pfad. Plus das kanonische `docs/engineering/templates/README.template.md`, das der I.3-Sweep kopiert. Self-compliant (sentence-case, keine Prosa-Emoji, alle Links aufgelöst).
 
 ### I.1 End-User-Docs (~4 d)
 - `docs/public/` (de+en) neu: Getting-Started, Install (Docker/native/Cluster), Betrieb, Upgrade, Troubleshooting, Recipes — aufgabenorientiert, nicht subsystem-orientiert.
