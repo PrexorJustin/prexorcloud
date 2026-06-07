@@ -380,6 +380,18 @@ public final class TestCluster implements AutoCloseable {
         Files.createDirectories(controllerDir.resolve("modules/data"));
 
         String controllerId = UUID.randomUUID().toString();
+        // Each controller instance gets its own Raft port and data dir. The default
+        // RaftConfig hardcodes port 9190 and dir data/raft, so an HA cluster (two
+        // concurrent controllers) or two single-controller tests in the same JVM
+        // would both try to bind 9190 and share one Raft store — the second peer's
+        // control plane fails to start and awaitLeader() times out after 15s.
+        // The Raft dir is keyed by controllerId rather than the shared controllerDir
+        // so that the on-disk backup catalog still survives a stopController() +
+        // startControllerAfterStop() restart (see startControllerAfterStop). Each
+        // controller stays its own single-node group (empty joinAddrs) — these tests
+        // exercise failover via the gRPC proxy and shared Mongo/Redis, not Raft quorum.
+        int raftPort = findFreePort();
+        Path raftDataDir = controllerDir.resolve("data").resolve("raft-" + controllerId);
         var config = new ControllerConfig(
                 controllerId,
                 new HttpConfig("127.0.0.1", directHttpPort, new CorsConfig()),
@@ -402,7 +414,11 @@ public final class TestCluster implements AutoCloseable {
                 new me.prexorjustin.prexorcloud.controller.config.BackupConfig(
                         controllerDir.resolve("backups").toString(), 10),
                 new me.prexorjustin.prexorcloud.controller.config.ShareConfig(),
-                redisUri == null ? null : new RedisConfig(redisUri));
+                List.of(),
+                List.of(),
+                redisUri == null ? null : new RedisConfig(redisUri),
+                null,
+                new RaftConfig("127.0.0.1", raftPort, raftDataDir.toString(), List.of()));
 
         String previousDir = System.getProperty("user.dir");
         System.setProperty("user.dir", controllerDir.toString());
