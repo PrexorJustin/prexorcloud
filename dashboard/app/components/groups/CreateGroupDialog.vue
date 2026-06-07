@@ -68,6 +68,7 @@ const parent = ref("")
 const dependsOn = ref("")
 const startupWeight = ref(0)
 const fallbackGroup = ref("")
+const bedrockProxyGroup = ref("")
 const defaultGroup = ref(false)
 const maintenance = ref(false)
 const extraTemplates = ref<string[]>([])
@@ -93,6 +94,17 @@ const filteredProxies = computed(() => filterEntries(proxyEntries.value))
 const hasResults = computed(() => filteredServers.value.length > 0 || filteredProxies.value.length > 0)
 const selectedEntry = computed(() => catalogStore.entries.find(e => e.platform === platform.value) ?? null)
 const isProxy = computed(() => selectedEntry.value?.category === "PROXY")
+const isGeyser = computed(() => platform.value.toUpperCase() === "GEYSER")
+// Java proxy groups a Geyser front-door can forward Bedrock players to (exclude other Geyser groups).
+const proxyPlatformNames = computed(() => new Set(proxyEntries.value.map(e => e.platform.toUpperCase())))
+const proxyGroupNames = computed(() =>
+  store.groups
+    .filter((g) => {
+      const plat = (g.platform ?? "").toUpperCase()
+      return proxyPlatformNames.value.has(plat) && plat !== "GEYSER"
+    })
+    .map(g => g.name),
+)
 const availableVersions = computed(() => selectedEntry.value?.versions ?? [])
 const recommendedVersion = computed(() => availableVersions.value.find(v => v.recommended)?.version ?? availableVersions.value[0]?.version ?? "")
 
@@ -293,6 +305,7 @@ async function submit() {
       drainOnShutdown: drainOnShutdown.value, maxLifetimeSeconds: maxLifetimeSeconds.value,
       static: isStatic.value, staticInstanceNames: splitTags(staticInstanceNames.value),
       protectedPaths: splitTags(protectedPaths.value), fallbackGroup: fallbackGroup.value.trim() || null,
+      bedrockProxyGroup: isGeyser.value ? bedrockProxyGroup.value.trim() || null : null,
       defaultGroup: defaultGroup.value, dependsOn: splitTags(dependsOn.value), startupWeight: startupWeight.value,
       maintenance: maintenance.value, updateStrategy: updateStrategy.value,
       nodeAffinity: splitTags(nodeAffinity.value), nodeAntiAffinity: splitTags(nodeAntiAffinity.value),
@@ -318,7 +331,7 @@ function handleOpen(value: boolean) {
     routing.value = "LOWEST_PLAYERS"; portRangeStart.value = 30000; portRangeEnd.value = 30100
     startupTimeoutSeconds.value = 120; shutdownGraceSeconds.value = 30
     drainOnShutdown.value = false; maxLifetimeSeconds.value = 0; protectedPaths.value = ""
-    fallbackGroup.value = ""; defaultGroup.value = false; dependsOn.value = ""
+    fallbackGroup.value = ""; bedrockProxyGroup.value = ""; defaultGroup.value = false; dependsOn.value = ""
     startupWeight.value = 0; maintenance.value = false; updateStrategy.value = "ROLLING"
     nodeAffinity.value = ""; nodeAntiAffinity.value = ""; spreadConstraint.value = ""
     priority.value = 0; jvmArgs.value = ""; envPairs.value = []
@@ -742,6 +755,13 @@ v-for="tpl in availableExtraTemplates" :key="tpl.name" type="button"
                       <Label class="text-xs">{{ t('components.createGroup.s5.startupWeight') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.higherFirst') }}</span></Label>
                       <Slider :model-value="[startupWeight]" :min="0" :max="100" :step="1" show-tooltip @update:model-value="startupWeight = $event![0]!" />
                     </div>
+                  </div>
+                  <!-- Bedrock proxy target — Geyser front-doors forward to a Java proxy group -->
+                  <div v-if="isGeyser" class="flex flex-col gap-1.5">
+                    <Label class="text-xs">{{ t('components.createGroup.s5.bedrockProxyGroup') }} <span class="text-muted-foreground font-normal">{{ t('components.createGroup.s5.bedrockProxyGroupHint') }}</span></Label>
+                    <select v-model="bedrockProxyGroup" class="h-9 px-3 bg-glass rounded-lg border border-glass-border text-foreground text-sm focus:outline-none focus:border-primary/40">
+                      <option value="">{{ t('components.createGroup.none') }}</option><option v-for="g in proxyGroupNames" :key="g" :value="g">{{ g }}</option>
+                    </select>
                   </div>
                 </div>
 

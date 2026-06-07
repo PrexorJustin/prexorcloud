@@ -46,7 +46,7 @@ export interface ServerGroup {
   portRangeStart: number; portRangeEnd: number
   startupTimeoutSeconds: number; shutdownGraceSeconds: number
   maxLifetimeSeconds: number; static: boolean; staticInstanceNames: string[]
-  protectedPaths: string[]; fallbackGroup: string | null; defaultGroup: boolean
+  protectedPaths: string[]; fallbackGroup: string | null; bedrockProxyGroup: string; defaultGroup: boolean
   dependsOn: string[]; startupWeight: number; maintenance: boolean
   maintenanceMessage: string; maintenanceBypass: string[]
   updateStrategy: string

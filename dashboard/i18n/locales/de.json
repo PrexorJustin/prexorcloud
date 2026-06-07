@@ -2229,6 +2229,8 @@
         "dependsPlaceholder": "z. B. proxy, auth",
         "fallbackGroup": "Fallback-Gruppe",
         "overflow": "(Überlauf)",
+        "bedrockProxyGroup": "Bedrock-Proxy-Gruppe",
+        "bedrockProxyGroupHint": "(Java-Proxy, an den dieses Geyser weiterleitet)",
         "startupWeight": "Start-Gewicht",
         "higherFirst": "(höher = zuerst)",
         "defaultGroup": "Standard-Gruppe",
