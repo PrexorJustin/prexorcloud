@@ -4,10 +4,11 @@
 **Owner:** unzugewiesen.
 **Zielhorizont:** v1.1 (HA-Foundation) → v1.2 (Ökosystem-Reife) → v1.3 (Plattform-Ausbau).
 **Verwandte Dokumente:**
-- [`cluster-join-plan.md`](./cluster-join-plan.md) — Raft-Control-Plane-Detailplan (in diesen Plan eingebettet als **Track A**)
-- [`track-e-plan.md`](./track-e-plan.md) — Frontend- & A11y-Detailplan (**Track E**, phasiert)
-- [`MASTER_PLAN.md`](./MASTER_PLAN.md) — bisheriger Rahmenplan
-- [`WEBSITE_PLAN.md`](./WEBSITE_PLAN.md) — Public-Site (geliefert v1.0)
+- [`decisions.md`](./decisions.md) — ADR-Register (Architektur-Entscheidungen)
+- [`design-system.md`](./design-system.md) — Design-System (Reef-Palette, Tokens)
+- [`DOCS_STYLE.md`](./DOCS_STYLE.md) — Docs-/README-Standard
+
+> Hinweis: Die abgeschlossenen Detail-/Rahmenpläne (cluster-join, track-e, MASTER_PLAN, WEBSITE_PLAN u.a.) wurden beim Docs-Cleanup entfernt — ihr Inhalt ist in diesem Plan und in `docs/public/` aufgegangen.
 
 ---
 
