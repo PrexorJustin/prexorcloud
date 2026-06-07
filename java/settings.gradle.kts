@@ -1,5 +1,10 @@
 pluginManagement {
     includeBuild("build-logic")
+    repositories {
+        gradlePluginPortal()
+        // Fabric Loom (cloud-plugins:server:fabric) is published to the FabricMC maven, not the portal.
+        maven("https://maven.fabricmc.net/")
+    }
     plugins {
         id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
     }
@@ -54,6 +59,7 @@ include(
     "cloud-plugins:server:spigot",
     "cloud-plugins:server:paper",
     "cloud-plugins:server:folia",
+    "cloud-plugins:server:fabric",
 
     // ---- TEST FIXTURES ---- //
     "test-fixtures:test-daemon-module",

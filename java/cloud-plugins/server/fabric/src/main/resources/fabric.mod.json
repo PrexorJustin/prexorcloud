@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "prexorcloud",
+  "version": "1.0.0",
+  "name": "PrexorCloud",
+  "description": "PrexorCloud server integration for Fabric dedicated servers — registers with the controller and reports players + metrics.",
+  "authors": ["PrexorJustin"],
+  "license": "proprietary",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["me.prexorjustin.prexorcloud.server.fabric.PrexorCloudFabric"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
