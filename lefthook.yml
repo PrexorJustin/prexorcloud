@@ -1,0 +1,23 @@
+pre-commit:
+  parallel: true
+  commands:
+    spotless-java:
+      glob: 'java/**/*.java'
+      root: 'java/'
+      run: ./gradlew spotlessApply -PspotlessFiles="{staged_files}" -q
+      stage_fixed: true
+    prettier-installer:
+      glob: 'installer/src/**/*.{ts,tsx,js,vue,css,html,json}'
+      root: 'installer/'
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
+    prettier-website:
+      glob: 'website/{src,scripts}/**/*.{ts,tsx,js,mjs,vue,css,astro,json}'
+      root: 'website/'
+      run: pnpm exec prettier --write {staged_files}
+      stage_fixed: true
+    eslint-dashboard:
+      glob: 'dashboard/**/*.{ts,vue,js}'
+      root: 'dashboard/'
+      run: pnpm exec eslint --fix {staged_files}
+      stage_fixed: true

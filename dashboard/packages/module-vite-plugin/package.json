@@ -1,0 +1,36 @@
+{
+  "name": "@prexorcloud/module-vite-plugin",
+  "version": "0.1.0",
+  "description": "Vite plugin for building PrexorCloud dashboard module bundles",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "tailwindcss": "^4.0.0"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "rollup": "^4.60.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}

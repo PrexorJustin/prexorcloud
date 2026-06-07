@@ -1,0 +1,16 @@
+{
+  "name": "@prexorcloud/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PrexorCloud design tokens — single source of truth (tokens.json) and the generated dist/ artifacts the frontends consume.",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./dist/tokens.css",
+    "./tokens.json": "./dist/tokens.json",
+    "./tokens": "./dist/tokens.ts"
+  },
+  "scripts": {
+    "build": "node build-tokens.mjs",
+    "test": "node --test"
+  }
+}

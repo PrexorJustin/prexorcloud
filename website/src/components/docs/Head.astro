@@ -1,0 +1,37 @@
+---
+/*
+ * Starlight `Head` override — injects:
+ *   1. the client-side mermaid bootstrap on every docs page
+ *      (rendered in src/scripts/mermaid.ts; the import here is what makes
+ *      Astro bundle + defer-load it),
+ *   2. a per-page OpenGraph + Twitter image pointing at the dynamic
+ *      generator at `/og/<slug>.png` (built once per docs entry at
+ *      `src/pages/og/[...slug].png.ts`). The default OG image
+ *      `/og/default.png` covers landing + non-docs pages and is wired in
+ *      via `astro.config.mjs` head meta.
+ *
+ * The mermaid module itself is dynamically `import('mermaid')`-ed inside
+ * the script only when a `.mermaid` element exists on the page, so docs
+ * pages without diagrams pay zero JS cost beyond this small bootstrap.
+ */
+import Default from '@astrojs/starlight/components/Head.astro';
+
+// Starlight 0.36 exposes the current docs entry on `Astro.locals.starlightRoute`
+// (see node_modules/@astrojs/starlight/components/Head.astro). The `entry.id`
+// is the file path relative to the content collection root — e.g.
+// "concepts/security.md" — which we strip to a slug for /og/<slug>.png.
+const route = (Astro.locals as { starlightRoute?: { entry?: { id?: string } } }).starlightRoute;
+const slug = route?.entry?.id ?? '';
+const ogPath = slug ? `/og/${slug.replace(/\.(md|mdx)$/i, '')}.png` : '/og/default.png';
+const ogUrl = new URL(ogPath, Astro.site ?? 'https://prexor.cloud').toString();
+---
+
+<Default><slot /></Default>
+<meta property="og:image" content={ogUrl} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content={ogUrl} />
+<script>
+  import '../../scripts/mermaid.ts';
+</script>

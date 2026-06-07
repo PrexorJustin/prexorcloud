@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Committed performance-baseline targets. Compared by scripts/perf-baseline-check.sh against the report",
+    "produced by ./gradlew :cloud-test-harness:perfBaselines. Drift over driftThresholdPercent surfaces a",
+    "warning in the nightly CI summary; never fails the build.",
+    "",
+    "Refresh policy: re-run the harness on a representative GitHub Actions runner, copy the observed values",
+    "below, and bump generatedAt. Document the refresh in docs/perf-baselines.md.",
+    "",
+    "Initial seed values are conservative ceilings — they will not flag drift on first nightly runs and",
+    "should be tightened once 7+ nights of data are collected."
+  ],
+  "schemaVersion": 1,
+  "generatedAt": "2026-05-04T00:00:00Z",
+  "driftThresholdPercent": 25,
+  "metrics": {
+    "controllerColdStartMs": { "value": 8000 },
+    "coordinationStoreSetGetMs": { "p50": 2.0, "p95": 5.0 },
+    "sseEventLatencyMs": { "p50": 50.0, "p95": 200.0 },
+    "schedulerTickMs": { "groups": 1000, "p50": 50.0, "p95": 150.0 }
+  }
+}

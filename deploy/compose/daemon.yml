@@ -1,0 +1,44 @@
+# PrexorCloud daemon — in-stack reference.
+#
+# Mounted into the container at /app/config/daemon.yml.
+# For multi-host clusters, run additional daemons via deploy/systemd/
+# and point them at the controller's mTLS gRPC endpoint.
+
+# Unique node identifier — must be unique across the cluster.
+nodeId: "node-compose"
+
+controller:
+  host: "controller"
+  grpcPort: 9090
+
+health:
+  enabled: true
+  bindAddress: "0.0.0.0"
+  port: 9091
+
+security:
+  certificateDir: "config/security"
+  # Set once via `prexorctl node generate-token`. Clear after enrollment.
+  joinToken: ""
+
+instances:
+  directory: "instances"
+  shutdownTimeoutSeconds: 30
+  killTimeoutSeconds: 10
+  logRingBufferLines: 500
+
+resources:
+  # 0 = auto-detect from /proc/meminfo and cgroup limits.
+  maxMemoryMb: 0
+
+logging:
+  level: "INFO"
+  format: "JSON"
+
+# Free-form labels for placement constraints. See docs/configuration.md.
+labels: {}
+
+reconnect:
+  initialDelayMs: 1000
+  maxDelayMs: 60000
+  multiplier: 2.0

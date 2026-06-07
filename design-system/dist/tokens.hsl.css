@@ -1,0 +1,77 @@
+/* GENERATED from tokens.json by build-tokens.mjs — do not edit. */
+
+:root, .dark {
+  /* semantic — dark (default), HSL triplets */
+  --background: 240 23% 5%;
+  --foreground: 240 16% 94%;
+  --card: 240 18% 10%;
+  --card-foreground: 240 16% 94%;
+  --popover: 240 18% 10%;
+  --popover-foreground: 240 16% 94%;
+  --primary: 187 61% 57%;
+  --primary-foreground: 240 23% 5%;
+  --primary-glow: 187 61% 57% / 0.251;
+  --secondary: 258 90% 66%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 240 16% 14%;
+  --muted-foreground: 240 6% 51%;
+  --accent: 187 61% 57%;
+  --accent-foreground: 240 23% 5%;
+  --destructive: 350 89% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-glow: 350 89% 60% / 0.251;
+  --success: 160 84% 39%;
+  --success-glow: 160 84% 39% / 0.251;
+  --warning: 38 92% 50%;
+  --warning-glow: 38 92% 50% / 0.251;
+  --border: 0 0% 100% / 0.059;
+  --input: 0 0% 100% / 0.059;
+  --ring: 187 61% 57%;
+  --glass: 240 18% 10%;
+  --glass-hover: 240 16% 14%;
+  --glass-border: 0 0% 100% / 0.059;
+  --glass-border-hover: 0 0% 100% / 0.122;
+  --sidebar: 240 23% 5%;
+  --sidebar-foreground: 240 6% 51%;
+  --sidebar-primary: 187 61% 57%;
+  --sidebar-accent: 240 18% 10%;
+  --sidebar-border: 0 0% 100% / 0.059;
+}
+
+.light {
+  /* semantic — light, HSL triplets */
+  --background: 45 29% 95%;
+  --foreground: 240 13% 9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 13% 9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 13% 9%;
+  --primary: 192 87% 35%;
+  --primary-foreground: 0 0% 100%;
+  --primary-glow: 192 87% 35% / 0.18;
+  --secondary: 262 83% 58%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 44 28% 86%;
+  --muted-foreground: 40 6% 41%;
+  --accent: 192 87% 35%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 56% 40%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-glow: 0 56% 40% / 0.18;
+  --success: 141 45% 34%;
+  --success-glow: 141 45% 34% / 0.18;
+  --warning: 31 70% 39%;
+  --warning-glow: 31 70% 39% / 0.18;
+  --border: 35 43% 5% / 0.071;
+  --input: 35 43% 5% / 0.102;
+  --ring: 192 87% 35%;
+  --glass: 0 0% 100%;
+  --glass-hover: 45 50% 97%;
+  --glass-border: 35 43% 5% / 0.071;
+  --glass-border-hover: 35 43% 5% / 0.161;
+  --sidebar: 44 27% 89%;
+  --sidebar-foreground: 40 6% 41%;
+  --sidebar-primary: 192 87% 35%;
+  --sidebar-accent: 0 0% 100%;
+  --sidebar-border: 35 43% 5% / 0.071;
+}

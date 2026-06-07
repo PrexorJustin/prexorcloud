@@ -1,0 +1,15 @@
+---
+- username: "admin"
+  passwordHash: "$argon2id$v=19$m=65536,t=3,p=1$LS7X5Cab78jwBgk1n2ksKw$4WhFNECv7JOlAVdxfGH1AjImA6AMCceDZihxghB88xI"
+  role: "ADMIN"
+  avatarPath: null
+  minecraftUuid: null
+  minecraftName: null
+  createdAt: "2026-03-26T21:21:16.666518100Z"
+- username: "vieweruser"
+  passwordHash: "$argon2id$v=19$m=65536,t=3,p=1$VUtrDwolhKGl6TurVVK+Qw$HbV09uqaT4mg1jK0HmvIoKtw53n/K/JyN4Ntp4936xo"
+  role: "VIEWER"
+  avatarPath: null
+  minecraftUuid: null
+  minecraftName: null
+  createdAt: "2026-03-26T21:23:44.303438800Z"

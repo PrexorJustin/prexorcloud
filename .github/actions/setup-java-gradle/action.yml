@@ -1,0 +1,10 @@
+name: Set up Java 25 + Gradle
+description: Installs Temurin 25 and the Gradle wrapper cache used by every Java job.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 25
+    - uses: gradle/actions/setup-gradle@v4

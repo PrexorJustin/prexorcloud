@@ -1,0 +1,29 @@
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# environment variables
+.env
+.env.production
+
+# macOS-specific files
+.DS_Store
+
+# editors
+.vscode/
+.idea/
+
+# Cloudflare Pages local artifact dir
+.wrangler/
+
+# Synced from docs/openapi.json by scripts/sync-openapi.mjs (pre-build).
+public/openapi.json

@@ -1,0 +1,42 @@
+syntax = "proto3";
+package me.prexorjustin.prexorcloud.protocol;
+
+option java_package = "me.prexorjustin.prexorcloud.protocol";
+option java_multiple_files = true;
+option go_package = "github.com/prexorcloud/prexorctl/proto/prexorcloud";
+
+service AdminService {
+  rpc CreateJoinToken(CreateJoinTokenRequest) returns (CreateJoinTokenResponse);
+  rpc RevokeJoinToken(RevokeJoinTokenRequest) returns (RevokeJoinTokenResponse);
+  rpc ListJoinTokens(ListJoinTokensRequest) returns (ListJoinTokensResponse);
+}
+
+message CreateJoinTokenRequest {
+  string node_id = 1;
+  int32 ttl_seconds = 2;
+}
+
+message CreateJoinTokenResponse {
+  string token_id = 1;
+  string join_token = 2;
+  int64 expires_at_epoch_ms = 3;
+}
+
+message RevokeJoinTokenRequest {
+  string token_id = 1;
+}
+
+message RevokeJoinTokenResponse {}
+
+message ListJoinTokensRequest {}
+
+message ListJoinTokensResponse {
+  repeated JoinTokenInfo tokens = 1;
+}
+
+message JoinTokenInfo {
+  string token_id = 1;
+  string node_id = 2;
+  int64 expires_at_epoch_ms = 3;
+  bool expired = 4;
+}

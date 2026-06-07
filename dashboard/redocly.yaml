@@ -1,0 +1,21 @@
+extends:
+  - recommended
+
+rules:
+  info-license-strict: off
+  no-unused-components: off
+  operation-4xx-response: off
+  # Pre-existing OpenAPI spec gaps — soft for v1.0, tracked for v1.0.1.
+  no-empty-servers: warn
+  security-defined: warn
+  no-server-trailing-slash: warn
+  no-server-variables-empty-enum: warn
+  operation-operationId: warn
+  operation-summary: warn
+  parameter-description: warn
+  operation-description: warn
+  tag-description: warn
+  no-ambiguous-paths: warn
+  no-path-trailing-slash: warn
+  spec-strict-refs: warn
+  spec: warn

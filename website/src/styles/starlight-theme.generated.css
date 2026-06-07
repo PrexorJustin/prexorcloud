@@ -1,0 +1,22 @@
+/* GENERATED from design-system/dist/tokens.json by scripts/gen-starlight-theme.mjs — do not edit. */
+/* Re-emitted on every dev/build (predev/prebuild) and committed so `astro check` resolves it. */
+
+:root[data-theme='dark'] {
+  --sl-color-bg: hsl(240 23% 5%);
+  --sl-color-bg-nav: hsl(240 23% 5%);
+  --sl-color-bg-sidebar: hsl(240 23% 5%);
+  --sl-color-text: hsl(240 16% 94%);
+  --sl-color-text-accent: hsl(187 61% 57%);
+  --sl-color-hairline: hsl(0 0% 100% / 0.059);
+  --sl-color-hairline-light: hsl(0 0% 100% / 0.059);
+}
+
+:root[data-theme='light'] {
+  --sl-color-bg: hsl(45 29% 95%);
+  --sl-color-bg-nav: hsl(44 27% 89%);
+  --sl-color-bg-sidebar: hsl(44 27% 89%);
+  --sl-color-text: hsl(240 13% 9%);
+  --sl-color-text-accent: hsl(192 87% 35%);
+  --sl-color-hairline: hsl(35 43% 5% / 0.071);
+  --sl-color-hairline-light: hsl(35 43% 5% / 0.071);
+}

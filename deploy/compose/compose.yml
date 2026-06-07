@@ -1,0 +1,132 @@
+# PrexorCloud — production reference compose stack.
+#
+# Differs from deploy/compose.dev.yml (a dev convenience that
+# exposes Mongo/Redis on the host and uses fixed defaults). This stack:
+#   - keeps Mongo + Valkey on a private network (no host ports)
+#   - mounts controller.yml / daemon.yml from this directory
+#   - reads secrets via .env (see .env.example)
+#   - adds healthchecks so `depends_on` actually waits
+#   - pins images by version
+#
+# Usage:
+#   cp .env.example .env && $EDITOR .env
+#   docker compose -f compose.yml up -d
+#
+# To upgrade (see docs/runbooks/upgrade.md):
+#   docker compose -f compose.yml pull
+#   docker compose -f compose.yml up -d
+
+name: prexorcloud
+
+services:
+  mongo:
+    image: mongo:8.0
+    restart: unless-stopped
+    command: ["--bind_ip_all", "--quiet"]
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    networks:
+      - prexor-internal
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - prexor-internal
+
+  controller:
+    image: ${PREXORCLOUD_CONTROLLER_IMAGE:-ghcr.io/prexorjustin/prexorcloud-controller:latest}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    environment:
+      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx${PREXORCLOUD_CONTROLLER_HEAP:-1g}
+    volumes:
+      - ./controller.yml:/app/config/controller.yml:ro
+      - controller-data:/app/data
+      - controller-templates:/app/templates
+      - controller-modules:/app/modules
+      - controller-certs:/app/config/security
+      - controller-logs:/app/logs
+    ports:
+      - "${PREXORCLOUD_HTTP_PORT:-8080}:8080"   # REST + SSE (front it with TLS in prod)
+      - "${PREXORCLOUD_GRPC_PORT:-9090}:9090"   # daemon gRPC (mTLS — safe to expose)
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/system/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 60s
+    networks:
+      - prexor-internal
+      - prexor-public
+
+  # Single in-stack daemon. For multi-node clusters, run additional daemons
+  # on separate hosts via deploy/systemd/ and point them at the controller.
+  daemon:
+    image: ${PREXORCLOUD_DAEMON_IMAGE:-ghcr.io/prexorjustin/prexorcloud-daemon:latest}
+    restart: unless-stopped
+    depends_on:
+      controller:
+        condition: service_healthy
+    environment:
+      - JAVA_TOOL_OPTIONS=-Xms128m -Xmx${PREXORCLOUD_DAEMON_HEAP:-512m}
+    volumes:
+      - ./daemon.yml:/app/config/daemon.yml:ro
+      - daemon-instances:/app/instances
+      - daemon-cache:/app/cache
+      - daemon-certs:/app/config/security
+      - daemon-logs:/app/logs
+    networks:
+      - prexor-internal
+
+  dashboard:
+    image: ${PREXORCLOUD_DASHBOARD_IMAGE:-ghcr.io/prexorjustin/prexorcloud-dashboard:latest}
+    restart: unless-stopped
+    depends_on:
+      controller:
+        condition: service_healthy
+    ports:
+      - "${PREXORCLOUD_DASHBOARD_PORT:-3000}:3000"
+    networks:
+      - prexor-public
+
+volumes:
+  mongo-data:
+  valkey-data:
+  controller-data:
+  controller-templates:
+  controller-modules:
+  controller-certs:
+  controller-logs:
+  daemon-instances:
+  daemon-cache:
+  daemon-certs:
+  daemon-logs:
+
+networks:
+  # Mongo + Valkey live here; never exposed to the host.
+  prexor-internal:
+    driver: bridge
+    internal: true
+  # Controller REST/gRPC + dashboard reach the host through this network.
+  prexor-public:
+    driver: bridge

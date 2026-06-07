@@ -1,0 +1,105 @@
+---
+/*
+ * <Callout> — design-system glass card with a status accent stripe.
+ *
+ * Variants map onto the design-system status colors (README §6 "Color"):
+ *   note (primary cyan), success (green), warn (amber), danger (red),
+ *   tip (violet — secondary, for "pro tip" / module-author asides).
+ *
+ * Usage in MDX:
+ *   <Callout type="warn" title="Breaking change">
+ *   The `@CloudModule` annotation has been removed in v1.0.
+ *   </Callout>
+ *
+ * Renders to a glass card (the unit of UI per the design system) with a
+ * 3px left border in the variant color and a Lucide-style icon glyph.
+ */
+const { type = 'note', title } = Astro.props as {
+  type?: 'note' | 'success' | 'warn' | 'danger' | 'tip';
+  title?: string;
+};
+
+const variants = {
+  note: { color: 'var(--primary)', glow: 'var(--primary-glow)', glyph: 'i' },
+  success: { color: 'var(--success)', glow: 'var(--success-glow)', glyph: '✓' },
+  warn: { color: 'var(--warning)', glow: 'var(--warning-glow)', glyph: '!' },
+  danger: { color: 'var(--destructive)', glow: 'var(--destructive-glow)', glyph: '✗' },
+  tip: { color: 'var(--secondary)', glow: 'var(--primary-glow)', glyph: '◆' },
+} as const;
+
+const v = variants[type];
+const heading =
+  title ??
+  {
+    note: 'Note',
+    success: 'Success',
+    warn: 'Warning',
+    danger: 'Danger',
+    tip: 'Tip',
+  }[type];
+---
+
+<aside class={`pc-callout pc-callout-${type}`} role="note" aria-label={heading}>
+  <div class="pc-callout-icon" aria-hidden="true">{v.glyph}</div>
+  <div class="pc-callout-body">
+    <p class="pc-callout-title">{heading}</p>
+    <div class="pc-callout-content"><slot /></div>
+  </div>
+</aside>
+
+<style define:vars={{ color: v.color, glow: v.glow }}>
+  .pc-callout {
+    display: flex;
+    gap: var(--space-3, 0.75rem);
+    align-items: flex-start;
+    margin: 1.25rem 0;
+    padding: var(--space-4, 1rem) var(--space-5, 1.25rem);
+    border: 1px solid hsl(var(--glass-border));
+    border-left: 3px solid hsl(var(--color));
+    border-radius: var(--radius-lg, 1rem);
+    background: hsl(var(--glass));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+  }
+
+  .pc-callout-icon {
+    flex: 0 0 1.5rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full, 9999px);
+    background: hsl(var(--color) / 0.12);
+    color: hsl(var(--color));
+    font-family: var(--font-mono);
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: var(--weight-bold, 700);
+    line-height: 1;
+  }
+
+  .pc-callout-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pc-callout-title {
+    margin: 0 0 0.35rem;
+    font-size: var(--text-sm, 0.875rem);
+    font-weight: var(--weight-semibold, 600);
+    color: hsl(var(--color));
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-widest, 0.12em);
+  }
+
+  .pc-callout-content :global(p:first-child) {
+    margin-top: 0;
+  }
+  .pc-callout-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .pc-callout-content :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+  }
+</style>

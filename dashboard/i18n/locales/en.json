@@ -1,0 +1,2694 @@
+{
+  "nav": {
+    "groups": {
+      "overview": "Overview",
+      "workloads": "Workloads",
+      "cluster": "Cluster",
+      "configuration": "Configuration",
+      "observability": "Observability",
+      "identity": "Identity",
+      "operations": "Operations",
+      "settings": "Settings",
+      "modules": "Modules"
+    },
+    "items": {
+      "dashboard": "Dashboard",
+      "map": "Map",
+      "groups": "Groups",
+      "instances": "Instances",
+      "deployments": "Deployments",
+      "controllers": "Controllers",
+      "clusterConfig": "Cluster config",
+      "nodes": "Nodes",
+      "networks": "Networks",
+      "players": "Players",
+      "templates": "Templates",
+      "catalog": "Catalog",
+      "modules": "Modules",
+      "moduleRegistry": "Registry",
+      "crashes": "Crashes",
+      "activity": "Activity",
+      "logs": "Logs",
+      "systemStatus": "System status",
+      "audit": "Audit",
+      "shares": "Shares",
+      "users": "Users",
+      "roles": "Roles",
+      "tokens": "Tokens",
+      "workloadCredentials": "Workload credentials",
+      "certificates": "Certificates",
+      "backups": "Backups",
+      "maintenance": "Maintenance",
+      "settings": "Settings"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "save": "Save",
+    "pleaseWait": "Please wait...",
+    "search": "Search...",
+    "items": "items",
+    "gridView": "Grid view",
+    "tableView": "Table view",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "home": "Home",
+    "goBack": "Go back",
+    "skipToContent": "Skip to content",
+    "optional": "(optional)",
+    "a11y": {
+      "back": "Back",
+      "close": "Close",
+      "remove": "Remove",
+      "delete": "Delete",
+      "copy": "Copy",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
+    }
+  },
+  "sidebar": {
+    "adminPanel": "Admin panel",
+    "profile": "Profile",
+    "settings": "Settings",
+    "logout": "Log out",
+    "user": "User"
+  },
+  "confirmDialog": {
+    "title": "Are you sure?",
+    "description": "This action cannot be undone."
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Welcome back. Enter your credentials to continue.",
+      "username": "Username",
+      "password": "Password",
+      "usernamePlaceholder": "Enter your username",
+      "passwordPlaceholder": "Enter your password",
+      "signIn": "Sign in",
+      "signingIn": "Signing in…",
+      "forgotPassword": "Forgot your password?",
+      "togglePassword": "Toggle password visibility",
+      "devSignIn": "Sign in as dev (mock data)",
+      "devHint": "Local-only shortcut. Hidden in production builds.",
+      "usernameRequired": "Enter your username",
+      "passwordRequired": "Enter your password",
+      "devToastTitle": "Signed in as dev",
+      "devToastDesc": "Dashboard is using mock data — no controller required."
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "We'll email you a link to choose a new one.",
+      "email": "Email",
+      "emailPlaceholder": "you{'@'}example.com",
+      "sendLink": "Send reset link",
+      "sending": "Sending…",
+      "backToSignIn": "Back to sign in",
+      "sentMessage": "If an account exists for that address, a password-reset link has been sent. Check your inbox — and spam folder — for a message from PrexorCloud.",
+      "emailInvalid": "Enter a valid email address"
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Choose something at least 8 characters long.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "newPasswordPlaceholder": "At least 8 characters",
+      "confirmPasswordPlaceholder": "Re-enter your new password",
+      "updatePassword": "Update password",
+      "updating": "Updating…",
+      "completedMessage": "Your password has been updated. Sign in with your new password to continue.",
+      "continueToSignIn": "Continue to sign in",
+      "backToSignIn": "Back to sign in",
+      "missingTokenMessage": "This reset link is missing the required token. Request a fresh password-reset email.",
+      "requestNewLink": "Request a new link",
+      "successToast": "Password updated. Sign in with your new password.",
+      "minChars": "Use at least 8 characters",
+      "reenter": "Re-enter your new password",
+      "mismatch": "Passwords do not match",
+      "missingToken": "The reset link is missing or malformed. Request a new one from the sign-in page.",
+      "invalidToken": "This reset link is invalid or has expired. Request a fresh one from the sign-in page.",
+      "genericError": "Reset failed. Try again, or request a fresh link.",
+      "networkError": "Can't reach the controller. Check your connection and try again."
+    },
+    "homeAriaLabel": "PrexorCloud home"
+  },
+  "settings": {
+    "title": "Settings",
+    "description": "Customize how the dashboard looks and feels.",
+    "tabs": {
+      "preferences": "Preferences",
+      "customize": "Customize"
+    },
+    "groups": {
+      "palette": "Theme Palette",
+      "glows": "Ambient Glows"
+    },
+    "language": {
+      "title": "Language",
+      "description": "Choose the language used across the dashboard."
+    }
+  },
+  "toast": {
+    "nodes": {
+      "draining": "Draining {count} node | Draining {count} nodes",
+      "cordoned": "Cordoned {count} node | Cordoned {count} nodes",
+      "drainingOne": "Draining {id}",
+      "cordonedOne": "Cordoned {id}",
+      "bulkDrainFailed": "Bulk drain failed",
+      "bulkDrainFailedDesc": "Some nodes couldn't be drained. Check the controller logs.",
+      "bulkCordonFailed": "Bulk cordon failed",
+      "bulkCordonFailedDesc": "Some nodes couldn't be cordoned. Check the controller logs.",
+      "drainFailed": "Drain failed",
+      "drainFailedDesc": "Couldn't drain the node. Check the controller logs.",
+      "cordonFailed": "Cordon failed",
+      "cordonFailedDesc": "Couldn't cordon the node. Check the controller logs.",
+      "cacheRefreshRequested": "Cache status refresh requested",
+      "cachePrewarmStarted": "Cache pre-warm started"
+    },
+    "groups": {
+      "instanceScheduled": "Instance scheduled for {name}",
+      "rollingRestart": "Rolling restart for {name}",
+      "deploymentTriggered": "Deployment triggered for {name}",
+      "startFailed": "Start failed",
+      "startFailedDesc": "Check that the group exists and at least one node has capacity.",
+      "restartFailed": "Restart failed",
+      "restartFailedDesc": "Check the controller logs.",
+      "deployFailed": "Deploy failed",
+      "deployFailedDesc": "Check the controller logs."
+    },
+    "instances": {
+      "stopFailed": "Stop instance failed",
+      "stopFailedDesc": "Couldn't stop {id}. Try again, or force-stop from the detail page.",
+      "deleteFailed": "Delete instance failed",
+      "deleteFailedDesc": "Couldn't delete {id}. The instance must be STOPPED, CRASHED, or SCHEDULED first."
+    },
+    "templates": {
+      "createFailed": "Failed to create template",
+      "createFailedDesc": "Check the template name and try again.",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't update the template. Try again, or check the controller logs.",
+      "fieldUpdateFailed": "Failed to update {field}",
+      "deleteVersionFailed": "Failed to delete version",
+      "uploadFailed": "Upload failed",
+      "uploadFailedDesc": "Check the file and try again.",
+      "importInvalidFile": "Invalid file",
+      "importInvalidFileDesc": "Only .tar.gz or .tgz files are accepted.",
+      "importFailed": "Failed to import template",
+      "importFailedDesc": "Check the archive and try again.",
+      "historyLoadFailed": "Can't load version history",
+      "historyLoadFailedDesc": "Try again, or check the controller logs.",
+      "snapshotLoadFailed": "Failed to load snapshot files",
+      "comparisonLoadFailed": "Failed to load comparison",
+      "restoreFailed": "Restore failed",
+      "restoreFailedDesc": "Couldn't roll back to that version. Try again, or check the controller logs."
+    },
+    "networks": {
+      "createFailed": "Failed to create network",
+      "updateFailed": "Failed to update network",
+      "lobbyInFallback": "Cannot include lobby group in fallback chain",
+      "notBackendGroup": "{name} is not a backend group",
+      "notProxyGroup": "{name} is not a proxy-platform group"
+    },
+    "catalog": {
+      "addVersionFailed": "Failed to add version",
+      "addVersionFailedDesc": "Check the platform name and version details."
+    }
+  },
+  "store": {
+    "common": {
+      "controllerUnreachable": "The controller may be unreachable. Try again, or check the controller logs."
+    },
+    "nodes": {
+      "loadFailed": "Failed to load nodes",
+      "drainCompleted": "Drain completed",
+      "drainCompletedDesc": "Node \"{id}\" has been fully drained"
+    },
+    "overview": {
+      "loadFailed": "Failed to load overview"
+    },
+    "instances": {
+      "loadFailed": "Failed to load instances",
+      "stopRequested": "Stop requested",
+      "stopRequestedDesc": "Instance \"{id}\" is stopping",
+      "forceStopRequested": "Force stop requested",
+      "forceStopRequestedDesc": "Instance \"{id}\" is being killed",
+      "deleted": "Instance deleted",
+      "deletedDesc": "Instance \"{id}\" removed"
+    },
+    "groups": {
+      "loadFailed": "Failed to load groups",
+      "created": "Group created",
+      "createdDesc": "\"{name}\" has been created",
+      "createFailed": "Failed to create group",
+      "crashLoop": "Crash loop detected",
+      "crashLoopDesc": "Group \"{group}\" is crash-looping"
+    },
+    "templates": {
+      "loadFailed": "Failed to load templates",
+      "created": "Template created",
+      "createdDesc": "\"{name}\" has been created",
+      "updated": "Template updated",
+      "updatedDesc": "\"{name}\" has been updated",
+      "deleted": "Template deleted",
+      "deletedDesc": "\"{name}\" has been deleted",
+      "versionDeleted": "Version deleted",
+      "restored": "Template restored",
+      "restoredDesc": "\"{name}\" rolled back successfully",
+      "filesUploaded": "Files uploaded",
+      "filesUploadedDesc": "{count} file uploaded | {count} files uploaded",
+      "zipExtracted": "ZIP extracted",
+      "zipExtractedDesc": "{count} file extracted | {count} files extracted",
+      "rehashed": "Template rehashed",
+      "rehashedDesc": "\"{name}\" has been rehashed",
+      "variablesSaved": "Variables saved",
+      "imported": "Template imported"
+    },
+    "networks": {
+      "loadFailed": "Failed to load networks",
+      "created": "Network created",
+      "createdDesc": "\"{name}\" has been created",
+      "createFailed": "Failed to create network",
+      "updated": "Network updated",
+      "updatedDesc": "\"{name}\" has been updated",
+      "updateFailed": "Failed to update network",
+      "deleted": "Network deleted",
+      "deletedDesc": "\"{name}\" has been deleted",
+      "deleteFailed": "Failed to delete network"
+    },
+    "catalog": {
+      "loadFailed": "Failed to load catalog",
+      "versionAdded": "Version added",
+      "versionAddedDesc": "Added {version} to {platform}",
+      "addVersionFailed": "Failed to add version",
+      "versionUpdated": "Version updated",
+      "versionUpdatedDesc": "Updated {version} in {platform}",
+      "updateVersionFailed": "Failed to update version",
+      "recommendedSet": "Recommended version set",
+      "recommendedSetDesc": "{version} is now recommended for {platform}",
+      "setRecommendedFailed": "Failed to set recommended version",
+      "versionRemoved": "Version removed",
+      "versionRemovedDesc": "Removed {version} from {platform}",
+      "removeVersionFailed": "Failed to remove version"
+    },
+    "auth": {
+      "welcomeBack": "Welcome back, {username}",
+      "invalidCredentials": "Invalid credentials",
+      "passwordChanged": "Password changed"
+    },
+    "backups": {
+      "loadFailed": "Can't load backups",
+      "created": "Backup created",
+      "createFailed": "Backup failed",
+      "createFailedDesc": "Couldn't create the backup. Check disk space on the controller host, or check the controller logs.",
+      "verificationStarted": "Verification started",
+      "verifyFailed": "Verify failed",
+      "verifyFailedDesc": "Couldn't start verification. Check the controller logs.",
+      "deleted": "Backup deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Couldn't delete the backup. Try again, or check the controller logs.",
+      "pruned": "Pruned to {keep} most recent backups",
+      "pruneFailed": "Prune failed",
+      "pruneFailedDesc": "Couldn't prune backups. Check the controller logs.",
+      "restoreStarted": "Restore started",
+      "restoreStartedDesc": "The cluster will pause scheduling and roll back state. This may take several minutes.",
+      "restoreFailed": "Restore failed",
+      "restoreFailedDesc": "Couldn't start the restore. Check the controller logs."
+    },
+    "cluster": {
+      "loadFailed": "Can't load cluster state",
+      "tokensLoadFailed": "Can't load join tokens",
+      "ejected": "Ejected controller {nodeId}",
+      "ejectFailed": "Couldn't eject the controller. Check the controller logs.",
+      "leaving": "Controller {nodeId} is leaving the cluster",
+      "leavingDesc": "It will shut down once the membership change commits.",
+      "leaveFailed": "Couldn't leave the cluster. Check the controller logs.",
+      "tokenIssued": "Join token issued",
+      "tokenIssuedDesc": "Copy the token now — it won't be shown again.",
+      "tokenIssueFailed": "Couldn't issue a join token. Check the controller logs.",
+      "tokenRevoked": "Join token revoked",
+      "tokenRevokeFailed": "Couldn't revoke the token. Check the controller logs.",
+      "seedRotated": "Cluster seed rotated",
+      "seedRotateFailed": "Couldn't rotate the cluster seed.",
+      "configVersionsLoadFailed": "Couldn't load the cluster config history.",
+      "configVersionLoadFailed": "Couldn't load that config version.",
+      "rolledBack": "Cluster config rolled back to v{version}.",
+      "rollbackFailed": "Couldn't roll back the cluster config. Check the controller logs."
+    },
+    "maintenance": {
+      "loadFailed": "Can't load maintenance state",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't apply the maintenance change. Try again, or check the controller logs.",
+      "clusterEnabled": "Cluster maintenance enabled",
+      "clusterDisabled": "Cluster maintenance disabled",
+      "groupEnabled": "Group \"{group}\" maintenance enabled",
+      "groupDisabled": "Group \"{group}\" maintenance disabled"
+    },
+    "credentials": {
+      "loadFailed": "Can't load credentials",
+      "revokeFailed": "Revoke failed",
+      "revokeFailedDesc": "Couldn't revoke the credential. Try again, or check the controller logs.",
+      "revokedAll": "Revoked all credentials for {instanceId}",
+      "revokeAllFailedDesc": "Couldn't revoke the instance's credentials. Try again, or check the controller logs."
+    },
+    "adminTokens": {
+      "loadFailed": "Can't load tokens",
+      "generated": "Token generated",
+      "generatedDesc": "Copy it now — it won't be shown again.",
+      "generateFailed": "Generate failed",
+      "generateFailedDesc": "Couldn't generate the join token. Check the controller logs.",
+      "revoked": "Token revoked",
+      "revokeFailed": "Revoke failed",
+      "revokeFailedDesc": "Couldn't revoke the token. Try again, or check the controller logs."
+    },
+    "players": {
+      "loadFailed": "Can't load players",
+      "journeyLoadFailed": "Can't load journey",
+      "journeyLoadFailedDesc": "Try again, or check the controller logs.",
+      "transferred": "Transferred to {instanceId}",
+      "transferFailed": "Transfer failed",
+      "transferFailedDesc": "Couldn't transfer the player. Check that the target instance is RUNNING and has capacity."
+    },
+    "certificates": {
+      "loadFailed": "Can't load revoked certificates",
+      "revoked": "Revoked cert for {nodeId}",
+      "revokedDesc": "The daemon will lose controller access on next reconnect.",
+      "revokeFailed": "Revoke failed",
+      "revokeFailedDesc": "Couldn't revoke the certificate. Try again, or check the controller logs.",
+      "unrevoked": "Unrevoked cert for {nodeId}",
+      "unrevokeFailed": "Unrevoke failed",
+      "unrevokeFailedDesc": "Couldn't unrevoke the certificate. Try again, or check the controller logs."
+    },
+    "roles": {
+      "loadFailed": "Can't load roles",
+      "created": "Role \"{name}\" created",
+      "createFailed": "Create failed",
+      "createFailedDesc": "Couldn't create the role. Names must match [A-Z][A-Z0-9_]* and be unique.",
+      "updated": "Role updated",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't update the role. Built-in roles can't be edited.",
+      "deleted": "Role \"{name}\" deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Couldn't delete the role. Built-in roles can't be deleted, and roles in use must be reassigned first."
+    },
+    "users": {
+      "loadFailed": "Can't load users",
+      "created": "User \"{username}\" created",
+      "createFailed": "Create failed",
+      "createFailedDesc": "Couldn't create the user. Check that the username isn't taken and the password is valid.",
+      "updated": "User updated",
+      "updateFailed": "Update failed",
+      "updateFailedDesc": "Couldn't update the user. Try again, or check the controller logs.",
+      "deleted": "User \"{username}\" deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Couldn't delete the user. They may be the only admin — promote another user first."
+    },
+    "system": {
+      "loadFailed": "Can't load system status"
+    },
+    "activity": {
+      "loadFailed": "Can't load activity"
+    },
+    "crashes": {
+      "loadFailed": "Failed to load crashes",
+      "shareSuccess": "Crash shared: {url}",
+      "shareRevokeHint": "Revoke: {url}",
+      "shareFailed": "Couldn't share crash",
+      "shareDisabled": "Sharing is disabled on this controller."
+    },
+    "share": {
+      "logsSuccess": "Logs shared: {url}",
+      "logsFailed": "Couldn't share logs",
+      "diagnosticsSuccess": "Diagnostics shared: {url}",
+      "diagnosticsFailed": "Couldn't share diagnostics",
+      "revokeHint": "Revoke: {url}",
+      "disabled": "Sharing is disabled on this controller.",
+      "upstream": "Paste service unreachable.",
+      "listFailed": "Couldn't load recent shares",
+      "revoked": "Revoked share {id}",
+      "revokeFailed": "Couldn't revoke share",
+      "alreadyRevoked": "Share is already revoked.",
+      "notRevocable": "Share has no delete token and can't be revoked."
+    },
+    "audit": {
+      "loadFailed": "Failed to load audit log"
+    },
+    "templateEditor": {
+      "alreadyExists": "Already exists",
+      "moveStaged": "Move staged",
+      "moveStagedDesc": "{source} → {target}",
+      "deletionStaged": "Deletion staged",
+      "extractZipFailed": "Failed to extract ZIP",
+      "changesSaved": "Changes saved & rehashed",
+      "changesSavedDesc": "{count} operation applied | {count} operations applied",
+      "validationIssues": "Current file has validation issues",
+      "validationIssuesDesc": "{count} issue detected | {count} issues detected",
+      "saveChangesFailed": "Failed to save changes",
+      "changesDiscarded": "All staged changes discarded"
+    },
+    "templateMeta": {
+      "saveVariablesFailed": "Failed to save variables",
+      "newVariablesFound": "Found {count} new variable | Found {count} new variables",
+      "noNewVariables": "No new variables found",
+      "scanFilesFailed": "Failed to scan files"
+    }
+  },
+  "errorHandler": {
+    "actionFailed": "{context} failed",
+    "tooManyRequests": "Too many requests. Wait a moment and try again.",
+    "networkMessage": "Can't reach the controller. Check your connection or try again in a moment.",
+    "retrySuffix": "next: try again, or check the controller logs.",
+    "title": {
+      "network": "Can't reach the controller",
+      "validation": "Check the form",
+      "server": "Controller error",
+      "unknown": "Something went wrong"
+    }
+  },
+  "pages": {
+    "overview": {
+      "title": "Overview",
+      "description": "Cluster health at a glance — nodes, instances, players, and groups.",
+      "stats": {
+        "nodes": "Nodes",
+        "nodesSubtitle": "Connected to cluster",
+        "players": "Players online",
+        "playersSubtitle": "Currently connected",
+        "instances": "Instances",
+        "instancesSubtitle": "Running servers",
+        "groups": "Groups",
+        "groupsSubtitle": "Configured groups"
+      },
+      "breadcrumb": {
+        "cluster": "Cluster",
+        "overview": "Overview"
+      },
+      "heading": {
+        "lead": "Production",
+        "accent": "cluster"
+      },
+      "filter": "Filter",
+      "newInstance": "New instance",
+      "instances": {
+        "title": "Instances",
+        "runningNow": "· running now",
+        "empty": "No instances yet. Define a group and the scheduler will spin one up."
+      },
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "crashed": "Crashed",
+        "stopped": "Stopped"
+      },
+      "columns": {
+        "instance": "Instance",
+        "status": "Status",
+        "node": "Node",
+        "group": "Group",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "state": {
+        "running": "Running",
+        "starting": "Starting",
+        "stopping": "Stopping",
+        "draining": "Draining",
+        "crashed": "Crashed",
+        "stopped": "Stopped",
+        "unknown": "Unknown"
+      },
+      "ago": "{value} ago",
+      "spark": {
+        "title": "Players · last 24h",
+        "now": "now"
+      },
+      "events": {
+        "title": "Recent events",
+        "window": "LAST 1h",
+        "empty": "Nothing yet. Events appear here in real time."
+      }
+    },
+    "nodes": {
+      "title": "Nodes",
+      "description": "Hosts connected to the cluster.",
+      "searchPlaceholder": "Search nodes...",
+      "filters": {
+        "all": "All Types",
+        "online": "Online",
+        "draining": "Draining",
+        "cordoned": "Cordoned",
+        "offline": "Offline",
+        "pending": "Pending"
+      },
+      "emptyTitle": "No nodes found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyAddHint": "Add a node to get started",
+      "selectAll": "Select all nodes",
+      "selectOne": "Select {id}",
+      "columns": {
+        "node": "Node",
+        "status": "Status",
+        "cpu": "CPU",
+        "memory": "Memory",
+        "diskFree": "Disk Free",
+        "instances": "Instances",
+        "address": "Address"
+      },
+      "awaitingConnection": "Awaiting connection",
+      "disconnected": "Disconnected",
+      "drain": "Drain",
+      "cordon": "Cordon",
+      "eyebrow": "Node",
+      "detail": {
+        "address": "Address",
+        "cpu": "CPU",
+        "memory": "Memory",
+        "diskFree": "Disk free",
+        "instances": "Instances",
+        "connectedSince": "Connected since",
+        "awaitingDaemon": "Awaiting daemon connection.",
+        "daemonOffline": "Daemon offline. No live metrics."
+      }
+    },
+    "groups": {
+      "title": "Groups",
+      "description": "Server groups and their scaling policies.",
+      "searchPlaceholder": "Search groups...",
+      "filters": {
+        "all": "All",
+        "dynamic": "Dynamic",
+        "static": "Static",
+        "manual": "Manual"
+      },
+      "emptyTitle": "No groups found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyCreateHint": "No server groups configured yet",
+      "columns": {
+        "group": "Group",
+        "platform": "Platform",
+        "scaling": "Scaling",
+        "instances": "Instances",
+        "players": "Players",
+        "memory": "Memory"
+      },
+      "eyebrow": "Group",
+      "statusMaintenance": "Maintenance",
+      "statusLive": "Live",
+      "actionStart": "Start",
+      "actionRestart": "Restart",
+      "actionDeploy": "Deploy",
+      "detail": {
+        "platform": "Platform",
+        "scaling": "Scaling",
+        "instances": "Instances",
+        "instancesValue": "{running} running ({min}–{max})",
+        "players": "Players",
+        "memoryPerInstance": "Memory per instance",
+        "routing": "Routing",
+        "updateStrategy": "Update strategy"
+      }
+    },
+    "instances": {
+      "title": "Instances",
+      "description": "Running Minecraft server processes across the cluster.",
+      "searchPlaceholder": "Search instances...",
+      "startButton": "Start instance",
+      "emptyTitle": "No instances found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyStartHint": "No server instances running",
+      "filters": {
+        "all": "All",
+        "running": "Running",
+        "starting": "Starting",
+        "stopping": "Stopping",
+        "stopped": "Stopped",
+        "crashed": "Crashed"
+      },
+      "columns": {
+        "instance": "Instance",
+        "group": "Group",
+        "node": "Node",
+        "state": "State",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "selectAll": "Select all instances",
+      "selectOne": "Select {id}",
+      "rowStop": "Stop",
+      "rowDelete": "Delete",
+      "startDialog": {
+        "title": "Start Instance",
+        "description": "Schedule a new instance on a server group.",
+        "noGroups": "No groups available",
+        "selectGroup": "Select Group",
+        "count": "Count",
+        "cancel": "Cancel",
+        "starting": "Starting...",
+        "submitOne": "Start Instance",
+        "submitMany": "Start {count} Instances"
+      },
+      "eyebrow": "Instance",
+      "actionStop": "Stop",
+      "actionForceStop": "Force-stop",
+      "actionDelete": "Delete",
+      "detail": {
+        "group": "Group",
+        "node": "Node",
+        "port": "Port",
+        "players": "Players",
+        "uptime": "Uptime",
+        "started": "Started",
+        "deployment": "Deployment",
+        "deploymentValue": "rev {revision}"
+      },
+      "toast": {
+        "scheduled": "Instance scheduled | {count} instances scheduled",
+        "scheduledDesc": "Starting for \"{group}\"",
+        "startFailed": "Start failed",
+        "startFailedDesc": "Couldn't schedule an instance. Check that the group exists and at least one node has capacity.",
+        "bulkStopping": "{count} instances stopping",
+        "bulkStopFailed": "Bulk stop failed",
+        "bulkStopFailedDesc": "Some instances couldn't be stopped. Check the controller logs.",
+        "bulkKilled": "{count} instances killed",
+        "bulkForceStopFailed": "Bulk force-stop failed",
+        "bulkForceStopFailedDesc": "Try again, or check the daemon logs on the affected nodes.",
+        "bulkDeleted": "{count} instances deleted",
+        "bulkDeleteFailed": "Bulk delete failed",
+        "bulkDeleteFailedDesc": "Each instance must be STOPPED, CRASHED, or SCHEDULED. Check the controller logs."
+      }
+    },
+    "templates": {
+      "title": "Templates",
+      "description": "Versioned filesystem and JVM args used to start instances.",
+      "searchPlaceholder": "Search templates...",
+      "emptyTitle": "No templates found",
+      "emptySearchHint": "Try adjusting your search",
+      "emptyCreateHint": "Create your first template to get started",
+      "columns": {
+        "template": "Template",
+        "platform": "Platform",
+        "description": "Description",
+        "hash": "Hash",
+        "size": "Size"
+      },
+      "deleteButton": "Delete template",
+      "confirmDeleteTitle": "Delete Template",
+      "confirmDeleteDescription": "Permanently delete '{name}'? All files and version history will be lost.",
+      "confirmDeleteLabel": "Delete Template"
+    },
+    "common": {
+      "showing": "Showing {from}–{to} entries",
+      "previous": "Previous",
+      "next": "Next",
+      "today": "Today",
+      "yesterday": "Yesterday"
+    },
+    "shares": {
+      "title": "Recent Shares",
+      "description": "Audit and revoke paste shares created from this controller.",
+      "filterKind": "Kind",
+      "kindAll": "All",
+      "activeOnly": "Active only",
+      "revoke": "Revoke",
+      "revoked": "Revoked",
+      "notRevocable": "—",
+      "revokeConfirm": "Revoke {kind} share {id}? This calls pste DELETE and cannot be undone.",
+      "justNow": "now",
+      "emptyTitle": "No shares yet",
+      "emptyHint": "Use the Share buttons on a crash, the diagnostics page, or a console viewer to create one.",
+      "pageInfo": "Page {page} of {total} · {count} total",
+      "columns": {
+        "kind": "Kind",
+        "resource": "Resource",
+        "sharedBy": "Shared by",
+        "size": "Bytes",
+        "age": "Age",
+        "url": "URL",
+        "actions": "Actions"
+      }
+    },
+    "crashes": {
+      "title": "Crashes",
+      "description": "Non-graceful instance exits — OOM, SIGKILL, ERROR.",
+      "last24h": "Last 24h",
+      "trendTooltip": "{count} crash in the last 24h | {count} crashes in the last 24h",
+      "searchPlaceholder": "Search crashes...",
+      "filters": {
+        "all": "All",
+        "oom": "OOM",
+        "error": "Error",
+        "sigkill": "SIGKILL",
+        "sigterm": "SIGTERM"
+      },
+      "class": {
+        "oom": "Out of memory",
+        "error": "Error",
+        "sigkill": "Killed",
+        "sigterm": "Terminated",
+        "unknown": "Unknown"
+      },
+      "emptyTitle": "No crashes",
+      "emptyFilterHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "Nothing has crashed in the visible window. Healthy is good.",
+      "share": "Share",
+      "columns": {
+        "instance": "Instance",
+        "group": "Group",
+        "node": "Node",
+        "classification": "Classification",
+        "exit": "Exit",
+        "uptime": "Uptime",
+        "time": "Time"
+      },
+      "eyebrow": "Crash report",
+      "detail": {
+        "group": "Group",
+        "node": "Node",
+        "exitCode": "Exit code",
+        "uptime": "Uptime",
+        "crashedAt": "Crashed at",
+        "cause": "Cause",
+        "signature": "Signature",
+        "signatureTooltip": "Crashes with the same signature share this root cause"
+      },
+      "logTail": "Log tail",
+      "loadingLogTail": "Loading log tail…"
+    },
+    "audit": {
+      "title": "Audit log",
+      "description": "A record of who did what across the cluster.",
+      "searchPlaceholder": "Search by user, action, or resource…",
+      "emptyTitle": "No audit entries",
+      "emptySearchHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "No audit entries recorded yet — actions will appear here as they happen.",
+      "columns": {
+        "timestamp": "Timestamp",
+        "user": "User",
+        "action": "Action",
+        "resourceType": "Resource type",
+        "resourceId": "Resource ID",
+        "ip": "IP",
+        "details": "Details"
+      },
+      "diffBefore": "Before",
+      "diffAfter": "After"
+    },
+    "activity": {
+      "title": "Activity",
+      "description": "Every action, deployment, and state change across the cluster.",
+      "searchPlaceholder": "Search by event type, actor, or message…",
+      "emptyMatchesTitle": "No matches",
+      "emptyTitle": "No activity yet",
+      "emptySearchHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "Cluster events will appear here as they happen.",
+      "loadOlder": "Load older events",
+      "loadingMore": "Loading…"
+    },
+    "logs": {
+      "title": "Logs",
+      "description": "Live tail of controller and node stdout/stderr.",
+      "controller": "Controller",
+      "nodeOption": "Node · {id}",
+      "resume": "Resume",
+      "pause": "Pause",
+      "export": "Export",
+      "clear": "Clear",
+      "share": "Share",
+      "scrollbackNote": "10 000-line scrollback. History before the session start isn't available.",
+      "followTail": "Follow tail",
+      "statusPaused": "Paused",
+      "statusConnected": "Connected",
+      "statusDisconnected": "Disconnected",
+      "historyNote1": "For deeper history, fall back to",
+      "historyNote2": "or the host-side journal until the backend ships a history API (see"
+    },
+    "system": {
+      "title": "System status",
+      "description": "Cluster health, controller version, and runtime configuration.",
+      "statusUnknown": "Unknown",
+      "shareDiagnostics": "Share diagnostics",
+      "diagnostics": "Diagnostics",
+      "health": "Health",
+      "columns": {
+        "component": "Component",
+        "status": "Status",
+        "detail": "Detail"
+      },
+      "noComponents": "No component health reported.",
+      "controller": "Controller",
+      "version": "Version",
+      "commit": "Commit",
+      "built": "Built",
+      "java": "Java",
+      "redis": "Redis",
+      "keys": "Keys",
+      "withTtl": "With TTL",
+      "avgTtl": "Avg TTL",
+      "byPrefix": "By prefix",
+      "settings": "Settings",
+      "tracing": "Tracing",
+      "tracingEnabled": "Distributed tracing is enabled.",
+      "tracingDisabled": "Distributed tracing is disabled.",
+      "viewLastTrace": "View last trace",
+      "noTraceYet": "Perform an action to capture a trace."
+    },
+    "users": {
+      "title": "Users",
+      "description": "People with dashboard access.",
+      "createButton": "Create user",
+      "searchPlaceholder": "Search by username, email, or role…",
+      "emptyMatchesTitle": "No matches",
+      "emptyTitle": "No users yet",
+      "emptySearchHint": "Try clearing the filter or searching by another term.",
+      "emptyHint": "Create the first user to grant dashboard access.",
+      "selectAll": "Select all users",
+      "selectOne": "Select {username}",
+      "columns": {
+        "user": "User",
+        "email": "Email",
+        "role": "Role",
+        "lastSignIn": "Last sign-in"
+      },
+      "never": "Never",
+      "eyebrow": "User",
+      "bulkDelete": "Delete",
+      "bulkDeleted": "{count} user deleted | {count} users deleted",
+      "detail": {
+        "email": "Email",
+        "created": "Created",
+        "lastSignIn": "Last sign-in",
+        "role": "Role",
+        "savingRole": "Saving…",
+        "saveRole": "Save role",
+        "permissions": "Permissions",
+        "inheritsFrom": "Inherits from {role}."
+      },
+      "createDialog": {
+        "title": "Create user",
+        "username": "Username",
+        "usernamePlaceholder": "alice",
+        "email": "Email (optional)",
+        "emailPlaceholder": "alice{'@'}example.com",
+        "password": "Initial password",
+        "passwordPlaceholder": "At least 8 characters",
+        "role": "Role",
+        "rolePlaceholder": "Pick a role",
+        "cancel": "Cancel",
+        "creating": "Creating…",
+        "create": "Create"
+      }
+    },
+    "tokens": {
+      "title": "Tokens",
+      "description": "Single-use join tokens for new daemons.",
+      "generate": "Generate token",
+      "searchPlaceholder": "Search by token id or node…",
+      "emptyTitle": "No active tokens",
+      "emptyHint": "Generate a token to bring a new daemon online.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "revoke": "Revoke token",
+      "columns": {
+        "tokenId": "Token ID",
+        "node": "Node",
+        "expiry": "Expiry",
+        "created": "Created"
+      },
+      "expiry": {
+        "expired": "Expired",
+        "daysHours": "{days}d {hours}h left",
+        "hours": "{hours}h left"
+      },
+      "dialog": {
+        "title": "Generate join token",
+        "oneTimeTitle": "One-time secret",
+        "oneTimeBody": "The token will be shown once. Copy it before closing this dialog.",
+        "pinLabel": "Pin to node ID (optional)",
+        "pinHint": "Leaving this empty issues an unpinned token any pending daemon can claim.",
+        "generate": "Generate",
+        "generating": "Generating…"
+      },
+      "issued": {
+        "title": "Copy this token now",
+        "body": "It won't be shown again. Once you close this dialog, only revocation is possible.",
+        "runPrefix": "Run",
+        "runSuffix": "on the new host.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "done": "Done",
+        "passwordTitle": "Treat this like a password.",
+        "passwordBody": "Anyone with the token can register as the named node and gain workload-credential access.",
+        "revokeWarning": "Revoke immediately if it leaks."
+      }
+    },
+    "credentials": {
+      "title": "Workload credentials",
+      "description": "Bearer tokens issued to running plugins and proxies. Revoke any that leak.",
+      "searchPlaceholder": "Search by instance, group, or node…",
+      "emptyTitle": "No credentials issued",
+      "emptyHint": "Workload credentials are minted automatically when instances start. New ones appear here as the controller issues them.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "selectAll": "Select all credentials",
+      "selectOne": "Select {id}",
+      "revokeAllFor": "Revoke all credentials for {instance}",
+      "revokeCredential": "Revoke this credential",
+      "revoke": "Revoke",
+      "revokedToast": "{count} credential revoked | {count} credentials revoked",
+      "columns": {
+        "token": "Token",
+        "instance": "Instance",
+        "group": "Group",
+        "node": "Node",
+        "issued": "Issued",
+        "expiry": "Expiry",
+        "actions": "Actions"
+      },
+      "expiry": {
+        "never": "Never",
+        "expired": "Expired",
+        "hours": "{hours}h left",
+        "days": "{days}d left"
+      }
+    },
+    "maintenance": {
+      "title": "Maintenance",
+      "description": "Block player joins cluster-wide or per group.",
+      "statusOn": "Maintenance on",
+      "statusLive": "Cluster live",
+      "globalEnabledTitle": "Cluster-wide maintenance is enabled",
+      "globalEnabledBody": "All new player joins are rejected. Existing connections are kept.",
+      "globalEnabledNext": "Disable the global toggle below to resume normal scheduling.",
+      "global": "Global",
+      "clusterMaintenance": "Cluster maintenance",
+      "clusterMaintenanceHint": "Rejects new player joins across every group.",
+      "messageLabel": "Message shown to players",
+      "messagePlaceholder": "Cluster will be down for migration from 03:00–04:00 UTC.",
+      "messageHint": "MiniMessage formatting supported. Shown on connect attempts during maintenance.",
+      "bypassLabel": "Bypass usernames (comma-separated)",
+      "bypassPlaceholder": "dev, ops, alice",
+      "bypassHint": "These usernames can connect even when maintenance is on. Use for the runbook operator.",
+      "saving": "Saving…",
+      "saveChanges": "Save changes",
+      "perGroup": "Per-group overrides",
+      "addOverride": "Add override",
+      "groupLabel": "Group",
+      "pickGroup": "Pick a group",
+      "enableMaintenance": "Enable maintenance",
+      "noOverrides": "No per-group overrides. The cluster-wide toggle above applies to everything.",
+      "overrideHint": "Overrides apply on top of the cluster-wide flag.",
+      "removeOverride": "Remove override",
+      "messageShort": "Message",
+      "overrideMessagePlaceholder": "Reason shown to players hitting this group.",
+      "footerTitle": "Maintenance leaves existing players connected.",
+      "footerBody": "Toggling maintenance only affects new join attempts. To force-disconnect, drain the affected nodes or stop the instances directly."
+    },
+    "backups": {
+      "title": "Backups",
+      "description": "Cluster-state snapshots: groups, templates, deployment history.",
+      "prune": "Prune",
+      "createBackup": "Create backup",
+      "searchPlaceholder": "Search by id or notes…",
+      "emptyTitle": "No backups yet",
+      "emptyHint": "Run Create backup to take the first snapshot.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "selectAll": "Select all backups",
+      "selectOne": "Select {id}",
+      "verifyAction": "Verify",
+      "restoreAction": "Restore from this backup",
+      "deleteAction": "Delete",
+      "delete": "Delete",
+      "deletedToast": "{count} backup deleted | {count} backups deleted",
+      "summary": {
+        "snapshots": "Snapshots",
+        "totalSize": "Total size",
+        "latest": "Latest"
+      },
+      "columns": {
+        "id": "ID",
+        "size": "Size",
+        "created": "Created",
+        "verify": "Verify",
+        "actions": "Actions"
+      },
+      "verify": {
+        "notVerified": "Not verified",
+        "verified": "Verified {ago}",
+        "failed": "Verify failed",
+        "verifying": "Verifying…"
+      },
+      "notesLabel": "Notes (optional)",
+      "notesPlaceholder": "Pre-migration snapshot",
+      "creating": "Creating…",
+      "create": "Create",
+      "pruneTitle": "Prune backups",
+      "pruneCalloutTitle": "This deletes older backups",
+      "pruneCalloutBody": "Only the most recent N snapshots are kept. Verified ones are not exempt.",
+      "keepLabel": "Keep most recent",
+      "pruning": "Pruning…",
+      "keepN": "Keep {n}",
+      "restoreTitle": "Restore from backup?",
+      "restoreCalloutTitle": "This replaces cluster state",
+      "restoreCalloutBody": "Scheduler pauses while the controller rolls back groups, templates, and deployment history to the snapshot. Running instances stay up until they're rescheduled against the restored state.",
+      "restoreCalloutNext": "Take a fresh backup first if you might want to come back. Restores can't be undone.",
+      "starting": "Starting…",
+      "restore": "Restore"
+    },
+    "controllers": {
+      "title": "Cluster controllers",
+      "description": "The Raft control plane that runs PrexorCloud. Members, join tokens, and leader-elected work.",
+      "rotateSeed": "Rotate seed",
+      "leaveCluster": "Leave cluster",
+      "issueToken": "Issue join token",
+      "confirmEject": "Force-eject controller {nodeId}? It will be removed from the Raft group.",
+      "confirmRevoke": "Revoke join token {jti}…?",
+      "ejectAria": "Eject controller",
+      "revokeAria": "Revoke token",
+      "membersHeading": "Controllers ({count})",
+      "tokensHeading": "Outstanding join tokens ({count})",
+      "leasesHeading": "Leases ({count})",
+      "emptyMembersTitle": "No members",
+      "emptyMembersBody": "The controller hasn't stamped any cluster members yet — bootstrap may still be running.",
+      "emptyTokensTitle": "No join tokens",
+      "emptyTokensBody": "Issue a token to add another controller to the cluster.",
+      "summary": {
+        "clusterId": "Cluster ID",
+        "members": "Members",
+        "activeConfig": "Active config version",
+        "activeLeases": "Active leases"
+      },
+      "memberColumns": {
+        "nodeId": "Node ID",
+        "raftAddr": "Raft addr",
+        "restAddr": "REST addr",
+        "grpcAddr": "gRPC addr",
+        "joined": "Joined"
+      },
+      "tokenColumns": {
+        "jti": "JTI",
+        "label": "Label",
+        "status": "Status",
+        "expires": "Expires"
+      },
+      "leaseColumns": {
+        "name": "Name",
+        "holder": "Holder",
+        "renewed": "Renewed"
+      },
+      "dialog": {
+        "title": "Issue cluster join token",
+        "oneTimeTitle": "One-time secret",
+        "oneTimeBody": "The token will be shown once. Copy it before closing this dialog.",
+        "labelLabel": "Label",
+        "labelHint": "Human-readable name pinned to the AddMember entry for audit.",
+        "ttlLabel": "TTL (hours)",
+        "addrsLabel": "Join addresses",
+        "addrsHint": "One existing controller gRPC host:port per line. The joiner dials these to redeem the token.",
+        "issuing": "Issuing…",
+        "issue": "Issue"
+      },
+      "issued": {
+        "title": "Copy this token now",
+        "body": "It won't be shown again. Once you close this dialog, only revocation is possible.",
+        "runPrefix": "Paste it into the controller wizard's",
+        "runSuffix": "mode on the new host.",
+        "copied": "Copied",
+        "copy": "Copy",
+        "done": "Done",
+        "passwordTitle": "Treat this like a password.",
+        "passwordBody": "Anyone with this token can add a controller to the cluster.",
+        "revokeWarning": "Revoke immediately if it leaks."
+      },
+      "leaveDialog": {
+        "title": "Leave cluster?",
+        "calloutTitle": "This controller will shut down.",
+        "body": "The cluster will continue with the remaining members. To re-add this controller, generate a new join token and run the installer."
+      },
+      "seedDialog": {
+        "title": "Rotate cluster seed?",
+        "calloutTitle": "Outstanding join tokens will be invalidated.",
+        "body": "The seed is the HMAC key for every join token. Rotating it means any token issued before this point can no longer be redeemed."
+      }
+    },
+    "certificates": {
+      "title": "Certificates",
+      "description": "Compromise-response: revoke a node's TLS certificate to force-disconnect it.",
+      "revokeCertificate": "Revoke certificate",
+      "warningTitle": "Revoking blocks the daemon's controller access immediately on next reconnect.",
+      "warningBody": "Use this when a node is suspected leaked or compromised. Existing instances on the node keep running until the controller marks them UNREACHABLE.",
+      "warningNext": "Drain the node first if you want graceful migration.",
+      "searchPlaceholder": "Search by node, serial, or reason…",
+      "emptyTitle": "No revoked certificates",
+      "emptyHint": "Every node certificate is currently valid. Use the Revoke button if you need to lock one out.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "revoked": "Revoked",
+      "unrevoke": "Unrevoke (allow reconnect)",
+      "columns": {
+        "node": "Node",
+        "serial": "Serial",
+        "reason": "Reason",
+        "revoked": "Revoked",
+        "status": "Status"
+      },
+      "dialog": {
+        "title": "Revoke certificate?",
+        "calloutTitle": "This locks the daemon out.",
+        "calloutBody": "On next reconnect, the daemon's TLS handshake is rejected. Existing controller access via active sessions remains until they expire.",
+        "calloutNext": "Reversible — unrevoke from this page.",
+        "nodeLabel": "Node ID",
+        "reasonLabel": "Reason (optional)",
+        "reasonPlaceholder": "Suspected compromise; rotating cert before re-bootstrap.",
+        "revoking": "Revoking…",
+        "revoke": "Revoke"
+      }
+    },
+    "networks": {
+      "title": "Networks",
+      "description": "Velocity proxies fronting one or more groups, with lobby and fallback routing.",
+      "searchPlaceholder": "Search networks...",
+      "emptyTitle": "No networks configured",
+      "emptySearchHint": "Try adjusting your search",
+      "emptyHint": "Create a network to centralize lobby + fallback routing for your proxies",
+      "editNetwork": "Edit network",
+      "deleteNetwork": "Delete network",
+      "members": "Members",
+      "proxies": "Proxies",
+      "all": "all",
+      "columns": {
+        "name": "Name",
+        "lobby": "Lobby",
+        "fallbackChain": "Fallback chain"
+      },
+      "confirmDeleteDesc": "Permanently delete network '{name}'? Proxies will fall back to default-group routing."
+    },
+    "roles": {
+      "title": "Roles",
+      "description": "Permission bundles assigned to users.",
+      "createRole": "Create role",
+      "searchPlaceholder": "Search by name or permission…",
+      "emptyTitle": "No roles defined",
+      "emptyHint": "Create a role to bundle permissions for users.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "builtIn": "Built-in",
+      "custom": "Custom",
+      "roleEyebrow": "Role",
+      "builtInNote": "Built-in roles can't be edited or deleted.",
+      "delete": "Delete",
+      "saving": "Saving…",
+      "nameLabel": "Name",
+      "nameHintPrefix": "Must match",
+      "nameHintSuffix": ", max 32 characters.",
+      "creating": "Creating…",
+      "create": "Create",
+      "columns": {
+        "name": "Name",
+        "type": "Type",
+        "permissions": "Permissions",
+        "users": "Users"
+      }
+    },
+    "deployments": {
+      "title": "Deployments",
+      "description": "Cluster-wide rollout history. Click a row for the per-group view.",
+      "searchPlaceholder": "Search by group, strategy, state…",
+      "emptyTitle": "No deployments yet",
+      "emptyHint": "Trigger a deploy from a group to see history here.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter.",
+      "columns": {
+        "group": "Group",
+        "rev": "Rev",
+        "strategy": "Strategy",
+        "state": "State",
+        "progress": "Progress",
+        "trigger": "Trigger",
+        "started": "Started"
+      }
+    },
+    "map": {
+      "title": "Map",
+      "description": "Cluster topology — every node and the instances running on it.",
+      "filterPlaceholder": "Filter by node or instance…",
+      "fit": "Fit",
+      "resetLayout": "Reset layout",
+      "emptyTitle": "No nodes connected",
+      "emptyHint": "Start a daemon with a join token to see the cluster.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter or searching by another term.",
+      "instanceEyebrow": "Instance",
+      "details": {
+        "group": "Group",
+        "node": "Node",
+        "port": "Port",
+        "players": "Players",
+        "uptime": "Uptime",
+        "deployment": "Deployment",
+        "rev": "rev {revision}"
+      }
+    },
+    "moduleLoader": {
+      "notFound": "Module page not found",
+      "componentNotFound": "Component \"{component}\" not found in module \"{module}\"",
+      "loadFailed": "Failed to load module",
+      "loading": "Loading module…",
+      "cantLoad": "Can't load module",
+      "backToOverview": "Back to overview",
+      "noModule": "No module loaded."
+    },
+    "catalog": {
+      "title": "Catalog",
+      "description": "Server platforms and the versions available to instances.",
+      "searchPlaceholder": "Search platforms...",
+      "countLabel": "platforms",
+      "filters": {
+        "all": "All",
+        "servers": "Servers",
+        "proxies": "Proxies"
+      },
+      "category": {
+        "server": "Server",
+        "proxy": "Proxy"
+      },
+      "emptyTitle": "No platforms found",
+      "emptyFilterHint": "Try adjusting your filters",
+      "emptyHint": "Add a platform to get started",
+      "columns": {
+        "platform": "Platform",
+        "category": "Category",
+        "format": "Format",
+        "versions": "Versions",
+        "recommended": "Recommended"
+      }
+    },
+    "clusterConfig": {
+      "title": "Cluster configuration",
+      "description": "Append-only history of the Raft-replicated cluster config. Inspect any version's diff against its parent and roll back.",
+      "summary": {
+        "activeVersion": "Active version",
+        "totalVersions": "Versions"
+      },
+      "historyHeading": "Version history ({count})",
+      "columns": {
+        "version": "Version",
+        "parent": "Parent",
+        "mutator": "Changed by",
+        "changedAt": "Changed at",
+        "reason": "Reason"
+      },
+      "active": "active",
+      "rootSeed": "seed",
+      "noReason": "—",
+      "emptyTitle": "No config versions",
+      "emptyBody": "The cluster config history is empty. Versions appear here as operators patch the cluster config.",
+      "rollback": "Roll back",
+      "rollbackToThisAria": "Roll back to this version",
+      "diffHeading": "Diff against parent",
+      "diffHint": "Each version stores the patch it applied on top of its parent. The diff compares this version's patch against its parent's.",
+      "selectPrompt": "Select a version from the history to view its diff.",
+      "maskedNote": "Sensitive values (secrets, URIs) are masked as \"***\".",
+      "parentLabel": "v{version} (parent)",
+      "versionLabel": "v{version}",
+      "seedLabel": "(seed)",
+      "rollbackDialog": {
+        "title": "Roll back cluster config",
+        "body": "This sets the active cluster config to v{version} as a new Raft commit. Live reloaders (CORS, rate-limit, JWT) re-apply the effective config. Continue?",
+        "reasonLabel": "Reason (optional)",
+        "reasonPlaceholder": "Why are you rolling back?",
+        "confirm": "Roll back"
+      }
+    },
+    "players": {
+      "title": "Players",
+      "description": "Connected clients across the cluster.",
+      "online": "Online",
+      "avgPing": "Avg ping",
+      "groupsInUse": "Groups in use",
+      "editionSplit": "Edition",
+      "editions": {
+        "java": "Java",
+        "bedrock": "Bedrock"
+      },
+      "searchPlaceholder": "Search by username, UUID, instance, or group…",
+      "emptyTitle": "No players online",
+      "emptyHint": "New connections will appear here as players join.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter or searching by another term.",
+      "truncated": "Showing {shown} of {total} online — list capped. Refine with search to find a specific player.",
+      "columns": {
+        "player": "Player",
+        "uuid": "UUID",
+        "instance": "Instance",
+        "ping": "Ping",
+        "connected": "Connected"
+      },
+      "playerEyebrow": "Player",
+      "identity": "Identity",
+      "details": {
+        "uuid": "UUID",
+        "currentInstance": "Current instance",
+        "group": "Group",
+        "edition": "Edition",
+        "connected": "Connected"
+      },
+      "transfer": "Transfer",
+      "targetInstance": "Target instance",
+      "pickInstance": "Pick a running instance…",
+      "transferring": "Transferring…",
+      "transferAction": "Transfer",
+      "transferHint": "Only RUNNING instances are listed. The player keeps their session.",
+      "journey": "Journey",
+      "loading": "Loading…",
+      "noJourney": "No movement history.",
+      "journeyJoined": "Joined",
+      "journeyMoved": "Moved",
+      "journeyDisconnected": "Disconnected from"
+    },
+    "profile": {
+      "title": "Profile",
+      "description": "Manage your account and security.",
+      "toast": {
+        "linkNotFoundTitle": "Player not found",
+        "linkNotFoundDesc": "No Minecraft account found for \"{name}\"",
+        "linkedTitle": "Minecraft account linked",
+        "linkedDesc": "Linked to {name}",
+        "linkFailedTitle": "Link failed",
+        "linkFailedDesc": "Couldn't link your Minecraft account. Check the username and try again.",
+        "unlinkedTitle": "Minecraft account unlinked",
+        "unlinkFailedTitle": "Unlink failed",
+        "unlinkFailedDesc": "Couldn't unlink your Minecraft account. Try again, or check the controller logs.",
+        "passwordFailedTitle": "Password change failed",
+        "passwordFailedDesc": "Check that your current password is correct and the new one is at least 8 characters."
+      },
+      "mc": {
+        "title": "Minecraft Account",
+        "subtitle": "Link your Minecraft account for in-game permissions",
+        "unlinking": "Unlinking...",
+        "unlink": "Unlink",
+        "usernameLabel": "Minecraft Username",
+        "usernamePlaceholder": "e.g. Notch",
+        "usernameHint": "We'll verify this against the Mojang API to get your UUID.",
+        "linking": "Linking...",
+        "linkAccount": "Link Account"
+      },
+      "password": {
+        "title": "Change Password",
+        "subtitle": "Update your account password",
+        "currentLabel": "Current Password",
+        "currentPlaceholder": "Enter current password",
+        "newLabel": "New Password",
+        "newPlaceholder": "At least 8 characters",
+        "confirmLabel": "Confirm New Password",
+        "confirmPlaceholder": "Repeat new password",
+        "mismatch": "Passwords do not match",
+        "changing": "Changing..."
+      },
+      "signOut": {
+        "title": "Sign Out",
+        "subtitle": "End your current session and return to the login page."
+      }
+    },
+    "registry": {
+      "title": "Module Registry",
+      "description": "Browse and install signed modules from the configured registries.",
+      "refresh": "Refresh",
+      "noRegistriesTitle": "No registries configured",
+      "noRegistriesSet": "Set",
+      "noRegistriesIn": "in",
+      "noRegistriesTail": "to a signed registry index URL, then refresh.",
+      "registryCount": "{count} registry | {count} registries",
+      "updatesAvailable": "{count} update available | {count} updates available",
+      "searchPlaceholder": "Search modules, tags…",
+      "countLabel": "modules",
+      "signed": "signed",
+      "unsigned": "unsigned",
+      "installing": "Installing…",
+      "updateTo": "Update to {version}",
+      "installed": "Installed",
+      "install": "Install",
+      "installedLabel": "Installed:",
+      "noMatches": "No modules match your search.",
+      "toast": {
+        "installedTitle": "Module \"{id}\" installed",
+        "installedDesc": "version {version}",
+        "installFailedTitle": "Install failed",
+        "unknownError": "Unknown error"
+      }
+    },
+    "catalogPlatform": {
+      "platform": "Platform",
+      "unknownFormat": "Unknown format",
+      "na": "N/A",
+      "none": "None",
+      "versions": "Versions",
+      "noVersions": "No versions yet",
+      "markRecommended": "Mark as recommended",
+      "deleteVersion": "Delete version",
+      "usedByGroups": "Used by groups",
+      "confirmDeleteTitle": "Delete version?",
+      "confirmDeleteDesc": "Remove version '{version}' from {platform}. This action cannot be undone.",
+      "delete": "Delete",
+      "info": {
+        "category": "Category",
+        "configFormat": "Config format",
+        "recommended": "Recommended",
+        "template": "Template"
+      },
+      "toast": {
+        "notFoundTitle": "Platform not found",
+        "notFoundDesc": "'{platform}' isn't registered in the catalog. Check the URL or add it from the catalog page.",
+        "loadFailedTitle": "Can't load catalog",
+        "loadFailedDesc": "The controller may be unreachable. Try again, or check the controller logs.",
+        "actionFailedTitle": "Action failed",
+        "actionFailedDesc": "Try again, or check the controller logs."
+      }
+    },
+    "groupDetail": {
+      "group": "Group",
+      "maintenance": "Maintenance",
+      "start": "Start",
+      "restart": "Restart",
+      "deploy": "Deploy",
+      "tabs": {
+        "overview": "Overview",
+        "appearance": "Appearance"
+      },
+      "configuration": "Configuration",
+      "config": {
+        "platform": "Platform",
+        "templates": "Templates",
+        "routing": "Routing",
+        "portRange": "Port Range",
+        "updateStrategy": "Update Strategy",
+        "memory": "Memory",
+        "jvmArgs": "JVM Args",
+        "maxLifetime": "Max Lifetime",
+        "static": "Static",
+        "staticInstances": "Static Instances",
+        "fallback": "Fallback",
+        "defaultGroup": "Default Group",
+        "priority": "Priority",
+        "status": "Status"
+      },
+      "yes": "Yes",
+      "scaling": "Scaling",
+      "scalingFields": {
+        "mode": "Mode",
+        "instances": "Instances",
+        "instancesValue": "{running} running ({min}–{max})",
+        "players": "Players",
+        "scaleUpThreshold": "Scale Up Threshold",
+        "scaleDownAfter": "Scale Down After",
+        "cooldown": "Cooldown",
+        "predictive": "Predictive",
+        "predictiveValue": "Enabled (margin {margin})",
+        "burstCeiling": "Burst Ceiling",
+        "startupTimeout": "Startup Timeout",
+        "shutdownGrace": "Shutdown Grace"
+      },
+      "instances": "Instances",
+      "noInstances": "No instances running",
+      "instColumns": {
+        "instance": "Instance",
+        "node": "Node",
+        "state": "State",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "nodeAffinity": "Node Affinity",
+      "affinity": {
+        "affinity": "Affinity",
+        "antiAffinity": "Anti-Affinity",
+        "spread": "Spread",
+        "dependsOn": "Depends On"
+      },
+      "any": "Any",
+      "none": "None",
+      "deployments": "Deployments",
+      "noDeployments": "No deployments yet",
+      "revLabel": "Rev {rev}",
+      "pause": "Pause",
+      "resume": "Resume",
+      "rollback": "Rollback",
+      "resolvedConfig": "Resolved configuration",
+      "templateChain": "Template chain",
+      "resolved": {
+        "files": "Files",
+        "configPatches": "Config patches",
+        "jvmArgs": "JVM args",
+        "jvmArgsResolved": "JVM args (resolved)",
+        "envResolved": "Environment (resolved)"
+      },
+      "dangerTitle": "Delete group",
+      "dangerBody": "Permanently delete this group and stop all running instances. This action cannot be undone.",
+      "delete": "Delete",
+      "startDialog": {
+        "title": "Start instances",
+        "count": "Count",
+        "starting": "Starting…",
+        "startN": "Start {count} instances",
+        "startOne": "Start instance"
+      },
+      "confirmDeleteTitle": "Delete group?",
+      "confirmDeleteDesc": "Delete group \"{name}\". All running instances will be stopped and the group configuration will be permanently removed.",
+      "toast": {
+        "loadFailedTitle": "Can't load group",
+        "loadFailedDesc": "Group \"{name}\" couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "scheduled": "Instance scheduled | {count} instances scheduled",
+        "scheduledDesc": "Starting for \"{name}\"",
+        "startFailedTitle": "Start failed",
+        "startFailedDesc": "Couldn't schedule instances for \"{name}\". Check that at least one node has capacity.",
+        "restartTitle": "Rolling restart",
+        "restartDesc": "Restarting instances for \"{name}\"",
+        "deployTitle": "Deployment triggered",
+        "deployDesc": "Deploying \"{name}\"",
+        "deployPaused": "Deployment paused",
+        "deployResumed": "Deployment resumed",
+        "deployRolledBack": "Deployment rolled back",
+        "deletedTitle": "Group deleted",
+        "deletedDesc": "\"{name}\" has been removed",
+        "deleteFailedTitle": "Delete failed",
+        "deleteFailedDesc": "Couldn't delete \"{name}\". Stop running instances first, or check the controller logs."
+      }
+    },
+    "templateDetail": {
+      "tabs": {
+        "overview": "Overview",
+        "files": "Files",
+        "versions": "Versions"
+      },
+      "stageDelete": {
+        "title": "Stage Deletion",
+        "desc": "Mark '{path}' for deletion? This will be applied when you save.",
+        "confirm": "Stage Delete"
+      },
+      "discardAll": {
+        "title": "Discard All Changes",
+        "desc": "Discard all {count} staged change? This cannot be undone. | Discard all {count} staged changes? This cannot be undone.",
+        "confirm": "Discard All"
+      },
+      "deleteTemplate": {
+        "title": "Delete Template",
+        "desc": "Permanently delete '{name}'? All files and version history will be lost.",
+        "confirm": "Delete Template"
+      },
+      "unsaved": {
+        "title": "Unsaved Changes",
+        "desc": "You have unsaved staged changes that will be lost. Do you want to continue?",
+        "confirm": "Continue"
+      },
+      "toast": {
+        "loadFailedTitle": "Can't load template",
+        "loadFailedDesc": "Template \"{name}\" couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "versionsFailedTitle": "Can't load version history",
+        "genericRetry": "Try again, or check the controller logs.",
+        "versionRestored": "Version restored",
+        "restoreFailedTitle": "Restore failed",
+        "restoreFailedDesc": "Couldn't roll back to that version. Try again, or check the controller logs."
+      }
+    },
+    "instanceDetail": {
+      "instance": "Instance",
+      "on": "on",
+      "stopping": "Stopping…",
+      "stop": "Stop",
+      "killing": "Killing…",
+      "forceStop": "Force-stop",
+      "delete": "Delete",
+      "info": {
+        "group": "Group",
+        "node": "Node",
+        "port": "Port",
+        "players": "Players",
+        "uptime": "Uptime",
+        "deployment": "Deployment",
+        "started": "Started"
+      },
+      "revLabel": "rev {rev}",
+      "serverMetrics": "Server metrics",
+      "metrics": {
+        "tps": "TPS",
+        "mspt": "MSPT",
+        "heap": "Heap",
+        "gc": "GC",
+        "gcValue": "{collections} collections, {ms}ms",
+        "threads": "Threads",
+        "version": "Version",
+        "plugins": "Plugins"
+      },
+      "noMetrics": "No metrics available",
+      "noMetricsHintServer": "Metrics appear once the server is running",
+      "noMetricsHintProxy": "Metrics appear once the proxy is running",
+      "proxyMetrics": "Proxy metrics",
+      "proxy": {
+        "players": "Players",
+        "avgPing": "Avg Ping",
+        "memory": "Memory",
+        "uptime": "Uptime",
+        "playerLatency": "Player latency"
+      },
+      "worlds": "Worlds",
+      "worldColumns": {
+        "world": "World",
+        "environment": "Environment",
+        "entities": "Entities",
+        "chunks": "Chunks",
+        "players": "Players"
+      },
+      "composition": "Composition",
+      "templateChain": "Template chain",
+      "primary": "Primary",
+      "inherited": "Inherited",
+      "extensions": "Extensions",
+      "jvmArgs": "JVM args",
+      "environment": "Environment",
+      "confirmDeleteTitle": "Delete instance?",
+      "confirmDeleteDesc": "Remove instance '{id}' from the cluster registry. This action cannot be undone.",
+      "toast": {
+        "loadFailedTitle": "Can't load instance",
+        "loadFailedDesc": "Instance {id} couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "stopFailedTitle": "Stop failed",
+        "stopFailedDesc": "Couldn't stop {id}. Try force-stop, or check the controller logs.",
+        "forceStopFailedTitle": "Force-stop failed",
+        "forceStopFailedDesc": "Couldn't kill {id}. Check the daemon on {node}.",
+        "deleteFailedTitle": "Delete failed",
+        "deleteFailedDesc": "Couldn't delete {id}. The instance must be STOPPED, CRASHED, or SCHEDULED first."
+      }
+    },
+    "nodeDetail": {
+      "node": "Node",
+      "awaitingConnection": "Awaiting connection",
+      "disconnected": "Disconnected",
+      "nodeDetails": "Node details",
+      "notFoundTitle": "Node not found",
+      "notFoundHint": "It may have been removed from the cluster, or the join token expired.",
+      "tabs": {
+        "overview": "Overview",
+        "cache": "Cache"
+      },
+      "connection": "Connection",
+      "conn": {
+        "address": "Address",
+        "connectedSince": "Connected since",
+        "uptime": "Uptime",
+        "lastHeartbeat": "Last heartbeat",
+        "cpu": "CPU",
+        "memory": "Memory",
+        "disk": "Disk",
+        "instances": "Instances"
+      },
+      "stale": "Stale",
+      "host": "Host",
+      "hostInfo": {
+        "os": "Operating system",
+        "arch": "Architecture",
+        "cpuModel": "CPU model",
+        "cores": "Cores",
+        "maxFreq": "Max frequency",
+        "java": "Java",
+        "jvmVendor": "JVM vendor",
+        "jvmRuntime": "JVM runtime",
+        "gc": "GC"
+      },
+      "noHostInfo": "No host information available",
+      "labels": "Labels",
+      "instances": "Instances",
+      "noInstances": "No instances on this node",
+      "instColumns": {
+        "instance": "Instance",
+        "group": "Group",
+        "state": "State",
+        "players": "Players",
+        "uptime": "Uptime"
+      },
+      "nodeInformation": "Node information",
+      "disc": {
+        "status": "Status",
+        "firstSeen": "First seen",
+        "lastSeen": "Last seen"
+      },
+      "pendingNode": "Pending node",
+      "pending": {
+        "status": "Status",
+        "pending": "Pending",
+        "expires": "Expires",
+        "joinToken": "Join token"
+      },
+      "drainZone": {
+        "title": "Drain node",
+        "body": "Gracefully stop all running instances and prevent new ones from being scheduled. Existing instances will be migrated to other nodes."
+      },
+      "undrainZone": {
+        "title": "Cancel drain",
+        "body": "Stop the drain process and allow new instances to be scheduled on this node again."
+      },
+      "cordonZone": {
+        "title": "Cordon node",
+        "body": "Prevent new instances from being scheduled on this node. Existing instances will continue running."
+      },
+      "uncordonZone": {
+        "title": "Uncordon node",
+        "body": "Allow new instances to be scheduled on this node again."
+      },
+      "deleteZone": {
+        "revokeTitle": "Revoke join token",
+        "deleteTitle": "Delete node",
+        "revokeBody": "Revoke this join token. The daemon will no longer be able to connect using it.",
+        "deleteBody": "Remove this node from the cluster registry. This action cannot be undone."
+      },
+      "drain": "Drain",
+      "draining": "Draining…",
+      "cancelDrain": "Cancel drain",
+      "cancelling": "Cancelling…",
+      "cordon": "Cordon",
+      "cordoning": "Cordoning…",
+      "uncordon": "Uncordon",
+      "uncordoning": "Uncordoning…",
+      "revoke": "Revoke",
+      "revoking": "Revoking…",
+      "delete": "Delete",
+      "deleting": "Deleting…",
+      "confirm": {
+        "revokeTitle": "Revoke join token?",
+        "deleteTitle": "Delete node?",
+        "revokeDesc": "Revoke the join token for \"{id}\". The daemon will no longer be able to connect using it.",
+        "deleteDesc": "Delete node \"{id}\" from the cluster registry. This action cannot be undone.",
+        "drainTitle": "Drain node?",
+        "drainDesc": "Running instances on \"{id}\" will be gracefully stopped and migrated to other nodes.",
+        "cordonTitle": "Cordon node?",
+        "cordonDesc": "No new instances will be scheduled on \"{id}\". Existing instances continue running."
+      },
+      "toast": {
+        "loadFailedTitle": "Can't load node",
+        "loadFailedDesc": "Node {id} couldn't be reached. It may have been deleted, or the controller is unreachable.",
+        "actionFailedTitle": "Action failed",
+        "genericRetry": "Try again, or check the controller logs.",
+        "tokenRevokedTitle": "Token revoked",
+        "tokenRevokedDesc": "Join token for \"{id}\" has been revoked",
+        "nodeDeletedTitle": "Node deleted",
+        "nodeDeletedDesc": "Node \"{id}\" removed from cluster",
+        "drainStartedTitle": "Drain started",
+        "drainStartedDesc": "Node \"{id}\" is being drained",
+        "drainCancelledTitle": "Drain cancelled",
+        "drainCancelledDesc": "Node \"{id}\" is back online",
+        "cordonedTitle": "Node cordoned",
+        "cordonedDesc": "No new instances will be scheduled on \"{id}\"",
+        "uncordonedTitle": "Node uncordoned",
+        "uncordonedDesc": "\"{id}\" is accepting new instances again"
+      }
+    },
+    "modules": {
+      "title": "Modules",
+      "description": "Runtime-loaded plugins extending the controller and dashboard.",
+      "refresh": "Refresh",
+      "installing": "Installing…",
+      "installModule": "Install module",
+      "searchPlaceholder": "Search modules...",
+      "countLabel": "installed",
+      "summary": {
+        "installed": "Installed",
+        "active": "Active",
+        "unresolved": "Unresolved"
+      },
+      "views": {
+        "modules": "Modules",
+        "capabilities": "Capabilities",
+        "extensions": "Extensions"
+      },
+      "storage": {
+        "mongo": "Mongo",
+        "redis": "Redis",
+        "available": "Available",
+        "requested": "Requested",
+        "off": "Off",
+        "docs": "docs",
+        "keys": "keys"
+      },
+      "resources": "Resources",
+      "quotaExceeded": "Quota exceeded",
+      "threads": "threads",
+      "msCpuMin": "ms CPU/min",
+      "mbMin": "MB/min",
+      "needs": "needs",
+      "providesThis": "provides this",
+      "install": "Install",
+      "backendOnly": "Backend only",
+      "remove": "Remove",
+      "removing": "Removing…",
+      "unlimited": "Unlimited",
+      "healthTitle": "Health: {label}{detail}",
+      "emptyTitle": "No modules installed",
+      "emptyHint": "Upload a platform module JAR to extend the controller.",
+      "emptyMatchesTitle": "No matches",
+      "emptyMatchesHint": "Try clearing the filter or searching by another term.",
+      "capColumns": {
+        "module": "Module",
+        "type": "Type",
+        "capability": "Capability",
+        "version": "Version",
+        "binding": "Binding"
+      },
+      "capTypes": {
+        "provides": "Provides",
+        "requires": "Requires",
+        "unresolved": "Unresolved"
+      },
+      "peer": {
+        "activeBinding": "active binding",
+        "inactive": "inactive",
+        "unbound": "unbound"
+      },
+      "noCapabilities": "No capability declarations",
+      "target": "Target",
+      "runtimeVersion": "Runtime version",
+      "resolve": "Resolve",
+      "extensionRegistry": "Extension registry",
+      "ext": {
+        "mc": "MC {range}",
+        "runtime": "Runtime {version}"
+      },
+      "noExtensions": "No workload extensions",
+      "resolvedVariants": "Resolved variants",
+      "noVariants": "No compatible variants",
+      "confirmRemoveTitle": "Remove module?",
+      "confirmRemoveDesc": "Remove '{id}' from the controller. The platform module JAR will be deleted.",
+      "toast": {
+        "onlyJar": "Only .jar files are accepted",
+        "uploadFailed": "Upload failed",
+        "uploadFailedStatus": "Upload failed ({status})",
+        "installedTitle": "Module \"{id}\" installed",
+        "installFailedTitle": "Install failed",
+        "installFailedDesc": "Couldn't install the module. Check the JAR is signed and the controller logs for details.",
+        "removedTitle": "Module \"{id}\" removed",
+        "removeFailedTitle": "Remove failed",
+        "removeFailedDesc": "Couldn't remove the module. Try again, or check the controller logs.",
+        "installingDepTitle": "Installing \"{id}\"",
+        "installingDepDesc": "Provides {capability}",
+        "installDepFailedDesc": "Couldn't install the providing module."
+      }
+    },
+    "error": {
+      "fallbackMessage": "Something went wrong"
+    }
+  },
+  "components": {
+    "notifications": {
+      "label": "Notifications",
+      "unreadCount": "Unread count",
+      "markAllRead": "Mark all read",
+      "clearAll": "Clear all",
+      "clear": "Clear",
+      "empty": "No notifications.",
+      "emptyHint": "Crashes, deployments and node events will appear here."
+    },
+    "bulkActions": {
+      "label": "Bulk actions",
+      "clearSelection": "Clear selection"
+    },
+    "detailSheet": {
+      "close": "Close panel",
+      "openFullPage": "Open full page"
+    },
+    "commandPalette": {
+      "placeholder": "Search resources, jump to a page, switch theme…",
+      "trigger": "Search…",
+      "noResults": "No results.",
+      "resourcesHeading": "Resources",
+      "themeHeading": "Theme",
+      "themeLight": "Light",
+      "themeDark": "Dark",
+      "themeSystem": "System",
+      "active": "Active",
+      "navigate": "Navigate",
+      "select": "Select",
+      "close": "Close"
+    },
+    "console": {
+      "title": "Console",
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "commandPlaceholder": "Enter command…",
+      "commandLabel": "Console command input",
+      "send": "Send command"
+    },
+    "sidebar": {
+      "toggle": "Toggle Sidebar"
+    },
+    "spinner": {
+      "loading": "Loading"
+    },
+    "groupCard": {
+      "scheduledTitle": "Instance scheduled",
+      "scheduledDesc": "Starting an instance for \"{name}\"",
+      "startFailed": "Failed to start instance",
+      "startInstance": "Start instance",
+      "maintenance": "Maintenance"
+    },
+    "nodeCard": {
+      "unknown": "Unknown",
+      "awaitingConnection": "Awaiting connection",
+      "disconnected": "Disconnected",
+      "expires": "Expires {date}",
+      "lastSeen": "Last seen {date}"
+    },
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "subtitle": "Press a chord to jump anywhere in the dashboard."
+    },
+    "themeSwitcher": {
+      "customizeTheme": "Customize theme",
+      "customize": "Customize",
+      "subtitle": "Pick a color and radius for the dashboard.",
+      "color": "Color",
+      "radius": "Radius",
+      "mode": "Mode",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "advanced": "Advanced Customization"
+    },
+    "templateEditor": {
+      "files": "Files",
+      "newFile": "New file",
+      "newFolder": "New folder",
+      "extractZip": "Extract ZIP",
+      "download": "Download",
+      "delete": "Delete",
+      "uploadFiles": "Upload files",
+      "refresh": "Refresh",
+      "searchFiles": "Search files",
+      "folderName": "folder name",
+      "fileName": "file name",
+      "binaryFile": "Binary file",
+      "extract": "Extract",
+      "noFileSelected": "No file selected",
+      "noFileHint": "Click a file in the tree to view and edit it",
+      "unsaved": "unsaved",
+      "staged": "staged",
+      "errors": "{count} error | {count} errors",
+      "downloadFile": "Download file",
+      "revert": "Revert",
+      "stagedChanges": "Staged Changes",
+      "unstage": "Unstage",
+      "saving": "Saving...",
+      "saveRehash": "Save & Rehash",
+      "confirmNewItem": "Confirm",
+      "cancelNewItem": "Cancel"
+    },
+    "createGroup": {
+      "newGroup": "New Group",
+      "dialogTitle": "Create Server Group",
+      "setupWizard": "Setup wizard",
+      "proxy": "Proxy",
+      "server": "Server",
+      "none": "None",
+      "optional": "(optional)",
+      "optionalBadge": "Optional",
+      "comingSoon": "Coming soon",
+      "add": "Add",
+      "min": "Min",
+      "max": "Max",
+      "total": "total",
+      "yes": "Yes",
+      "no": "No",
+      "back": "Back",
+      "continue": "Continue",
+      "creating": "Creating...",
+      "createGroupBtn": "Create Group",
+      "presets": {
+        "lobby": {
+          "label": "Lobby",
+          "desc": "Persistent hub server"
+        },
+        "game": {
+          "label": "Game",
+          "desc": "Scalable game instances"
+        },
+        "proxy": {
+          "label": "Proxy",
+          "desc": "Network proxy layer"
+        }
+      },
+      "validation": {
+        "maxChars": "Max 32 characters",
+        "nameFormat": "Lowercase, numbers, underscore, hyphen",
+        "exists": "Group already exists"
+      },
+      "steps": {
+        "identity": {
+          "label": "Identity",
+          "desc": "Platform & name"
+        },
+        "scaling": {
+          "label": "Scaling",
+          "desc": "Instances & capacity"
+        },
+        "resources": {
+          "label": "Resources",
+          "desc": "Memory & networking"
+        },
+        "lifecycle": {
+          "label": "Lifecycle",
+          "desc": "Timers & deployment"
+        },
+        "orchestration": {
+          "label": "Orchestration",
+          "desc": "Relationships & cluster"
+        },
+        "review": {
+          "label": "Review",
+          "desc": "Confirm & create"
+        }
+      },
+      "scalingModes": {
+        "dynamic": {
+          "label": "Dynamic",
+          "desc": "Auto-scale on player demand"
+        },
+        "static": {
+          "label": "Static",
+          "desc": "Fixed named instances"
+        },
+        "manual": {
+          "label": "Manual",
+          "desc": "Start instances on demand"
+        }
+      },
+      "routing": {
+        "lowestPlayers": {
+          "label": "Lowest Players",
+          "desc": "Least populated first"
+        },
+        "roundRobin": {
+          "label": "Round Robin",
+          "desc": "Distribute evenly"
+        },
+        "random": {
+          "label": "Random",
+          "desc": "Random selection"
+        },
+        "fillFirst": {
+          "label": "Fill First",
+          "desc": "Fill before opening new"
+        }
+      },
+      "strategies": {
+        "rolling": {
+          "label": "Rolling",
+          "desc": "Replace one at a time"
+        },
+        "onNew": {
+          "label": "On New",
+          "desc": "New instances only"
+        },
+        "canary": {
+          "label": "Canary",
+          "desc": "Deploy one, then all"
+        },
+        "manual": {
+          "label": "Manual",
+          "desc": "Trigger yourself"
+        }
+      },
+      "memHints": {
+        "light": "Light",
+        "standard": "Standard",
+        "moderate": "Moderate",
+        "heavy": "Heavy",
+        "extreme": "Extreme"
+      },
+      "tplDesc": {
+        "base": "Base template",
+        "basePlatform": "Base template for {platform}",
+        "group": "Template for group {name}"
+      },
+      "toast": {
+        "createFailedTitle": "Create failed",
+        "createFailedDesc": "Couldn't create the group. Check the form for invalid fields, or check the controller logs."
+      },
+      "s1": {
+        "platform": "Platform",
+        "clear": "Clear",
+        "searchPlatforms": "Search platforms...",
+        "noMatch": "No platforms match \"{q}\"",
+        "servers": "Servers",
+        "proxies": "Proxies",
+        "versionCount": "{count} version | {count} versions",
+        "customPlatform": "Custom Platform",
+        "byoJar": "Bring your own JAR",
+        "versionsLabel": "{count} versions",
+        "selected": "Selected",
+        "version": "Version",
+        "rec": "rec",
+        "versionPlaceholder": "e.g. 1.21.4",
+        "quickStart": "Quick Start",
+        "groupName": "Group Name",
+        "namePlaceholder": "e.g. lobby",
+        "templateLayer": "Template Layer",
+        "green": "Green",
+        "yellow": "yellow",
+        "legendExists": "= exists,",
+        "legendAuto": "= created automatically",
+        "jarFile": "JAR File",
+        "jarPlaceholder": "server.jar",
+        "jarHint": "Without a catalog platform you must provide the server JAR filename."
+      },
+      "s2": {
+        "scalingMode": "Scaling Mode",
+        "instanceRange": "Instance Range",
+        "instanceRangeHint": "How many instances can run at once",
+        "playersInstance": "Players / Instance",
+        "slotsHint": "Slots before instance is considered full",
+        "scaleUpThreshold": "Scale-up Threshold",
+        "newInstanceWhen": "New instance when {filled} of {total} slots filled",
+        "scaleDownDelay": "Scale-down Delay",
+        "scaleDownHint": "Wait before removing empty instance",
+        "cooldown": "Cooldown",
+        "cooldownHint": "Minimum wait between scaling actions",
+        "predictive": "Predictive Scaling",
+        "predictiveHint": "Pre-scale based on historical patterns",
+        "instanceCount": "Instance Count",
+        "fixedHint": "Fixed number, always kept running",
+        "manualSlotsHint": "Max player slots for each instance you start",
+        "running": "Running:",
+        "instanceWord": "instance | instances",
+        "instanceNames": "Instance Names",
+        "instanceNamesPlaceholder": "e.g. lobby-1, lobby-2, lobby-vip",
+        "staticHintNames": "These names override the instance count — exactly {count} instance will run. | These names override the instance count — exactly {count} instances will run.",
+        "staticHintAuto": "Leave empty to auto-generate as {name}-1, {name}-2, etc."
+      },
+      "s3": {
+        "memory": "Memory per Instance",
+        "memoryHint": "JVM heap size — also determines which nodes have enough free memory for placement",
+        "routing": "Player Routing",
+        "routingHint": "How the proxy assigns incoming players to instances",
+        "portRange": "Port Range",
+        "portHint": "Each instance gets a port from this range — avoid overlapping with other groups",
+        "start": "Start",
+        "end": "End",
+        "portError": "Start must be ≤ end",
+        "jvmArgs": "JVM Arguments",
+        "jvmPlaceholder": "e.g. -XX:+UseG1GC, -XX:MaxGCPauseMillis=50",
+        "envVars": "Environment Variables",
+        "keyPlaceholder": "KEY",
+        "valuePlaceholder": "value",
+        "noEnv": "No environment variables — plugins receive CLOUD_CONTROLLER_URL automatically",
+        "removeEnvVar": "Remove environment variable"
+      },
+      "s4": {
+        "instanceTimers": "Instance Timers",
+        "startupTimeout": "Startup timeout",
+        "startupHint": "Time allowed for boot — killed if exceeded",
+        "shutdownGrace": "Shutdown grace",
+        "graceHint": "Grace period before force-kill",
+        "maxLifetime": "Max lifetime",
+        "lifetimeHint": "Auto-recycle after this duration (prevents memory leaks)",
+        "drain": "Drain on Shutdown",
+        "drainHint": "Migrate players to other instances before stopping",
+        "updateStrategy": "Update Strategy",
+        "strategyHint": "How template changes are rolled out to running instances",
+        "protectedPaths": "Protected Paths",
+        "staticOnly": "(static instances only)",
+        "protectedPlaceholder": "e.g. world, plugins/Essentials",
+        "protectedHint": "These paths survive template re-application on restart",
+        "maxLifetimeUnlimited": "0 = unlimited"
+      },
+      "s5": {
+        "additionalTemplates": "Additional Templates",
+        "additionalHint": "Optional template layers merged after the mandatory chain — later templates override earlier ones",
+        "relationships": "Group Relationships",
+        "parentGroup": "Parent Group",
+        "inheritConfig": "(inherit config)",
+        "dependsOn": "Depends On",
+        "startupOrder": "(startup order)",
+        "dependsPlaceholder": "e.g. proxy, auth",
+        "fallbackGroup": "Fallback Group",
+        "overflow": "(overflow)",
+        "bedrockProxyGroup": "Bedrock Proxy Group",
+        "bedrockProxyGroupHint": "(Java proxy this Geyser forwards to)",
+        "startupWeight": "Startup Weight",
+        "higherFirst": "(higher = first)",
+        "defaultGroup": "Default Group",
+        "notForProxies": "Not available for proxies",
+        "entryPoint": "Entry point for new players",
+        "maintenance": "Maintenance",
+        "maintenanceHint": "Skip scaling, drain existing",
+        "nodePlacement": "Node Placement",
+        "nodeAffinity": "Node Affinity",
+        "require": "(require)",
+        "nodeAntiAffinity": "Node Anti-Affinity",
+        "exclude": "(exclude)",
+        "excludePlaceholder": "Exclude nodes",
+        "spreadConstraint": "Spread Constraint",
+        "spreadPlaceholder": "e.g. zone",
+        "priority": "Priority",
+        "contention": "(contention)"
+      },
+      "review": {
+        "edit": "Edit",
+        "name": "Name",
+        "platform": "Platform",
+        "custom": "Custom",
+        "parent": "Parent",
+        "templates": "Templates",
+        "mode": "Mode",
+        "instances": "Instances",
+        "onDemand": "On demand",
+        "players": "Players",
+        "playersPerInstance": "{count} / instance",
+        "scaleUp": "Scale-up",
+        "resourcesNetwork": "Resources & Network",
+        "memory": "Memory",
+        "routing": "Routing",
+        "ports": "Ports",
+        "jvm": "JVM",
+        "envVars": "Env vars",
+        "varCount": "{count} variable | {count} variables",
+        "lifecycleDeployment": "Lifecycle & Deployment",
+        "strategy": "Strategy",
+        "startup": "Startup",
+        "drain": "Drain",
+        "maxLife": "Max life",
+        "dependsOn": "Depends on",
+        "defaultGroup": "Default group",
+        "maintenance": "Maintenance"
+      }
+    },
+    "themePalette": {
+      "title": "Theme Palette",
+      "subtitle": "Color palettes for each theme mode",
+      "reset": "Reset",
+      "lightPalettes": "Light Palettes",
+      "darkPalettes": "Dark Palettes",
+      "themes": "themes",
+      "basedOn": "Based on {color}",
+      "edit": "Edit",
+      "createCustom": "Create Custom",
+      "customDefault": "Custom",
+      "paletteName": "Palette name",
+      "export": "Export",
+      "import": "Import",
+      "cancel": "Cancel",
+      "paletteJson": "Palette JSON",
+      "pastePaletteJson": "Paste palette JSON",
+      "loadFromFile": "Load from file",
+      "copyToClipboard": "Copy to clipboard",
+      "downloadAsFile": "Download as file",
+      "close": "Close",
+      "apply": "Apply",
+      "copied": "Copied!",
+      "invalidFormat": "Invalid palette format — needs baseColor and vars",
+      "invalidJson": "Invalid JSON",
+      "generateFromBase": "Generate from Base Color",
+      "randomize": "Randomize",
+      "fineTune": "Fine-tune Colors",
+      "livePreview": "Live Preview",
+      "sampleText": "Sample Text",
+      "mutedDesc": "Muted description text",
+      "button": "Button",
+      "outline": "Outline",
+      "applyCustom": "Apply Custom Palette",
+      "groups": {
+        "background": "Background",
+        "cardsGlass": "Cards & Glass",
+        "mutedAccent": "Muted & Accent",
+        "sidebar": "Sidebar"
+      },
+      "vars": {
+        "pageBackground": "Page Background",
+        "textColor": "Text Color",
+        "cardBackground": "Card Background",
+        "glassSurface": "Glass Surface",
+        "glassHover": "Glass Hover",
+        "glassBorder": "Glass Border",
+        "mutedBackground": "Muted Background",
+        "mutedText": "Muted Text",
+        "border": "Border",
+        "sidebarBackground": "Sidebar Background",
+        "sidebarText": "Sidebar Text",
+        "sidebarAccent": "Sidebar Accent",
+        "sidebarBorder": "Sidebar Border"
+      },
+      "selectColor": "Select color {color}"
+    },
+    "settings": {
+      "custom": "Custom",
+      "accentColor": {
+        "title": "Accent Color",
+        "subtitle": "Sets the primary color across the entire dashboard"
+      },
+      "borderRadius": {
+        "title": "Border Radius",
+        "subtitle": "Controls the roundness of cards, buttons, and inputs"
+      },
+      "themeMode": {
+        "title": "Theme Mode",
+        "subtitle": "Choose between light, dark, or system preference",
+        "light": {
+          "label": "Light",
+          "desc": "Always light"
+        },
+        "dark": {
+          "label": "Dark",
+          "desc": "Always dark"
+        },
+        "system": {
+          "label": "System",
+          "desc": "Match OS setting"
+        }
+      }
+    },
+    "moduleError": {
+      "crashed": "Module Crashed",
+      "retry": "Retry",
+      "back": "Back to Dashboard"
+    },
+    "motd": {
+      "modeTitle": "MOTD Mode",
+      "rotateEvery": "Rotate every",
+      "seconds": "seconds",
+      "messages": "Messages",
+      "add": "Add",
+      "saveMotd": "Save MOTD",
+      "savedToast": "MOTD saved",
+      "saveFailedTitle": "Save failed",
+      "saveFailedDesc": "Couldn't save the MOTD. Try again, or check the controller logs.",
+      "modes": {
+        "static": {
+          "label": "Static",
+          "desc": "Always show the first MOTD"
+        },
+        "sequential": {
+          "label": "Sequential",
+          "desc": "Rotate on a timer"
+        },
+        "random": {
+          "label": "Random",
+          "desc": "Pick one at random each ping"
+        }
+      }
+    },
+    "glows": {
+      "title": "Ambient Glows",
+      "subtitle": "Subtle colored gradients in the background",
+      "blob": "Blob {n}",
+      "position": "Position",
+      "color": "Color",
+      "custom": "Custom",
+      "addBlob": "Add blob",
+      "reset": "Reset",
+      "colors": {
+        "primary": "Primary",
+        "secondary": "Secondary",
+        "success": "Success",
+        "warning": "Warning",
+        "danger": "Danger"
+      },
+      "sliders": {
+        "size": "Size",
+        "blur": "Blur",
+        "opacity": "Opacity",
+        "intensity": "Intensity",
+        "rotate": "Rotate",
+        "scaleX": "Scale X",
+        "scaleY": "Scale Y"
+      },
+      "expandPreview": "Expand preview"
+    },
+    "addNode": {
+      "generateToken": "Generate Token",
+      "dialogTitle": "Generate Join Token",
+      "dialogDesc": "Create a token for a new daemon to join the cluster.",
+      "nodeName": "Node Name",
+      "namePlaceholder": "e.g. node-1",
+      "tokenTtl": "Token TTL",
+      "generating": "Generating...",
+      "generateCopy": "Generate & Copy Token",
+      "minutes": "{count} minutes",
+      "hours": "{count} hours",
+      "days": "{count} days",
+      "copiedTitle": "Token copied to clipboard",
+      "copiedDesc": "Join token for \"{name}\" expires in {ttl}",
+      "genFailed": "Failed to generate join token"
+    },
+    "variableEditor": {
+      "key": "Key",
+      "value": "Value",
+      "description": "Description",
+      "keyPlaceholder": "VARIABLE_NAME",
+      "valuePlaceholder": "value",
+      "descPlaceholder": "Optional description",
+      "remove": "Remove variable",
+      "empty": "No variables defined",
+      "addVariable": "Add Variable"
+    },
+    "diff": {
+      "original": "Original",
+      "modified": "Modified",
+      "unifiedView": "Unified view",
+      "splitView": "Split view",
+      "additions": "+{count} addition | +{count} additions",
+      "deletions": "-{count} deletion | -{count} deletions",
+      "noDiff": "No differences"
+    },
+    "srOnly": {
+      "toggleSidebar": "Toggle Sidebar",
+      "close": "Close",
+      "more": "More"
+    },
+    "fileSearch": {
+      "placeholder": "Search in files...",
+      "noResults": "No results found",
+      "initialHint": "Type to search across all files"
+    },
+    "copyBtn": {
+      "copied": "Copied",
+      "copy": "Copy to clipboard"
+    },
+    "appHeader": {
+      "toggleSidebar": "Toggle sidebar",
+      "accountMenu": "Account menu"
+    },
+    "nodeBox": {
+      "noInstances": "No instances"
+    },
+    "instanceCard": {
+      "stop": "Stop instance",
+      "delete": "Delete instance"
+    },
+    "templateForm": {
+      "descriptionPlaceholder": "What this template is for",
+      "platformsPlaceholder": "e.g. paper, velocity",
+      "tagsPlaceholder": "e.g. lobby, survival_base"
+    },
+    "versionHistory": {
+      "empty": "No version history yet",
+      "title": "Version History",
+      "versionCount": "{count} version | {count} versions",
+      "colHash": "Hash",
+      "colStatus": "Status",
+      "colSize": "Size",
+      "colCreated": "Created",
+      "colActions": "Actions",
+      "current": "current",
+      "latest": "latest",
+      "view": "View",
+      "close": "Close",
+      "compare": "Compare",
+      "closeDiff": "Close Diff",
+      "restore": "Restore",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "delete": "Delete",
+      "snapshotFiles": "Snapshot Files",
+      "selectFilePreview": "Select a file to preview",
+      "readOnly": "read-only",
+      "noDifferences": "No file differences found at root level",
+      "changedFiles": "Changed Files",
+      "selectFileDiff": "Select a file to view differences"
+    },
+    "createTemplate": {
+      "title": "New Template",
+      "heroTitleStep1": "Choose platform",
+      "heroTitleStep2": "Template details",
+      "heroDescStep1": "Select the platform this template targets.",
+      "heroDescStep2": "Creating template for {platform}.",
+      "errorMaxLength": "Max 32 characters",
+      "errorPattern": "Lowercase letters, numbers, underscore, hyphen only",
+      "errorExists": "Template already exists",
+      "searchPlaceholder": "Search platforms...",
+      "emptyCatalog": "No platforms in catalog yet",
+      "addToCatalog": "Add Platform to Catalog",
+      "noMatch": "No platforms match \"{query}\"",
+      "servers": "Servers",
+      "proxies": "Proxies",
+      "versionCount": "{count} version | {count} versions",
+      "change": "Change",
+      "nameLabel": "Name",
+      "descriptionLabel": "Description",
+      "back": "Back",
+      "continue": "Continue",
+      "creating": "Creating...",
+      "create": "Create Template"
+    },
+    "editTemplate": {
+      "title": "Edit {name}",
+      "subtitle": "Update template metadata.",
+      "platformLabel": "Platform",
+      "descriptionLabel": "Description",
+      "cancel": "Cancel",
+      "save": "Save Changes",
+      "saving": "Saving..."
+    },
+    "importTemplate": {
+      "import": "Import",
+      "importing": "Importing...",
+      "title": "Import Template",
+      "subtitle": "Upload a template archive to create a new template.",
+      "archiveFile": "Archive file",
+      "dropHere": "Drop file here",
+      "dragOrClick": "Drag & drop or click to select",
+      "fileTypeHint": ".tar.gz or .tgz files only",
+      "name": "Name",
+      "platform": "Platform",
+      "description": "Description",
+      "errorMaxChars": "Max 32 characters",
+      "errorNameFormat": "Lowercase letters, numbers, underscore, hyphen only",
+      "errorExists": "Template already exists"
+    },
+    "templateOverview": {
+      "platform": "Platform",
+      "size": "Size",
+      "hash": "Hash",
+      "description": "Description",
+      "inheritance": "Template Inheritance",
+      "variables": "Template Variables",
+      "variablesDescription": "Define placeholders that get resolved when the template is deployed",
+      "scanning": "Scanning...",
+      "scanFiles": "Scan Files",
+      "saving": "Saving...",
+      "save": "Save",
+      "usedByGroups": "Used by Groups",
+      "loading": "Loading...",
+      "notUsedByGroups": "Not used by any groups",
+      "deleteTemplate": "Delete Template",
+      "deleteDescription": "Permanently delete this template including all files and version history. This action cannot be undone.",
+      "deleting": "Deleting...",
+      "protectedTemplate": "Protected Template",
+      "protectedDescription": "Base templates are managed by the system and cannot be deleted. They serve as the foundation for derived templates."
+    },
+    "uploadFiles": {
+      "title": "Upload Files",
+      "target": "Upload to {path} in {template}",
+      "dropZone": "Drop files here or click to browse",
+      "zipHint": "ZIP files will be auto-extracted",
+      "moreFiles": "+{n} more file | +{n} more files",
+      "cancel": "Cancel",
+      "uploading": "Uploading...",
+      "uploadButton": "Upload {n} file | Upload {n} files"
+    },
+    "addVersion": {
+      "addPlatform": "Add Platform",
+      "add": "Add",
+      "titleAddVersionTo": "Add version to {platform}",
+      "titleNewPlatform": "New platform",
+      "titleAddInitialVersion": "Add initial version",
+      "descRegister": "Register a new version for this platform.",
+      "descConfigure": "Configure the platform identity and type.",
+      "descSetupFirst": "Set up the first version for {platform}.",
+      "stepPlatform": "Platform",
+      "stepVersion": "Version",
+      "platformName": "Platform Name",
+      "platformNamePlaceholder": "e.g. paper, velocity, purpur",
+      "category": "Category",
+      "server": "Server",
+      "gameServers": "Game servers",
+      "proxy": "Proxy",
+      "networkProxies": "Network proxies",
+      "configFormat": "Config Format",
+      "version": "Version",
+      "downloadUrl": "Download URL",
+      "back": "Back",
+      "continue": "Continue",
+      "adding": "Adding...",
+      "addVersion": "Add Version"
+    },
+    "networkDialog": {
+      "newNetwork": "New Network",
+      "createTitle": "Create network",
+      "editTitle": "Edit network {name}",
+      "description": "Lobby + fallback routing for proxies. Read live by Velocity / Bungee plugins.",
+      "nameLabel": "Name",
+      "lobbyGroupLabel": "Lobby group",
+      "descriptionLabel": "Description",
+      "descriptionHint": "(optional, max 256 chars)",
+      "descriptionPlaceholder": "Default lobby + survival routing",
+      "fallbackChainLabel": "Fallback chain",
+      "fallbackChainHint": "Tried in order on join failure / kick. Lobby is always last-resort.",
+      "addBackendGroupPlaceholder": "Add backend group…",
+      "add": "Add",
+      "noFallbackGroups": "No fallback groups configured. Lobby is the only target.",
+      "bedrockRoutingLabel": "Bedrock routing",
+      "bedrockRoutingHint": "Optional — separate route for Bedrock players.",
+      "bedrockLobbyGroupLabel": "Bedrock lobby group",
+      "bedrockLobbyGroupHint": "(blank = use the Java lobby)",
+      "bedrockLobbyGroupPlaceholder": "Leave blank to reuse the Java lobby",
+      "addBedrockBackendGroupPlaceholder": "Add Bedrock backend group…",
+      "noBedrockFallbackGroups": "No Bedrock-specific fallbacks. Bedrock follows the Java chain.",
+      "memberGroupsLabel": "Member backend groups",
+      "memberGroupsHint": "Empty = no restriction.",
+      "proxyGroupsLabel": "Proxy groups",
+      "proxyGroupsHint": "Empty = applies to all proxies.",
+      "addProxyGroupPlaceholder": "Add proxy group…",
+      "kickMessageLabel": "Kick message",
+      "kickMessageHint": "(shown when fallback chain is exhausted, max 256 chars)",
+      "kickMessagePlaceholder": "The network is currently unavailable. Please try again shortly.",
+      "cancel": "Cancel",
+      "saving": "Saving...",
+      "creating": "Creating...",
+      "saveChanges": "Save changes",
+      "createNetwork": "Create network",
+      "errors": {
+        "nameTooLong": "Max 32 characters",
+        "nameInvalidChars": "Lowercase letters, numbers, underscore, hyphen only",
+        "nameExists": "Network already exists",
+        "lobbyInvalid": "Group does not exist or is a proxy",
+        "fallbackHasLobby": "Fallback chain must not include the lobby group",
+        "duplicateEntries": "Duplicate entries",
+        "notProxyPlatform": "{name} is not a proxy-platform group",
+        "bedrockLobbyInvalid": "Group does not exist or is a proxy",
+        "bedrockFallbackHasLobby": "Bedrock fallback chain must not include the Bedrock lobby"
+      },
+      "removeMemberGroup": "Remove member group",
+      "removeProxyGroup": "Remove proxy group"
+    },
+    "nodeCache": {
+      "title": "Node Cache",
+      "subtitle": "Templates, JARs, and bootstrap archives cached on this node",
+      "total": "total",
+      "refresh": "Refresh",
+      "preWarm": "Pre-warm",
+      "templates": "Templates",
+      "jars": "JARs",
+      "bootstraps": "Bootstraps",
+      "colName": "Name",
+      "colSize": "Size",
+      "colLastUsed": "Last Used",
+      "colPlatform": "Platform",
+      "colVersion": "Version",
+      "colFile": "File",
+      "colCachedAt": "Cached At",
+      "colFormat": "Format",
+      "colCds": "CDS",
+      "yes": "Yes",
+      "no": "No",
+      "emptyTitle": "No cached data",
+      "emptyDescription": "This node hasn't cached any templates, JARs, or bootstraps yet"
+    }
+  }
+}

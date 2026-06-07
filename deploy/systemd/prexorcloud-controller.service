@@ -1,0 +1,64 @@
+# PrexorCloud controller — systemd unit (bare-metal install).
+#
+# Place at /etc/systemd/system/prexorcloud-controller.service.
+# Layout assumed:
+#   /opt/prexorcloud/controller/PrexorCloudController.jar
+#   /opt/prexorcloud/controller/config/controller.yml
+#   /opt/prexorcloud/controller/data/        (writable)
+#   /opt/prexorcloud/controller/templates/   (writable)
+#   /opt/prexorcloud/controller/modules/     (writable)
+#   /opt/prexorcloud/controller/logs/        (writable)
+#
+# Enable + start:
+#   sudo useradd --system --home /opt/prexorcloud/controller --shell /usr/sbin/nologin prexorcloud
+#   sudo chown -R prexorcloud:prexorcloud /opt/prexorcloud/controller
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now prexorcloud-controller
+
+[Unit]
+Description=PrexorCloud Controller
+Documentation=https://github.com/prexorjustin/prexorcloud
+After=network-online.target
+Wants=network-online.target
+# Uncomment if Mongo/Valkey run on this host:
+# Requires=mongod.service valkey.service
+# After=mongod.service valkey.service
+
+[Service]
+Type=simple
+User=prexorcloud
+Group=prexorcloud
+WorkingDirectory=/opt/prexorcloud/controller
+
+# Tune heap to cluster size. 1g = a few hundred instances; 2g–4g = thousands.
+Environment=JAVA_TOOL_OPTIONS=-Xms256m -Xmx1g
+
+ExecStart=/usr/bin/java \
+    --enable-preview \
+    --enable-native-access=ALL-UNNAMED \
+    --sun-misc-unsafe-memory-access=allow \
+    -Dio.netty.noUnsafe=true \
+    -jar /opt/prexorcloud/controller/PrexorCloudController.jar
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=60s
+LimitNOFILE=65536
+
+# Hardening — relax only if you hit a legitimate restriction.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/prexorcloud/controller/data /opt/prexorcloud/controller/templates /opt/prexorcloud/controller/modules /opt/prexorcloud/controller/logs /opt/prexorcloud/controller/config/security
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

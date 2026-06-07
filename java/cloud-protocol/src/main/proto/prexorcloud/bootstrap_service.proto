@@ -1,0 +1,25 @@
+syntax = "proto3";
+package me.prexorjustin.prexorcloud.protocol;
+
+option java_package = "me.prexorjustin.prexorcloud.protocol";
+option java_multiple_files = true;
+option go_package = "github.com/prexorcloud/prexorctl/proto/prexorcloud";
+
+service BootstrapService {
+  rpc ExchangeJoinToken(ExchangeJoinTokenRequest) returns (ExchangeJoinTokenResponse);
+}
+
+message ExchangeJoinTokenRequest {
+  string join_token = 1;
+  string node_id = 2;
+}
+
+message ExchangeJoinTokenResponse {
+  bytes pkcs12 = 1;
+  string pkcs12_password = 2;
+  bytes ca_certificate_pem = 3;
+  // JWT scoped to the DAEMON_HOST role, returned so the CLI on the daemon's
+  // host can save it as a context and skip an explicit `prexorctl login` step.
+  // Optional: older clients ignore it; older controllers return empty.
+  string cli_token = 4;
+}
