@@ -532,9 +532,11 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
     - **Batch 22** — `NetworkDialog`, `AddVersionDialog`, `NodeCachePanel`, `CommandPalette` (Theme-Items zu `computed`, `heading=`-Attribute), `overview`/`nodes`/`logs`-Seiten.
     - Verifikation pro Batch: Lint grün, Parity grün (646 → **2057 Keys**), jede `t()`-Referenz gegen `en.json` aufgelöst (0 missing), Typecheck-Fehlerzahl per Stash-Vergleich gegen Base = unverändert (keine neuen Fehler; die bestehenden `unknown`-Store-Typing-Fehler bleiben pre-existing Debt). Diffs minimal gehalten (kein Prettier-Reformat — der Dashboard-Tree ist noch nicht normalisiert).
   - **Gate jetzt HART:** `i18n:check-hardcoded` ist in `ci.yml` ein harter Fail-Gate (Inventar = 0). Language-neutrale Ausnahmen (Beispiel-Hostnames, CLI-Snippets, ARIA-Landmark-Namen) in der `ALLOW`-Liste des Linters dokumentiert.
-- Website: Übersetzung der `docs/public/`-Inhalte ins Deutsche. — **offen**
+- Website: Übersetzung der `docs/public/`-Inhalte ins Deutsche. — **→ nach Track I verschoben** (2026-06-07). Track I schreibt die gesamte Doku ohnehin neu (de+en); die jetzige, bald ersetzte Doku zu übersetzen wäre Wegwerf-Arbeit. Die DE-Lokalisierung der Public-Docs ist Teil von **I.1**.
 
-**Track-H-Gesamt: ~10 eng-days. Vor v1.3-Release.**
+**Track-H-Gesamt: ~10 eng-days. ≈ 88 % — Rest ist infra/ops-bound oder nach Track I verschoben.**
+
+> **Ehrlicher Stand (2026-06-07):** Track H ist weitgehend durch frühere Sessions (E-P1.x-A11y) abgedeckt. **Code-complete:** Audit-Pagination (H.1), Scheduler-Tick-Benchmark inkl. p99-Publizierung (H.1 — `PerformanceBaselineTest.measureSchedulerTick`; der Timer `prexorcloud.scheduler.tick.duration` publisht 0.5/0.95/**0.99**), Contrast-Audit (`design-system/__tests__/contrast.test.mjs`, beide Themes grün), statischer A11y-Lint + Icon-Naming, authed-Flow-axe-**Hard-Gate**, Dashboard-i18n. **Genuin offen, aber nicht hier codierbar:** Perf-Trend-Review (braucht 60 d Produktionsdaten), Scheduler-Tick-Lauf @100 Groups gegen das 50-ms-p99-Ziel (braucht externes Mongo via `TestCluster`), axe/Lighthouse-≥95-Schwelle als harter CI-Gate (braucht Backend + Test-Login im CI). Website-DE → Track I.
 
 ---
 
