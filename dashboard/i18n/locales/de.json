@@ -2631,6 +2631,13 @@
       "addBackendGroupPlaceholder": "Backend-Gruppe hinzufügen…",
       "add": "Hinzufügen",
       "noFallbackGroups": "Keine Fallback-Gruppen konfiguriert. Die Lobby ist das einzige Ziel.",
+      "bedrockRoutingLabel": "Bedrock-Routing",
+      "bedrockRoutingHint": "Optional — eigene Route für Bedrock-Spieler.",
+      "bedrockLobbyGroupLabel": "Bedrock-Lobby-Gruppe",
+      "bedrockLobbyGroupHint": "(leer = Java-Lobby verwenden)",
+      "bedrockLobbyGroupPlaceholder": "Leer lassen, um die Java-Lobby zu verwenden",
+      "addBedrockBackendGroupPlaceholder": "Bedrock-Backend-Gruppe hinzufügen…",
+      "noBedrockFallbackGroups": "Keine Bedrock-spezifischen Fallbacks. Bedrock folgt der Java-Kette.",
       "memberGroupsLabel": "Mitglieds-Backend-Gruppen",
       "memberGroupsHint": "Leer = keine Einschränkung.",
       "proxyGroupsLabel": "Proxy-Gruppen",
@@ -2651,7 +2658,9 @@
         "lobbyInvalid": "Gruppe existiert nicht oder ist ein Proxy",
         "fallbackHasLobby": "Die Fallback-Kette darf die Lobby-Gruppe nicht enthalten",
         "duplicateEntries": "Doppelte Einträge",
-        "notProxyPlatform": "{name} ist keine Proxy-Plattform-Gruppe"
+        "notProxyPlatform": "{name} ist keine Proxy-Plattform-Gruppe",
+        "bedrockLobbyInvalid": "Gruppe existiert nicht oder ist ein Proxy",
+        "bedrockFallbackHasLobby": "Die Bedrock-Fallback-Kette darf die Bedrock-Lobby nicht enthalten"
       },
       "removeMemberGroup": "Mitgliedsgruppe entfernen",
       "removeProxyGroup": "Proxy-Gruppe entfernen"

@@ -41,10 +41,25 @@ public final class ProxyControllerClient extends BaseControllerClient {
     }
 
     public void reportPlayerJoin(UUID playerUuid, String playerName, String instanceId, String group) {
+        reportPlayerJoin(playerUuid, playerName, instanceId, group, null);
+    }
+
+    /**
+     * Report a player join with an authoritative {@code edition} ({@code java}/{@code bedrock}). A
+     * blank/null edition is omitted, leaving the controller to derive it from the UUID. The Geyser
+     * sidecar passes {@code bedrock} so its sessions are tracked correctly even without Floodgate.
+     */
+    public void reportPlayerJoin(UUID playerUuid, String playerName, String instanceId, String group, String edition) {
         try {
-            String body = objectMapper.writeValueAsString(Map.of(
-                    "uuid", playerUuid.toString(), "name", playerName, "instanceId", instanceId, "group", group));
-            postAsync(apiPrefix() + "/player-join", body);
+            var payload = new java.util.HashMap<String, Object>();
+            payload.put("uuid", playerUuid.toString());
+            payload.put("name", playerName);
+            payload.put("instanceId", instanceId);
+            payload.put("group", group);
+            if (edition != null && !edition.isBlank()) {
+                payload.put("edition", edition);
+            }
+            postAsync(apiPrefix() + "/player-join", objectMapper.writeValueAsString(payload));
         } catch (Exception e) {
             logger.warn("Failed to serialize player join for {}: {}", playerUuid, e.getMessage());
         }

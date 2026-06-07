@@ -31,7 +31,7 @@ public final class ProxyRoutes {
     private final SseTicketManager ticketManager;
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record PlayerJoinRequest(String uuid, String name, String instanceId, String group) {}
+    public record PlayerJoinRequest(String uuid, String name, String instanceId, String group, String edition) {}
 
     public record PlayerLeaveRequest(String uuid) {}
 
@@ -141,7 +141,9 @@ public final class ProxyRoutes {
         if (WorkloadRouteAuth.validateSequencedPluginToken(ctx, controller) == null) return;
         var req = ctx.bodyAsClass(PlayerJoinRequest.class);
         UUID playerUuid = UUID.fromString(req.uuid());
-        controller.clusterState().addPlayer(playerUuid, req.name(), req.instanceId(), req.group(), req.instanceId());
+        controller
+                .clusterState()
+                .addPlayer(playerUuid, req.name(), req.instanceId(), req.group(), req.instanceId(), req.edition());
         ctx.json(WorkloadDtoMapper.statusResponse("ok"));
     }
 

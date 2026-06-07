@@ -1,4 +1,4 @@
-package me.prexorjustin.prexorcloud.controller.state;
+package me.prexorjustin.prexorcloud.api.domain;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

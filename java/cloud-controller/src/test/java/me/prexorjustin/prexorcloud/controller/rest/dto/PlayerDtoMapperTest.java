@@ -6,7 +6,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-import me.prexorjustin.prexorcloud.controller.state.PlayerEdition;
+import me.prexorjustin.prexorcloud.api.domain.PlayerEdition;
 import me.prexorjustin.prexorcloud.controller.state.PlayerInfo;
 
 import org.junit.jupiter.api.DisplayName;

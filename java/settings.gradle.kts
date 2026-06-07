@@ -49,6 +49,7 @@ include(
     "cloud-plugins:proxy:shared",
     "cloud-plugins:proxy:velocity",
     "cloud-plugins:proxy:bungeecord",
+    "cloud-plugins:proxy:geyser",
     "cloud-plugins:server:shared",
     "cloud-plugins:server:spigot",
     "cloud-plugins:server:paper",

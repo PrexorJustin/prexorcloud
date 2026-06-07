@@ -60,4 +60,47 @@ class NetworkCompositionTest {
             assertTrue(n.fallbackGroups().contains("survival"));
         });
     }
+
+    @Test
+    @DisplayName("seven-arg constructor leaves Bedrock routing empty (inherits Java route)")
+    void sevenArgCtorHasNoBedrockRouting() {
+        var n = new NetworkComposition("main", "d", "lobby", List.of("survival"), List.of(), List.of(), "");
+        assertEquals("", n.bedrockLobbyGroup());
+        assertEquals(List.of(), n.bedrockFallbackGroups());
+    }
+
+    @Test
+    @DisplayName("retains explicit Bedrock lobby + fallback chain")
+    void retainsBedrockRouting() {
+        var n = new NetworkComposition(
+                "main",
+                "d",
+                "lobby",
+                List.of("survival"),
+                List.of(),
+                List.of(),
+                "",
+                "bedrock-lobby",
+                List.of("bedrock-survival"));
+        assertEquals("bedrock-lobby", n.bedrockLobbyGroup());
+        assertEquals(List.of("bedrock-survival"), n.bedrockFallbackGroups());
+    }
+
+    @Test
+    @DisplayName("normalizes null Bedrock fields to empty")
+    void nullBedrockFieldsBecomeEmpty() {
+        var n = new NetworkComposition("main", "d", "lobby", List.of(), List.of(), List.of(), "", null, null);
+        assertEquals("", n.bedrockLobbyGroup());
+        assertEquals(List.of(), n.bedrockFallbackGroups());
+    }
+
+    @Test
+    @DisplayName("defensively copies the Bedrock fallback list")
+    void defensivelyCopiesBedrockFallbacks() {
+        var fallbacks = new ArrayList<>(List.of("a", "b"));
+        var n = new NetworkComposition(
+                "main", "d", "lobby", List.of(), List.of(), List.of(), "", "bedrock-lobby", fallbacks);
+        fallbacks.add("c");
+        assertEquals(List.of("a", "b"), n.bedrockFallbackGroups());
+    }
 }

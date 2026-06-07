@@ -6,6 +6,7 @@ import java.util.Optional;
 import me.prexorjustin.prexorcloud.api.client.env.PluginEnv;
 import me.prexorjustin.prexorcloud.api.domain.InstanceState;
 import me.prexorjustin.prexorcloud.api.domain.InstanceView;
+import me.prexorjustin.prexorcloud.api.domain.PlayerEdition;
 import me.prexorjustin.prexorcloud.api.event.EventBus;
 import me.prexorjustin.prexorcloud.api.event.events.PlayerConnectedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.PlayerDisconnectedEvent;
@@ -49,7 +50,8 @@ public final class VelocityPlayerListener {
 
     @Subscribe
     public void onChooseInitialServer(PlayerChooseInitialServerEvent event) {
-        List<String> chain = router.fallbackChain(null);
+        String edition = PlayerEdition.detect(event.getPlayer().getUniqueId());
+        List<String> chain = router.fallbackChain(null, edition);
         if (chain.isEmpty()) {
             logger.warn(
                     "No network or default group configured -- cannot route player {}",
@@ -79,7 +81,8 @@ public final class VelocityPlayerListener {
                 .map(InstanceView::group)
                 .orElse(null);
 
-        List<String> chain = router.fallbackChain(sourceGroup);
+        String edition = PlayerEdition.detect(event.getPlayer().getUniqueId());
+        List<String> chain = router.fallbackChain(sourceGroup, edition);
         Optional<RegisteredServer> target = pickFromChain(chain);
         if (target.isPresent()) {
             event.setResult(KickedFromServerEvent.RedirectPlayer.create(target.get()));
