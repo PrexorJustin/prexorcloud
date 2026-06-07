@@ -440,11 +440,12 @@ Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/
 - ⏳ **Offen:** BedrockProtocol-Adapter im `cloud-controller/network/` — Bedrock-Clients in `NetworkComposition` erstklassig behandeln (Lobby-Gruppen-Ein-/Auschecken, Fallback-Routing). Das ist Routing-**Verhalten** und braucht Laufzeit-Verifikation.
 - ⏳ **Offen:** Dedizierter Proxy-Plugin `cloud-plugins:proxy:geyser` (Geyser-Spigot/Standalone-Sidecar).
 
-### F.2 Fabric-Server-Plugin (~5 d) — ⏳ **code-complete (kompiliert + remapped); Runtime-Dep-Bundling offen**
+### F.2 Fabric-Server-Plugin (~5 d) — ⏳ **baubar + runnable Mod-Jar (Deps gebundlet); nur Laufzeit-Verifikation offen**
 
 - ✅ **Neues Modul `cloud-plugins:server:fabric`** (2026-06-07). Loom-gebaute Fabric-**Dedicated-Server-Mod** (Minecraft 1.21.1, `DedicatedServerModInitializer`), die sich beim Controller registriert und Player-Join/-Leave + alle 200 Ticks (~10 s) einen Metrics-Snapshot meldet — über Fabrics Event-API (`ServerLifecycleEvents`/`ServerPlayConnectionEvents`/`ServerTickEvents`) statt Bukkit, aber **denselben plattform-agnostischen `ServerControllerClient` + `InstanceMetricsPayload`** wiederverwendend. **Korrektur zum Plan:** die Server-Plugins sprechen **REST `/api/plugin/*`**, nicht gRPC. `FabricMetricsCollector` liest TPS/MSPT/Player/Worlds/Chunks aus `MinecraftServer`; JVM-Teil ist JMX-identisch zum Bukkit-Collector. **Kompiliert + `remapJar` gegen die echte Fabric-API** (Loom 1.16.3 auf Gradle 9.4, Yarn 1.21.1).
 - ⚙️ **Build-Infra:** Loom-Plugin aus dem FabricMC-Maven (in `settings.gradle.kts pluginManagement`); der **Gradle-JVM muss ≥ 21 sein** (das Loom-Plugin lädt in die Daemon-JVM) — CI fährt JDK 25 ✓, lokal das Daemon-JDK auf 21+ setzen. Loom konfiguriert das Fabric-Projekt bei jeder Invocation (cacht aber nach dem ersten MC-Download).
-- ⏳ **Offen:** (a) Runtime-Dep-Bundling — `server:shared`/`cloud-api`/Jackson in die Mod-Jar shaden/JIJen (kompiliert, läuft so aber noch nicht); (b) Laufzeit-Verifikation auf einem echten Fabric-Server; (c) Spotless ist auf dem Loom-Modul nicht verdrahtet (Code von Hand palantir-konform).
+- ✅ **Runtime-Dep-Bundling** (2026-06-07). `server:shared` + transitive Closure (cloud-api, internal, Jackson) werden via Shadow in die Mod-Jar geshadet, dann remapped Loom das Shadow-Ergebnis (`remapJar.inputFile = shadowJar`). `slf4j-api` ist ausgeschlossen (Loader stellt es), Minecraft bleibt extern. Ergebnis: `fabric.jar` (~4,2 MB) mit eigenen Klassen + 250 Cloud- + 1274 Jackson-Klassen, 0 slf4j, 0 Minecraft. → **läuft jetzt standalone in Fabric** (Code-/Packaging-seitig).
+- ⏳ **Offen:** (a) Laufzeit-Verifikation auf einem echten Fabric-Server; (b) Spotless ist auf dem Loom-Modul nicht verdrahtet (Code von Hand palantir-konform).
 - **Use-Case:** Modded-Server in der Cloud orchestrieren.
 
 ### F.3 Forge-Server-Plugin (~3 d)
