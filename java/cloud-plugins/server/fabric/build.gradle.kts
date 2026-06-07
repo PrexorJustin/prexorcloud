@@ -40,9 +40,13 @@ java {
 tasks.shadowJar {
     configurations = listOf(bundled)
     archiveClassifier.set("dev-shadow")
-    // fabric-loader provides slf4j-api on the mod classpath.
+    // fabric-loader provides slf4j-api + a logging binding on the mod classpath. Bundling logback
+    // would drop a competing SLF4JServiceProvider into the mod jar and hijack the host's logging —
+    // exclude the binding and let the cloud code (slf4j-api only) log through the loader's.
     dependencies {
         exclude(dependency("org.slf4j:slf4j-api"))
+        exclude(dependency("ch.qos.logback:logback-classic"))
+        exclude(dependency("ch.qos.logback:logback-core"))
     }
 }
 
