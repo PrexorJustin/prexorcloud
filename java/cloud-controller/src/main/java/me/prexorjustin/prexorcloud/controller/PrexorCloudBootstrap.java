@@ -61,6 +61,7 @@ import me.prexorjustin.prexorcloud.controller.scheduler.ScalingEvaluator;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.scheduler.StartRetryWakeupQueue;
 import me.prexorjustin.prexorcloud.controller.scheduler.WeightedNodeSelector;
+import me.prexorjustin.prexorcloud.controller.scheduler.composition.ClusterStateBedrockRemoteResolver;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
 import me.prexorjustin.prexorcloud.controller.security.CertificateRotationTask;
 import me.prexorjustin.prexorcloud.controller.security.TlsMaterialWatcher;
@@ -1184,7 +1185,8 @@ public final class PrexorCloudBootstrap {
                 controller.templateManager(),
                 controller.catalogStore(),
                 modules.platformManager(),
-                controller.metricsCollector());
+                controller.metricsCollector(),
+                new ClusterStateBedrockRemoteResolver(controller.clusterState()));
         var placementCoordinator = new InstancePlacementCoordinator(
                 controller.clusterState(),
                 nodeSelector,

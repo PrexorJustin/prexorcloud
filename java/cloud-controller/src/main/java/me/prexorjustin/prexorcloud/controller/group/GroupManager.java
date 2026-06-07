@@ -204,7 +204,8 @@ public final class GroupManager {
                 child.attachedExtensions().isEmpty() ? parent.attachedExtensions() : child.attachedExtensions(),
                 child.enabledExtensions().isEmpty() ? parent.enabledExtensions() : child.enabledExtensions(),
                 child.disabledExtensions().isEmpty() ? parent.disabledExtensions() : child.disabledExtensions(),
-                Map.copyOf(mergedConfigPatches));
+                Map.copyOf(mergedConfigPatches),
+                child.bedrockProxyGroup().isEmpty() ? parent.bedrockProxyGroup() : child.bedrockProxyGroup());
     }
 
     private static GroupConfig mergePatch(
@@ -279,7 +280,8 @@ public final class GroupManager {
                 sentFields.contains("attachedExtensions") ? update.attachedExtensions() : existing.attachedExtensions(),
                 sentFields.contains("enabledExtensions") ? update.enabledExtensions() : existing.enabledExtensions(),
                 sentFields.contains("disabledExtensions") ? update.disabledExtensions() : existing.disabledExtensions(),
-                sentFields.contains("configPatches") ? update.configPatches() : existing.configPatches());
+                sentFields.contains("configPatches") ? update.configPatches() : existing.configPatches(),
+                sentFields.contains("bedrockProxyGroup") ? update.bedrockProxyGroup() : existing.bedrockProxyGroup());
     }
 
     private void validate(GroupConfig config) {
@@ -327,6 +329,17 @@ public final class GroupManager {
                 current = p != null ? p.parent() : null;
             }
             validateRuntimeTargetConsistency(config);
+        }
+
+        // Validate Bedrock proxy target -- a Geyser group forwards to a live instance of this group,
+        // so it must reference an existing (proxy) group, and not itself.
+        if (!config.bedrockProxyGroup().isBlank()) {
+            if (config.bedrockProxyGroup().equals(config.name())) {
+                throw new IllegalArgumentException("bedrockProxyGroup cannot reference the group itself");
+            }
+            if (!groups.containsKey(config.bedrockProxyGroup())) {
+                throw new IllegalArgumentException("bedrockProxyGroup not found: " + config.bedrockProxyGroup());
+            }
         }
 
         // Validate dependsOn -- no self-dependency or circular dependencies

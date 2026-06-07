@@ -13,7 +13,7 @@ const {
   fetchTemplates: vi.fn(),
   fetchNodes: vi.fn(),
   toastError: vi.fn(),
-  groupsStore: { groups: [] as { name: string }[] },
+  groupsStore: { groups: [] as { name: string; platform?: string }[] },
   catalogStore: { entries: [] as { platform: string; category: string; versions: { version: string; recommended?: boolean }[] }[] },
   templatesStore: { templates: [] as { name: string }[] },
   nodesStore: { nodes: [] as { id: string; type: string }[] },
@@ -165,6 +165,48 @@ describe('CreateGroupDialog', () => {
     const activeEl = document.activeElement as HTMLElement | null
     expect(activeEl).not.toBe(document.body)
     expect(activeEl?.closest('.styled-scrollbar')).not.toBeNull()
+  })
+
+  it('shows the Bedrock proxy group selector only for GEYSER and submits the choice', async () => {
+    catalogStore.entries = [
+      { platform: 'paper', category: 'SERVER', versions: [{ version: '1.21.1', recommended: true }] },
+      { platform: 'velocity', category: 'PROXY', versions: [{ version: '3.3.0', recommended: true }] },
+      { platform: 'geyser', category: 'PROXY', versions: [{ version: '2.6.2', recommended: true }] },
+    ]
+    groupsStore.groups = [{ name: 'proxy-velo', platform: 'VELOCITY' }]
+    await mountOpen()
+    await setInput('g-name', 'bedrock')
+    ;(Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.toLowerCase().includes('geyser')) as HTMLElement).click()
+    await nextTick()
+    for (let i = 0; i < 4; i++) await advance()
+    expect(document.body.textContent).toContain('5 / 6')
+    expect(document.body.textContent).toContain('Bedrock Proxy Group')
+
+    const bedrockLabel = Array.from(document.body.querySelectorAll('label')).find((l) =>
+      l.textContent?.includes('Bedrock Proxy Group'),
+    )!
+    const select = bedrockLabel.parentElement!.querySelector('select')!
+    select.value = 'proxy-velo'
+    select.dispatchEvent(new Event('change'))
+    await nextTick()
+
+    await advance()
+    findButton('Create Group')!.click()
+    await new Promise((r) => setTimeout(r))
+    expect(createGroup).toHaveBeenCalledWith(expect.objectContaining({
+      platform: 'GEYSER',
+      bedrockProxyGroup: 'proxy-velo',
+    }))
+  })
+
+  it('hides the Bedrock proxy group selector for non-Geyser platforms', async () => {
+    await mountOpen()
+    await setInput('g-name', 'lobby')
+    ;(Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.toLowerCase().includes('paper')) as HTMLElement).click()
+    await nextTick()
+    for (let i = 0; i < 4; i++) await advance()
+    expect(document.body.textContent).toContain('5 / 6')
+    expect(document.body.textContent).not.toContain('Bedrock Proxy Group')
   })
 
   it('Back returns to the previous step', async () => {

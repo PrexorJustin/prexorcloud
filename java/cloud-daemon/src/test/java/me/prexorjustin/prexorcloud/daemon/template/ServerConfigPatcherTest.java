@@ -90,4 +90,50 @@ class ServerConfigPatcherTest {
         assertTrue(content.contains("online_mode: false"));
         assertTrue(content.contains("ip_forward: true"));
     }
+
+    @Test
+    @DisplayName("patches geyser remote.* without clobbering the like-named bedrock.port")
+    void patchesGeyserConfigNestedKeys() throws Exception {
+        Files.writeString(tempDir.resolve("config.yml"), """
+                bedrock:
+                  address: 0.0.0.0
+                  port: 19132
+                remote:
+                  address: 127.0.0.1
+                  port: 25565
+                  auth-type: floodgate
+                """);
+
+        ServerConfigPatcher.patch(
+                tempDir,
+                "geyser",
+                List.of(
+                        new ServerConfigPatcher.ConfigPatch("config.yml", "remote.address", "10.0.0.5"),
+                        new ServerConfigPatcher.ConfigPatch("config.yml", "remote.port", "30100")));
+
+        List<String> lines = Files.readAllLines(tempDir.resolve("config.yml"));
+        // bedrock.port is untouched; only the nested remote section changed.
+        assertTrue(lines.contains("  port: 19132"), "bedrock.port must be preserved");
+        assertTrue(lines.contains("  address: \"10.0.0.5\""), "remote.address must be patched");
+        assertTrue(lines.contains("  port: 30100"), "remote.port must be patched");
+        assertTrue(lines.contains("  auth-type: floodgate"), "untouched remote keys remain");
+    }
+
+    @Test
+    @DisplayName("skips geyser keys that are not present rather than appending at the wrong nesting")
+    void geyserSkipsMissingKeys() throws Exception {
+        Files.writeString(tempDir.resolve("config.yml"), """
+                bedrock:
+                  address: 0.0.0.0
+                  port: 19132
+                """);
+
+        ServerConfigPatcher.patch(
+                tempDir,
+                "geyser",
+                List.of(new ServerConfigPatcher.ConfigPatch("config.yml", "remote.address", "10.0.0.5")));
+
+        String content = Files.readString(tempDir.resolve("config.yml"));
+        assertTrue(!content.contains("10.0.0.5"), "absent nested path must not be blindly appended");
+    }
 }

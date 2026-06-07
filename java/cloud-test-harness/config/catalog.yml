@@ -8,3 +8,11 @@ platforms:
     downloadUrl: "https://example.com/paper-1.21.1.jar"
     recommended: true
   proxy: false
+- platform: "GEYSER"
+  category: "PROXY"
+  configFormat: "geyser"
+  versions:
+  - version: "2.6.2"
+    downloadUrl: "https://example.com/Geyser-Standalone.jar"
+    recommended: true
+  proxy: true

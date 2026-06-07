@@ -1261,6 +1261,133 @@ class InstanceCompositionPlannerTest {
         assertEquals(first.isolation(), second.isolation());
     }
 
+    @Test
+    @DisplayName("resolves geyser remote.* patches from a live proxy endpoint")
+    void resolvesGeyserRemotePatches() throws Exception {
+        Path templatesRoot = tempDir.resolve("templates-geyser");
+        TemplateManager templateManager = new TemplateManager(templatesRoot, new NoopStateStore(), new EventBus());
+        createTemplate(templatesRoot, templateManager, "base");
+        createTemplate(templatesRoot, templateManager, "base-geyser");
+
+        InstanceCompositionPlanner planner = new InstanceCompositionPlanner(
+                templateManager,
+                geyserCatalog(),
+                noopModuleManager("platform-store-geyser"),
+                null,
+                proxyGroup -> "proxy-velocity".equals(proxyGroup)
+                        ? Optional.of(new BedrockRemoteResolver.Endpoint("10.0.0.7", 30100))
+                        : Optional.empty());
+
+        GroupConfig group = geyserGroup("bedrock", "proxy-velocity");
+        InstanceCompositionPlan plan = planner.plan(group, "bedrock-1", "node-a", 19132, "http://controller:8080");
+
+        assertEquals("GEYSER", plan.runtime().configFormat());
+        assertEquals(
+                List.of(
+                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "remote.address", "10.0.0.7"),
+                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "remote.port", "30100")),
+                plan.configPatches());
+    }
+
+    @Test
+    @DisplayName("omits geyser remote.* patches when no proxy instance is running (cold start)")
+    void omitsGeyserRemotePatchesOnColdStart() throws Exception {
+        Path templatesRoot = tempDir.resolve("templates-geyser-cold");
+        TemplateManager templateManager = new TemplateManager(templatesRoot, new NoopStateStore(), new EventBus());
+        createTemplate(templatesRoot, templateManager, "base");
+        createTemplate(templatesRoot, templateManager, "base-geyser");
+
+        InstanceCompositionPlanner planner = new InstanceCompositionPlanner(
+                templateManager,
+                geyserCatalog(),
+                noopModuleManager("platform-store-geyser-cold"),
+                null,
+                proxyGroup -> Optional.empty());
+
+        GroupConfig group = geyserGroup("bedrock", "proxy-velocity");
+        InstanceCompositionPlan plan = planner.plan(group, "bedrock-1", "node-a", 19132, "http://controller:8080");
+
+        assertEquals(List.of(), plan.configPatches());
+    }
+
+    private StaticCatalogStore geyserCatalog() {
+        return new StaticCatalogStore(List.of(new CatalogConfigLoader.CatalogEntry(
+                "GEYSER",
+                "PROXY",
+                "GEYSER",
+                "2.6.2",
+                "https://example.invalid/geyser.jar",
+                "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+                true)));
+    }
+
+    private PlatformModuleManager noopModuleManager(String storeDir) {
+        return new PlatformModuleManager(
+                new PlatformModuleStore(tempDir.resolve(storeDir)),
+                storedModule -> new PlatformModuleRuntimeFactory.LoadedRuntime(
+                        storedModule.manifest(),
+                        new me.prexorjustin.prexorcloud.api.module.platform.PlatformModule() {},
+                        () -> {}));
+    }
+
+    private static GroupConfig geyserGroup(String name, String bedrockProxyGroup) {
+        return new GroupConfig(
+                name,
+                null,
+                "GEYSER",
+                "",
+                "Geyser.jar",
+                List.of(),
+                "DYNAMIC",
+                1,
+                2,
+                100,
+                0.8,
+                300,
+                60,
+                false,
+                0.2,
+                0,
+                "LOWEST_PLAYERS",
+                30000,
+                30100,
+                120,
+                30,
+                false,
+                0,
+                false,
+                List.of(),
+                List.of(),
+                null,
+                false,
+                List.of(),
+                0,
+                false,
+                "",
+                List.of(),
+                "ROLLING",
+                List.of(),
+                List.of(),
+                "",
+                0,
+                1024,
+                0.0,
+                0L,
+                List.of(),
+                Map.of(),
+                List.of(),
+                "STATIC",
+                30,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                Map.of(),
+                bedrockProxyGroup);
+    }
+
     private static void createTemplate(Path templatesRoot, TemplateManager templateManager, String name)
             throws IOException {
         Path filesDir = templatesRoot.resolve(name).resolve("files");

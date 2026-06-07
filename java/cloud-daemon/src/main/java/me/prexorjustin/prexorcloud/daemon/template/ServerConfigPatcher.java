@@ -54,6 +54,13 @@ public final class ServerConfigPatcher {
                 patchServerProperties(instanceDir);
             }
             case "bungeecord" -> patchBungeecordConfig(instanceDir);
+            case "geyser" -> {
+                // Geyser's config.yml nests duplicate leaf keys (bedrock.port and remote.port), which
+                // the flat resolved-patch applier can't disambiguate. Consume the patches here with a
+                // section-aware editor instead, then skip the generic pass.
+                patchGeyserConfig(instanceDir, configPatches);
+                return;
+            }
         }
         applyResolvedPatches(instanceDir, configPatches);
     }
@@ -246,6 +253,90 @@ public final class ServerConfigPatcher {
         } catch (IOException e) {
             logger.warn("Failed to patch bungeecord config.yml: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Patches a standalone Geyser {@code config.yml}. Geyser nests duplicate leaf keys (e.g.
+     * {@code bedrock.port} and {@code remote.port}), so patches use dotted key paths and are applied
+     * with a section-aware editor that resolves the correct nesting. Line-level edits preserve the
+     * shipped file's comments and formatting. Keys that aren't present are skipped (Geyser fills its
+     * own defaults on boot) rather than blindly appended at the wrong nesting.
+     */
+    static void patchGeyserConfig(Path instanceDir, List<ConfigPatch> configPatches) {
+        Path configFile = instanceDir.resolve("config.yml");
+        if (!Files.exists(configFile)) return;
+
+        try {
+            var lines = new ArrayList<>(Files.readAllLines(configFile));
+            boolean changed = false;
+            for (ConfigPatch patch : configPatches) {
+                if (patch.file() == null || !patch.file().equalsIgnoreCase("config.yml")) continue;
+                if (setNestedYamlKey(lines, patch.key(), patch.value())) {
+                    changed = true;
+                } else {
+                    logger.warn("Geyser config key not found, skipping: {}", patch.key());
+                }
+            }
+            if (changed) {
+                Files.write(configFile, lines);
+                logger.debug("Patched geyser config.yml ({} patches)", configPatches.size());
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to patch geyser config.yml: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Sets a dotted-path key (e.g. {@code remote.address}) in an indentation-structured YAML document,
+     * descending one section at a time and bounding the search to each parent's block so duplicate leaf
+     * names under different sections are disambiguated. Returns {@code false} if the path is absent.
+     */
+    static boolean setNestedYamlKey(List<String> lines, String dottedKey, String value) {
+        if (dottedKey == null || dottedKey.isBlank()) return false;
+        String[] segments = dottedKey.split("\\.");
+        int searchStart = 0;
+        int searchEnd = lines.size();
+        int parentIndent = -1;
+
+        for (int s = 0; s < segments.length; s++) {
+            String segment = segments[s];
+            int foundLine = -1;
+            int foundIndent = -1;
+            for (int i = searchStart; i < searchEnd; i++) {
+                String line = lines.get(i);
+                String trimmed = line.stripLeading();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+                int indent = line.length() - trimmed.length();
+                if (indent <= parentIndent) break; // left the parent's block
+                if ((trimmed.equals(segment + ":") || trimmed.startsWith(segment + ": "))) {
+                    foundLine = i;
+                    foundIndent = indent;
+                    break;
+                }
+            }
+            if (foundLine < 0) return false;
+
+            if (s == segments.length - 1) {
+                String prefix = lines.get(foundLine).substring(0, foundIndent);
+                lines.set(foundLine, prefix + segment + ": " + renderYamlValue(value));
+                return true;
+            }
+
+            // Descend: bound the next search to this section's child block.
+            parentIndent = foundIndent;
+            searchStart = foundLine + 1;
+            searchEnd = lines.size();
+            for (int i = foundLine + 1; i < lines.size(); i++) {
+                String line = lines.get(i);
+                String trimmed = line.stripLeading();
+                if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+                if (line.length() - trimmed.length() <= foundIndent) {
+                    searchEnd = i;
+                    break;
+                }
+            }
+        }
+        return false;
     }
 
     private static void applyResolvedPatches(Path instanceDir, List<ConfigPatch> configPatches) {

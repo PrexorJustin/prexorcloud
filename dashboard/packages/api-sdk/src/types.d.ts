@@ -3303,6 +3303,7 @@ export interface components {
                     [key: string]: string;
                 };
             };
+            bedrockProxyGroup?: string;
         };
         /** @enum {string} */
         GroupRuntimeFamily: "SERVER" | "PROXY" | "UNKNOWN";

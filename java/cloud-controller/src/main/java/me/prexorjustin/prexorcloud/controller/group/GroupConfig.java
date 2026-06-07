@@ -77,7 +77,11 @@ public record GroupConfig(
         @JsonProperty("attachedExtensions") List<String> attachedExtensions,
         @JsonProperty("enabledExtensions") List<String> enabledExtensions,
         @JsonProperty("disabledExtensions") List<String> disabledExtensions,
-        @JsonProperty("configPatches") Map<String, Map<String, String>> configPatches) {
+        @JsonProperty("configPatches") Map<String, Map<String, String>> configPatches,
+        // Bedrock: for a Geyser (GEYSER platform) group, the proxy group it fronts. The controller
+        // resolves a live instance of this group and injects its host:port as Geyser's remote at
+        // provision time. Empty for non-Geyser groups.
+        @JsonProperty("bedrockProxyGroup") String bedrockProxyGroup) {
 
     public GroupConfig {
         if (name == null) name = "";
@@ -130,6 +134,7 @@ public record GroupConfig(
                             Map.Entry::getKey,
                             entry -> entry.getValue() == null ? Map.of() : Map.copyOf(entry.getValue())));
         }
+        if (bedrockProxyGroup == null) bedrockProxyGroup = "";
     }
 
     public GroupConfig(
@@ -236,7 +241,8 @@ public record GroupConfig(
                 attachedExtensions,
                 enabledExtensions,
                 disabledExtensions,
-                configPatches);
+                configPatches,
+                "");
     }
 
     public GroupConfig(
@@ -446,7 +452,8 @@ public record GroupConfig(
                 attachedExtensions,
                 enabledExtensions,
                 disabledExtensions,
-                configPatches);
+                configPatches,
+                "");
     }
 
     public GroupRuntimeTarget runtimeTarget() {

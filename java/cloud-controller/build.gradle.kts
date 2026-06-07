@@ -103,6 +103,7 @@ dependencies {
     bundledPlugins(project(":cloud-plugins:server:folia", configuration = "shadow"))
     bundledPlugins(project(":cloud-plugins:proxy:velocity", configuration = "shadow"))
     bundledPlugins(project(":cloud-plugins:proxy:bungeecord", configuration = "shadow"))
+    bundledPlugins(project(":cloud-plugins:proxy:geyser", configuration = "shadow"))
 }
 
 val copyBundledPlugins by tasks.registering(Copy::class) {

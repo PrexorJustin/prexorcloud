@@ -449,6 +449,7 @@ public final class ProcessManager {
             case SPIGOT -> "spigot";
             case VELOCITY -> "velocity";
             case BUNGEECORD -> "bungeecord";
+            case GEYSER -> "geyser";
             case CONFIG_FORMAT_UNSPECIFIED, UNRECOGNIZED -> "";
         };
     }
