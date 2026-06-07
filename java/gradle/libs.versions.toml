@@ -118,6 +118,7 @@ testcontainers-mongodb = { module = "org.testcontainers:testcontainers-mongodb" 
 velocity-api = { module = "com.velocitypowered:velocity-api", version.ref = "velocity-api" }
 
 [plugins]
+fabric-loom = { id = "fabric-loom", version = "1.16.3" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
