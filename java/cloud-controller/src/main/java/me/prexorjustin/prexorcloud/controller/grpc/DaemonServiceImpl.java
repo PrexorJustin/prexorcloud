@@ -458,6 +458,7 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
             case "SPIGOT" -> ConfigFormat.SPIGOT;
             case "VELOCITY" -> ConfigFormat.VELOCITY;
             case "BUNGEECORD" -> ConfigFormat.BUNGEECORD;
+            case "GEYSER" -> ConfigFormat.GEYSER;
             default -> ConfigFormat.CONFIG_FORMAT_UNSPECIFIED;
         };
     }

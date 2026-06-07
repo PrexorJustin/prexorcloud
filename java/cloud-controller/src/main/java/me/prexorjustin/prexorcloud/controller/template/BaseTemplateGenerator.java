@@ -43,7 +43,13 @@ public final class BaseTemplateGenerator {
             "velocity",
             "PrexorCloudVelocityPlugin.jar",
             "bungeecord",
-            "PrexorCloudBungeecordPlugin.jar");
+            "PrexorCloudBungeecordPlugin.jar",
+            "geyser",
+            "PrexorCloudGeyserExtension.jar");
+
+    // Where each format's bundled jar is installed inside the instance. Geyser loads its integration
+    // as an Extension from extensions/; the Bukkit/proxy families load from plugins/ (the default).
+    private static final Map<String, String> BUNDLED_PLUGIN_DIRS = Map.of("geyser", "extensions");
 
     /**
      * Ensure the root base template exists. Called on startup.
@@ -102,7 +108,7 @@ public final class BaseTemplateGenerator {
 
             String pluginJar = BUNDLED_PLUGINS.get(format);
             if (pluginJar != null) {
-                installBundledPlugin(templateName, pluginJar);
+                installBundledPlugin(templateName, pluginJar, BUNDLED_PLUGIN_DIRS.getOrDefault(format, "plugins"));
             }
 
             // Save once with final hash — no rehash event
@@ -193,11 +199,12 @@ public final class BaseTemplateGenerator {
 
     /**
      * Copies a bundled plugin JAR from the controller's classpath into the
-     * template's plugins/ directory. Skips if the file already exists -- this
-     * avoids overwriting a newer plugin version that was deployed manually.
+     * template's {@code installDir} (usually {@code plugins}; {@code extensions}
+     * for Geyser). Skips if the file already exists -- this avoids overwriting a
+     * newer plugin version that was deployed manually.
      */
-    private void installBundledPlugin(String templateName, String jarName) throws IOException {
-        Path pluginsDir = templateManager.getTemplateFilesDir(templateName).resolve("plugins");
+    private void installBundledPlugin(String templateName, String jarName, String installDir) throws IOException {
+        Path pluginsDir = templateManager.getTemplateFilesDir(templateName).resolve(installDir);
         Files.createDirectories(pluginsDir);
 
         Path target = pluginsDir.resolve(jarName);

@@ -9425,6 +9425,9 @@
                 "type": "string"
               }
             }
+          },
+          "bedrockProxyGroup": {
+            "type": "string"
           }
         },
         "required": [

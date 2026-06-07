@@ -492,6 +492,7 @@ enum ConfigFormat {
   SPIGOT = 2;
   VELOCITY = 3;
   BUNGEECORD = 4;
+  GEYSER = 5;
 }
 
 enum StartPreparationStage {

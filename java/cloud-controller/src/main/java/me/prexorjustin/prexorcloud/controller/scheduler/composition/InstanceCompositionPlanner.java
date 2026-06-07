@@ -51,6 +51,7 @@ public final class InstanceCompositionPlanner {
     private final CatalogStore catalogStore;
     private final PlatformModuleManager platformModuleManager;
     private final MetricsCollector metricsCollector;
+    private final BedrockRemoteResolver bedrockRemoteResolver;
 
     public InstanceCompositionPlanner(
             TemplateManager templateManager, CatalogStore catalogStore, PlatformModuleManager platformModuleManager) {
@@ -62,10 +63,20 @@ public final class InstanceCompositionPlanner {
             CatalogStore catalogStore,
             PlatformModuleManager platformModuleManager,
             MetricsCollector metricsCollector) {
+        this(templateManager, catalogStore, platformModuleManager, metricsCollector, null);
+    }
+
+    public InstanceCompositionPlanner(
+            TemplateManager templateManager,
+            CatalogStore catalogStore,
+            PlatformModuleManager platformModuleManager,
+            MetricsCollector metricsCollector,
+            BedrockRemoteResolver bedrockRemoteResolver) {
         this.templateManager = templateManager;
         this.catalogStore = catalogStore;
         this.platformModuleManager = platformModuleManager;
         this.metricsCollector = metricsCollector;
+        this.bedrockRemoteResolver = bedrockRemoteResolver;
     }
 
     public InstanceCompositionPlan plan(
@@ -386,9 +397,48 @@ public final class InstanceCompositionPlanner {
                 }
                 patches.put("config.yml", bungeeConfig);
             }
+            case "geyser" -> {
+                // The Bedrock listen port comes from %PORT% substitution in the shipped config. The
+                // remote (Java proxy) endpoint is resolved dynamically from a live instance of the
+                // group's bedrockProxyGroup; if none is running yet the config default is kept.
+                Map<String, String> geyserConfig = geyserRemotePatches(group);
+                if (!geyserConfig.isEmpty()) {
+                    patches.put("config.yml", geyserConfig);
+                }
+            }
             default -> {}
         }
         return Map.copyOf(patches);
+    }
+
+    /**
+     * Builds the dynamic Geyser {@code remote.*} patches by resolving a live instance of the group's
+     * {@code bedrockProxyGroup}. Returns empty (config default kept) when no proxy group is configured,
+     * no resolver is wired, or nothing is running yet. Keys are dotted paths consumed by the daemon's
+     * section-aware Geyser patcher.
+     */
+    private Map<String, String> geyserRemotePatches(GroupConfig group) {
+        String proxyGroup = group.bedrockProxyGroup();
+        if (proxyGroup == null || proxyGroup.isBlank()) {
+            logger.warn("Geyser group {} has no bedrockProxyGroup set; remote stays at config default", group.name());
+            return Map.of();
+        }
+        if (bedrockRemoteResolver == null) {
+            return Map.of();
+        }
+        Optional<BedrockRemoteResolver.Endpoint> endpoint = bedrockRemoteResolver.resolve(proxyGroup);
+        if (endpoint.isEmpty()) {
+            logger.warn(
+                    "Geyser group {} fronts proxy group {} but no running instance was found; "
+                            + "remote stays at config default until restart",
+                    group.name(),
+                    proxyGroup);
+            return Map.of();
+        }
+        Map<String, String> remote = new LinkedHashMap<>();
+        remote.put("remote.address", endpoint.get().host());
+        remote.put("remote.port", Integer.toString(endpoint.get().port()));
+        return remote;
     }
 
     private static String selectMotd(GroupConfig group, String instanceId) {

@@ -79,7 +79,8 @@ class EventChoreographerTest {
                 List.of(), // attachedExtensions
                 List.of(), // enabledExtensions
                 List.of(), // disabledExtensions
-                Map.of()); // configPatches
+                Map.of(), // configPatches
+                ""); // bedrockProxyGroup
     }
 
     private static EventChoreography overlay(
