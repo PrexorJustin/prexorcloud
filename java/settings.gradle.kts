@@ -60,6 +60,7 @@ include(
     "cloud-plugins:server:paper",
     "cloud-plugins:server:folia",
     "cloud-plugins:server:fabric",
+    "cloud-plugins:server:neoforge",
 
     // ---- TEST FIXTURES ---- //
     "test-fixtures:test-daemon-module",
