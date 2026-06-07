@@ -22,6 +22,8 @@ logback = "1.5.32"
 micrometer = "1.14.5"
 mockito = "5.23.0"
 mongodb = "5.6.5"
+neoforge = "21.1.233"
+moddevgradle = "2.0.141"
 opentelemetry = "1.45.0"
 oshi = "6.11.1"
 paperApi120 = "1.20.4-R0.1-SNAPSHOT"
@@ -119,6 +121,7 @@ velocity-api = { module = "com.velocitypowered:velocity-api", version.ref = "vel
 
 [plugins]
 fabric-loom = { id = "fabric-loom", version = "1.16.3" }
+neoforge-moddev = { id = "net.neoforged.moddev", version.ref = "moddevgradle" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
