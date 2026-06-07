@@ -95,10 +95,13 @@ v1.2 ──── Track C: Modul-Ökosystem-Reife                       │ 28 e
 v1.3 ──── Track F: MC-Plattform-Breite & Bedrock-Tiefenausbau   │ 15 eng-days
           Track H: Polish, Performance, A11y, i18n              │ 10 eng-days
 
+v1.4 ──── Track I: Docs- & README-Komplett-Rewrite (End-User+Dev)│ 13 eng-days
+          (strikt nach E/F/H; I.0 Style-Spec darf vorgezogen werden)
+
 ──────────────────────────────────────────────────────────────
-Gesamt:                                                          115 eng-days
-                                                                ≈ 5–6 Monate bei 1 FTE
-                                                                ≈ 2.5–3 Monate bei 2 FTE
+Gesamt:                                                          128 eng-days
+                                                                ≈ 6–7 Monate bei 1 FTE
+                                                                ≈ 3–3.5 Monate bei 2 FTE
 ```
 
 ---
@@ -538,6 +541,37 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 
 ---
 
+## 9b. Track I — Docs- & README-Komplett-Rewrite (End-User + Developer)
+
+**Ziel:** Die gesamte Doku (`docs/`) **und jede README** im Repo von Grund auf neu schreiben — für echte Zielgruppen statt für uns selbst, im Projekt-Design-Standard, visuell überzeugend, ausführlich, best-practice.
+
+**Warum (Auslöser, 2026-06-07):**
+1. **Es hat sich viel geändert.** v1.1–v1.3 haben Subsysteme dazugebracht (Raft-Control-Plane, OTel, Modul-Registry, Bedrock/Fabric/NeoForge, Geyser-Provisioning) — die bestehende Doku beschreibt teils einen veralteten Stand.
+2. **Zu „KI-lastig" geschrieben.** Der Ton ist essayistisch/hedging statt direkt. Neuer Ton: knapp, aktiv, konkret, ohne Füllwörter.
+3. **Für UNS geschrieben, nicht für Zielgruppen.** Die Docs lesen sich wie ein internes Engineering-Log. Sie müssen für **(a) End-User/Operatoren** (installieren, betreiben, troubleshooten) und **(b) Plugin-/Mod-/Module-Developer** (gegen die APIs bauen) geschrieben sein — klar getrennt.
+4. **READMEs uneinheitlich & unattraktiv.** Jede README soll **einem projektweiten Design-Standard** folgen (Struktur, Badges, Hero, Code-Beispiele, Visuals) und visuell überzeugen.
+
+**Sequencing-Entscheidung:** **Zuletzt** ausführen — erst wenn E/F/H feature-complete sind, sonst churnt die Doku mit jedem User-facing-Change. **Ausnahme: I.0 (Style-/Voice-Spec) wird FRÜH definiert**, damit der spätere Rewrite mechanisch statt zur Diskussion wird.
+
+### I.0 Docs/README-Style- & Voice-Spec (~1 d) — **früh definieren**
+- Eine `docs/engineering/DOCS_STYLE.md`: Zielgruppen-Matrix (Operator vs. Developer), Voice/Tone-Regeln (aktiv, knapp, kein AI-Hedging — wiederverwendet die Dashboard-`lint-voice`-Prinzipien), Begriffs-Glossar, und ein **kanonisches README-Template** (Hero/Badges/Quickstart/Architektur/Contributing/Lizenz) im Design-System-Look. Optional ein `readme:lint`-Gate analog `i18n:check`.
+
+### I.1 End-User-Docs (~4 d)
+- `docs/public/` (de+en) neu: Getting-Started, Install (Docker/native/Cluster), Betrieb, Upgrade, Troubleshooting, Recipes — aufgabenorientiert, nicht subsystem-orientiert.
+
+### I.2 Developer-Docs (~4 d)
+- Plugin-/Proxy-/Server-Plugin-Dev-Guide (Paper/Velocity/Bungee/Fabric/NeoForge/Geyser), Module-SDK + Capability-API, Platform-Module-REST, OpenAPI→CLI→SDK-Flow. Jede öffentliche API mit lauffähigem Minimalbeispiel.
+
+### I.3 README-Sweep (~3 d)
+- **Jede** README im Repo (Root + jedes Modul/Package/Frontend) nach I.0-Template neu — konsistent, visuell, mit Quickstart + Links in die Docs.
+
+### I.4 Visual- & Konsistenz-Polish (~1 d)
+- Diagramme (Mermaid im Design-System-Palette), Screenshots/GIFs der Frontends, Cross-Linking, Dead-Link-Check.
+
+**Track-I-Gesamt: ~13 eng-days. Strikt nach E/F/H. I.0 vorgezogen.** → eigener v1.4-„Docs & DX"-Meilenstein (siehe §11).
+
+---
+
 ## 10. Was wir NICHT machen (bewusst out of scope)
 
 - **Cross-Region-Cluster.** Raft setzt low-latency same-region voraus. Multi-Region wäre eine eigene Layer, kein v1.x-Thema.
@@ -592,6 +626,20 @@ Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Num
 - Performance-Tuning, A11y >=95, i18n DE/EN vollständig
 
 **Aufwand: ~25 eng-days. Realistisch: 5–7 Wochen.**
+
+### v1.4 — „Docs & DX" (Track I)
+
+**Inhalt:**
+- Komplette Doku-Neuschrift für End-User **und** Developer (aufgaben- statt subsystem-orientiert, neuer Ton)
+- Jede README im Design-Standard, visuell überzeugend
+- Style-/Voice-Spec + README-Template als wiederverwendbarer Gate
+
+**Erfolgs-Kriterien:**
+- Ein neuer Operator kommt ohne Rückfragen von 0 auf laufendes Cluster
+- Ein Plugin-/Module-Developer baut ein lauffähiges Beispiel allein aus den Docs
+- 0 tote Links, jede README folgt dem Template, `lint-voice` grün über die Docs
+
+**Aufwand: ~13 eng-days. Strikt nach v1.3 (I.0-Spec darf vorgezogen werden).**
 
 ---
 
