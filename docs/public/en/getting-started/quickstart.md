@@ -1,183 +1,353 @@
 ---
 title: Quickstart (10 min)
-description: From a fresh install to a running Paper instance in ten minutes — token, daemon, group, scale.
+description: From an empty cluster to a running Paper instance in about ten minutes — log in, create a group, watch it schedule, connect, scale, and tear down.
 ---
 
-You have a controller and at least one daemon already
-([Installation](/getting-started/installation/)). This page takes you from
-"empty cluster" to "Paper 1.21 lobby instance running" in ten minutes.
+You have a Controller running and at least one Daemon connected
+([Installation](/getting-started/installation/)). This page takes you from an
+empty cluster to a running Paper Instance, then scales, drains, and deletes it.
+Every command below is a real `prexorctl` command verified against the CLI
+source.
 
-## What you'll learn
+## Before you start
 
-- The five-step path from empty cluster to a running instance.
-- How a `GroupConfig` translates into instances, and how the scheduler
-  decides where they run.
-- How to watch state in real time with the dashboard or `prexorctl`.
+- Controller reachable (default `http://localhost:8080`).
+- At least one Daemon `ONLINE` in `prexorctl node list`.
+- A catalog entry for the Paper version you want (the Controller ships a
+  default catalog; see [Step 2](#step-2-confirm-a-platform-version-in-the-catalog)).
+- About 1 GB free RAM on the Daemon host for a Paper Instance.
 
-## What you need
+prexorctl gates every cluster command until it has a controller context. Before
+you log in, only `setup`, `login`, `logout`, `version`, `help`, `completion`,
+`context`, and `cluster` work; anything else prints:
 
-- Controller reachable on `https://<host>:8080`, daemon reporting `READY`
-  in `prexorctl node list`.
-- Logged in via `prexorctl login` (you should see the cluster in
-  `prexorctl status`).
-- About 1 GB free RAM on the daemon host for a Paper instance.
+```
+no cluster connected — run 'prexorctl setup' to install a component, or 'prexorctl login' to link this CLI to an existing controller
+```
 
-## Step 1 — Pick a platform JAR from the catalog
+## Step 1 — Log in
 
-The **catalog** maps platform + version to a download URL. The controller
-ships with built-in entries for Paper, Velocity, Folia, and friends.
+`prexorctl login` opens a form for the Controller URL, username, and password.
+If a context already has the URL, only username and password are asked.
 
 ```bash
-prexorctl catalog list
+prexorctl login
 ```
 
-You'll see entries like:
-
 ```
-PLATFORM    VERSION   ARTEFACT
-paper       1.21.4    paper-1.21.4-build-NNN.jar
-paper       1.21.1    paper-1.21.1-build-NNN.jar
-velocity    3.4.0     velocity-3.4.0.jar
-folia       1.21.4    folia-1.21.4-build-NNN.jar
+Sign in to PrexorCloud
+Enter your controller URL and credentials below.
+
+Controller URL  http://localhost:8080
+Username        admin
+Password        ••••••••
+
+✓ Logged in to http://localhost:8080 as admin
 ```
 
-Pick the latest stable Paper. We'll wire it into a `lobby` group below.
-
-## Step 2 — Create a group
-
-A **group** is a logical collection of instances that share configuration:
-platform, templates, scaling rules, port range, env. It's the closest thing
-PrexorCloud has to a Kubernetes Deployment.
+The CLI POSTs to `/api/v1/auth/login`, stores the returned bearer token in the
+active context, and saves the config. Confirm the cluster:
 
 ```bash
-prexorctl group create lobby \
-    --platform paper \
-    --version 1.21.4 \
-    --min 1 \
-    --max 3 \
-    --port-range 25600-25699 \
-    --memory 1024
+prexorctl status
 ```
 
-What just happened:
+```
+PrexorCloud  v1.1.0  •  cluster localhost:8080  •  logged in as (authenticated)
 
-- The controller wrote a `GroupConfig` to MongoDB (`groups` collection).
-- It registered the group with the scheduler. Within one scheduler tick
-  (~5s), it'll notice the group is below `min` and start placing instances.
+CLUSTER                       NODES                INSTANCES
+● HEALTHY  0 groups 0 players  1 online             0 running
 
-You can also create the group declaratively:
+LIVE METRICS
+  …
+GROUPS
+  (none)
+```
+
+If `status` errors with `not authenticated`, your token is missing — rerun
+`prexorctl login`. You can also point a single command at a different cluster
+with `--controller <url>` / `--token <token>`, or `--context <name>`.
+
+## Step 2 — Confirm a platform version in the catalog
+
+The **catalog** maps a platform + version to a download URL and an optional
+`sha256`. A Group provisions its server JAR from a catalog version, so the
+version you name in Step 3 must exist in the catalog.
+
+There is no `prexorctl catalog` subcommand. The catalog lives behind REST at
+`/api/v1/catalog`. List it with the bearer token from your saved context:
 
 ```bash
-prexorctl group apply -f lobby.yml
+curl -s -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/api/v1/catalog | jq '.[] | {platform, version, recommended}'
 ```
 
-Where `lobby.yml` looks like:
-
-```yaml
-name: lobby
-platform: paper
-version: "1.21.4"
-scaling:
-  mode: STATIC
-  min: 1
-  max: 3
-ports: { from: 25600, to: 25699 }
-resources: { memoryMB: 1024 }
+```json
+{ "platform": "PAPER", "version": "1.21.4", "recommended": true }
+{ "platform": "PAPER", "version": "1.21.1", "recommended": false }
+{ "platform": "VELOCITY", "version": "3.4.0", "recommended": true }
 ```
 
-## Step 3 — Watch the instance come up
+Each entry is a `CatalogEntry`: `platform`, `category` (`SERVER` or `PROXY`),
+`configFormat`, `version`, `downloadUrl`, `sha256`, `recommended`. Platform
+names are upper-cased by the Controller (`PAPER`, `VELOCITY`, `FOLIA`,
+`FABRIC`, `NEOFORGE`, `BUNGEECORD`, `GEYSER`).
 
-Open a second terminal and stream events:
+Adding a version is also REST-only and needs the `CATALOG_MANAGE` permission:
 
 ```bash
-prexorctl events follow --filter instance
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"version":"1.21.4","downloadUrl":"https://.../paper-1.21.4.jar","sha256":"…"}' \
+  http://localhost:8080/api/v1/catalog/paper/versions
 ```
 
-You'll see the lifecycle in real time:
+Pick a `recommended` Paper version. This guide uses `1.21.4`.
 
-```
-INSTANCE_SCHEDULED   lobby-1  node-1
-INSTANCE_PREPARING   lobby-1  template chain materialised
-INSTANCE_STARTING    lobby-1  jvm spawned (pid 12345)
-INSTANCE_RUNNING     lobby-1  ready in 4.1s
-```
+## Step 3 — Create a group
 
-Behind the scenes:
-
-1. **Scheduler** noticed `lobby` had 0 instances and `min=1`. Picked
-   `node-1` via the weighted node selector (capacity, affinity, spread).
-2. **Composition planner** generated a plan with the template-chain hashes,
-   runtime jar reference, and a fresh per-instance plugin token.
-3. Controller sent a `Start` gRPC frame to the daemon on `node-1`.
-4. Daemon materialised the template chain (`base → base-paper → lobby`),
-   layered the Paper jar, and spawned the JVM via `ProcessBuilder`.
-5. The bundled cloud-plugin booted, exchanged its plugin token for an
-   authenticated REST session, and reported `RUNNING`.
-
-If you'd rather watch in the dashboard, open
-`https://<host>:8080/instances` — the same event stream drives the UI.
-
-## Step 4 — Connect a Minecraft client
-
-The instance is bound to the daemon's port range. To find its address:
+A **Group** is a scalable set of Instances that share one configuration:
+platform, version, templates, scaling rules, port range, memory, env. It is the
+closest analog to a Kubernetes Deployment.
 
 ```bash
-prexorctl instance describe lobby-1
+prexorctl group create \
+  --name survival-lobby \
+  --platform paper \
+  --platform-version 1.21.4 \
+  --min 1 \
+  --max 3 \
+  --memory 1024 \
+  --port-start 30000 \
+  --port-end 30100
 ```
 
-You'll see something like:
-
 ```
-INSTANCE        lobby-1
-NODE            node-1   (10.0.0.5)
-PORT            25600
-STATE           RUNNING
-PLATFORM        paper 1.21.4
+✓ Group 'survival-lobby' created
 ```
 
-Connect from a Paper-compatible client to `<node-ip>:25600`. You're in.
+`--name` and `--platform` are required. The other flags and their defaults
+(from the CLI):
 
-For production you want this fronted by a Velocity or Bungee proxy — see
-[Your First Network](/getting-started/your-first-network/) for the lobby +
-proxy setup.
+| Flag | Default | Maps to (`GroupConfig`) |
+|---|---|---|
+| `--name` | — (required) | `name` — alphanumeric, hyphen, underscore, 1–64 chars |
+| `--platform` | — (required) | `platform` (upper-cased server-side) |
+| `--platform-version` | `""` | `platformVersion` — must match a catalog entry |
+| `--template` | none | `templates` (ordered layers; repeatable) |
+| `--scaling-mode` | `DYNAMIC` | `scalingMode` — `STATIC`, `DYNAMIC`, or `MANUAL` |
+| `--min` | `1` | `minInstances` |
+| `--max` | `10` | `maxInstances` |
+| `--memory` | `1024` | `memoryMb` (MB per Instance) |
+| `--routing` | `LOWEST_PLAYERS` | routing strategy |
+| `--port-start` | `30000` | port range start |
+| `--port-end` | `30100` | port range end |
 
-## Step 5 — Scale, drain, delete
+The CLI POSTs to `/api/v1/groups`. `jarFile` defaults to `server.jar`. The
+Controller writes the `GroupConfig`, persists it, and registers it with the
+scheduler. Unset `GroupConfig` fields fall back to record defaults —
+`maxPlayers` 100, `scaleUpThreshold` 0.8, `startupTimeoutSeconds` 120,
+`shutdownGraceSeconds` 30, `updateStrategy` `ROLLING`.
+
+### Scaling modes
+
+The mode you pick decides who controls the Instance count:
+
+- **`STATIC`** — the scheduler holds the Group at `minInstances`. Use this for
+  a fixed lobby.
+- **`DYNAMIC`** — the scheduler scales between `minInstances` and
+  `maxInstances` on load (`scaleUpThreshold`, `scaleDownAfterSeconds`,
+  `scaleCooldownSeconds`). Default.
+- **`MANUAL`** — the scheduler holds the current count; you add Instances with
+  `instance start`.
+
+For a single predictable lobby, `STATIC` with `--min 1` is the simplest choice:
 
 ```bash
-# Scale up
-prexorctl group scale lobby --target 3
-
-# See instances spread across nodes
-prexorctl instance list --group lobby
-
-# Drain one instance gracefully (players migrate away first)
-prexorctl instance stop lobby-2
-
-# Tear the group down
-prexorctl group delete lobby
+prexorctl group create --name survival-lobby --platform paper \
+  --platform-version 1.21.4 --scaling-mode STATIC --min 1 --max 1 --memory 1024
 ```
 
-Scaling triggers the scheduler immediately. Instances spread across
-available nodes per the weighted selector — by default it favors nodes with
-more free capacity and fewer instances of the same group (anti-affinity).
+## Step 4 — Watch the instance come up
 
-`group delete` is idempotent: instances are stopped gracefully, the group
-record is removed from MongoDB, and any in-flight scaling is cancelled.
+The scheduler evaluates on a fixed tick — `scheduler.evaluationIntervalSeconds`,
+default **15s**. Within one tick it sees the Group below `minInstances` and
+places an Instance. Watch the Group:
+
+```bash
+prexorctl group info survival-lobby
+```
+
+This opens an interactive view: config, scaling, templates, recent events, and
+the Instance table. Press `↵` on an Instance to attach its console, `d` to
+drain (graceful stop), `r` to restart (force-stop; the scheduler respawns it).
+
+Prefer a flat list? Use the Instance table directly:
+
+```bash
+prexorctl instance list --group survival-lobby
+```
+
+```
+ID                  GROUP           NODE      STATE     PORT    PLAYERS  UPTIME
+survival-lobby-1    survival-lobby  node-1    RUNNING   30000   0        4s
+```
+
+An Instance moves through these states (`InstanceState`):
+
+| State | Meaning |
+|---|---|
+| `SCHEDULED` | Placed on a node; Daemon not yet preparing |
+| `PREPARING` | Daemon materializing the template chain and JAR |
+| `STARTING` | JVM spawned, not yet ready |
+| `RUNNING` | Accepting players |
+| `DRAINING` | Still serving, no new players (graceful stop) |
+| `STOPPING` | Shutting down |
+| `STOPPED` | Clean terminal state |
+| `CRASHED` | Non-zero exit; recorded as a crash report |
+
+What happens behind the table:
+
+1. The scheduler notices `survival-lobby` is below `min` and picks a node.
+2. It sends a start frame to the Daemon over gRPC.
+3. The Daemon materializes the template chain, layers the Paper JAR resolved
+   from the catalog, and spawns the JVM.
+4. The bundled cloud-plugin boots and the Instance reports `RUNNING`.
+
+To watch Controller activity while it schedules, tail logs in a second
+terminal:
+
+```bash
+prexorctl logs controller --follow
+```
+
+(`prexorctl logs --follow` with no subcommand tails the Controller too.)
+
+## Step 5 — Connect a Minecraft client
+
+Find the Instance's node and port:
+
+```bash
+prexorctl instance info survival-lobby-1
+```
+
+```
+survival-lobby-1   ● RUNNING   group survival-lobby • node node-1
+Started at 2026-06-07T… — uptime 1m4s
+
+INSTANCE
+  port     30000
+  players  0
+  memory   1024 MB
+  uptime   1m4s
+```
+
+Connect a Paper-compatible client to `<node-ip>:30000`. Get the node IP from
+`prexorctl node info node-1`.
+
+Need to run a server command? Send one without attaching:
+
+```bash
+prexorctl instance exec survival-lobby-1 say hello from prexorctl
+```
+
+Or attach the live console (`Ctrl-Q` to detach; type to send commands):
+
+```bash
+prexorctl instance console survival-lobby-1
+```
+
+For production, front the lobby with a Velocity proxy — see
+[Your first network](/getting-started/your-first-network/).
+
+## Step 6 — Scale, drain, delete
+
+There is no `group scale` command. You change the desired count by updating the
+Group's bounds, or schedule one-off Instances directly.
+
+**Raise the ceiling** (and floor, for `STATIC`):
+
+```bash
+prexorctl group update survival-lobby --max 3 --min 3
+```
+
+```
+✓ Group 'survival-lobby' updated
+```
+
+`group update` PATCHes only the flags you pass (`--min`, `--max`, `--memory`,
+`--routing`, `--scaling-mode`); omitted fields are unchanged. The scheduler
+reconciles to the new bounds on its next tick.
+
+**Schedule extra Instances on demand** (1–50, clamped):
+
+```bash
+prexorctl instance start survival-lobby
+```
+
+```
+✓ 1 instance(s) scheduled in group survival-lobby
+```
+
+**Drain one Instance** — graceful stop:
+
+```bash
+prexorctl instance stop survival-lobby-2
+```
+
+Force-kill immediately instead:
+
+```bash
+prexorctl instance stop survival-lobby-2 --force
+```
+
+**Put the Group in maintenance** (drains and stops new placement):
+
+```bash
+prexorctl group maintenance survival-lobby on
+prexorctl group maintenance survival-lobby off
+```
+
+**Tear the Group down.** This prompts for confirmation and stops every running
+Instance:
+
+```bash
+prexorctl group delete survival-lobby
+```
+
+```
+Delete group 'survival-lobby'?
+This will stop all running instances in the group. This action cannot be undone.
+
+✓ Group 'survival-lobby' deleted
+```
 
 ## What can go wrong
 
 | Symptom | Likely cause |
 |---|---|
-| Instance stuck in `SCHEDULED` | No daemon has free capacity, or all daemons are draining. `prexorctl node list` shows why. |
-| Instance crashes immediately | Catalog version mismatch or bad template. Look at `prexorctl crash list --group lobby` for the classified exit. |
-| Group reports `paused` reason `crash-loop` | The crash-loop detector tripped (default: 3 crashes in 60s). Fix the underlying issue, then `prexorctl group resume lobby`. |
-| `events follow` shows nothing | You're filtering too aggressively. Drop `--filter` to see everything. |
+| `no cluster connected` | No controller context. Run `prexorctl login` or pass `--controller`. |
+| `not authenticated` | Token missing or expired. Rerun `prexorctl login`. |
+| Instance stuck in `SCHEDULED` | No node has free capacity, or all nodes are `DRAINING`. Check `prexorctl node list`. |
+| Instance never leaves `PREPARING` | Template materialization or catalog JAR download failing on the Daemon. Check `prexorctl logs daemon <node-id>`. |
+| Group create rejected `400` | Invalid name (must be alphanumeric / `-` / `_`, 1–64 chars) or invalid config. |
+| Instance lands in `CRASHED` | Bad version or template. Inspect with `prexorctl crash list --group survival-lobby` then `prexorctl crash info <id>`. |
+| Repeated crashes | The crash-loop detector trips at **3 crashes in 300s** (defaults `crashLoopThreshold` / `crashLoopWindowSeconds`). Fix the cause, then start fresh Instances. |
 
-## Next up
+Inspect a crash:
 
-- **[Core Concepts](/getting-started/core-concepts/)** — the orientation
-  reading: groups vs instances vs templates vs nodes vs daemons vs modules.
-- **[Your First Network](/getting-started/your-first-network/)** — proxy +
-  lobby + game-mode in 30 minutes, end-to-end.
-- **[Templates](/concepts/groups-instances-templates/)** — how the layered
-  template chain works and how to author your own.
+```bash
+prexorctl crash list --group survival-lobby
+prexorctl crash info <crash-id>
+```
+
+`crash info` shows the exit code, classification, and the last log lines.
+
+## Next steps
+
+- **[Core concepts](/getting-started/core-concepts/)** — Controller, Daemon,
+  Group, Instance, Template, Network, Module, Plugin.
+- **[Your first network](/getting-started/your-first-network/)** — proxy +
+  lobby + game-mode, end to end.
+- **[Groups, instances, and templates](/concepts/groups-instances-templates/)**
+  — the layered template chain and how to author your own.

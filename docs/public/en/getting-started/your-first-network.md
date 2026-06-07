@@ -1,211 +1,339 @@
 ---
-title: Your First Network
-description: Build a complete proxy + lobby + game-mode network in 30 minutes — Velocity proxy, two groups, Network Composition routing.
+title: Your first network
+description: Wire a Velocity proxy, a lobby Group, and a game-mode Group into one routable Network with fallback chains.
 ---
 
-You have a controller, a daemon, and you've gone through the
-[Quickstart](/getting-started/quickstart/). This page wires together
-**three groups** — a proxy, a lobby, and a game-mode — and configures
-**Network Composition** so a player connecting to the proxy lands in the
-lobby and falls back cleanly when game instances die.
+You have a Controller and at least one Daemon, and you've run the
+[Quickstart](/getting-started/quickstart/). This page wires three Groups —
+a proxy, a lobby, and a game-mode — into one **Network**, so a player who
+connects to the proxy lands in the lobby and falls back cleanly when a
+backend Instance dies.
 
-## What you'll learn
+## Before you start
 
-- How to compose multiple groups into a routable network.
-- What **Network Composition** is and why it replaces hand-edited
-  `velocity.toml`.
-- How fallback chains route a kicked player back to the lobby
-  automatically.
+- A Controller reachable on `https://<host>:8080`, with a Daemon reporting
+  `READY` in `prexorctl node list`.
+- Logged in: `prexorctl login` succeeds and `prexorctl status` shows the
+  cluster.
+- Catalog entries for a proxy platform (`velocity` or `bungeecord`) and a
+  server platform (`paper`). Check what's installed before you create
+  Groups that reference them.
 
 ## What you'll build
 
 ```mermaid
 flowchart LR
   Player(("Player")) --> ProxyInst["proxy-1<br/>:25565<br/><sub>Velocity</sub>"]
-  ProxyInst --> Lobby1["lobby-1"]
+  ProxyInst -->|join: lobbyGroup| Lobby1["lobby-1"]
   ProxyInst --> Lobby2["lobby-2"]
-  ProxyInst -. "fallback on kick" .-> Lobby1
-  Lobby1 -. "/play bedwars" .-> BW1["bedwars-1"]
-  Lobby1 -. "/play bedwars" .-> BW2["bedwars-2"]
-  classDef proxy fill:#0e6a85,stroke:#22c5e0,color:#cbf6ff
+  BW1["bedwars-1"] -. "kick / crash" .-> ProxyInst
+  ProxyInst -. "fallbackChain" .-> Lobby1
+  classDef proxy fill:#0c8aa8,stroke:#4ec5d4,color:#e7fbff
   classDef lobby fill:#1e293b,stroke:#475569,color:#f8fafc
   classDef game  fill:#093142,stroke:#0d5168,color:#cbf6ff
   class ProxyInst proxy
   class Lobby1,Lobby2 lobby
-  class BW1,BW2 game
+  class BW1 game
 ```
 
-Three groups: a Velocity proxy with a public port, a Paper lobby, and a
-Paper game-mode. One Network Composition that ties them together. Players
-who connect to the proxy land in the lobby; when a game instance crashes,
-its players bounce back to the lobby.
+Three Groups: a Velocity proxy, a Paper lobby, and a Paper game-mode. One
+`NetworkComposition` ties them together. New players join the lobby; when a
+backend Instance kicks or crashes a player, the proxy walks the fallback
+chain to a healthy Instance.
 
-## Step 1 — Define the three groups
+## How routing works
 
-Save the three configs as `proxy.yml`, `lobby.yml`, and `bedwars.yml`:
+A **Network** is a `NetworkComposition` record held by the Controller. It
+does not edit `velocity.toml`. The proxy plugin running inside each proxy
+Instance reads the composition from the Controller and makes routing
+decisions in process.
 
-```yaml
-# proxy.yml
-name: proxy
-platform: velocity
-version: "3.4.0"
-scaling: { mode: STATIC, min: 1, max: 1 }
-ports: { from: 25565, to: 25565 }
-resources: { memoryMB: 512 }
-exposeOnHost: true        # bind to the node's external IP for player traffic
-```
+Two routing events drive everything (`NetworkRouter`,
+`VelocityPlayerListener`):
 
-```yaml
-# lobby.yml
-name: lobby
-platform: paper
-version: "1.21.4"
-scaling: { mode: STATIC, min: 2, max: 4 }
-ports: { from: 25600, to: 25699 }
-resources: { memoryMB: 1024 }
-templates: [base-paper, lobby]
-```
+| Event | What the proxy does |
+|---|---|
+| Player chooses initial server (first join) | Builds the chain `[lobbyGroup] ++ fallbackGroups`, removes duplicates, and connects to the first `RUNNING` Instance it finds. |
+| Player is kicked from a backend (crash, `/kick`, restart) | Builds the same chain but **excludes the Group the player was kicked from**, then redirects to the first `RUNNING` Instance. If the chain is exhausted, the player is disconnected with `kickMessage`. |
 
-```yaml
-# bedwars.yml
-name: bedwars
-platform: paper
-version: "1.21.4"
-scaling:
-  mode: DYNAMIC
-  min: 1
-  max: 8
-  scaleUpAt: 0.7          # 70% of slots filled triggers a new instance
-  scaleDownAt: 0.2        # 20% triggers scale-down
-  cooldownSeconds: 60
-ports: { from: 25800, to: 25899 }
-resources: { memoryMB: 2048 }
-templates: [base-paper, bedwars]
-dependsOn: [lobby]        # scheduler brings up `lobby` first
-```
+The lobby Group is the implicit last-resort fallback — it always leads the
+chain, so you never list it in `fallbackGroups` (the Controller rejects
+that; see [Validation](#validation-rules-and-errors)).
 
-Apply them:
+Which composition applies to a given proxy Group:
+
+- A composition whose `proxyGroups` contains the proxy's Group name wins.
+- A composition with an empty `proxyGroups` is a wildcard, used only when
+  no Group-scoped composition matches.
+
+The proxy plugin caches compositions from `GET /api/proxy/networks` and
+refreshes over an event stream, falling back to polling. Editing a
+composition and re-applying it is enough — no proxy restart, no manual
+sync.
+
+## Step 1 — Create the three Groups
+
+Groups are created with `prexorctl group create` and flags. The proxy Group
+must use a proxy platform; the lobby and game Groups use `paper`.
 
 ```bash
-prexorctl group apply -f proxy.yml -f lobby.yml -f bedwars.yml
+prexorctl group create \
+    --name proxy \
+    --platform velocity \
+    --platform-version 3.4.0 \
+    --scaling-mode STATIC \
+    --min 1 --max 1 \
+    --port-start 25565 --port-end 25565 \
+    --memory 512
+```
+
+```bash
+prexorctl group create \
+    --name lobby \
+    --platform paper \
+    --platform-version 1.21.4 \
+    --scaling-mode STATIC \
+    --min 2 --max 4 \
+    --port-start 25600 --port-end 25699 \
+    --memory 1024 \
+    --template lobby
+```
+
+```bash
+prexorctl group create \
+    --name bedwars \
+    --platform paper \
+    --platform-version 1.21.4 \
+    --scaling-mode DYNAMIC \
+    --min 1 --max 8 \
+    --port-start 25800 --port-end 25899 \
+    --memory 2048 \
+    --template bedwars
+```
+
+Flags that matter for a network:
+
+| Flag | Meaning | Default |
+|---|---|---|
+| `--name` | Group name (required). | — |
+| `--platform` | `velocity`, `bungeecord`, `paper`, `folia`, … (required). | — |
+| `--platform-version` | Catalog version to provision. | — |
+| `--scaling-mode` | `STATIC`, `DYNAMIC`, or `MANUAL`. | `DYNAMIC` |
+| `--min` / `--max` | Instance bounds. | `1` / `10` |
+| `--port-start` / `--port-end` | Daemon-side port range for Instances. | `30000` / `30100` |
+| `--memory` | Memory per Instance, MB. | `1024` |
+| `--template` | Template layer name (repeat for an ordered chain). | none |
+
+Keep the proxy `STATIC` with `--min 1 --max 1` for a single entrypoint.
+Run a Paper lobby `STATIC` so it's always up — it's the fallback target.
+A game-mode like `bedwars` is a good fit for `DYNAMIC` scaling.
+
+Confirm the Groups exist before you build the Network — the Controller
+validates every referenced Group when you create the composition.
+
+```bash
 prexorctl group list
 ```
 
-Within ~30 seconds you'll see one proxy, two lobby instances, and one
-bedwars instance running. The `dependsOn: [lobby]` line on `bedwars`
-ensures the lobby is up first; the topological sort guarantees this even
-if you applied the configs in a different order.
-
-## Step 2 — Create the Network Composition
-
-A **Network Composition** is the topology record that drives proxy routing.
-It says "this proxy fronts these groups, route new players to this lobby
-group, and on kick, walk this fallback chain."
-
-Save as `network.yml`:
-
-```yaml
-name: main
-proxyGroup: proxy
-lobbyGroup: lobby
-fallbackGroups: [lobby]   # walked on kick / disconnect
-gameGroups: [bedwars]
-motd: "<gold>PrexorCloud Demo</gold>"
-maxPlayers: 200
+```
+GROUP     TYPE     STATUS   INSTANCES   PLAYERS   VERSION          UPDATED
+bedwars   GAME     UP       1/8         0         paper-1.21.4     just now
+lobby     STATIC   UP       2/4         0         paper-1.21.4     just now
+proxy     STATIC   UP       1/1         0         velocity-3.4.0   just now
 ```
 
-Apply it:
+## Step 2 — Create the Network
+
+Networks have no `prexorctl` subcommand. Create them through the REST API
+at `/api/v1/networks`. The request body is a `NetworkComposition`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `name` | string | Network ID. Must match `[a-z0-9_][a-z0-9_-]*`, max 32 chars. |
+| `description` | string | Free text, max 256 chars. Optional. |
+| `lobbyGroup` | string | Default join target and last-resort fallback. Must be an existing Group. |
+| `fallbackGroups` | string[] | Ordered fallback chain tried after the lobby on failure. May be empty. |
+| `memberGroups` | string[] | Backend Groups in this Network. Empty means no restriction. |
+| `proxyGroups` | string[] | Proxy Groups this composition applies to. Empty means all proxies. |
+| `kickMessage` | string | Shown when every fallback is exhausted, max 256 chars. Optional. |
+| `bedrockLobbyGroup` | string | Join target for Bedrock players. Blank means use `lobbyGroup`. |
+| `bedrockFallbackGroups` | string[] | Bedrock-specific fallback chain. Empty means use `fallbackGroups`. |
+
+Send the request with your CLI token. `prexorctl` stores it in
+`~/.prexorcloud/config.yml`; export it as `TOKEN` for the examples below.
 
 ```bash
-prexorctl network apply -f network.yml
+curl -sS -X POST https://<host>:8080/api/v1/networks \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "main",
+        "description": "Primary public network",
+        "lobbyGroup": "lobby",
+        "fallbackGroups": ["bedwars"],
+        "memberGroups": ["lobby", "bedwars"],
+        "proxyGroups": ["proxy"],
+        "kickMessage": "All lobbies are full — try again shortly."
+      }'
 ```
 
-Behind the scenes:
+A successful create returns `201` with the stored composition. The
+Controller persists it and the proxy plugin picks it up on its next
+refresh.
 
-1. The controller persists the `NetworkComposition` record to MongoDB.
-2. The proxy plugin (running inside `proxy-1`) caches the composition from
-   the controller via REST.
-3. Subsequent player connects walk the lobby chain to find a free instance;
-   kicks walk the fallback chain.
+What this composition does:
 
-Network Composition is **first-class state**, not config-as-yaml. The
-proxy plugin re-syncs from the controller whenever the composition record
-changes, so editing the YAML and re-applying is enough — no proxy restart.
+- New players join a `RUNNING` `lobby` Instance.
+- A player kicked from `bedwars` is redirected to a `RUNNING` `lobby`
+  Instance (the kick chain excludes `bedwars`, the source Group).
+- A player kicked from `lobby` with no other healthy backend is
+  disconnected with `kickMessage`.
+
+### List, fetch, update, delete
+
+```bash
+# All compositions
+curl -sS https://<host>:8080/api/v1/networks \
+  -H "Authorization: Bearer $TOKEN"
+
+# One composition
+curl -sS https://<host>:8080/api/v1/networks/main \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Update replaces the whole composition. The body `name` must match the path:
+
+```bash
+curl -sS -X PUT https://<host>:8080/api/v1/networks/main \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "name": "main",
+        "lobbyGroup": "lobby",
+        "fallbackGroups": ["bedwars", "skywars"],
+        "proxyGroups": ["proxy"]
+      }'
+```
+
+```bash
+curl -sS -X DELETE https://<host>:8080/api/v1/networks/main \
+  -H "Authorization: Bearer $TOKEN"
+# 204 No Content
+```
+
+Each route requires a permission: `NETWORKS_VIEW` (list/get),
+`NETWORKS_CREATE` (POST), `NETWORKS_UPDATE` (PUT), `NETWORKS_DELETE`
+(DELETE). A token without the permission gets `403`.
 
 ## Step 3 — Connect
 
-Find the proxy's public address:
+Find the proxy's address and port:
 
 ```bash
-prexorctl instance describe proxy-1
-# NODE  node-1  (203.0.113.10)
-# PORT  25565
+prexorctl instance list --group proxy
 ```
 
-Connect from a Minecraft 1.21 client to `203.0.113.10:25565`. You'll land
-on whichever lobby instance has free slots. Try `/server lobby` from chat
-to confirm you're on the lobby group.
-
-## Step 4 — Add a `/play bedwars` command
-
-The cloud-plugin running inside the lobby instance can route players to
-the bedwars group via a small command. The simplest way is the bundled
-`/play <group>` command — it walks the target group, picks a free
-instance, and sends the player there. To enable it, add to the lobby
-template's `cloud-plugins/cloud-plugin/config.yml`:
-
-```yaml
-commands:
-  play:
-    enabled: true
-    permission: minecraft.command.play   # everyone, by default
 ```
-
-Re-apply the template (`prexorctl template push lobby/`), then run a
-rolling deployment to pick up the change:
+ID        GROUP   NODE     STATE     PORT    PLAYERS   UPTIME
+proxy-1   proxy   node-1   RUNNING   25565   0         2m
+```
 
 ```bash
-prexorctl group deploy lobby --strategy rolling --max-unavailable 1
+prexorctl instance info proxy-1
 ```
 
-The deployment replaces lobby instances one at a time; players are
-migrated to the surviving instance before the old one stops. Watch it via:
+Connect a Minecraft 1.21 client to the node's address on port `25565`. You
+land on whichever `lobby` Instance the proxy picks first from the chain.
 
-```bash
-prexorctl events follow --filter deployment
-```
+## Step 4 — Test the fallback chain
 
-## Step 5 — Test the fallback chain
-
-To watch fallback in action, force-kill one of the bedwars instances while
-a player is connected:
+Force-stop a backend Instance while a player is on it and watch the proxy
+fail the player over.
 
 ```bash
 prexorctl instance stop bedwars-1 --force
 ```
 
-The proxy plugin sees the disconnect, walks `fallbackGroups: [lobby]`,
-finds a healthy lobby instance, and sends the player there. The player
-sees a brief loading screen but stays in the network.
+When the backend drops, Velocity fires its kick event. The proxy plugin
+builds the chain `[lobby] ++ [skywars]` (excluding `bedwars`, the source
+Group), finds a `RUNNING` `lobby` Instance, and redirects the player. The
+player sees a brief reconnect and stays in the network. The proxy log
+shows:
 
-The Player Journey Bus records this: `INSTANCE_CRASHED → TRANSFER →
-CONNECTED`. You can pull the journey for any player with
-`prexorctl player journey <uuid> --limit 50`.
+```
+Failover: routing Steve from bedwars-1 to lobby-1
+```
+
+If the entire chain is exhausted — no `RUNNING` Instance in lobby or any
+fallback — the player is disconnected with `kickMessage` (or the proxy's
+built-in default when `kickMessage` is blank).
+
+## Bedrock-aware routing (optional)
+
+If only some backends run Geyser and can accept Bedrock clients, route
+Bedrock players separately. Set `bedrockLobbyGroup` and/or
+`bedrockFallbackGroups` on the composition:
+
+```json
+{
+  "name": "main",
+  "lobbyGroup": "lobby",
+  "fallbackGroups": ["bedwars"],
+  "proxyGroups": ["proxy"],
+  "bedrockLobbyGroup": "bedrock-lobby",
+  "bedrockFallbackGroups": ["bedrock-bedwars"]
+}
+```
+
+Behavior:
+
+- Bedrock players (detected by edition) use `bedrockLobbyGroup` and
+  `bedrockFallbackGroups` when set.
+- A blank `bedrockLobbyGroup` makes Bedrock players follow `lobbyGroup`.
+- An empty `bedrockFallbackGroups` makes them follow `fallbackGroups`.
+
+This preserves the Java route exactly when neither Bedrock field is set.
+
+## Validation rules and errors
+
+The Controller validates a composition against current Groups on every
+create and update. Each rule below returns `400` with a message naming the
+offending field.
+
+| Rule | Trigger |
+|---|---|
+| `name` matches `[a-z0-9_][a-z0-9_-]*`, ≤ 32 chars | Bad name. |
+| `description` ≤ 256 chars, `kickMessage` ≤ 256 chars | Field too long. |
+| `lobbyGroup` must exist | Unknown Group. |
+| `fallbackGroups` entries must exist | Unknown fallback Group. |
+| `fallbackGroups` must not include `lobbyGroup` | Lobby is the implicit last-resort fallback. |
+| `fallbackGroups` must have no duplicates | Repeated entry. |
+| `memberGroups` entries must exist, no duplicates | Unknown or repeated Group. |
+| `proxyGroups` entries must exist **and** be a proxy platform | A non-proxy Group (e.g. a Paper Group) listed as a proxy. |
+| `proxyGroups` must have no duplicates | Repeated entry. |
+| Bedrock fields validated only when set | Unknown `bedrockLobbyGroup`; a Bedrock fallback that's unknown, duplicated, or equals the effective Bedrock lobby. |
+
+Two more contract points:
+
+- POST a name that already exists → `409 Network already exists`.
+- PUT a `name` in the body that differs from the path → `400`.
 
 ## What can go wrong
 
 | Symptom | Likely cause |
 |---|---|
-| Player can connect to `<node>:25565` but not via the proxy | Proxy plugin can't reach the controller. Check `controller.url` in the proxy template's plugin config. |
-| `prexorctl network apply` fails with `proxy group has no instances` | Apply the groups first; networks reference groups by name. |
-| Bedwars `dependsOn: [lobby]` blocks startup | The lobby group is in `paused` state. `prexorctl group describe lobby` will show why (often crash-loop). |
-| `/play bedwars` says "no instances available" | All bedwars instances are full. Bump `scaling.max` or check `prexorctl instance list --group bedwars`. |
+| Players connect but never leave the proxy's "connecting" screen | No `RUNNING` Instance in `lobbyGroup`. Check `prexorctl instance list --group lobby`; the lobby Group may be scaled to zero or crash-looping. |
+| `POST /api/v1/networks` returns `400 lobbyGroup not found` | Create the Groups first — the Network references Groups by name. |
+| `400 proxyGroups entry '<x>' is not a proxy platform` | You listed a Paper/Folia Group in `proxyGroups`. Only `velocity`/`bungeecord` Groups belong there. |
+| `400 fallbackGroups must not include lobbyGroup` | Remove the lobby from `fallbackGroups`; it's already the chain head. |
+| Kicked players are disconnected instead of failing over | Every Group in the chain is down, or `proxyGroups` doesn't include this proxy's Group, so no composition applies (the proxy then routes by its default Group only). |
+| Routing changes don't take effect | The proxy refreshes from the Controller on a cycle; wait for the refresh, or confirm the proxy Instance can reach `/api/proxy/networks`. |
 
 ## Next up
 
-- **[Network Composition recipe](/recipes/multi-game-network/)** — the
-  full multi-game-mode pattern (lobby + 3 game-modes + dynamic scaling).
-- **[Concepts → Plugin System](/concepts/plugins/)** — how the proxy and
-  server plugins fit together (Path A standalone vs Path B bundled).
-- **[Concepts → Deployments](/concepts/deployments/)** — rolling deploys,
-  `maxUnavailable`, plan-hash rollback.
+- **[Groups, Instances, Templates](/concepts/groups-instances-templates/)** —
+  the data model behind every Group you just created.
+- **[Plugins](/concepts/plugins/)** — how the proxy and server plugins read
+  cluster state and route players.
+- **[Rolling deployments](/guides/rolling-deployments/)** — roll a template
+  or module change across a Group with `prexorctl deploy <group>`.

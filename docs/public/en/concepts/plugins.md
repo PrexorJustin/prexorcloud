@@ -1,271 +1,312 @@
 ---
-title: Plugin System
-description: Standalone @CloudPlugin jars (Path A) vs modules with bundled workload extensions (Path B) — when to pick which, and what each gives you.
+title: Plugins and server extensions
+description: Two ways to put code inside a server or proxy — standalone @CloudPlugin jars (Path A) and module-bundled extensions (Path B) — across Paper, Spigot, Folia, Velocity, BungeeCord, Fabric, NeoForge, and Geyser.
 ---
 
-A Minecraft plugin in PrexorCloud is code that ships *inside* a Minecraft
-server or proxy JVM, alongside the cloud-installed jar. There are two
-deployment models for shipping plugin code, and they are **not** a
-hierarchy — a standalone plugin is not a "lite module," it is a
-different model with its own tooling, docs, and scaffold.
+A Plugin in PrexorCloud is code that runs *inside* a Minecraft server or proxy JVM, next to the cloud-installed integration. This page covers the two models for shipping that code, every platform each one reaches, and how the code authenticates back to the Controller.
+
+Two facts up front:
+
+- Every managed Instance already runs the first-party PrexorCloud integration. The Daemon installs it; you write nothing. It registers the Instance with the Controller and reports players and metrics. It ships per platform — a Bukkit plugin on Paper/Spigot/Folia, a Velocity/BungeeCord proxy plugin, a Fabric or NeoForge mod, and a Geyser extension.
+- Your own code rides on top through one of two paths: a standalone `@CloudPlugin` jar (Path A) or an extension bundled inside a Module (Path B).
+
+The two paths are not a hierarchy. A standalone plugin is not a "lite module." It is a different model with its own tooling and deployment.
 
 ## What you'll learn
 
-- The two paths: standalone `@CloudPlugin` jars (Path A) versus modules
-  that bundle workload extensions (Path B).
-- A decision flowchart for picking between them.
-- The plugin SDK basics — `@CloudPlugin`, `CloudPluginBase`,
-  `CloudPluginContext`.
-- Cross-platform considerations (Paper, Spigot, Folia, Velocity,
-  BungeeCord).
-- How plugins authenticate to the controller and what they can do over
-  REST.
+- The two authoring paths and a decision guide.
+- The plugin SDK: `@CloudPlugin`, `CloudPluginBase`, `CloudPluginContext`, `@ForVersion`.
+- Every platform each path reaches, including Fabric, NeoForge, and Geyser.
+- How in-server code authenticates to the Controller and what the environment gives it.
 
-## The decision flowchart
+## The decision
 
 ```mermaid
 flowchart TB
-    Q["Need any of:<br/>• cluster-wide state<br/>• REST API<br/>• dashboard UI<br/>• coordination across nodes<br/>• capabilities consumed by other modules"]
-    Q -- yes --> M[MODULE - Path B]
-    Q -- no --> Q2["Need plugin on multiple<br/>game platforms<br/>(paper + folia, paper + velocity)?"]
-    Q2 -- yes --> MB["MODULE that bundles<br/>per-platform plugin extensions"]
-    Q2 -- no --> SP["STANDALONE PLUGIN - Path A"]
+    Q["Need any of:<br/>cluster-wide state · REST API · dashboard UI ·<br/>coordination across nodes · a capability other modules consume"]
+    Q -- yes --> M["MODULE — Path B"]
+    Q -- no --> Q2["Need the same code on multiple<br/>game platforms in one deploy?"]
+    Q2 -- yes --> MB["MODULE that bundles<br/>per-platform extensions"]
+    Q2 -- no --> SP["STANDALONE PLUGIN — Path A"]
 ```
 
-Three honest cases:
+Three cases:
 
-- **Cluster-wide state, REST API, dashboard UI, or coordination across
-  nodes?** → Module (Path B). See [Platform
-  Modules](/concepts/modules/platform/).
-- **In-game / in-proxy behaviour on a single platform only?** →
-  Standalone plugin (Path A).
-- **Both — server-side game logic plus dashboard / cluster state?** →
-  Module that bundles per-platform plugin extensions.
+- **Cluster-wide state, a REST API, dashboard UI, or cross-node coordination?** Module (Path B). See [Modules](/concepts/modules/).
+- **In-game or in-proxy behaviour on one platform only?** Standalone plugin (Path A).
+- **Both — server-side logic plus dashboard or cluster state?** A Module that bundles per-platform extensions.
 
-The single-platform case is genuinely common (e.g. an admin command
-suite that only runs on Paper). For that case, the module wrapper would
-be theatre — pick Path A.
+The single-platform case is common — an admin command suite that only runs on Paper, for example. A Module wrapper there is overhead with no payoff; pick Path A.
 
 ## Side by side
 
 |  | Standalone plugin (Path A) | Module (Path B) |
 |---|---|---|
 | Lives at | `java/cloud-plugin/cloud-plugin-<name>/` | `java/cloud-modules/<name>/` |
-| Manifest | none — `@CloudPlugin` annotation only | `module.yaml` plus generated `META-INF/prexor-module.json` |
-| Deployment | drop the shaded jar into `cloud-plugins/` | `prexorctl module install <bundle>` against the controller |
-| Frontend | n/a | optional Vue package via `dashboard/packages/module-sdk` |
-| REST endpoints | n/a | `/api/v1/modules/<id>/<sub>` via `ModuleRouteRegistry` |
-| Per-module storage | n/a | MongoDB plus Valkey primitives, isolated by module id |
+| Manifest | none — the `@CloudPlugin` annotation only | `module.yaml` |
+| Build output | one shaded jar | controller jar plus per-platform extension jars |
+| Deployment | drop the jar into the server/proxy plugin folder | `prexorctl module install <bundle>` against the Controller |
+| Activation | present when the jar is present | `explicit-group-attach` per the manifest; Controller resolves and the Daemon installs |
+| Frontend | none | optional Vue package via `dashboard/packages/module-sdk` |
+| REST endpoints | none | `/api/v1/modules/<id>/<sub>` |
+| Per-module storage | none | MongoDB plus Valkey primitives, isolated by module id |
 | Capability registry | consume only (via `cloud-api`) | provide and consume |
-| Cross-platform variants | one platform per scaffold; rerun for more | per-platform plugin extensions ship inside the same module |
-| Scaffold | `prexorctl plugin new --platform=<p>` | `prexorctl module new` (TUI wizard) |
-| Signing | optional, plugin author's choice | cosign plus Rekor; verifier enforces on install |
+| Cross-platform | one platform per scaffold; rerun for more | many extensions ship inside one Module |
+| Scaffold | `prexorctl plugin new --platform=<p>` | `prexorctl module new` |
 
-Both paths can coexist — most production networks run both
-(generic-purpose plugins per platform plus a few cluster-wide modules).
+Both paths coexist. A production Network usually runs both.
+
+## The plugin SDK
+
+`cloud-api` is the in-server SDK shared by both paths. Three types matter.
+
+### `@CloudPlugin`
+
+Marks the class. The annotation processor reads it and generates the platform bridge plus the descriptor file the platform expects. Fields (`java/cloud-api/.../api/plugin/annotation/CloudPlugin.java`):
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `name` | `String` | required | Display name; also kebab-cased into the Velocity/Geyser id |
+| `version` | `String` | required | |
+| `description` | `String` | `""` | |
+| `authors` | `String[]` | `{}` | |
+| `dependencies` | `String[]` | `{}` | Hard deps loaded before this plugin; `PrexorCloud` is always added |
+| `softDependencies` | `String[]` | `{}` | Loaded before this plugin if present |
+| `apiVersion` | `String` | `"1.21"` | Bukkit/Paper `api-version`; ignored off Bukkit |
+
+There is no `id` field. The Velocity and Geyser ids are derived from `name` (lower-cased, spaces to `-`).
+
+`apiVersion` is auto-lowered. If your `@ForVersion` adapters declare a lower `min`, the processor writes that into the descriptor — you don't keep `apiVersion` in sync by hand.
+
+### `CloudPluginBase`
+
+Your class extends it. It does **not** extend `JavaPlugin` — it is platform-agnostic, and the generated bridge owns the platform lifecycle. Override points (`java/cloud-api/.../api/plugin/CloudPluginBase.java`):
+
+```java
+public abstract void onEnable(CloudPluginContext ctx);   // required
+public void onDisable() {}                                // optional
+public void onReload(CloudPluginContext ctx) {}           // optional
+```
+
+For version dispatch, call `adapt(Type.class)` from `onEnable` — see `@ForVersion` below.
+
+### `CloudPluginContext`
+
+The single entry point handed to `onEnable` (`java/cloud-api/.../api/plugin/CloudPluginContext.java`):
+
+```java
+public interface CloudPluginContext {
+    InstanceContext self();           // this Instance: id, group, node
+    EventBus events();                // subscribe to cluster events
+    CloudCommandRegistry commands();  // register @Command classes
+    PlayerManager players();          // players online on this Instance
+    PluginScheduler scheduler();      // Folia-safe task scheduler
+    CloudClient client();             // low-level Controller client
+    Logger logger();                  // java.util.logging
+}
+```
+
+`scheduler()` is Folia-safe on every platform, so the same code runs on Paper and on Folia's regionised scheduler without branching.
+
+### `@ForVersion` — one jar, many Minecraft versions
+
+Nest version-specific adapter classes and let the dispatcher pick at runtime (`java/cloud-api/.../api/client/version/ForVersion.java`):
+
+```java
+interface WelcomeHandler {
+    @ForVersion(min = "1.21")
+    class Modern implements WelcomeHandler { /* ... */ }
+
+    @ForVersion(min = "1.17", max = "1.20")
+    class Legacy implements WelcomeHandler { /* ... */ }
+
+    @ForVersion(fallback = true)   // used when no range matches (e.g. 1.22)
+    class Default implements WelcomeHandler { /* ... */ }
+}
+
+// in onEnable:
+WelcomeHandler handler = adapt(WelcomeHandler.class);
+```
+
+`min` and `max` are inclusive; an empty `max` is unbounded. Exactly one `fallback = true` per group is allowed; both `min` and `max` are ignored on it. If a `@ForVersion` group has no fallback, the build prints a WARNING — servers outside the covered ranges would otherwise throw `UnsupportedOperationException` at runtime.
+
+The dispatcher keys off the running version: the Minecraft version on Bukkit/Paper/Folia, and the proxy version on Velocity and BungeeCord. Geyser extensions get no dispatcher — a Geyser extension runs inside Geyser's own runtime regardless of the host server version, so version branching there is not meaningful.
 
 ## Path A: standalone plugins
 
-A standalone plugin is a single jar with the `@CloudPlugin` annotation.
-Drop it into the server's `cloud-plugins/` directory and it gets the cloud
-SDK at startup.
+A standalone plugin is one jar with one `@CloudPlugin` class. Scaffold it, build it, drop the shaded jar into the server's plugin folder.
 
 ```bash
 prexorctl plugin new my-greeter --platform=paper
 cd java && ./gradlew :cloud-plugin:cloud-plugin-my-greeter:shadowJar
-# Drop build/libs/cloud-plugin-my-greeter-all.jar into your Paper server's plugins/.
+# Drop build/libs/cloud-plugin-my-greeter-*.jar into the server's plugins/ folder.
 ```
 
+`prexorctl plugin new` flags (`cli/cmd/plugin.go`):
+
+| Flag | Required | Default | Notes |
+|---|---|---|---|
+| `--platform` | yes | — | `paper`, `spigot`, `folia`, `velocity`, or `bungeecord` |
+| `--mc-version` | no | `1.20` | Paper only; `1.20` or `1.21`. Ignored elsewhere |
+| `--package` | no | `me.prexorjustin.prexorcloud.plugins.<name>` | Override the Java package |
+| `--description` | no | generated | Written into `@CloudPlugin` |
+| `--author` | no | `PrexorCloud` | Written into `@CloudPlugin` |
+| `--repo-root` | no | discovered upward | Repo root override |
+| `--force` | no | `false` | Overwrite an existing plugin directory |
+| `--dry` | no | `false` | Print what would be written, write nothing |
+
+The scaffold writes one Gradle subproject under `java/cloud-plugin/cloud-plugin-<name>/`, applies the matching `prexorcloud.plugin-<platform>` convention plugin, and patches `java/settings.gradle.kts` after the `// ---- PLUGINS ---- //` anchor. The generated source is minimal:
+
 ```java
-@CloudPlugin(id = "my-greeter", name = "MyGreeter", version = "0.1.0")
+@CloudPlugin(
+        name = "MyGreeter",
+        version = "0.0.1",
+        description = "MyGreeter — standalone PrexorCloud plugin.",
+        authors = {"PrexorCloud"})
 public final class MyGreeterPlugin extends CloudPluginBase {
 
     @Override
-    protected void onCloudEnable(CloudPluginContext ctx) {
-        ctx.events().subscribe(PlayerJoinEvent.class, this::onJoin);
-        ctx.commands().register("greet", new GreetCommand());
-    }
-
-    private void onJoin(PlayerJoinEvent e) {
-        e.player().sendMessage("<green>Welcome to the cluster!");
+    public void onEnable(CloudPluginContext ctx) {
+        ctx.logger().info("PrexorCloud connected on instance " + ctx.self().instanceId());
     }
 }
 ```
 
-`CloudPluginContext` is the every-plugin-needs-this object:
+You add platform listeners and commands from there.
 
-```java
-public interface CloudPluginContext {
-    EventBus events();             // api.event.EventBus
-    CommandRegistry commands();
-    PlayerManager players();
-    PluginScheduler scheduler();   // platform-specific (Bukkit, Velocity)
-    CloudClient client();          // typed REST client to controller
-    Logger logger();               // java.util.logging
-    InstanceContext instance();    // this instance's id, group, port
+### What the processor generates per platform
+
+The processor resolves the target from `-Acloud.platform=<name>` if set, otherwise by classpath detection (Geyser → Velocity → BungeeCord → Folia → Paper), otherwise `paper` with a build WARNING. Each platform gets a bridge class and the right descriptor (`java/cloud-api/.../api/plugin/annotation/CloudPluginProcessor.java`):
+
+| Platform | `--platform` | Bridge | Descriptor | Notes |
+|---|---|---|---|---|
+| Paper | `paper` | `*CloudBridge extends JavaPlugin` | `paper-plugin.yml` | Modern bootstrap; `join-classpath: true` exposes the cloud API to downstream plugins |
+| Spigot | `spigot` | `*CloudBridge extends JavaPlugin` | `plugin.yml` | Legacy descriptor |
+| Folia | `folia` | `*FoliaBridge extends JavaPlugin` | `plugin.yml` | `folia-supported: true`; region-aware scheduler |
+| Velocity | `velocity` | `*VelocityBridge` (`@Plugin`) | `velocity-plugin.json` | Proxy-side; id derived from `name` |
+| BungeeCord | `bungeecord` / `bungee` / `waterfall` | `*BungeeBridge extends Plugin` | `plugin.yml` | Proxy-side |
+| Geyser | `bedrock-geyser` / `geyser` | `*GeyserBridge implements Extension` | `extension.yml` | Bedrock; `api: "1.0.0"` is the Extension API version, not a Geyser release |
+
+The Bukkit and Velocity bridges auto-register your class: if it implements the platform `Listener`/event interface, the bridge registers it so your handlers fire under the bridge's plugin id without manual wiring.
+
+The CLI scaffold (`prexorctl plugin new`) covers the five Bukkit and proxy platforms. The Geyser target is supported by the processor — set `-Acloud.platform=bedrock-geyser` in the subproject build. Fabric and NeoForge are **not** `@CloudPlugin` targets: the processor emits no mod descriptor for them. To run your own code on a Fabric or NeoForge Instance, write a normal Fabric mod or NeoForge mod and read the cloud environment directly with `PluginEnv` (below), the same way the first-party integration does.
+
+### Velocity build note
+
+`velocity-api` ships its own annotation processor that competes with `CloudPluginProcessor` (which already writes a complete `velocity-plugin.json`). The Velocity scaffold excludes it to keep compilation single-pass:
+
+```kotlin
+configurations.named("annotationProcessor") {
+    exclude(group = "com.velocitypowered", module = "velocity-api")
 }
 ```
 
-The shared `CloudClient` handles plugin-token auth automatically — see
-[Authentication](/concepts/security/) below.
+## Path B: modules that bundle extensions
 
-### Cross-platform with `@ForVersion`
-
-A single plugin jar can support multiple Minecraft versions through the
-`@ForVersion` dispatcher pattern:
-
-```java
-@CloudPlugin(id = "version-aware", name = "VersionAware", version = "0.1.0")
-public final class VersionAwarePlugin extends CloudPluginBase {
-    @Override
-    protected void onCloudEnable(CloudPluginContext ctx) {
-        adapt(VersionAdapter.class);
-    }
-
-    @ForVersion("1.20")
-    public static final class V120 implements VersionAdapter { /* ... */ }
-
-    @ForVersion("1.21")
-    public static final class V121 implements VersionAdapter { /* ... */ }
-}
-```
-
-`VersionDispatcher` picks the right adapter at runtime based on the
-detected server version. This is symmetric across Paper, Spigot, and
-Folia.
-
-### Supported platforms
-
-| Platform | Scaffold flag | Notes |
-|---|---|---|
-| Paper | `--platform=paper` | Default plugin platform; multi-version via `--mc-version` |
-| Spigot | `--platform=spigot` | Same SDK shape, narrower API surface |
-| Folia | `--platform=folia` | Region-aware scheduler; `PluginScheduler` adapts |
-| Velocity | `--platform=velocity` | Proxy-side; ships with disabled velocity-api annotation processor in the scaffold |
-| BungeeCord | `--platform=bungeecord` | Proxy-side; no `CloudPluginBase` subclass — different SDK shape |
-
-See the [plugin SDK reference](/reference/plugin-sdk/) for the full
-plugin-side API.
-
-## Path B: modules that bundle plugin extensions
-
-A module (in the [module system](/concepts/modules/) sense) can bundle
-one or more plugin extensions that the controller distributes to
-matching server instances at start time.
+A Module ships a controller-side `PlatformModule` plus one or more in-server extensions. The Controller resolves which extension applies to a Group and the Daemon installs the matching jar. Extensions are declared in `module.yaml` (`java/cloud-modules/example/.../module.yaml`):
 
 ```yaml
-# module.yaml
-manifestVersion: 1
-id: stats-aggregator
-version: 0.1.0
-hosts: [controller]
-backend:
-  controller:
-    entrypoint: com.example.StatsAggregatorModule
 extensions:
-  - id: stats-aggregator-paper
-    targets:
-      platform: paper
-      versions: ["1.20", "1.21"]
-    artifact: extensions/stats-aggregator-paper.jar
-  - id: stats-aggregator-velocity
-    targets:
-      platform: velocity
-    artifact: extensions/stats-aggregator-velocity.jar
+  - id: example-playtime-paper
+    target: server/paper
+    activation: explicit-group-attach
+    variants:
+      - id: example-playtime-paper
+        mcVersionRange: "*"
+        runtimeApiVersion: 1
+        artifact: extensions/server/paper/example-playtime-paper.jar
+        sha256: AUTO            # filled in at bundle time
+        installPath: plugins/
+  - id: example-playtime-velocity
+    target: proxy/velocity
+    activation: explicit-group-attach
+    variants:
+      - id: example-playtime-velocity
+        mcVersionRange: "*"
+        runtimeApiVersion: 1
+        artifact: extensions/proxy/velocity/example-playtime-velocity.jar
+        installPath: plugins/
+  - id: example-playtime-bedrock-geyser
+    target: server/bedrock-geyser
+    activation: explicit-group-attach
+    variants:
+      - id: example-playtime-bedrock-geyser
+        mcVersionRange: "*"
+        installPath: extensions/   # Geyser loads from extensions/, not plugins/
 ```
 
-The controller's `ExtensionRegistry` resolves which extension applies
-to which group based on platform / version / variant matchers. The
-decision is hashed into the [composition
-plan](/concepts/groups-instances-templates/) so the daemon installs
-exactly the right jar — and a hash mismatch is detected fast.
+Per-extension fields:
 
-The module-side code (the controller-side `PlatformModule` and the
-in-server extensions) communicate through the module's REST surface
-plus capabilities. The reference module `stats-aggregator` is the worked
-example.
+| Field | Notes |
+|---|---|
+| `target` | Platform key: `server/paper`, `server/folia`, `proxy/velocity`, `server/bedrock-geyser`, … |
+| `activation` | `explicit-group-attach` — the extension installs only on Groups you attach it to |
+| `variants` | One or more build variants matched by `mcVersionRange` |
+| `mcVersionRange` | Semver-style range; `"*"` matches any |
+| `runtimeApiVersion` | In-server runtime contract version the variant compiled against |
+| `artifact` | Path inside the bundle |
+| `sha256` | Content hash; the Controller folds it into the composition plan, and a mismatch is caught before install |
+| `installPath` | Where the Daemon drops the jar — `plugins/` for Bukkit/proxy, `extensions/` for Geyser |
 
-## How plugins authenticate
+The extensions themselves are `@CloudPlugin` classes — Path B reuses the Path A SDK. The `example-playtime` Module under `java/cloud-modules/example/` is the worked reference: a `PlatformModule` plus Paper, Folia, Velocity, and Geyser extensions that report playtime back through the module's REST surface. See [Modules](/concepts/modules/) for the controller side.
 
-Plugins authenticate to the controller with a **per-instance plugin
-token** (`ptk_` prefix), short-TTL, scoped to the instance.
+## How in-server code authenticates
 
-When the controller dispatches a `Start` to a daemon, it generates a
-plugin token and includes it in the composition plan. The daemon writes
-this into the instance's environment as `CLOUD_PLUGIN_TOKEN`. The cloud
-plugin reads the env var on startup and presents it as a Bearer token
-on `/api/proxy/*` and `/api/plugin/*` REST routes.
+Every managed Instance gets a per-Instance plugin token. The Controller mints it when it dispatches a `Start` to the Daemon, and the Daemon injects it plus the addressing into the Instance environment. Read it with `PluginEnv` (`java/cloud-api/.../api/client/env/PluginEnv.java`):
 
-Why per-instance tokens:
+| Method | Env var | Notes |
+|---|---|---|
+| `PluginEnv.instanceId()` | `CLOUD_INSTANCE_ID` | This Instance's id |
+| `PluginEnv.group()` | `CLOUD_GROUP` | Owning Group |
+| `PluginEnv.nodeId()` | `CLOUD_NODE_ID` | Node it runs on |
+| `PluginEnv.controllerHost()` | `CLOUD_CONTROLLER_HOST` | Controller host |
+| `PluginEnv.controllerPort()` | `CLOUD_CONTROLLER_PORT` | Controller port |
+| `PluginEnv.pluginToken()` | `CLOUD_PLUGIN_TOKEN` | Bearer token for Controller REST |
+| `PluginEnv.controllerUrl()` | — | `http://<host>:<port>`, composed |
+| `PluginEnv.isCloudManaged()` | — | `true` when `CLOUD_INSTANCE_ID` is set |
 
-- If a server is compromised, only that one instance's REST surface is
-  exposed.
-- Tokens have a short TTL (15 minutes by default); the plugin
-  refreshes proactively before expiry.
-- Tokens are revoked when the instance stops.
-- Tokens carry a sequence window for replay protection
-  (`prexor:v1:workloadseq:`).
+`isCloudManaged()` is the guard for code that must also run on un-managed servers: when it returns `false`, fall back to standalone behaviour instead of failing. The first-party Fabric and NeoForge mods do exactly this — when `CLOUD_INSTANCE_ID` is absent they log a warning and stay out of the way.
 
-See [Security](/concepts/security/) for the full auth model.
+The token is short-lived and scoped to the one Instance, so a compromised server exposes only its own REST surface. See [Security](/concepts/security/) for the full auth model and rotation.
 
-## The proxy-side: Network Composition routing
+## The first-party integration, per platform
 
-Proxy plugins (Velocity, BungeeCord) implement [Network
-Composition](/concepts/groups-instances-templates/) routing. They cache
-the `NetworkComposition` record from
-`/api/proxy/networks` (plugin-token auth) and route players based on
-it:
+You never write or install this — the Daemon does. It is what makes an Instance show up in the dashboard. The code lives under `java/cloud-plugins/`:
 
-- **On player connect:** walk `[lobbyGroup] ++ fallbackGroups` to pick
-  where to land the player.
-- **On kick:** walk the same chain (excluding the kicking group) to
-  redirect the player.
+| Platform | Module | Entry point | Form |
+|---|---|---|---|
+| Paper / Spigot / Folia | `server/{paper,spigot,folia}` (over `server/shared`) | `AbstractCloudPlugin` (Bukkit) | Bukkit plugin |
+| Velocity | `proxy/velocity` | `PrexorCloudVelocity` | Proxy plugin |
+| BungeeCord | `proxy/bungeecord` | `PrexorCloudBungeeCord` | Proxy plugin |
+| Fabric | `server/fabric` | `PrexorCloudFabric` (`DedicatedServerModInitializer`) | Fabric mod |
+| NeoForge | `server/neoforge` | `PrexorCloudNeoForge` (`@Mod("prexorcloud")`) | NeoForge mod |
+| Geyser | `proxy/geyser` | `PrexorCloudGeyser` (`Extension`) | Geyser extension |
+
+All share one job: register the Instance, report player join/leave, and push a metrics snapshot on a timer. The Bukkit, Fabric, and NeoForge server integrations report over the platform-agnostic `ServerControllerClient`; the Fabric and NeoForge mods push metrics every 200 ticks (~10s). Both mods target Minecraft 1.21.1 and require Java 21+.
+
+The proxy integrations do more. Velocity and BungeeCord implement [Network](/concepts/networks/) routing: they cache the network composition from `/api/proxy/networks` (plugin-token auth) and route players by it.
+
+- **On connect:** walk `lobbyGroup` then `fallbackGroups` to pick a landing Group.
+- **On kick:** walk the same chain, excluding the kicking Group.
 - **On exhausted chain:** disconnect with the network's `kickMessage`.
 
-The proxy plugins are deliberately stateless beyond the cached
-composition. Operators change topology by editing the network record;
-every proxy instance re-routes within milliseconds.
+They stay stateless beyond that cache. Change topology by editing the network record; every proxy re-routes within milliseconds.
 
-## A standalone plugin in 30 lines
-
-```java
-@CloudPlugin(id = "lobby-greeter", name = "LobbyGreeter", version = "0.1.0")
-public final class LobbyGreeterPlugin extends CloudPluginBase {
-    @Override
-    protected void onCloudEnable(CloudPluginContext ctx) {
-        if (!"lobby".equals(ctx.instance().group())) {
-            ctx.logger().info("not a lobby instance, skipping");
-            return;
-        }
-        ctx.events().subscribe(PlayerJoinEvent.class, e ->
-            e.player().sendMessage("<gold>Welcome to the lobby."));
-
-        ctx.commands().register("hub", (sender, args) -> {
-            ctx.client().requestTransfer(sender.uuid(), "lobby");
-            return CommandResult.success();
-        });
-    }
-}
-```
-
-Three things happened: an event subscription, a command registration,
-and a controller-mediated player transfer. None of those need a module.
+Geyser is the exception. It is a Bedrock↔Java protocol translator, not a server-list proxy — it forwards every Bedrock client to its single configured remote (typically a Java proxy doing the edition-aware routing). The Geyser sidecar registers the Geyser process as a proxy Instance and reports every Bedrock session as `edition=bedrock`, authoritative even when Floodgate isn't in use.
 
 ## Where to look
 
 | What | Where |
 |---|---|
-| Plugin SDK reference | [`/reference/plugin-sdk/`](/reference/plugin-sdk/) |
-| Module SDK reference | [`/reference/module-sdk/`](/reference/module-sdk/) |
-| Cloud-plugin internals | `cloud-plugins-internal/` and `cloud-plugins-server-*`, `cloud-plugins-proxy-*` |
-| Reference plugin scaffolds | `prexorctl plugin new` emits a working scaffold |
+| Plugin SDK | `java/cloud-api/.../api/plugin/` |
+| Annotation processor | `java/cloud-api/.../api/plugin/annotation/CloudPluginProcessor.java` |
+| First-party integration | `java/cloud-plugins/server/*`, `java/cloud-plugins/proxy/*` |
+| Reference module | `java/cloud-modules/example/` (`example-playtime`) |
+| Scaffold a plugin | `prexorctl plugin new --platform=<p>` |
+| Scaffold a module | `prexorctl module new` |
 
-## Next up
+## Next
 
-- [Module System](/concepts/modules/) — the full module orientation if
-  you decided you need Path B.
-- [Security](/concepts/security/) — plugin-token auth, per-instance
-  rotation, replay protection.
-- [Events](/concepts/events/) — what plugin code can subscribe to.
-- [Plugin SDK reference](/reference/plugin-sdk/) — the full plugin-side
-  API.
+- [Modules](/concepts/modules/) — Path B in full, the controller side.
+- [Networks](/concepts/networks/) — how proxy routing composes Groups.
+- [Security](/concepts/security/) — plugin-token auth and rotation.
