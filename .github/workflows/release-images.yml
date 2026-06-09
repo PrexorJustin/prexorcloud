@@ -1,0 +1,126 @@
+name: Release Images
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write     # OIDC token for cosign keyless signing
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAMESPACE: ${{ github.repository_owner }}
+
+jobs:
+  build-and-sign:
+    name: ${{ matrix.image.name }} (build + push + cosign)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - name: controller
+            context: java
+            dockerfile: java/cloud-controller/Dockerfile
+            repo: prexorcloud-controller
+          - name: daemon
+            context: java
+            dockerfile: java/cloud-daemon/Dockerfile
+            repo: prexorcloud-daemon
+          - name: dashboard
+            context: dashboard
+            dockerfile: dashboard/Dockerfile
+            repo: prexorcloud-dashboard
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      - name: Derive image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/${{ matrix.image.repo }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.title=PrexorCloud ${{ matrix.image.name }}
+
+      - name: Build and push (multi-arch)
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          # linux/amd64 only for the v1.0 line. arm64 builds via QEMU repeatedly
+          # broken-pipe'd on the Gradle wrapper download for controller/daemon —
+          # adding native arm64 runners (`ubuntu-24.04-arm`) is the proper fix
+          # and tracked separately.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image.name }}
+
+      - name: Sign image with cosign (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        # Sign every tag the metadata-action emitted, by digest.
+        # `cosign sign --yes <ref>@<digest>` pins the signature to the exact
+        # image we just pushed.
+        run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            ref="${tag%%:*}@${DIGEST}"
+            echo "::group::cosign sign $ref"
+            cosign sign --yes "$ref"
+            echo "::endgroup::"
+          done
+
+      - name: Verify signature
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        # Sanity-check the keyless signature against the GitHub Actions
+        # identity we just signed under. If this fails the release is broken
+        # before operators ever try to verify.
+        #
+        # OCI references must be lowercase; `${{ github.repository_owner }}`
+        # preserves the GitHub-account casing ("PrexorJustin"), so we
+        # lowercase via shell parameter-expansion before composing the ref.
+        run: |
+          set -euo pipefail
+          owner_lc="${IMAGE_NAMESPACE,,}"
+          ref="${REGISTRY}/${owner_lc}/${{ matrix.image.repo }}@${DIGEST}"
+          cosign verify "$ref" \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/release-images.yml@.*" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            > /dev/null

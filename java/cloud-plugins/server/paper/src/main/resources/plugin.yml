@@ -1,0 +1,7 @@
+name: PrexorCloud
+version: 1.0.0
+main: me.prexorjustin.prexorcloud.server.paper.PrexorCloudPaper
+api-version: "1.20"
+description: PrexorCloud Paper server integration
+authors: [PrexorJustin]
+load: STARTUP

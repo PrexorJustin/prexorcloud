@@ -1,0 +1,90 @@
+---
+/*
+ * /playground — Scalar API Reference embedded as a standalone page.
+ *
+ * Scalar's web component reads the OpenAPI spec from /openapi.json (synced
+ * by website/scripts/sync-openapi.mjs from the controller's
+ * javalin-openapi-plugin output) and renders an interactive explorer:
+ * try-it for every endpoint, code samples in curl + JS + Python + Go +
+ * Java, schema cross-links. Complements the static starlight-openapi pages
+ * under /reference/rest-api/ — the static pages are Pagefind-indexed and
+ * deep-linkable, /playground is for exploration + live calls.
+ *
+ * The CDN script ships the standalone bundle. We pin a major to avoid drift.
+ */
+import '../styles/tokens.css';
+
+const title = 'API Playground — PrexorCloud';
+const description =
+  'Interactive REST API explorer (Scalar). Try endpoints live and copy code samples in curl, JS, Python, Go, and Java.';
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="theme-color" content="#06b6d4" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+  </head>
+  <body>
+    <a class="pg-back" href="/">← prexor.cloud</a>
+    <script
+      id="api-reference"
+      data-url="/openapi.json"
+      data-configuration={JSON.stringify({
+        theme: 'deepSpace',
+        layout: 'modern',
+        defaultHttpClient: { targetKey: 'shell', clientKey: 'curl' },
+        hideDownloadButton: false,
+        metaData: {
+          title,
+          description,
+        },
+      })}
+    >
+    </script>
+    <script is:inline src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1"></script>
+
+    <style is:global>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: var(--font-sans);
+      }
+      .pg-back {
+        position: fixed;
+        top: 0.75rem;
+        left: 1rem;
+        z-index: 60;
+        font-family: var(--font-sans);
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: hsl(var(--muted-foreground));
+        text-decoration: none;
+        padding: 0.4rem 0.75rem;
+        border-radius: var(--radius-md, 0.5rem);
+        background: hsl(var(--glass));
+        border: 1px solid hsl(var(--glass-border));
+        backdrop-filter: blur(8px);
+      }
+      .pg-back:hover {
+        color: hsl(var(--foreground));
+      }
+    </style>
+  </body>
+</html>

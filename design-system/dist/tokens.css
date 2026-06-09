@@ -1,0 +1,162 @@
+/* GENERATED from tokens.json by build-tokens.mjs — do not edit. */
+
+:root {
+  /* raw color scales */
+  --reef-dark: #4ec5d4;
+  --reef-light: #0c8aa8;
+  --reef-soft-dark: #1f6a78;
+  --reef-soft-light: #a5dfe9;
+  --ink-1: #0a0a10;
+  --ink-2: #0c0c12;
+  --ink-3: #14141d;
+  --ink-4: #1d1d28;
+  --ink-5: #2a2a36;
+  --ink-6: #4a4a55;
+  --ink-7: #7c7c8a;
+  --ink-8: #c5c5cf;
+  --ink-9: #ededf2;
+  --sand-1: #f5f3ed;
+  --sand-2: #ebe7dc;
+  --sand-3: #ffffff;
+  --sand-4: #fbf9f3;
+  --sand-5: #e6e1d3;
+  --sand-6: #a8a399;
+  --sand-7: #6e6a62;
+  --sand-8: #3a3a45;
+  --sand-9: #14141a;
+  --success-dark: #10b981;
+  --success-light: #2f7d4a;
+  --warning-dark: #f59e0b;
+  --warning-light: #a8651e;
+  --danger-dark: #f43f5e;
+  --danger-light: #a02d2d;
+
+  /* type */
+  --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Inter Tight', Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-accent: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.3125rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2rem;
+  --text-4xl: 2.625rem;
+  --text-5xl: 3.5rem;
+  --leading-tight: 1.15;
+  --leading-snug: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+  --tracking-tighter: -0.035em;
+  --tracking-tight: -0.025em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.06em;
+  --tracking-widest: 0.16em;
+
+  /* spacing / radius / shadow */
+  --space-0: 0;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.20);
+  --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.30), 0 2px 4px -2px rgb(0 0 0 / 0.20);
+  --shadow-lg: 0 12px 32px -8px rgb(0 0 0 / 0.40), 0 4px 8px -4px rgb(0 0 0 / 0.20);
+  --shadow-xl: 0 24px 64px -16px rgb(0 0 0 / 0.50), 0 8px 16px -8px rgb(0 0 0 / 0.30);
+  --shadow-glow-primary: 0 0 32px -4px #06b6d440;
+  --shadow-glow-success: 0 0 32px -4px #10b98140;
+  --shadow-glow-warning: 0 0 32px -4px #f59e0b40;
+  --shadow-glow-destructive: 0 0 32px -4px #ef444440;
+}
+
+:root, .dark {
+  /* semantic — dark (default) */
+  --background: #0a0a10;
+  --foreground: #ededf2;
+  --card: #14141d;
+  --card-foreground: #ededf2;
+  --popover: #14141d;
+  --popover-foreground: #ededf2;
+  --primary: #4ec5d4;
+  --primary-foreground: #0a0a10;
+  --primary-glow: #4ec5d440;
+  --secondary: #8b5cf6;
+  --secondary-foreground: #ffffff;
+  --muted: #1d1d28;
+  --muted-foreground: #7c7c8a;
+  --accent: #4ec5d4;
+  --accent-foreground: #0a0a10;
+  --destructive: #f43f5e;
+  --destructive-foreground: #ffffff;
+  --destructive-glow: #f43f5e40;
+  --success: #10b981;
+  --success-glow: #10b98140;
+  --warning: #f59e0b;
+  --warning-glow: #f59e0b40;
+  --border: #ffffff0f;
+  --input: #ffffff0f;
+  --ring: #4ec5d4;
+  --glass: #14141d;
+  --glass-hover: #1d1d28;
+  --glass-border: #ffffff0f;
+  --glass-border-hover: #ffffff1f;
+  --sidebar: #0a0a10;
+  --sidebar-foreground: #7c7c8a;
+  --sidebar-primary: #4ec5d4;
+  --sidebar-accent: #14141d;
+  --sidebar-border: #ffffff0f;
+}
+
+.light {
+  /* semantic — light */
+  --background: #f5f3ed;
+  --foreground: #14141a;
+  --card: #ffffff;
+  --card-foreground: #14141a;
+  --popover: #ffffff;
+  --popover-foreground: #14141a;
+  --primary: #0c8aa8;
+  --primary-foreground: #ffffff;
+  --primary-glow: #0c8aa82e;
+  --secondary: #7c3aed;
+  --secondary-foreground: #ffffff;
+  --muted: #e6e1d3;
+  --muted-foreground: #6e6a62;
+  --accent: #0c8aa8;
+  --accent-foreground: #ffffff;
+  --destructive: #a02d2d;
+  --destructive-foreground: #ffffff;
+  --destructive-glow: #a02d2d2e;
+  --success: #2f7d4a;
+  --success-glow: #2f7d4a2e;
+  --warning: #a8651e;
+  --warning-glow: #a8651e2e;
+  --border: #140f0812;
+  --input: #140f081a;
+  --ring: #0c8aa8;
+  --glass: #ffffff;
+  --glass-hover: #fbf9f3;
+  --glass-border: #140f0812;
+  --glass-border-hover: #140f0829;
+  --sidebar: #ebe7dc;
+  --sidebar-foreground: #6e6a62;
+  --sidebar-primary: #0c8aa8;
+  --sidebar-accent: #ffffff;
+  --sidebar-border: #140f0812;
+}

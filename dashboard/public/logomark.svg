@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="PrexorCloud">
+  <title>PrexorCloud</title>
+  <!-- Cyan plate (cyan-9). One shape — plate + cloud are inseparable. -->
+  <rect width="32" height="32" rx="7" ry="7" fill="#06b6d4"/>
+  <!-- Voxel cloud — Minecraft-block silhouette of the Lucide Cloud icon.
+       4×4 px blocks aligned to a pixel grid, white on the cyan plate. -->
+  <g fill="#ffffff" shape-rendering="crispEdges">
+    <!-- top row (cap of the cloud) -->
+    <rect x="12" y="8"  width="4" height="4"/>
+    <rect x="16" y="8"  width="4" height="4"/>
+    <!-- second row -->
+    <rect x="8"  y="12" width="4" height="4"/>
+    <rect x="12" y="12" width="4" height="4"/>
+    <rect x="16" y="12" width="4" height="4"/>
+    <rect x="20" y="12" width="4" height="4"/>
+    <!-- third row (full base) -->
+    <rect x="4"  y="16" width="4" height="4"/>
+    <rect x="8"  y="16" width="4" height="4"/>
+    <rect x="12" y="16" width="4" height="4"/>
+    <rect x="16" y="16" width="4" height="4"/>
+    <rect x="20" y="16" width="4" height="4"/>
+    <rect x="24" y="16" width="4" height="4"/>
+    <!-- fourth row (full base) -->
+    <rect x="4"  y="20" width="4" height="4"/>
+    <rect x="8"  y="20" width="4" height="4"/>
+    <rect x="12" y="20" width="4" height="4"/>
+    <rect x="16" y="20" width="4" height="4"/>
+    <rect x="20" y="20" width="4" height="4"/>
+    <rect x="24" y="20" width="4" height="4"/>
+  </g>
+</svg>

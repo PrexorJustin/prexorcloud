@@ -1,0 +1,9 @@
+manifestVersion: 1
+id: discord-bridge
+version: 1.0.0
+hosts: [controller]
+backend:
+  controller:
+    entrypoint: me.prexorjustin.prexorcloud.modules.discord.platform.DiscordBridgeModule
+storage:
+  mongo: true

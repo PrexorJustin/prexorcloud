@@ -1,0 +1,113 @@
+# GoReleaser config for prexorctl.
+# https://goreleaser.com
+#
+# Tagged releases (v*) trigger .github/workflows/release.yml, which runs
+# `goreleaser release --clean` from this directory. The Makefile target
+# `make all` mirrors the build matrix for local builds; this file is the
+# source of truth for published artifacts (archives, checksums, SBOMs,
+# cosign signatures).
+version: 2
+
+project_name: prexorctl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: prexorctl
+    main: .
+    binary: prexorctl
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: prexorctl
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+snapshot:
+  version_template: '{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}'
+
+sboms:
+  - id: archive
+    artifacts: archive
+    documents:
+      - '${artifact}.sbom.cdx.json'
+    args: ['$artifact', '--output', 'cyclonedx-json=$document']
+
+# Keyless cosign signing of the checksums file.
+# Verifying the checksum file transitively verifies every archive listed in
+# it, so a single signature covers the whole release.
+signs:
+  - id: checksum
+    cmd: cosign
+    signature: '${artifact}.sig'
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - --yes
+      - --oidc-issuer=https://token.actions.githubusercontent.com
+      - --output-signature=${signature}
+      - --output-certificate=${certificate}
+      - ${artifact}
+    artifacts: checksum
+    output: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^chore:'
+      - '^test:'
+      - '^ci:'
+
+release:
+  # `github:` intentionally omitted — GoReleaser auto-detects owner/name from
+  # the runner's `git remote -v` (PrexorJustin/prexorcloud). Hardcoding the
+  # pair drifted from reality during the 1.0 rename and 404'd the publish step.
+  prerelease: auto
+  draft: false
+  name_template: 'prexorctl {{ .Version }}'
+  header: |
+    ## prexorctl {{ .Version }}
+
+    Signed with [cosign](https://github.com/sigstore/cosign) (keyless OIDC,
+    GitHub Actions identity).
+
+    ### Verifying the release
+
+    ```bash
+    cosign verify-blob \
+      --certificate-identity-regexp='https://github.com/prexorcloud/.*' \
+      --certificate-oidc-issuer='https://token.actions.githubusercontent.com' \
+      --certificate checksums.txt.pem \
+      --signature  checksums.txt.sig \
+      checksums.txt
+
+    sha256sum --check --ignore-missing checksums.txt
+    ```
+
+    Each archive ships a CycloneDX SBOM alongside it
+    (`*.tar.gz.sbom.cdx.json` / `*.zip.sbom.cdx.json`).

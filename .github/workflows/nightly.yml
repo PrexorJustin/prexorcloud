@@ -1,0 +1,282 @@
+name: Nightly
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  harness:
+    name: Nightly Harness Scenarios
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-java-gradle
+      - name: Wait for MongoDB
+        run: |
+          python - <<'PY'
+          import socket
+          import time
+          import sys
+
+          deadline = time.time() + 30
+          while time.time() < deadline:
+              try:
+                  with socket.create_connection(("127.0.0.1", 27017), timeout=1):
+                      sys.exit(0)
+              except OSError:
+                  time.sleep(1)
+          raise SystemExit("MongoDB on 127.0.0.1:27017 did not become reachable within 30 seconds")
+          PY
+      - run: ./gradlew :cloud-test-harness:nightlyScenariosTest
+        working-directory: java
+        env:
+          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+      - name: Upload harness reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-harness-reports
+          path: java/cloud-test-harness/build/reports/
+          retention-days: 14
+
+  dr-drill:
+    name: Nightly DR Drill
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:8
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      valkey:
+        image: valkey/valkey:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s
+          --health-timeout 3s
+          --health-retries 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-java-gradle
+      - name: Wait for Mongo + Valkey
+        run: |
+          python - <<'PY'
+          import socket
+          import time
+          import sys
+
+          targets = [("MongoDB", 27017), ("Valkey", 6379)]
+          deadline = time.time() + 60
+          remaining = list(targets)
+          while remaining and time.time() < deadline:
+              still_pending = []
+              for name, port in remaining:
+                  try:
+                      with socket.create_connection(("127.0.0.1", port), timeout=1):
+                          continue
+                  except OSError:
+                      still_pending.append((name, port))
+              remaining = still_pending
+              if remaining:
+                  time.sleep(1)
+          if remaining:
+              raise SystemExit(
+                  "DR drill dependencies not reachable: "
+                  + ", ".join(f"{name}:{port}" for name, port in remaining)
+              )
+          PY
+      - run: ./gradlew :cloud-test-harness:drDrill
+        working-directory: java
+        env:
+          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+          PREXOR_TEST_REDIS_URI: redis://127.0.0.1:6379
+      - name: Upload DR drill reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-dr-drill-reports
+          path: java/cloud-test-harness/build/reports/
+          retention-days: 14
+
+  perf-baselines:
+    name: Performance Baselines
+    # Nightly drift check; manual via workflow_dispatch. Soft signal only —
+    # never gates merges, so we keep it on the nightly cadence instead of
+    # adding a second cron entrypoint.
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports: [27017:27017]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-java-gradle
+      - name: Run perf-baseline harness
+        env:
+          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+          PREXOR_TEST_REDIS_URI: redis://127.0.0.1:6379
+        run: ./gradlew :cloud-test-harness:perfBaselines --no-daemon
+        working-directory: java
+      - name: Compare against committed baseline
+        run: ./scripts/perf-baseline-check.sh java/cloud-test-harness/build/reports/perf-baselines/baseline-report.json
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-baseline-report
+          path: java/cloud-test-harness/build/reports/perf-baselines/baseline-report.json
+          retention-days: 30
+
+  # Single build of the controller + daemon fat-jars + prexorctl, shared with
+  # the two downstream supply-chain jobs (cve-scan, sbom). Previously each
+  # rebuilt them independently — saves ~5 minutes per nightly run.
+  build-artifacts:
+    name: Build fat-jars + prexorctl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-java-gradle
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: cli/go.sum
+      - name: Build Java fat-jars
+        run: ./gradlew :cloud-controller:shadowJar :cloud-daemon:shadowJar
+        working-directory: java
+      - name: Build prexorctl
+        run: go build -o prexorctl .
+        working-directory: cli
+      - name: Stage artefacts
+        run: |
+          set -euo pipefail
+          mkdir -p stage/controller stage/daemon stage/cli
+          cp java/cloud-controller/build/libs/*.jar stage/controller/
+          cp java/cloud-daemon/build/libs/*.jar     stage/daemon/
+          cp cli/prexorctl                          stage/cli/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nightly-build-artifacts
+          path: stage/
+          retention-days: 1
+
+  cve-scan:
+    name: CVE Scan (Trivy)
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nightly-build-artifacts
+          path: stage
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+      - name: Trivy controller jar scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: rootfs
+          scan-ref: stage/controller
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+      - name: Trivy daemon jar scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: rootfs
+          scan-ref: stage/daemon
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+      - name: Trivy prexorctl scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: rootfs
+          scan-ref: stage/cli/prexorctl
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+
+  sbom:
+    name: SBOM (Syft, CycloneDX)
+    needs: build-artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: nightly-build-artifacts
+          path: stage
+      # Dashboard SBOM still needs a fresh build — the upstream build-artifacts
+      # job doesn't ship it (no Java/Go signing chain there). Cheap relative
+      # to the Java rebuild we just eliminated.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+      - name: Build dashboard
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+        working-directory: dashboard
+      - name: SBOM — controller jar
+        uses: anchore/sbom-action@v0
+        with:
+          path: stage/controller
+          format: cyclonedx-json
+          artifact-name: sbom-controller.cdx.json
+      - name: SBOM — daemon jar
+        uses: anchore/sbom-action@v0
+        with:
+          path: stage/daemon
+          format: cyclonedx-json
+          artifact-name: sbom-daemon.cdx.json
+      - name: SBOM — prexorctl
+        uses: anchore/sbom-action@v0
+        with:
+          path: stage/cli/prexorctl
+          format: cyclonedx-json
+          artifact-name: sbom-prexorctl.cdx.json
+      - name: SBOM — dashboard
+        uses: anchore/sbom-action@v0
+        with:
+          path: dashboard
+          format: cyclonedx-json
+          artifact-name: sbom-dashboard.cdx.json

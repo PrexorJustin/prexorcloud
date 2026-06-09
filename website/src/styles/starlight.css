@@ -1,0 +1,178 @@
+/*
+ * Starlight theme overrides — bridges `tokens.css` HSL variables onto the
+ * Starlight color system (`--sl-color-*`) and exposes the design-system's
+ * signature classes (`.text-gradient-title`, `.glass-card`, `.eyebrow`,
+ * `.bg-dot-pattern`) for use across the docs MDX surface.
+ *
+ * Reference: docs/design-system.md sections 6 (visual foundations) + 5
+ * (typography classes).
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --sl-font: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Theme-aware Starlight surface tokens (`--sl-color-*`) are GENERATED from the
+ * design-system tokens into `starlight-theme.generated.css` and loaded via
+ * astro.config customCss (after this file). Run `pnpm gen:starlight` to refresh;
+ * a CI freshness guard fails the build if it drifts from design-system/dist/.
+ */
+
+/* ── Design-system signature utilities ────────────────────────────────
+ * Promoted to `@layer utilities` so they compose with Tailwind's
+ * `hover:` / `dark:` modifiers and never lose to specificity wars with
+ * the Starlight defaults.
+ */
+@layer utilities {
+  /* Page-header gradient title (used on every concept / reference page). */
+  .text-gradient-title {
+    background: linear-gradient(
+      to right,
+      hsl(var(--primary)) 0%,
+      hsl(var(--primary)) 30%,
+      hsl(var(--foreground)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    width: fit-content;
+  }
+
+  /* Marketing hero gradient (foreground → primary → foreground). */
+  .text-gradient-hero {
+    background: linear-gradient(
+      135deg,
+      hsl(var(--foreground)) 0%,
+      hsl(var(--primary)) 50%,
+      hsl(var(--foreground)) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Glass card — the unit of UI for cards, callouts, and the hero terminal. */
+  .glass-card {
+    background: hsl(var(--glass));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid hsl(var(--glass-border));
+    border-radius: var(--radius-xl);
+  }
+  .glass-card:hover {
+    background: hsl(var(--glass-hover));
+    border-color: hsl(var(--glass-border-hover));
+  }
+
+  /* Subtle dot pattern — used inside hero cards / dialog headers. */
+  .bg-dot-pattern {
+    background-image: radial-gradient(circle, hsl(var(--foreground) / 0.08) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  /* 60px grid — used on the marketing hero only. */
+  .bg-grid-pattern {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.6) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.6) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* Soft primary glow used behind hero / CTA blocks. */
+  .glow-primary {
+    box-shadow: 0 0 60px 20px hsl(var(--primary) / 0.15);
+  }
+  .glow-primary-lg {
+    box-shadow: 0 0 120px 40px hsl(var(--primary) / 0.1);
+  }
+
+  /* All-caps eyebrow label. Branded (accent) by default; pair with
+     `eyebrow-muted` for secondary cases like sidebar-group labels. */
+  .eyebrow {
+    font-size: var(--text-xs);
+    font-weight: var(--weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-widest);
+    color: hsl(var(--accent));
+  }
+  .eyebrow-muted {
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* The signature serif-italic accent — ONE or two words per heading. */
+  .accent-serif {
+    font-family: var(--font-accent);
+    font-style: italic;
+    font-weight: 400;
+    color: hsl(var(--accent));
+  }
+
+  /* Cursor blink for the hero terminal. */
+  .animate-blink {
+    animation: blink 1s step-end infinite;
+  }
+}
+
+@keyframes blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Mermaid diagram frame — wraps `.mermaid` SVGs in a glass card so they
+ * read as a deliberate doc element rather than naked SVG. The pre-render
+ * placeholder (raw mermaid source inside <pre>) is hidden by the [data-
+ * processed] selector once mermaid replaces it with an inline <svg>.
+ */
+.mermaid-wrapper {
+  margin: 1.5rem 0;
+  padding: var(--space-5, 1.25rem);
+  background: hsl(var(--glass));
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid hsl(var(--glass-border));
+  border-radius: var(--radius-xl, 1.5rem);
+  display: flex;
+  justify-content: center;
+  overflow-x: auto;
+}
+.mermaid-wrapper pre.mermaid {
+  margin: 0;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+}
+/* Hide the pre source on every state — `mermaid.ts` replaces the
+ * wrapper innerHTML with an SVG (or with an inline error panel) on
+ * every render, so the pre is only visible during the brief window
+ * between page-paint and JS execution. Suppressing it avoids the
+ * raw-source flash. */
+.mermaid-wrapper pre.mermaid {
+  display: none;
+}
+.mermaid-wrapper svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Reduced motion — kill every animation in the product surface. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "name": "@prexorcloud/vscode-extension",
+  "displayName": "PrexorCloud",
+  "description": "Connect to a PrexorCloud controller — browse instances, tail logs, and edit templates inline.",
+  "version": "0.1.0",
+  "private": true,
+  "publisher": "prexorcloud",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onView:prexorcloud.instances",
+    "onFileSystem:prexorcloud-template"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "prexorcloud.connect",
+        "title": "PrexorCloud: Connect to Controller"
+      },
+      {
+        "command": "prexorcloud.disconnect",
+        "title": "PrexorCloud: Disconnect"
+      },
+      {
+        "command": "prexorcloud.refresh",
+        "title": "PrexorCloud: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "prexorcloud.tailLogs",
+        "title": "PrexorCloud: Tail Instance Logs",
+        "icon": "$(output)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "prexorcloud",
+          "title": "PrexorCloud",
+          "icon": "media/prexorcloud.svg"
+        }
+      ]
+    },
+    "views": {
+      "prexorcloud": [
+        {
+          "id": "prexorcloud.instances",
+          "name": "Instances"
+        },
+        {
+          "id": "prexorcloud.templates",
+          "name": "Templates"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "prexorcloud.instances",
+        "contents": "Not connected to a controller.\n[Connect to Controller](command:prexorcloud.connect)",
+        "when": "!prexorcloud.connected"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "prexorcloud.refresh",
+          "when": "view == prexorcloud.instances",
+          "group": "navigation"
+        },
+        {
+          "command": "prexorcloud.refresh",
+          "when": "view == prexorcloud.templates",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "prexorcloud.tailLogs",
+          "when": "viewItem == prexorcloud.instance",
+          "group": "inline"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "PrexorCloud",
+      "properties": {
+        "prexorcloud.controllerUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Base URL of the PrexorCloud controller, e.g. `http://localhost:8080`. Set automatically by the **Connect to Controller** command."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "node esbuild.mjs --production"
+  },
+  "dependencies": {
+    "@prexorcloud/api-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.96.0",
+    "esbuild": "^0.24.2",
+    "typescript": "^6.0.2"
+  }
+}

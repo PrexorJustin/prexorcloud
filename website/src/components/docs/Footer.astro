@@ -1,0 +1,59 @@
+---
+/*
+ * Starlight `Footer` override — augments the default page footer (Edit on
+ * GitHub link + Last-updated stamp + Pagination) with a small site-wide
+ * row underneath: licence, repo, license, blog feed.
+ *
+ * Wired in astro.config.mjs via `components.Footer`.
+ */
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+
+<Default><slot /></Default>
+
+<footer class="pc-footer">
+  <div class="pc-footer-row">
+    <span class="pc-footer-brand">PrexorCloud</span>
+    <span class="pc-footer-sep">·</span>
+    <a href="https://github.com/prexorjustin/prexorcloud/blob/main/LICENSE" rel="external noopener">
+      Apache 2.0
+    </a>
+    <span class="pc-footer-sep">·</span>
+    <a href="https://github.com/prexorjustin/prexorcloud" rel="external noopener">GitHub</a>
+    <span class="pc-footer-sep">·</span>
+    <a href="/blog/rss.xml">RSS</a>
+    <span class="pc-footer-sep">·</span>
+    <a href="/changelog/">Changelog</a>
+  </div>
+</footer>
+
+<style>
+  .pc-footer {
+    margin-top: 2rem;
+    padding: 1rem 0 0;
+    border-top: 1px solid var(--sl-color-hairline-light);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .pc-footer-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .pc-footer-brand {
+    font-weight: 600;
+    color: var(--sl-color-white);
+  }
+  .pc-footer-sep {
+    opacity: 0.5;
+  }
+  .pc-footer a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .pc-footer a:hover {
+    color: var(--sl-color-white);
+    text-decoration: underline;
+  }
+</style>

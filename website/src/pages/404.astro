@@ -1,0 +1,113 @@
+---
+/*
+ * Custom 404 page — Astro picks this up automatically for any route that
+ * doesn't resolve. Uses the design-system glass-card pattern with a
+ * helpful set of recovery links rather than a dead end.
+ */
+import '../styles/tokens.css';
+import '../styles/starlight.css';
+
+const title = 'Page not found — PrexorCloud';
+const description = "That page doesn't exist (yet). Try one of the suggestions below.";
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="theme-color" content="#06b6d4" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="noindex" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Inter+Tight:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+  </head>
+  <body class="pc-404-body">
+    <main class="pc-404-main">
+      <div class="pc-404-card glass-card bg-dot-pattern">
+        <p class="eyebrow">404 · route not found</p>
+        <h1 class="pc-404-title text-gradient-title">This page doesn't exist.</h1>
+        <p class="pc-404-lead">The link you followed is broken, or the page hasn't shipped yet.</p>
+
+        <ul class="pc-404-links">
+          <li><a href="/">→ Marketing landing</a></li>
+          <li><a href="/getting-started/what-is-prexorcloud/">→ What is PrexorCloud?</a></li>
+          <li><a href="/getting-started/installation/">→ Installation guide</a></li>
+          <li><a href="/reference/cli/">→ CLI reference</a></li>
+          <li><a href="https://github.com/prexorjustin/prexorcloud">→ Open the GitHub repo</a></li>
+        </ul>
+      </div>
+    </main>
+
+    <style is:global>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      .pc-404-body {
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: var(--font-sans);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+      .pc-404-main {
+        max-width: 38rem;
+        width: 100%;
+      }
+      .pc-404-card {
+        padding: var(--space-8, 2rem);
+        background: hsl(var(--glass));
+        border: 1px solid hsl(var(--glass-border));
+        border-radius: var(--radius-xl, 1.5rem);
+      }
+      .pc-404-title {
+        font-family: var(--font-display);
+        font-size: var(--text-4xl, 2.5rem);
+        font-weight: var(--weight-bold, 700);
+        line-height: var(--leading-tight, 1.15);
+        letter-spacing: var(--tracking-tighter);
+        margin: 0.5rem 0 1rem;
+      }
+      .pc-404-lead {
+        color: hsl(var(--muted-foreground));
+        font-size: var(--text-base);
+        line-height: var(--leading-relaxed);
+        margin: 0 0 1.5rem;
+      }
+      .pc-404-lead a {
+        color: hsl(var(--primary));
+        text-decoration: none;
+      }
+      .pc-404-lead a:hover {
+        text-decoration: underline;
+      }
+      .pc-404-links {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 0.4rem;
+      }
+      .pc-404-links a {
+        font-family: var(--font-mono);
+        font-size: var(--text-sm);
+        color: hsl(var(--foreground));
+        text-decoration: none;
+      }
+      .pc-404-links a:hover {
+        color: hsl(var(--primary));
+      }
+    </style>
+  </body>
+</html>

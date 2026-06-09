@@ -1,0 +1,5 @@
+name: PrexorCloud
+main: me.prexorjustin.prexorcloud.proxy.bungeecord.PrexorCloudBungeeCord
+version: 1.0.0
+author: PrexorJustin
+description: PrexorCloud BungeeCord proxy integration

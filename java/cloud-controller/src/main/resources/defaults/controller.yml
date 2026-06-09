@@ -1,0 +1,156 @@
+# PrexorCloud Controller Configuration
+
+# Unique controller identifier — auto-generated UUID on first start
+uuid: ""
+
+# HTTP REST API server
+http:
+  host: "0.0.0.0"
+  port: 8080
+  cors:
+    allowedOrigins:
+      - "http://localhost:3000"
+
+# gRPC server (daemon communication + bootstrap)
+grpc:
+  host: "0.0.0.0"
+  port: 9090
+
+# Raft (cluster control plane consensus)
+# Embeds Apache Ratis. Day-0 single-controller installs run as a Raft group of
+# one and serve every cluster-shared write through the local log. Adding a
+# second controller via `prexorctl cluster join-token create` extends the group
+# via joint consensus — see docs/engineering/cluster-join-plan.md.
+raft:
+  host: "0.0.0.0"
+  port: 9190
+  dataDir: "data/raft"
+  # joinAddrs is empty on a fresh install. The wizard's "join existing cluster"
+  # branch writes a pending-join-token to disk; the bootstrap reads it and dials
+  # the existing peers from the token's payload.
+  joinAddrs: []
+
+# Network security
+network:
+  allowedSubnets:
+    - "0.0.0.0/0"
+    - "::/0"
+
+# Runtime profile
+runtime:
+  profile: "development"
+
+# State persistence (MongoDB)
+database:
+  uri: "mongodb://localhost:27017"
+  database: "prexorcloud"
+
+# Runtime coordination (Redis)
+redis:
+  uri: "redis://localhost:6379"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "HUMAN"
+
+# Scheduler
+scheduler:
+  evaluationIntervalSeconds: 15
+  scalingCooldownSeconds: 60
+  nodeTimeoutSeconds: 90
+
+# Heartbeat
+heartbeat:
+  intervalMs: 30000
+  missedThreshold: 3
+
+# Security
+security:
+  jwtSecret: ""
+  jwtExpirationMinutes: 1440
+  initialAdminPassword: ""
+  rateLimiting:
+    perIpPerMinute: 100
+    perUserPerMinute: 300
+    failOpenOnRedisError: false
+
+# Crash intelligence
+crashes:
+  ringBufferSize: 500
+  crashLoopThreshold: 3
+  crashLoopWindowSeconds: 300
+
+# Metrics
+metrics:
+  enabled: true
+  retentionHours: 168
+  collectionIntervalSeconds: 30
+
+# Global maintenance mode — overrides all per-group maintenance settings.
+# Per-group bypass is configured via the group's `maintenanceBypass` list.
+maintenance:
+  enabled: false
+  message: "The network is currently under maintenance."
+
+# Modules
+modules:
+  directory: "modules"
+  dataDirectory: "modules/data"
+  # Trusted module registries (signed JSON indexes) for `prexorctl module
+  # search` / `install <id>[@<version>]`. Empty by default — registry install
+  # is opt-in. Downloads are sha256-pinned against the index and signature-
+  # verified against modules.signing.trustRoot before install.
+  # registries:
+  #   - "https://registry.prexorcloud.dev/index.json"
+  # Per-module soft resource quotas (Track C.2 stage 2). Keyed by module id.
+  # The enforcer derives per-minute CPU / allocation rates from the resource
+  # tracker and compares them against these limits; a breach is advisory only —
+  # it raises a WARN and the `prexorcloud.module.quota.exceeded` metric, nothing
+  # is throttled. Each limit treats 0 (the default) as unlimited.
+  # quotas:
+  #   stats-aggregator:
+  #     maxCpuMillisPerMinute: 30000   # 30 CPU-seconds per wall-clock minute
+  #     maxAllocatedMbPerMinute: 512
+  #     maxThreads: 8
+
+# Distributed tracing (OpenTelemetry). Disabled by default — a no-op tracer is
+# installed and the SDK never starts, so there is zero overhead until enabled.
+# When on, spans are batch-exported over OTLP/gRPC to any compatible collector
+# (Jaeger, Tempo, Honeycomb, Datadog, …).
+telemetry:
+  enabled: false
+  otlpEndpoint: "http://localhost:4317"
+  serviceName: "prexorcloud-controller"
+  samplerRatio: 1.0
+  # Optional deep-link template for the operator's trace UI. Must contain a
+  # literal {traceId} placeholder. The dashboard combines it with the X-Trace-Id
+  # response header to show a "view trace" link. Empty = no link offered.
+  # Example (Jaeger): "http://localhost:16686/trace/{traceId}"
+  traceUiTemplate: ""
+
+# Dashboard static files
+dashboard:
+  enabled: true
+
+# Webhook alerting moved to the first-party `webhook-alerts` module.
+# Configure webhook endpoints via the module's Mongo collection (see
+# docs/modules.md → webhook-alerts).
+
+# Network compositions — first-install seed for proxy lobby/fallback routing.
+# Entries are persisted to MongoDB on first start; subsequent edits via REST
+# (/api/v1/networks) take precedence and seeds are not re-applied for names
+# that already exist in the store.
+networks: []
+#  - name: "main"
+#    description: "Primary lobby + survival + creative network"
+#    lobbyGroup: "lobby"
+#    fallbackGroups:
+#      - "survival"
+#    memberGroups:
+#      - "lobby"
+#      - "survival"
+#      - "creative"
+#    proxyGroups:
+#      - "proxy"
+#    kickMessage: "All servers are temporarily unavailable. Please try again."

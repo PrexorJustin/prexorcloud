@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://prexor.cloud/sitemap-index.xml

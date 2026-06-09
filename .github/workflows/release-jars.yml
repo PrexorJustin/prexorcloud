@@ -1,0 +1,131 @@
+name: Release JARs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (must already exist, e.g. v1.0.0)'
+        required: true
+
+permissions:
+  contents: write     # create / update the GitHub release
+  id-token: write     # OIDC token for cosign keyless signing
+
+jobs:
+  build-sign-publish:
+    name: Build, sign, publish JARs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: ./.github/actions/setup-java-gradle
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: dashboard/pnpm-lock.yaml
+
+      - name: Resolve release version
+        id: ver
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            tag="${{ github.event.inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=${tag}"            >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}"      >> "$GITHUB_OUTPUT"
+
+      - name: Build shadow JARs
+        working-directory: java
+        run: ./gradlew :cloud-controller:shadowJar :cloud-daemon:shadowJar --no-daemon
+
+      # The dashboard is a static SPA (nuxt.config.ts sets ssr:false), so
+      # `nuxt generate` emits a self-contained bundle to dashboard/.output/public.
+      # The native dashboard install path downloads + cosign-verifies this
+      # tarball (via the shared SHA256SUMS below) and serves it from nginx/Caddy.
+      - name: Build dashboard static bundle
+        working-directory: dashboard
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm generate
+
+      - name: Stage release artefacts + SHA256SUMS
+        id: stage
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          out="staging/${VERSION}"
+          mkdir -p "${out}"
+          # Both subprojects set `archiveBaseName = "PrexorCloud{Controller,Daemon}"`
+          # + `archiveVersion = ""` + `archiveClassifier = ""`, so shadowJar emits
+          # `PrexorCloudController.jar` and `PrexorCloudDaemon.jar` verbatim. We
+          # rename on copy to the asset-naming convention the prexorctl installer
+          # expects (`FindAssetPrefix("cloud-controller-")` /
+          # `FindAssetPrefix("cloud-daemon-")` in cli/cmd/setup_*.go).
+          cp java/cloud-controller/build/libs/PrexorCloudController.jar "${out}/cloud-controller-${VERSION}.jar"
+          cp java/cloud-daemon/build/libs/PrexorCloudDaemon.jar         "${out}/cloud-daemon-${VERSION}.jar"
+          # Dashboard bundle: entries rooted at "./" so setup.ExtractDashboardBundle
+          # lands them flat in the web root. Matches FindAssetPrefix("dashboard-static-").
+          tar -C dashboard/.output/public -czf "${out}/dashboard-static-${VERSION}.tar.gz" .
+          # Single SHA256SUMS covers JARs + the dashboard bundle; cosign signs it
+          # once and the wizard verifies every asset against the trusted entries.
+          ( cd "${out}" && sha256sum cloud-*.jar dashboard-static-*.tar.gz > SHA256SUMS )
+          ls -lah "${out}/"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.4.1'
+
+      # Sign SHA256SUMS only — the file lists the SHA-256 of every JAR in
+      # this release, so a single signature transitively covers all of them
+      # via the checksum chain (same idiom GoReleaser uses for checksums.txt
+      # and the prexorctl install.sh consumes). The wizard's verifier
+      # downloads SHA256SUMS + sidecars, cosign-verifies the file once,
+      # then SHA-256-checks each downloaded JAR against the trusted entry.
+      - name: Sign SHA256SUMS with cosign (keyless OIDC)
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          sums="staging/${VERSION}/SHA256SUMS"
+          cosign sign-blob --yes \
+            --output-signature   "${sums}.sig" \
+            --output-certificate "${sums}.crt" \
+            "${sums}"
+
+      - name: Verify SHA256SUMS signature + listed checksums
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          sums="staging/${VERSION}/SHA256SUMS"
+          cosign verify-blob \
+            --certificate "${sums}.crt" \
+            --signature   "${sums}.sig" \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/release-jars.yml@.*" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "${sums}"
+          ( cd "staging/${VERSION}" && sha256sum --check SHA256SUMS )
+
+      - name: Attach artefacts to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          files: |
+            staging/${{ steps.ver.outputs.version }}/*

@@ -1,0 +1,5 @@
+server/server.properties
+server/eula.txt
+velocity/velocity.toml
+bungeecord/config.yml
+geyser/config.yml

@@ -1,0 +1,23 @@
+listeners:
+  - host: 0.0.0.0:%PORT%
+    motd: "&bPrexorCloud Proxy"
+    max_players: %MAX_PLAYERS%
+    force_default_server: true
+    tab_list: GLOBAL_PING
+    query_enabled: false
+    query_port: 25577
+    proxy_protocol: false
+    priorities:
+      - lobby
+online_mode: false
+ip_forward: true
+servers: {}
+permissions:
+  default: []
+  admin:
+    - bungeecord.command.alert
+    - bungeecord.command.end
+    - bungeecord.command.ip
+    - bungeecord.command.reload
+connection_throttle: 4000
+timeout: 30000

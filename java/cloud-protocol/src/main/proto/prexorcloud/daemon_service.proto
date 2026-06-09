@@ -1,0 +1,517 @@
+syntax = "proto3";
+package me.prexorjustin.prexorcloud.protocol;
+
+option java_package = "me.prexorjustin.prexorcloud.protocol";
+option java_multiple_files = true;
+option go_package = "github.com/prexorcloud/prexorctl/proto/prexorcloud";
+
+service DaemonService {
+  rpc Connect(stream DaemonMessage) returns (stream ControllerMessage);
+}
+
+// Envelope: daemon -> controller
+message DaemonMessage {
+  oneof payload {
+    Handshake handshake = 1;
+    NodeStatus node_status = 2;
+    InstanceStatusUpdate instance_status = 3;
+    ConsoleOutput console_output = 4;
+    CrashReport crash_report = 5;
+    Pong pong = 6;
+    TemplateRequest template_request = 7;
+    CacheStatus cache_status = 8;
+    ErrorReport error_report = 9;           // Partial failure reports from daemon
+    ShutdownNodeAck shutdown_node_ack = 10;  // Acknowledgment of shutdown request
+    StartInstanceAck start_instance_ack = 11; // Delivery confirmation for StartInstance
+    StopInstanceAck stop_instance_ack = 12;   // Delivery confirmation for StopInstance
+    DaemonLogRecord daemon_log_record = 13;   // Single Logback event from the daemon JVM
+    ModuleStateUpdate module_state_update = 14; // Daemon-side platform-module state report
+    EventSubscribe event_subscribe = 15;       // Daemon registers interest in controller-bus event types
+    EventUnsubscribe event_unsubscribe = 16;   // Daemon drops interest in controller-bus event types
+    InstanceFileTree instance_file_tree = 17;  // Reply to WalkInstanceFiles
+    InstanceFileContent instance_file_content = 18; // Reply to ReadInstanceFile
+  }
+}
+
+// Envelope: controller -> daemon
+message ControllerMessage {
+  oneof payload {
+    HandshakeAck handshake_ack = 1;
+    StartInstance start_instance = 2;
+    StopInstance stop_instance = 3;
+    SendCommand send_command = 4;
+    Ping ping = 5;
+    TemplateData template_data = 6;
+    TemplateUpToDate template_up_to_date = 7;
+    ShutdownNode shutdown_node = 8;
+    PreWarmCache pre_warm_cache = 9;
+    RequestCacheStatus request_cache_status = 10;
+    ErrorReport error_report = 11;          // Error notifications from controller
+    ModuleInstall module_install = 12;       // Push a daemon-host platform module to a daemon
+    ModuleUninstall module_uninstall = 13;   // Drop a daemon-host platform module on a daemon
+    ModuleEvent module_event = 14;           // Forward a controller-bus event the daemon subscribed to
+    WalkInstanceFiles walk_instance_files = 15; // Request a structure-only filetree of an instance dir
+    ReadInstanceFile read_instance_file = 16;   // Request the bytes of a single file under an instance dir
+  }
+  // W3C traceparent of the controller span that produced this message (Track D.3). Empty when
+  // tracing is off or no span is active. Additive scalar (not a payload variant), so old daemons
+  // ignore it and no PROTOCOL_VERSION bump is needed.
+  string traceparent = 17;
+}
+
+// === Daemon -> Controller messages ===
+
+// REQUIRED fields: node_id, version, protocol_version
+message Handshake {
+  string node_id = 1;                        // REQUIRED: unique node identifier
+  string version = 2;                        // REQUIRED: daemon software version (e.g. "1.0.0")
+  int64 total_memory_mb = 3;                 // Total memory available on this node
+  int32 available_cpus = 4;                  // Number of CPU cores available
+  map<string, string> labels = 5;            // Operator-defined labels (region, tier, etc.)
+  repeated RunningInstance running_instances = 6; // Instances currently alive (for reconciliation)
+  string advertise_address = 7;              // Routable IP/hostname. Empty = auto-detect from gRPC peer
+  HostInfo host_info = 8;                    // Hardware and OS info for observability
+  int32 protocol_version = 9;               // REQUIRED: protocol version for compatibility check
+}
+
+message HostInfo {
+  string os_name = 1;          // e.g. "Linux", "Windows 11", "macOS 15.3"
+  string os_version = 2;       // e.g. "6.1.0-18-amd64", "10.0.26200"
+  string arch = 3;             // e.g. "amd64", "aarch64"
+  string cpu_model = 4;        // e.g. "AMD EPYC 7543 32-Core Processor"
+  int32 cpu_physical_cores = 5;
+  int32 cpu_logical_cores = 6;
+  int64 cpu_max_freq_hz = 7;   // Max frequency in Hz (0 if unavailable)
+  string java_version = 8;     // JVM version running on the daemon
+  string java_vendor = 9;      // e.g. "Eclipse Adoptium", "GraalVM Community", "Azul Systems, Inc."
+  string java_runtime = 10;    // e.g. "OpenJDK 64-Bit Server VM", "GraalVM CE"
+  string java_gc = 11;         // Active GC: "G1", "ZGC", "Shenandoah", "Parallel", etc.
+}
+
+message RunningInstance {
+  string instance_id = 1;
+  string group = 2;
+  int32 port = 3;
+  InstanceState state = 4;
+}
+
+message NodeStatus {
+  double cpu_usage = 1;        // 0.0 - 1.0 (fraction of total CPU)
+  int64 total_memory_mb = 2;
+  int64 used_memory_mb = 3;
+  int64 free_disk_mb = 4;
+  int32 instance_count = 5;
+  repeated int32 used_ports = 6;
+  int64 total_disk_mb = 7;
+}
+
+message InstanceStatusUpdate {
+  string instance_id = 1;      // REQUIRED
+  InstanceState state = 2;     // REQUIRED
+  int32 port = 3;
+  int32 player_count = 4;     // 0 = no players connected
+  int64 uptime_ms = 5;        // Milliseconds since instance start
+}
+
+message ConsoleOutput {
+  string instance_id = 1;
+  string line = 2;
+  int64 timestamp_ms = 3;      // Epoch milliseconds
+}
+
+message CrashReport {
+  string instance_id = 1;     // REQUIRED
+  string group = 2;           // REQUIRED
+  int32 exit_code = 3;
+  repeated string log_tail = 4; // Last N lines of stdout/stderr
+  int64 uptime_ms = 5;        // How long the instance was alive before crash
+}
+
+message Pong {
+  int64 sequence = 1;          // Must echo the sequence from the corresponding Ping
+}
+
+// Single Logback event mirrored from the daemon JVM up to the controller so
+// that `prexorctl logs daemon <node-id>` can render it through the same ring
+// buffer surface used for controller logs. The daemon does not buffer locally:
+// when the controller stream is down, records are dropped (the daemon's
+// rolling FILE appender keeps disk-side history for forensics).
+message DaemonLogRecord {
+  int64 timestamp_ms = 1;       // Epoch milliseconds
+  string level = 2;             // TRACE | DEBUG | INFO | WARN | ERROR
+  string logger = 3;            // Logger name (max 256 chars)
+  string thread = 4;            // Originating thread name (max 128 chars)
+  string message = 5;           // Formatted message (max 8192 chars; truncated by daemon)
+  string throwable = 6;         // Optional rendered stack trace (max 32768 chars)
+  map<string, string> mdc = 7;  // Optional MDC snapshot
+}
+
+message TemplateRequest {
+  string template_name = 1;   // REQUIRED: which template to fetch
+  string known_hash = 2;      // Hash of locally cached version (empty = no cache)
+}
+
+// Sent by daemon to acknowledge a ShutdownNode request
+message ShutdownNodeAck {
+  int32 running_instances = 1;     // Number of instances still running
+  int32 estimated_drain_seconds = 2; // Estimated time to gracefully stop all instances
+}
+
+// Sent by daemon to confirm receipt and outcome of a StartInstance command
+message StartInstanceAck {
+  string instance_id = 1;  // Mirrors StartInstance.instance_id
+  bool accepted = 2;        // true = daemon accepted and began launch; false = rejected
+  string error_message = 3; // Non-empty when accepted=false
+  string plan_hash = 4;     // Mirrors CompositionPlan.plan_hash when present
+  StartPreparationStage stage = 5; // Last completed or failed preparation stage
+  string error_code = 6;    // Machine-readable failure code when accepted=false
+  StartFailureDisposition failure_disposition = 7; // Permanent vs transient rejection classification
+  int32 retry_after_seconds = 8; // Suggested controller retry delay when failure_disposition=TRANSIENT
+}
+
+// Sent by daemon to confirm receipt and outcome of a StopInstance command
+message StopInstanceAck {
+  string instance_id = 1;  // Mirrors StopInstance.instance_id
+  bool accepted = 2;        // true = daemon accepted and began stop; false = rejected
+  string error_message = 3; // Non-empty when accepted=false
+}
+
+// === Controller -> Daemon messages ===
+
+message HandshakeAck {
+  string session_id = 1;                // REQUIRED: unique session identifier
+  int64 heartbeat_interval_ms = 2;      // How often daemon should send NodeStatus (default: 30000)
+  int32 controller_api_port = 3;        // REST API port for JAR downloads
+  int32 protocol_version = 4;           // Controller's protocol version
+  bool protocol_compatible = 5;         // false = daemon should disconnect and upgrade
+}
+
+message TemplateRef {
+  string name = 1;
+  string hash = 2;
+}
+
+message CompositionPlan {
+  string plan_hash = 1;
+  RuntimeArtifact runtime = 2;
+  repeated TemplateRef templates = 3;
+  repeated ExtensionArtifact extensions = 4;
+  repeated ConfigPatch config_patches = 5;
+  RuntimeIsolation isolation = 6;
+}
+
+message RuntimeArtifact {
+  string jar_file = 1;
+  string download_url = 2;
+  string sha256 = 3;
+  string platform = 4;
+  string platform_version = 5;
+  InstanceCategory category = 6;
+  ConfigFormat config_format = 7;
+}
+
+message ExtensionArtifact {
+  string module_id = 1;
+  string extension_id = 2;
+  string variant_id = 3;
+  string file_name = 4;
+  string download_url = 5;
+  string sha256 = 6;
+  string install_path = 7;
+}
+
+message ConfigPatch {
+  string file = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message RuntimeIsolation {
+  double cpu_reservation = 1;    // Fraction of total node CPU reserved for this instance (0.0-1.0)
+  int64 disk_reservation_mb = 2; // Requested disk reservation used for runtime isolation hooks
+}
+
+// REQUIRED fields: instance_id, group, port, jar_file
+message StartInstance {
+  string instance_id = 1;               // REQUIRED: unique instance identifier (e.g. "lobby-1")
+  string group = 2;                     // REQUIRED: group this instance belongs to
+  reserved 3;                           // was template_name
+  int32 port = 4;                       // REQUIRED: port the server will bind to
+  int32 memory_mb = 5;                  // JVM heap size in MB (0 = use default 512)
+  repeated string jvm_args = 6;         // Additional JVM arguments
+  map<string, string> env = 7;          // Environment variables for the process
+  string jar_file = 8;                  // REQUIRED: server JAR filename
+  string plugin_token = 9;              // Auth token for plugin ↔ controller communication
+  repeated TemplateRef templates = 10;  // Templates to unpack (in order)
+  int32 startup_timeout_seconds = 11;   // 0 = use default (60s)
+  int32 shutdown_grace_seconds = 12;    // 0 = use default from daemon config
+  int32 max_lifetime_seconds = 13;      // 0 = no limit
+  int32 deployment_revision = 14;       // Deployment revision for rolling updates
+  bool static_instance = 15;            // If true, instance dir is preserved across restarts
+  repeated string protected_paths = 16; // Paths not overwritten on template re-apply (static only)
+  InstanceCategory category = 17;       // SERVER or PROXY
+  string download_url = 18;             // URL to download JAR if not cached
+  string platform = 19;                 // e.g. "PAPER", "PURPUR", "VELOCITY"
+  string platform_version = 20;         // e.g. "1.21.4"
+  reserved 21;                          // was proxy_format
+  int32 max_players = 22;               // 0 = use default (100)
+  ConfigFormat config_format = 23;      // Config template set to apply
+  CompositionPlan composition_plan = 24; // Controller-resolved runtime/templates/extensions plan
+  RuntimeIsolation isolation = 25;      // Runtime isolation hints for daemon-local enforcement hooks
+}
+
+message StopInstance {
+  string instance_id = 1;   // REQUIRED
+  bool force = 2;            // true = SIGKILL, false = graceful stop command
+}
+
+message SendCommand {
+  string instance_id = 1;   // REQUIRED
+  string command = 2;        // REQUIRED: command string to send to server stdin
+}
+
+message Ping {
+  int64 sequence = 1;        // Incrementing sequence number. Daemon must respond with Pong(sequence).
+                             // 3 consecutive missed pongs (90s default) = node marked UNREACHABLE.
+}
+
+message TemplateData {
+  string template_name = 1;
+  string hash = 2;           // SHA-256 hash of the tar.gz content
+  bytes tar_gz = 3;          // Template archive
+}
+
+message TemplateUpToDate {
+  string template_name = 1;  // Response to TemplateRequest when known_hash matches
+}
+
+message ShutdownNode {
+  string reason = 1;          // Human-readable reason (e.g. "drain completed", "operator request")
+}
+
+// Sent by controller after handshake to let the daemon pre-warm caches
+// (JAR downloads, bootstrap artifacts, CDS archives) before any instance
+// is scheduled. This eliminates cold-start latency for the first instance.
+message PreWarmCache {
+  repeated PreWarmEntry entries = 1;
+}
+
+message PreWarmEntry {
+  string platform = 1;           // e.g. PAPER, PURPUR
+  string platform_version = 2;   // e.g. 1.21.4
+  ConfigFormat config_format = 3; // Config template set
+  string jar_file = 4;           // e.g. server.jar
+  string download_url = 5;       // URL to fetch the jar from
+  string sha256 = 6;             // Optional runtime jar hash for cache verification
+}
+
+// Error report for partial failures. Either side can send this to signal
+// a non-fatal error that doesn't warrant terminating the stream.
+message ErrorReport {
+  string error_code = 1;          // Machine-readable code (e.g. "CACHE_DOWNLOAD_FAILED")
+  string error_message = 2;       // Human-readable description
+  string context = 3;             // Related resource (instance ID, template name, etc.)
+  int32 retry_after_seconds = 4;  // 0 = no retry suggestion
+}
+
+// === Cache visibility ===
+
+message TemplateCacheEntry {
+  string name = 1;
+  string hash = 2;
+  int64 size_bytes = 3;
+  int64 last_used_ms = 4;     // Epoch milliseconds (0 = never used)
+}
+
+message JarCacheEntry {
+  string platform = 1;
+  string version = 2;
+  string jar_file = 3;
+  int64 size_bytes = 4;
+  string sha256 = 5;
+  int64 cached_at_ms = 6;     // Epoch milliseconds
+}
+
+message BootstrapCacheEntry {
+  ConfigFormat config_format = 1;
+  string version = 2;
+  bool has_cds = 3;
+  int64 size_bytes = 4;
+}
+
+message CacheStatus {
+  repeated TemplateCacheEntry templates = 1;
+  repeated JarCacheEntry jars = 2;
+  repeated BootstrapCacheEntry bootstraps = 3;
+  int64 total_size_bytes = 4;
+}
+
+message RequestCacheStatus {}
+
+// === Instance filetree walk (paste-share / diagnostics) ===
+
+// Controller asks the daemon for a structure-only listing of an instance
+// working directory (path + size + isDir + mtime; no file contents). The
+// daemon caps depth/entry count and summarizes any directory that exceeds
+// summarize_threshold children into a single FileEntry with summary=true
+// so a Minecraft world/region folder (30k+ leaves) doesn't blow the size
+// budget.
+message WalkInstanceFiles {
+  string request_id = 1;          // REQUIRED: correlation id matched by InstanceFileTree.request_id
+  string group = 2;               // REQUIRED
+  string instance_id = 3;         // REQUIRED
+  int32 max_entries = 4;          // Hard cap on total entries returned (0 = daemon default)
+  int32 max_depth = 5;            // Hard cap on directory depth (0 = daemon default)
+  int32 summarize_threshold = 6;  // Dirs with > threshold children are summarized (0 = daemon default)
+}
+
+// Single filetree entry. When summary=true, path identifies a directory that
+// exceeds summarize_threshold children — size_bytes is the recursive total
+// and child_count is the directly-contained child count.
+message FileEntry {
+  string path = 1;          // Path relative to the instance working directory
+  int64 size_bytes = 2;     // File size (or recursive sum for summarized dirs)
+  bool is_dir = 3;          // True for directories
+  int64 modified_at_ms = 4; // Last-modified epoch milliseconds (0 if unavailable)
+  bool summary = 5;         // True = directory summary line (children not enumerated)
+  int32 child_count = 6;    // For summary=true entries: number of directly-contained children
+}
+
+message InstanceFileTree {
+  string request_id = 1;            // REQUIRED: mirrors WalkInstanceFiles.request_id
+  repeated FileEntry entries = 2;
+  bool truncated = 3;               // True when max_entries / max_depth was hit
+  string error = 4;                 // "" on success; "INSTANCE_NOT_FOUND" | "DIR_UNREADABLE" | other
+}
+
+// === Instance file content read (bounded) ===
+
+// Controller asks the daemon for the contents of a single file under the
+// instance working directory. Used by support workflows that need to embed
+// small text files (server.properties, logs/latest.log tail) into the
+// diagnostics bundle. The daemon caps max_bytes on top of the request's value
+// and refuses paths outside the instance working dir.
+message ReadInstanceFile {
+  string request_id = 1;          // REQUIRED: correlation id matched by InstanceFileContent.request_id
+  string group = 2;               // REQUIRED
+  string instance_id = 3;         // REQUIRED
+  string path = 4;                // REQUIRED: relative path under the instance dir (forward slashes)
+  int32 max_bytes = 5;            // Hard cap on bytes returned (0 = daemon default — typically 64 KiB)
+  bool tail = 6;                  // When true, return the LAST max_bytes bytes instead of the first
+}
+
+message InstanceFileContent {
+  string request_id = 1;          // REQUIRED: mirrors ReadInstanceFile.request_id
+  bytes content = 2;              // UTF-8 bytes (caller treats as text); may be empty when error != ""
+  int64 total_size_bytes = 3;     // Full file size on disk, so callers see "truncated to X of Y"
+  bool truncated = 4;             // True when max_bytes was hit
+  string error = 5;               // "" on success; "INSTANCE_NOT_FOUND" | "FILE_NOT_FOUND" | "NOT_REGULAR_FILE" | "FILE_UNREADABLE" | "PATH_OUTSIDE_INSTANCE"
+}
+
+// === Platform module distribution (Layer 7) ===
+
+// Sent by the controller to push a daemon-host platform module onto a daemon.
+// Payload is the raw module jar bytes plus an optional cosign / sig sidecar.
+// jar_bytes inlines the artifact for simplicity; if the shadowJar exceeds
+// ProtocolConstants.MAX_MESSAGE_SIZE, switch to chunked transfer (deferred).
+message ModuleInstall {
+  string module_id = 1;        // REQUIRED
+  string version = 2;          // REQUIRED
+  string sha256 = 3;           // REQUIRED: hex-encoded SHA-256 of jar_bytes
+  bytes jar_bytes = 4;         // REQUIRED: raw module jar
+  bytes signature_bytes = 5;   // Optional .sig sidecar or cosign bundle
+  string signature_kind = 6;   // "sig" | "cosign-bundle" | "" (when signature_bytes is empty)
+  string manifest_yaml = 7;    // Module manifest YAML (avoids re-extracting from jar)
+  bool is_upgrade = 8;         // true when replacing an existing version on the daemon
+  string previous_version = 9; // Set when is_upgrade=true; previous installed version
+}
+
+// Sent by the controller to drop a daemon-host platform module on a daemon.
+message ModuleUninstall {
+  string module_id = 1;
+}
+
+// Sent by the controller to forward a controller-bus CloudEvent to a daemon
+// that has subscribed to that event type. payload_json is the event serialized
+// via ObjectMappers.standard() (Jackson with registered modules).
+message ModuleEvent {
+  string event_type = 1;     // Fully-qualified Java class name of the CloudEvent
+  bytes payload_json = 2;    // Jackson-serialized event payload
+}
+
+// Daemon-side report of a module's lifecycle state. Sent on every transition
+// (INSTALLED -> WAITING -> ACTIVE -> STOPPING / FAILED / UNLOADED) and as a
+// reconciliation snapshot on handshake. last_error is non-empty only when
+// state=FAILED.
+message ModuleStateUpdate {
+  string module_id = 1;
+  string state = 2;          // INSTALLED | WAITING | ACTIVE | STOPPING | UNLOADED | FAILED
+  string last_error = 3;
+  int64 updated_at_ms = 4;   // Epoch milliseconds of the transition
+}
+
+// Daemon registers interest in one or more controller-bus event types.
+// event_types are fully-qualified Java class names (e.g.
+// "me.prexorjustin.prexorcloud.api.event.GroupCreatedEvent"). The controller
+// subscribes its EventBus on first arrival and forwards future events to this
+// daemon as ModuleEvent. Unknown class names are answered with an ErrorReport.
+message EventSubscribe {
+  repeated string event_types = 1;
+}
+
+// Daemon drops interest in one or more event types previously registered.
+// On daemon disconnect the controller cleans up automatically; this message
+// is for live-unsubscribe inside a connected session.
+message EventUnsubscribe {
+  repeated string event_types = 1;
+}
+
+// === Enums ===
+
+enum InstanceState {
+  INSTANCE_STATE_UNSPECIFIED = 0;
+  SCHEDULED = 1;
+  PREPARING = 2;
+  STARTING = 3;
+  RUNNING = 4;
+  STOPPING = 5;
+  STOPPED = 6;
+  CRASHED = 7;
+  DRAINING = 8;
+}
+
+enum InstanceCategory {
+  INSTANCE_CATEGORY_UNSPECIFIED = 0;
+  SERVER = 1;
+  PROXY = 2;
+}
+
+enum ConfigFormat {
+  CONFIG_FORMAT_UNSPECIFIED = 0;
+  PAPER = 1;
+  SPIGOT = 2;
+  VELOCITY = 3;
+  BUNGEECORD = 4;
+  GEYSER = 5;
+}
+
+enum StartPreparationStage {
+  START_PREPARATION_STAGE_UNSPECIFIED = 0;
+  VALIDATION = 1;
+  TEMPLATE_APPLY = 2;
+  RUNTIME_PROVISION = 3;
+  EXTENSION_PROVISION = 4;
+  BOOTSTRAP_WARMUP = 5;
+  VARIABLE_SUBSTITUTION = 6;
+  CONFIG_PATCH = 7;
+  PROCESS_START = 8;
+}
+
+enum StartFailureDisposition {
+  START_FAILURE_DISPOSITION_UNSPECIFIED = 0;
+  PERMANENT = 1;
+  TRANSIENT = 2;
+}
+
+// Protocol version constant. Increment when making breaking changes.
+// Current version: 1

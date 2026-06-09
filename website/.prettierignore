@@ -1,0 +1,8 @@
+# prettier-plugin-astro 0.14.1 has an idempotence bug on this file
+# (the `></script>` self-close formatting flip-flops between runs).
+# Re-enable once https://github.com/withastro/prettier-plugin-astro
+# ships a fix.
+src/pages/playground.astro
+
+# Generated from design-system tokens by scripts/gen-mermaid-theme.mjs.
+src/scripts/mermaid-theme.generated.ts

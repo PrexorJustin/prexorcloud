@@ -1,0 +1,59 @@
+# PrexorCloud Daemon Configuration
+
+# Unique node identifier — must be unique across the cluster
+nodeId: "node-1"
+
+# Controller connection
+controller:
+  host: "127.0.0.1"
+  grpcPort: 9090
+
+# Local health endpoint for daemon liveness/readiness checks
+health:
+  enabled: true
+  bindAddress: "127.0.0.1"
+  port: 9091
+
+# Security
+security:
+  certificateDir: "config/security"
+  joinToken: ""
+
+# Process management
+instances:
+  directory: "instances"
+  shutdownTimeoutSeconds: 30
+  killTimeoutSeconds: 10
+  logRingBufferLines: 500
+
+# Resources — if not set, auto-detected from system
+resources:
+  maxMemoryMb: 0
+
+# Logging
+logging:
+  level: "INFO"
+  format: "HUMAN"
+
+# Node labels for placement constraints (key-value pairs)
+# Groups can target nodes using nodeAffinity/nodeAntiAffinity matching these labels
+labels: {}
+#  region: "eu-west"
+#  tier: "dedicated"
+
+# Reconnection
+reconnect:
+  initialDelayMs: 1000
+  maxDelayMs: 60000
+  multiplier: 2.0
+
+# Distributed tracing (OpenTelemetry). Disabled by default — a no-op tracer is
+# installed and the SDK never starts, so there is zero overhead until enabled.
+# When on, spans are batch-exported over OTLP/gRPC to any compatible collector
+# (Jaeger, Tempo, Honeycomb, Datadog, …). Keep samplerRatio aligned with the
+# controller so a sampled trace stays sampled across the Controller → Daemon hop.
+telemetry:
+  enabled: false
+  otlpEndpoint: "http://localhost:4317"
+  serviceName: "prexorcloud-daemon"
+  samplerRatio: 1.0
