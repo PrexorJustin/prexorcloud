@@ -43,7 +43,7 @@ var nodeListCmd = &cobra.Command{
 				offline++
 			}
 			rows = append(rows, []string{
-				theme.Code(str(n, "nodeId")),
+				theme.Code(str(n, "id")),
 				theme.StatusPill(s),
 				theme.Number(fmt.Sprintf("%.0f%%", num(n, "cpuUsage"))),
 				fmt.Sprintf("%.0f/%.0f MB", num(n, "usedMemoryMb"), num(n, "totalMemoryMb")),
@@ -66,17 +66,23 @@ var nodeListCmd = &cobra.Command{
 }
 
 var nodeInfoCmd = &cobra.Command{
-	Use:   "info <id>",
+	Use:   "info [id]",
 	Short: "Show node details",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
 
+		id, err := resolveArg(args, "node id required (e.g. `prexorctl node info <id>`)",
+			func() (string, error) { return pickNode(client, "Select a node") })
+		if err != nil {
+			return err
+		}
+
 		var node map[string]any
-		if err := client.Get("/api/v1/nodes/"+args[0], &node); err != nil {
+		if err := client.Get("/api/v1/nodes/"+id, &node); err != nil {
 			return err
 		}
 
@@ -124,35 +130,45 @@ var nodeInfoCmd = &cobra.Command{
 }
 
 var nodeDrainCmd = &cobra.Command{
-	Use:   "drain <id>",
+	Use:   "drain [id]",
 	Short: "Mark node as draining",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
-		if err := client.Post("/api/v1/nodes/"+args[0]+"/drain", nil, nil); err != nil {
+		id, err := resolveArg(args, "node id required (e.g. `prexorctl node drain <id>`)",
+			func() (string, error) { return pickNode(client, "Select a node to drain") })
+		if err != nil {
 			return err
 		}
-		theme.PrintSuccess("Node " + args[0] + " set to DRAINING")
+		if err := client.Post("/api/v1/nodes/"+id+"/drain", nil, nil); err != nil {
+			return err
+		}
+		theme.PrintSuccess("Node " + id + " set to DRAINING")
 		return nil
 	},
 }
 
 var nodeUndrainCmd = &cobra.Command{
-	Use:   "undrain <id>",
+	Use:   "undrain [id]",
 	Short: "Remove draining mark from node",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
-		if err := client.Post("/api/v1/nodes/"+args[0]+"/undrain", nil, nil); err != nil {
+		id, err := resolveArg(args, "node id required (e.g. `prexorctl node undrain <id>`)",
+			func() (string, error) { return pickNode(client, "Select a node to undrain") })
+		if err != nil {
 			return err
 		}
-		theme.PrintSuccess("Node " + args[0] + " set to ONLINE")
+		if err := client.Post("/api/v1/nodes/"+id+"/undrain", nil, nil); err != nil {
+			return err
+		}
+		theme.PrintSuccess("Node " + id + " set to ONLINE")
 		return nil
 	},
 }

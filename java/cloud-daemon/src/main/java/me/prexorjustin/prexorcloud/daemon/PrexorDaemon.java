@@ -280,8 +280,29 @@ public final class PrexorDaemon {
         return daemonModuleManager;
     }
 
+    /**
+     * Register gRPC's default load-balancer and name-resolver providers explicitly.
+     *
+     * <p>These ship in grpc-core as {@code META-INF/services} entries, but the shaded fat jar drops
+     * grpc-core's service files during the shadow merge. On a server JVM gRPC discovers providers via
+     * {@link java.util.ServiceLoader} only (the hard-coded fallback list is Android-only), so without
+     * this the channel fails with "Could not find policy 'pick_first'". Registration is idempotent —
+     * if the service files are ever fixed this simply re-registers the same providers.</p>
+     */
+    private static void registerGrpcProviders() {
+        try {
+            io.grpc.LoadBalancerRegistry.getDefaultRegistry()
+                    .register(new io.grpc.internal.PickFirstLoadBalancerProvider());
+            io.grpc.NameResolverRegistry.getDefaultRegistry()
+                    .register(new io.grpc.internal.DnsNameResolverProvider());
+        } catch (RuntimeException | LinkageError e) {
+            logger.warn("Could not pre-register gRPC providers: {}", e.toString());
+        }
+    }
+
     public static void main(String[] args) {
         Thread.currentThread().setContextClassLoader(PrexorDaemon.class.getClassLoader());
+        registerGrpcProviders();
 
         try {
             DaemonConfig config;
@@ -292,7 +313,7 @@ public final class PrexorDaemon {
                 config = YamlConfigLoader.load(CONFIG_PATH, DaemonConfig.class, DEFAULT_CONFIG);
             }
 
-            LoggingSetup.configure(config.logging());
+            LoggingSetup.configure(config.logging(), "daemon");
             ClassWarmup.loadErrorPathClasses();
 
             PrexorDaemon daemon = new PrexorDaemon(config);

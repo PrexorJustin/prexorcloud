@@ -74,6 +74,7 @@ func installControllerNative(
 	httpPort string,
 	cfg setup.ControllerConfig,
 	mongoLocal, redisLocal bool,
+	enableOnBoot, startNow bool,
 ) (nextSteps []string, code string, err error) {
 	distro, err := setup.DetectDistro()
 	if err != nil {
@@ -123,12 +124,25 @@ func installControllerNative(
 		}
 	}
 
-	say("Registering systemd unit %s…", setup.ControllerServiceName())
-	if err := setup.RegisterControllerService(installDir, jrePath, setup.ControllerServiceOptions{
-		LocalMongo: mongoLocal,
-		LocalRedis: redisLocal,
-	}); err != nil {
-		return nil, errServiceRegister, fmt.Errorf("register controller service: %w", err)
+	svcOpts := setup.ControllerServiceOptions{LocalMongo: mongoLocal, LocalRedis: redisLocal}
+	if enableOnBoot {
+		say("Installing systemd unit %s (enabled on boot)…", setup.ControllerServiceName())
+		if err := setup.RegisterControllerService(installDir, jrePath, svcOpts); err != nil {
+			return nil, errServiceRegister, fmt.Errorf("register controller service: %w", err)
+		}
+	} else {
+		say("Installing systemd unit %s (not enabled on boot)…", setup.ControllerServiceName())
+		if err := setup.InstallControllerUnit(installDir, jrePath, svcOpts); err != nil {
+			return nil, errServiceRegister, fmt.Errorf("install controller unit: %w", err)
+		}
+	}
+
+	if !startNow {
+		return []string{
+			"systemctl start prexorcloud-controller",
+			fmt.Sprintf("Open http://localhost:%s once the controller is healthy.", httpPort),
+			"prexorctl login",
+		}, "", nil
 	}
 
 	say("Starting controller and waiting for health…")
@@ -154,6 +168,7 @@ func installDaemonNative(
 	say func(string, ...any),
 	installDir string,
 	nodeID string,
+	enableOnBoot, startNow bool,
 ) (nextSteps []string, code string, err error) {
 	if _, err := setup.DetectDistro(); err != nil {
 		return nil, errDepInstall, err
@@ -168,17 +183,31 @@ func installDaemonNative(
 		}
 	}
 
-	say("Registering systemd unit %s…", setup.DaemonServiceName())
-	if err := setup.RegisterDaemonService(installDir, jrePath); err != nil {
-		return nil, errServiceRegister, fmt.Errorf("register daemon service: %w", err)
-	}
-	say("Starting daemon…")
-	if err := setup.StartService(setup.DaemonServiceName()); err != nil {
-		return nil, errServiceRegister, fmt.Errorf("start daemon service: %w", err)
+	if enableOnBoot {
+		say("Installing systemd unit %s (enabled on boot)…", setup.DaemonServiceName())
+		if err := setup.RegisterDaemonService(installDir, jrePath); err != nil {
+			return nil, errServiceRegister, fmt.Errorf("register daemon service: %w", err)
+		}
+	} else {
+		say("Installing systemd unit %s (not enabled on boot)…", setup.DaemonServiceName())
+		if err := setup.InstallDaemonUnit(installDir, jrePath); err != nil {
+			return nil, errServiceRegister, fmt.Errorf("install daemon unit: %w", err)
+		}
 	}
 
+	if startNow {
+		say("Starting daemon…")
+		if err := setup.StartService(setup.DaemonServiceName()); err != nil {
+			return nil, errServiceRegister, fmt.Errorf("start daemon service: %w", err)
+		}
+	}
+
+	statusStep := "systemctl status prexorcloud-daemon --no-pager"
+	if !startNow {
+		statusStep = "systemctl start prexorcloud-daemon"
+	}
 	return []string{
-		"systemctl status prexorcloud-daemon --no-pager",
+		statusStep,
 		fmt.Sprintf("Confirm the new node appears in the controller's node list (joining as %s).", nodeID),
 	}, "", nil
 }

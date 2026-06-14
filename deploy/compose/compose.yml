@@ -69,6 +69,11 @@ services:
     ports:
       - "${PREXORCLOUD_HTTP_PORT:-8080}:8080"   # REST + SSE (front it with TLS in prod)
       - "${PREXORCLOUD_GRPC_PORT:-9090}:9090"   # daemon gRPC (mTLS — safe to expose)
+    # Single-controller stack: the embedded Raft control plane (port 9190) runs as a
+    # group of one and needs no host port. For HA (multiple controllers), do NOT just
+    # publish 9190 on this bridge — a controller's Raft client dials its own advertised
+    # IP and bridge hairpin NAT is fragile. Run each controller on host networking with
+    # raft.host set to its private IP. See docs/operations/ha-setup (Raft networking).
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/system/health"]
       interval: 15s

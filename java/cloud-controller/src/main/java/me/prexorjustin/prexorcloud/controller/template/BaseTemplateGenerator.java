@@ -106,6 +106,17 @@ public final class BaseTemplateGenerator {
                 createForwardingSecret(templateName);
             }
 
+            // Paper (and its forks: purpur/folia/pufferfish all use the "paper"
+            // config format) bundle the spark profiler, which auto-starts a
+            // background async-profiler. The bundled async-profiler native lib
+            // SIGSEGVs on hardened/modern kernels (perf_event_paranoid high,
+            // kernel >= 7.x), taking the whole server down right after startup.
+            // Disable the background profiler by default so provisioned servers
+            // boot reliably; operators can re-enable it per template.
+            if ("paper".equals(format)) {
+                disableSparkBackgroundProfiler(templateName);
+            }
+
             String pluginJar = BUNDLED_PLUGINS.get(format);
             if (pluginJar != null) {
                 installBundledPlugin(templateName, pluginJar, BUNDLED_PLUGIN_DIRS.getOrDefault(format, "plugins"));
@@ -186,6 +197,29 @@ public final class BaseTemplateGenerator {
      * use this to authenticate the modern forwarding handshake. The secret is
      * generated once at controller startup and stored in {@code config/security/}.
      */
+    /**
+     * Writes {@code plugins/spark/config.json} disabling spark's background
+     * profiler. Paper bundles spark and starts the async-profiler-backed
+     * background profiler on load; its native library crashes the JVM on
+     * hardened/modern kernels. The profiler is optional telemetry, so disabling
+     * it by default keeps provisioned servers stable.
+     */
+    private void disableSparkBackgroundProfiler(String templateName) throws IOException {
+        Path sparkDir = templateManager.getTemplateFilesDir(templateName).resolve("plugins").resolve("spark");
+        Files.createDirectories(sparkDir);
+        Path configFile = sparkDir.resolve("config.json");
+        if (Files.exists(configFile)) return;
+        Files.writeString(
+                configFile,
+                """
+                {
+                  "_header": "Managed by PrexorCloud. backgroundProfiler disabled -- the bundled \
+                async-profiler native lib crashes on hardened/modern kernels.",
+                  "backgroundProfiler": false
+                }
+                """);
+    }
+
     private void createForwardingSecret(String templateName) throws IOException {
         Path filesDir = templateManager.getTemplateFilesDir(templateName);
         Files.createDirectories(filesDir);

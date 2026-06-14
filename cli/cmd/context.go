@@ -81,11 +81,15 @@ var contextCurrentCmd = &cobra.Command{
 }
 
 var contextUseCmd = &cobra.Command{
-	Use:   "use <name>",
+	Use:   "use [name]",
 	Short: "Set the active context",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
+		name, err := resolveArg(args, "context name required (e.g. `prexorctl context use <name>`)",
+			func() (string, error) { return pickContext("Select a context") })
+		if err != nil {
+			return err
+		}
 		if err := cfg.Use(name); err != nil {
 			return err
 		}
@@ -136,12 +140,16 @@ obtained later via 'prexorctl context use <name> && prexorctl login'.`,
 var contextRemoveForce bool
 
 var contextRemoveCmd = &cobra.Command{
-	Use:     "remove <name>",
+	Use:     "remove [name]",
 	Aliases: []string{"rm", "delete"},
 	Short:   "Remove a context",
-	Args:    cobra.ExactArgs(1),
+	Args:    cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name := args[0]
+		name, err := resolveArg(args, "context name required (e.g. `prexorctl context remove <name>`)",
+			func() (string, error) { return pickContext("Select a context to remove") })
+		if err != nil {
+			return err
+		}
 		if name == cfg.CurrentContext && !contextRemoveForce {
 			return fmt.Errorf("%q is the current context — pass --force to remove it (currentContext will be cleared)", name)
 		}

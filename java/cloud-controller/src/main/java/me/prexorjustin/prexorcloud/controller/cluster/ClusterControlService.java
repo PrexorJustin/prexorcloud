@@ -157,7 +157,7 @@ public final class ClusterControlService implements AutoCloseable {
             // a moment.
             day0InMemoryCa = ca;
         }
-        raft.awaitLeader(15_000);
+        raft.awaitKnownLeader(15_000);
         controlPlane = new ClusterControlPlane(raft, stateMachine);
 
         reconcileClusterIdentity();
@@ -176,12 +176,16 @@ public final class ClusterControlService implements AutoCloseable {
         stateMachine = new ClusterControlStateMachine();
         raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
         raft.start();
-        raft.awaitLeader(15_000);
+        raft.awaitKnownLeader(15_000);
         controlPlane = new ClusterControlPlane(raft, stateMachine);
 
         reconcileClusterIdentity();
         ensureClusterCa();
         runV10MigrationIfNeeded();
+        // Mirror the production start(materials) tail so the self-member / reconciler
+        // path has test/prod parity (the TLS branch is the only difference).
+        ensureSelfMember();
+        startMembershipReconciler();
     }
 
     /**
@@ -330,20 +334,53 @@ public final class ClusterControlService implements AutoCloseable {
     }
 
     /**
-     * Day-0 founder: write its own {@link Member} record so the membership reconciler has
-     * something to set as the Ratis group on first boot. Idempotent on restart — the SM's
-     * AddMember handler rejects duplicates, which surfaces as a {@code ClusterWriteConflict}
-     * we swallow.
+     * Ensure this node's {@link Member} record carries its current advertised Raft
+     * address, so the {@link MembershipReconciler} drives the Ratis group (and the
+     * address handed to future joiners) to the right place.
+     *
+     * <ul>
+     *   <li><b>Day-0:</b> no self member yet — stamp one. The reconciler then sets it
+     *       as the single-member Ratis group.</li>
+     *   <li><b>Restart with an unchanged address:</b> no-op.</li>
+     *   <li><b>Restart with a changed address (self-heal):</b> the operator moved this
+     *       controller to a routable {@code raft.host} (e.g. the Day-0 default
+     *       {@code 0.0.0.0} → a private IP for HA). The Ratis group config persisted on
+     *       disk still pins the old address, and {@code applyAddMember} is an upsert, so
+     *       we re-stamp the member with the new address. That commit wakes the reconciler,
+     *       which runs {@code setConfiguration} on the leader so the live group — and the
+     *       join response sent to peers — advertises the new address.</li>
+     * </ul>
      */
     private void ensureSelfMember() {
-        boolean alreadyPresent = controlPlane.listMembers().stream().anyMatch(m -> nodeId.equals(m.nodeId()));
-        if (alreadyPresent) {
+        Optional<Member> existing = controlPlane.listMembers().stream()
+                .filter(m -> nodeId.equals(m.nodeId()))
+                .findFirst();
+        String want = selfRaftAddress();
+        if (existing.isPresent()) {
+            Member current = existing.get();
+            if (want.equals(current.raftAddr())) {
+                return; // address unchanged — nothing to reconcile
+            }
+            try {
+                Member healed = new Member(
+                        current.nodeId(),
+                        want,
+                        current.restAddr(),
+                        current.gRPCAddr(),
+                        current.label(),
+                        current.joinedAt(),
+                        Instant.now(clock));
+                controlPlane.addMember(healed);
+                logger.info("Self-healed member {} raftAddr {} -> {}", nodeId, current.raftAddr(), want);
+            } catch (IOException e) {
+                logger.warn("could not reconcile self member address: {}", e.getMessage());
+            }
             return;
         }
         try {
-            Member self = new Member(nodeId, selfRaftAddress(), "", "", nodeId, Instant.now(clock), Instant.now(clock));
+            Member self = new Member(nodeId, want, "", "", nodeId, Instant.now(clock), Instant.now(clock));
             controlPlane.addMember(self);
-            logger.info("Stamped Day-0 self member {} at {}", nodeId, selfRaftAddress());
+            logger.info("Stamped Day-0 self member {} at {}", nodeId, want);
         } catch (IOException e) {
             logger.warn("could not add self to cluster members: {}", e.getMessage());
         }

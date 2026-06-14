@@ -50,6 +50,12 @@ public final class WorkloadIdentityRegistry {
 
     private final Clock clock;
     private final Duration tokenTtl;
+    // A token that has expired may still bootstrap exactly one refresh within this
+    // grace window past its expiry. Normal API calls stay strict (expired = 401);
+    // only the refresh path is lenient. Without this, the plugin can never recover:
+    // refresh is reactive-on-401, but by the time a request 401s the token is
+    // already expired, and refresh authenticates with that same expired token.
+    private final Duration refreshGraceWindow;
     private final SecureRandom random;
     private final SequenceWindowStore sequenceWindowStore;
     private final Map<String, PluginTokenEntry> pluginTokens = new ConcurrentHashMap<>();
@@ -70,6 +76,10 @@ public final class WorkloadIdentityRegistry {
     WorkloadIdentityRegistry(Clock clock, Duration tokenTtl, SequenceWindowStore sequenceWindowStore) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.tokenTtl = Objects.requireNonNull(tokenTtl, "tokenTtl");
+        // Grace == TTL: a token is refreshable up to one TTL past expiry, bounding
+        // a stale token's total refresh lifetime to 2×TTL. Covers HA failover gaps
+        // and the reactive-refresh-after-expiry case.
+        this.refreshGraceWindow = tokenTtl;
         this.sequenceWindowStore = sequenceWindowStore;
         this.random = new SecureRandom();
         if (sequenceWindowStore == null) {
@@ -144,7 +154,7 @@ public final class WorkloadIdentityRegistry {
     public Optional<RefreshResult> refreshPluginToken(
             String currentToken, Function<String, Optional<InstanceInfo>> instanceLookup) {
         var existing = pluginTokens.get(currentToken);
-        if (!isEntryUsable(currentToken, existing, instanceLookup)) {
+        if (!isEntryRefreshable(currentToken, existing, instanceLookup)) {
             return Optional.empty();
         }
         if (!pluginTokens.remove(currentToken, existing)) {
@@ -158,7 +168,7 @@ public final class WorkloadIdentityRegistry {
     public Optional<RefreshResult> refreshPluginToken(
             String currentToken, long sequence, Function<String, Optional<InstanceInfo>> instanceLookup) {
         var existing = pluginTokens.get(currentToken);
-        if (!isEntryUsable(currentToken, existing, instanceLookup)) {
+        if (!isEntryRefreshable(currentToken, existing, instanceLookup)) {
             return Optional.empty();
         }
         if (!validateSequence(existing.instanceId(), sequence)) {
@@ -184,6 +194,13 @@ public final class WorkloadIdentityRegistry {
     public void unregisterPluginTokens(String instanceId) {
         pluginTokens.entrySet().removeIf(e -> e.getValue().instanceId().equals(instanceId));
         lastAcceptedSequenceByInstance.remove(instanceId);
+        // Clear the (Valkey-backed) replay window too. Instance ids are reused
+        // across restarts/rescale; leaving a stale high watermark would reject
+        // the restarted plugin's sequence (which restarts at 1) until the TTL
+        // expired -- a self-inflicted permanent 401 on every sequenced call.
+        if (sequenceWindowStore != null) {
+            sequenceWindowStore.clearSequence(instanceId);
+        }
     }
 
     public Map<String, PluginTokenEntry> pluginTokens() {
@@ -226,17 +243,59 @@ public final class WorkloadIdentityRegistry {
         return entry;
     }
 
+    /**
+     * Usability for normal API calls: strict on expiry. An expired-but-within-grace
+     * token returns {@code false} here (so normal calls 401) but is deliberately
+     * NOT evicted, so the reactive refresh that the 401 triggers can still find it.
+     * Only a token expired beyond the refresh grace is evicted.
+     */
     private boolean isEntryUsable(
             String token, PluginTokenEntry entry, Function<String, Optional<InstanceInfo>> instanceLookup) {
         if (entry == null) {
             return false;
         }
-        if (clock.instant().isAfter(entry.expiresAt())) {
+        Instant now = clock.instant();
+        if (now.isAfter(entry.expiresAt().plus(refreshGraceWindow))) {
             pluginTokens.remove(token, entry);
             clearSequenceIfUnused(entry.instanceId());
             return false;
         }
+        if (now.isAfter(entry.expiresAt())) {
+            // expired but within grace: invalid for normal calls, retained for refresh
+            return false;
+        }
+        return instanceLive(entry, instanceLookup);
+    }
 
+    /**
+     * Usability for the refresh path: accepts a token that is expired but still
+     * within {@link #refreshGraceWindow}, so the plugin can bootstrap a fresh
+     * token from a just-expired one (reactive-on-401 refresh, or after an HA
+     * failover gap). Tokens past the grace window are evicted and rejected.
+     */
+    private boolean isEntryRefreshable(
+            String token, PluginTokenEntry entry, Function<String, Optional<InstanceInfo>> instanceLookup) {
+        if (entry == null) {
+            return false;
+        }
+        if (clock.instant().isAfter(entry.expiresAt().plus(refreshGraceWindow))) {
+            pluginTokens.remove(token, entry);
+            clearSequenceIfUnused(entry.instanceId());
+            return false;
+        }
+        return instanceLive(entry, instanceLookup);
+    }
+
+    /**
+     * The plugin authenticates throughout its lifetime, including the startup
+     * handshake (token refresh, cache fetch, SSE, POST /ready) while the instance
+     * is still STARTING -- it is precisely the /ready call that promotes the
+     * instance to RUNNING. Gating on RUNNING alone would deadlock startup. Accept
+     * the live states; reject pre-launch (SCHEDULED/PREPARING) and terminal
+     * (STOPPING/STOPPED/CRASHED).
+     */
+    private boolean instanceLive(
+            PluginTokenEntry entry, Function<String, Optional<InstanceInfo>> instanceLookup) {
         var instance = instanceLookup.apply(entry.instanceId());
         if (instance.isEmpty()) {
             return false;
@@ -245,7 +304,10 @@ public final class WorkloadIdentityRegistry {
         if (!entry.instanceId().equals(resolvedInstance.id())) {
             return false;
         }
-        return resolvedInstance.state() == InstanceState.RUNNING;
+        InstanceState state = resolvedInstance.state();
+        return state == InstanceState.STARTING
+                || state == InstanceState.RUNNING
+                || state == InstanceState.DRAINING;
     }
 
     private boolean validateSequence(String instanceId, long sequence) {

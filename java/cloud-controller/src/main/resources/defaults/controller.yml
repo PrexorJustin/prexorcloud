@@ -22,6 +22,11 @@ grpc:
 # second controller via `prexorctl cluster join-token create` extends the group
 # via joint consensus — see docs/engineering/cluster-join-plan.md.
 raft:
+  # Advertised address — what this controller tells its peers to dial it at. The
+  # Raft transport always BINDS 0.0.0.0:port; this value is purely the advertised
+  # host. 0.0.0.0 is fine for a single-node control plane, but a multi-controller
+  # (HA) cluster MUST set this to a routable address (the node's private IP) or
+  # peers will be told to dial 0.0.0.0 and fail. See docs/operations/ha-setup.
   host: "0.0.0.0"
   port: 9190
   dataDir: "data/raft"

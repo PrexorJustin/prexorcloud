@@ -67,6 +67,13 @@ export interface WizardState {
   // HTTP and assumes TLS is terminated upstream.
   webServer: 'nginx' | 'caddy';
 
+  // Lifecycle — whether the component auto-starts on boot (native: systemctl
+  // enable / docker: restart=unless-stopped) and whether the wizard starts it
+  // now (native: systemctl start / docker: docker compose up -d). Both default
+  // on, matching the wizard's historical always-enable-and-start behavior.
+  enableOnBoot: boolean;
+  startNow: boolean;
+
   // Controller — network
   httpHost: string;
   httpPort: number;
@@ -270,6 +277,8 @@ function defaultState(): WizardState {
 
     installMode: 'compose',
     webServer: 'nginx',
+    enableOnBoot: true,
+    startNow: true,
 
     httpHost: '0.0.0.0',
     httpPort: 8080,
@@ -610,6 +619,8 @@ export const useWizardStore = defineStore('wizard', {
             // runs ClusterControlService.startInJoinMode against the
             // existing cluster.
             joinToken: this.mode === 'controller-join' ? this.controllerJoinToken.trim() : '',
+            enableOnBoot: this.enableOnBoot,
+            startNow: this.startNow,
           });
         }
         if (this.mode === 'all' || this.mode === 'daemon') {
@@ -620,6 +631,8 @@ export const useWizardStore = defineStore('wizard', {
             grpcPort: String(this.controllerGrpcPort),
             joinToken: this.joinToken,
             yamlOverride: daemonYaml(this.$state),
+            enableOnBoot: this.enableOnBoot,
+            startNow: this.startNow,
           });
         }
         if (this.mode === 'dashboard') {

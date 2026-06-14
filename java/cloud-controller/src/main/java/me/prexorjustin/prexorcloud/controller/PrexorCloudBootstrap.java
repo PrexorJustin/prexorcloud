@@ -339,6 +339,36 @@ public final class PrexorCloudBootstrap {
                 eventBus, clusterState, workflowStateStore, sessionManager, consoleBuffer, logBuffer);
     }
 
+    /**
+     * SANs for the gRPC server certificate: always localhost/127.0.0.1, plus any operator-configured
+     * {@code grpc.subjectAltNames}, plus this host's non-loopback addresses (best-effort). Remote
+     * daemons and proxies verify the controller's cert against the address they dial, so that address
+     * must appear here. In Docker only the container bridge IP is visible, so operators must set
+     * {@code grpc.subjectAltNames} to the host's reachable address(es).
+     */
+    private List<String> serverCertSans() {
+        var sans = new java.util.LinkedHashSet<String>();
+        sans.add("localhost");
+        sans.add("127.0.0.1");
+        sans.addAll(config.grpc().subjectAltNames());
+        try {
+            var ifaces = java.net.NetworkInterface.getNetworkInterfaces();
+            while (ifaces.hasMoreElements()) {
+                var ni = ifaces.nextElement();
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                var addrs = ni.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    var a = addrs.nextElement();
+                    if (a.isLoopbackAddress() || a.isLinkLocalAddress() || a.isMulticastAddress()) continue;
+                    sans.add(a.getHostAddress());
+                }
+            }
+        } catch (java.net.SocketException e) {
+            logger.warn("Could not enumerate interfaces for gRPC server cert SANs: {}", e.getMessage());
+        }
+        return List.copyOf(sans);
+    }
+
     private PrexorController.SecurityServices initSecurity() throws Exception {
         Files.createDirectories(SECURITY_DIR);
         FilePermissions.setOwnerOnly(SECURITY_DIR);
@@ -356,7 +386,7 @@ public final class PrexorCloudBootstrap {
         ca.exportCaPem(CA_PEM);
 
         if (!Files.exists(SERVER_KEYSTORE)) {
-            List<String> sans = List.of("localhost", "127.0.0.1");
+            List<String> sans = serverCertSans();
             var serverCert = ca.issueServerCertificate("prexorcloud-controller", sans, 825);
             serverCert.savePkcs12(SERVER_KEYSTORE, caPassword);
         }
@@ -1067,7 +1097,7 @@ public final class PrexorCloudBootstrap {
         heartbeatScheduler.scheduleAtFixedRate(tlsWatcher, 30, 30, TimeUnit.SECONDS);
 
         var certRotation = new CertificateRotationTask(
-                controller.ca(), SERVER_KEYSTORE, caPassword, 30, 825, List.of("localhost", "127.0.0.1"), tlsWatcher);
+                controller.ca(), SERVER_KEYSTORE, caPassword, 30, 825, serverCertSans(), tlsWatcher);
         heartbeatScheduler.scheduleAtFixedRate(certRotation, 1, 24 * 60 * 60, TimeUnit.SECONDS);
 
         var timeseriesSampler = new me.prexorjustin.prexorcloud.controller.state.MetricsTimeseriesSampler(
@@ -1428,16 +1458,36 @@ public final class PrexorCloudBootstrap {
         };
     }
 
+    /**
+     * Register the gRPC {@code pick_first} load balancer + DNS name-resolver providers. They ship in
+     * grpc-core via {@code META-INF/services}, but the shaded fat jar drops grpc-core's service files
+     * during the shadow merge, and a server JVM discovers providers via {@link java.util.ServiceLoader}
+     * only — so without this the cluster-join client channel fails with "Could not find policy
+     * 'pick_first'". Same workaround as the daemon ({@code PrexorDaemon.registerGrpcProviders}).
+     * Idempotent; harmless if the service files are ever fixed.
+     */
+    private static void registerGrpcProviders() {
+        try {
+            io.grpc.LoadBalancerRegistry.getDefaultRegistry()
+                    .register(new io.grpc.internal.PickFirstLoadBalancerProvider());
+            io.grpc.NameResolverRegistry.getDefaultRegistry()
+                    .register(new io.grpc.internal.DnsNameResolverProvider());
+        } catch (RuntimeException | LinkageError e) {
+            logger.warn("Could not pre-register gRPC providers: {}", e.toString());
+        }
+    }
+
     public static void main(String[] args) {
         // Ensure all child threads (including gRPC Netty event loops) inherit the
         // application classloader so logback classes are visible from shaded Netty
         // threads.
         Thread.currentThread().setContextClassLoader(PrexorCloudBootstrap.class.getClassLoader());
+        registerGrpcProviders();
 
         try {
             ControllerConfig config = YamlConfigLoader.load(CONFIG_PATH, ControllerConfig.class, DEFAULT_CONFIG);
             me.prexorjustin.prexorcloud.controller.config.ConfigValidator.validate(config);
-            LoggingSetup.configure(config.logging());
+            LoggingSetup.configure(config.logging(), "controller");
             ClassWarmup.loadErrorPathClasses();
 
             var bootstrap = new PrexorCloudBootstrap(config);

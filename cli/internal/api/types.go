@@ -8,6 +8,18 @@ type OverviewResponse struct {
 	GroupCount    int `json:"groupCount"`
 }
 
+// CatalogEntry is a flattened catalog entry from GET /api/v1/catalog — one row
+// per platform version.
+type CatalogEntry struct {
+	Platform     string `json:"platform"`
+	Category     string `json:"category"`
+	ConfigFormat string `json:"configFormat"`
+	Version      string `json:"version"`
+	DownloadURL  string `json:"downloadUrl"`
+	SHA256       string `json:"sha256"`
+	Recommended  bool   `json:"recommended"`
+}
+
 // NodeResponse is a node entry from GET /api/v1/nodes.
 type NodeResponse struct {
 	NodeID         string             `json:"nodeId"`

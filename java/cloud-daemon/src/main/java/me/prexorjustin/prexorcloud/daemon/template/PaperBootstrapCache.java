@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 import me.prexorjustin.prexorcloud.common.cache.CacheEntries.BootstrapCacheInfo;
+import me.prexorjustin.prexorcloud.daemon.process.JavaExecutable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -316,7 +317,7 @@ public final class PaperBootstrapCache {
         Path tempArchive = versionDir.resolve(CDS_ARCHIVE_NAME + ".tmp");
 
         ProcessBuilder pb = new ProcessBuilder(
-                "java",
+                JavaExecutable.path(),
                 "-Xshare:dump",
                 "--add-opens",
                 "java.base/java.lang=ALL-UNNAMED",
@@ -394,7 +395,7 @@ public final class PaperBootstrapCache {
             // archive afterwards via regenerateCds() with matching flags.
             Path classList = bootstrapDir.resolve(CDS_CLASS_LIST_NAME);
             ProcessBuilder pb = new ProcessBuilder(
-                    "java",
+                    JavaExecutable.path(),
                     "-Xmx512m",
                     "-Xms512m",
                     "--add-opens",

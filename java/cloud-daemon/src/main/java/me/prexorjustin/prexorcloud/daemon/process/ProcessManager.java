@@ -608,6 +608,15 @@ public final class ProcessManager {
     private static final long DELETE_RETRY_DELAY_SECONDS = 10;
 
     private void deleteInstanceDir(String group, String instanceId, int attempt) {
+        // A crashed/stopped instance's directory cleanup is delayed. If the same instance id was
+        // rescheduled onto this node in the meantime (crash-heal reuses the id and its directory),
+        // the directory is now the working dir of a LIVE process — deleting it would yank the cwd out
+        // from under the running server (world saves land on a dead inode, file access breaks). Skip.
+        if (processes.containsKey(instanceId)) {
+            logger.info("Skipping stale cleanup of {}/{} -- instance is running again", group, instanceId);
+            return;
+        }
+
         Path instanceDir = instancesDir.resolve(group).resolve(instanceId);
         if (!Files.isDirectory(instanceDir)) return;
 

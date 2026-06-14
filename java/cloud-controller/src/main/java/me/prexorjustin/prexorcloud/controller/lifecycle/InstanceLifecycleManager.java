@@ -59,7 +59,36 @@ public final class InstanceLifecycleManager {
         eventBus.subscribe(InstanceStateChangedEvent.class, this::onInstanceStateChanged);
         eventBus.subscribe(NodeDisconnectedEvent.class, this::onNodeDisconnected);
 
+        sweepHydratedTerminalInstances();
+
         logger.debug("InstanceLifecycleManager initialized");
+    }
+
+    /**
+     * Re-queue cleanup for instances that were already STOPPED/CRASHED when this
+     * controller started. Terminal-state removal is normally scheduled from the
+     * {@link InstanceStateChangedEvent} that fires on the transition, but a
+     * controller restart (or HA leader failover) hydrates such instances from the
+     * snapshot WITHOUT firing that event -- and the previous controller's in-memory
+     * removal timers were lost. Without this sweep they would linger forever and
+     * accumulate on every restart. The scheduled task re-checks the state at fire
+     * time, so an instance that the daemon re-reports as RUNNING on reconnect is
+     * left alone.
+     */
+    private void sweepHydratedTerminalInstances() {
+        int requeued = 0;
+        for (InstanceInfo instance : clusterState.getAllInstances()) {
+            if (instance.state() == me.prexorjustin.prexorcloud.protocol.InstanceState.STOPPED) {
+                scheduleRemoval(instance.id(), STOPPED_CLEANUP_DELAY_SECONDS);
+                requeued++;
+            } else if (instance.state() == me.prexorjustin.prexorcloud.protocol.InstanceState.CRASHED) {
+                scheduleRemoval(instance.id(), CRASHED_CLEANUP_DELAY_SECONDS);
+                requeued++;
+            }
+        }
+        if (requeued > 0) {
+            logger.info("Re-queued cleanup for {} hydrated terminal instance(s) after startup", requeued);
+        }
     }
 
     private void onInstanceStateChanged(InstanceStateChangedEvent event) {

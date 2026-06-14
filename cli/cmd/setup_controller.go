@@ -108,48 +108,82 @@ func runControllerSetup(installMode string) error {
 
 	if installMode == installModeCompose {
 		printSetupSection("Docker Compose Project")
+
+		enableOnBoot, err := resolveEnableOnBoot("controller")
+		if err != nil {
+			return err
+		}
+		startNow, err := resolveStartNow("controller")
+		if err != nil {
+			return err
+		}
+		restartPolicy := "no"
+		if enableOnBoot {
+			restartPolicy = "unless-stopped"
+		}
+
 		if err := setup.WriteControllerComposeProject(
 			installDir,
 			cfg,
 			setup.ControllerComposeProjectOptions{
-				LocalMongo: mongoLocal,
-				LocalRedis: redisLocal,
+				LocalMongo:    mongoLocal,
+				LocalRedis:    redisLocal,
+				RestartPolicy: restartPolicy,
 			},
 		); err != nil {
 			return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 		}
 		fmt.Printf("  %s\n", styleSetupOK.Render("✓ Compose project written"))
+
+		if startNow {
+			if err := tui.SpinWith("Starting controller (docker compose up -d)...", func() error {
+				return setup.ComposeUp(installDir)
+			}); err != nil {
+				return err
+			}
+			fmt.Printf("  %s\n", styleSetupOK.Render("✓ Controller started"))
+		}
+
 		printControllerDone(installDir, installMode, false)
 		return nil
 	}
 
-	// ── Service registration ──────────────────────────────────────────────────
-	registered, err := promptServiceRegistration(func() error {
-		return setup.RegisterControllerService(
-			installDir,
-			setup.ManagedJREPath,
-			setup.ControllerServiceOptions{
-				LocalMongo: mongoLocal,
-				LocalRedis: redisLocal,
-			},
-		)
-	})
+	// ── Service install ───────────────────────────────────────────────────────
+	// Two questions: auto-start on boot (systemctl enable) and start now
+	// (systemctl start + health validation). The systemd unit is installed if
+	// either is yes; if both are no the operator just gets the files.
+	enableOnBoot, err := resolveEnableOnBoot("controller")
+	if err != nil {
+		return err
+	}
+	startNow, err := resolveStartNow("controller")
 	if err != nil {
 		return err
 	}
 
+	svcOpts := setup.ControllerServiceOptions{LocalMongo: mongoLocal, LocalRedis: redisLocal}
+	registered := enableOnBoot || startNow
+	if registered {
+		action := "Installing systemd service..."
+		if enableOnBoot {
+			action = "Installing systemd service (enabled on boot)..."
+		}
+		if err := tui.SpinWith(action, func() error {
+			if enableOnBoot {
+				return setup.RegisterControllerService(installDir, setup.ManagedJREPath, svcOpts)
+			}
+			return setup.InstallControllerUnit(installDir, setup.ManagedJREPath, svcOpts)
+		}); err != nil {
+			return fmt.Errorf("failed to install service: %w", err)
+		}
+	}
+
 	startupValidated := false
-	if installMode == installModeNative {
-		validateStartup, err := resolveControllerStartupValidation(registered)
-		if err != nil {
-			return err
-		}
-		if validateStartup {
-			printSetupSection("Startup Validation")
-			check := setup.StartAndValidateControllerService(cfg, 45*time.Second)
-			printControllerVerification(setup.ControllerVerificationReport{Checks: []setup.VerificationCheck{check}})
-			startupValidated = check.Status == setup.VerificationOK
-		}
+	if startNow {
+		printSetupSection("Startup Validation")
+		check := setup.StartAndValidateControllerService(cfg, 45*time.Second)
+		printControllerVerification(setup.ControllerVerificationReport{Checks: []setup.VerificationCheck{check}})
+		startupValidated = check.Status == setup.VerificationOK
 	}
 
 	if installMode == installModeNative {

@@ -119,6 +119,19 @@ type controllerInstallRequest struct {
 	// ClusterControlService.startInJoinMode against the existing cluster.
 	// Empty for Day-0 controllers (the default).
 	JoinToken string `json:"joinToken,omitempty"`
+	// EnableOnBoot / StartNow mirror the CLI wizard's lifecycle prompts. Pointers
+	// so an omitted field defaults to true (auto-start on boot + start now), which
+	// matches the browser wizard's historical always-enable-and-start behavior.
+	EnableOnBoot *bool `json:"enableOnBoot,omitempty"`
+	StartNow     *bool `json:"startNow,omitempty"`
+}
+
+// boolOrDefault returns *p, or def when p is nil (field omitted from the request).
+func boolOrDefault(p *bool, def bool) bool {
+	if p == nil {
+		return def
+	}
+	return *p
 }
 
 type installResponse struct {
@@ -374,9 +387,11 @@ func handleInstallController(logf func(string, ...any), onSuccess func()) http.H
 		}
 
 		isControllerJoin := strings.TrimSpace(req.JoinToken) != ""
+		enableOnBoot := boolOrDefault(req.EnableOnBoot, true)
+		startNow := boolOrDefault(req.StartNow, true)
 
 		if req.InstallMode == installModeNative {
-			nextSteps, code, err := installControllerNative(say, req.InstallDir, req.HTTPPort, cfg, mongoLocal, redisLocal)
+			nextSteps, code, err := installControllerNative(say, req.InstallDir, req.HTTPPort, cfg, mongoLocal, redisLocal, enableOnBoot, startNow)
 			if err != nil {
 				em.finishErr(code, err.Error())
 				return
@@ -388,19 +403,35 @@ func handleInstallController(logf func(string, ...any), onSuccess func()) http.H
 			return
 		}
 
+		restartPolicy := "no"
+		if enableOnBoot {
+			restartPolicy = "unless-stopped"
+		}
 		if err := setup.WriteControllerComposeProject(req.InstallDir, cfg, setup.ControllerComposeProjectOptions{
-			LocalMongo: mongoLocal,
-			LocalRedis: redisLocal,
+			LocalMongo:    mongoLocal,
+			LocalRedis:    redisLocal,
+			RestartPolicy: restartPolicy,
 		}); err != nil {
 			em.finishErr(errComposeWrite, "write docker-compose.yml: "+err.Error())
 			return
 		}
 		say("Wrote docker-compose.yml.")
 
-		composeSteps := []string{
-			fmt.Sprintf("cd %s", req.InstallDir),
-			"docker compose up -d",
-			fmt.Sprintf("Open http://localhost:%s once the controller is healthy.", req.HTTPPort),
+		composeSteps := []string{}
+		if startNow {
+			say("Starting controller (docker compose up -d)…")
+			if err := setup.ComposeUp(req.InstallDir); err != nil {
+				em.finishErr(errComposeWrite, err.Error())
+				return
+			}
+			say("Controller started.")
+			composeSteps = append(composeSteps,
+				fmt.Sprintf("Open http://localhost:%s once the controller is healthy.", req.HTTPPort))
+		} else {
+			composeSteps = append(composeSteps,
+				fmt.Sprintf("cd %s", req.InstallDir),
+				"docker compose up -d",
+				fmt.Sprintf("Open http://localhost:%s once the controller is healthy.", req.HTTPPort))
 		}
 		if isControllerJoin {
 			composeSteps = append(composeSteps, controllerJoinFollowupSteps()...)
@@ -443,6 +474,9 @@ type daemonInstallRequest struct {
 	// Optional fully-rendered daemon.yml from the wizard; same role as
 	// controllerInstallRequest.YamlOverride.
 	YamlOverride string `json:"yamlOverride,omitempty"`
+	// EnableOnBoot / StartNow mirror the CLI wizard's lifecycle prompts; nil ⇒ true.
+	EnableOnBoot *bool `json:"enableOnBoot,omitempty"`
+	StartNow     *bool `json:"startNow,omitempty"`
 }
 
 func handleInstallDaemon(logf func(string, ...any), onSuccess func()) http.HandlerFunc {
@@ -538,8 +572,11 @@ func handleInstallDaemon(logf func(string, ...any), onSuccess func()) http.Handl
 			say("Wrote daemon.yml.")
 		}
 
+		enableOnBoot := boolOrDefault(req.EnableOnBoot, true)
+		startNow := boolOrDefault(req.StartNow, true)
+
 		if req.InstallMode == installModeNative {
-			nextSteps, code, err := installDaemonNative(say, req.InstallDir, req.NodeID)
+			nextSteps, code, err := installDaemonNative(say, req.InstallDir, req.NodeID, enableOnBoot, startNow)
 			if err != nil {
 				em.finishErr(code, err.Error())
 				return
@@ -548,11 +585,28 @@ func handleInstallDaemon(logf func(string, ...any), onSuccess func()) http.Handl
 			return
 		}
 
-		if err := setup.WriteDaemonComposeProject(req.InstallDir); err != nil {
+		restartPolicy := "no"
+		if enableOnBoot {
+			restartPolicy = "unless-stopped"
+		}
+		if err := setup.WriteDaemonComposeProjectWithRestart(req.InstallDir, restartPolicy); err != nil {
 			em.finishErr(errComposeWrite, "write docker-compose.yml: "+err.Error())
 			return
 		}
 		say("Wrote docker-compose.yml.")
+
+		if startNow {
+			say("Starting daemon (docker compose up -d)…")
+			if err := setup.ComposeUp(req.InstallDir); err != nil {
+				em.finishErr(errComposeWrite, err.Error())
+				return
+			}
+			say("Daemon started.")
+			em.finishOK([]string{
+				fmt.Sprintf("Confirm the new node appears in the controller's node list (joining as %s).", req.NodeID),
+			})
+			return
+		}
 
 		em.finishOK([]string{
 			fmt.Sprintf("cd %s", req.InstallDir),

@@ -35,7 +35,7 @@ public record ControllerConfig(
 
     public ControllerConfig {
         if (telemetry == null) telemetry = new TelemetryConfig();
-        if (uuid == null) uuid = java.util.UUID.randomUUID().toString();
+        if (uuid == null || uuid.isBlank()) uuid = java.util.UUID.randomUUID().toString();
         if (cluster == null) cluster = new ClusterConfig();
         if (raft == null) raft = new RaftConfig();
         if (http == null) http = new HttpConfig();

@@ -24,6 +24,11 @@ const (
 	startupValidationPrompt  = "prompt"
 	startupValidationEnable  = "enable"
 	startupValidationDisable = "disable"
+
+	// boot/start prompt modes — shared by --boot-mode and --start-mode.
+	lifecycleModePrompt  = "prompt"
+	lifecycleModeEnable  = "enable"
+	lifecycleModeDisable = "disable"
 )
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -75,6 +80,8 @@ var (
 	setupInstallMode           string
 	setupServiceMode           string
 	setupStartupValidationMode string
+	setupBootMode              string
+	setupStartMode             string
 	setupControllerInstallDir  string
 	setupControllerMongoMode   string
 	setupControllerMongoURI    string
@@ -281,6 +288,8 @@ func init() {
 	setupCmd.Flags().StringVar(&setupInstallMode, "install-mode", "", "Install mode: native or compose")
 	setupCmd.Flags().StringVar(&setupServiceMode, "service-mode", "", "Service registration mode: prompt, enable, or disable")
 	setupCmd.Flags().StringVar(&setupStartupValidationMode, "startup-validation-mode", "", "Startup validation mode after native controller service registration: prompt, enable, or disable")
+	setupCmd.Flags().StringVar(&setupBootMode, "boot-mode", "", "Auto-start on boot: prompt, enable, or disable. Native: systemctl enable / Docker: restart=unless-stopped")
+	setupCmd.Flags().StringVar(&setupStartMode, "start-mode", "", "Start the component once setup finishes: prompt, enable, or disable. Native: systemctl start / Docker: docker compose up -d")
 
 	setupCmd.Flags().StringVar(&setupControllerInstallDir, "controller-install-dir", controllerInstallDir, "Controller install directory")
 	setupCmd.Flags().StringVar(&setupControllerMongoMode, "controller-mongo-mode", "", "Controller MongoDB source in non-interactive mode: local or remote")

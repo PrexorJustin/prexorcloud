@@ -11,6 +11,9 @@ public final class Permission {
     public static final String NODES_VIEW = "nodes.view";
     public static final String NODES_DRAIN = "nodes.drain";
     public static final String NODES_REVOKE_CERT = "nodes.revoke-cert";
+    // Immediate (non-graceful) daemon shutdown — more destructive than NODES_DRAIN, so ADMIN-only by
+    // default (operators can still drain, which stops the node gracefully).
+    public static final String NODES_SHUTDOWN = "nodes.shutdown";
 
     // Groups
     public static final String GROUPS_VIEW = "groups.view";
@@ -81,6 +84,8 @@ public final class Permission {
     // System
     public static final String SYSTEM_SETTINGS = "system.settings";
     public static final String SYSTEM_LOGS_VIEW = "system.logs.view";
+    // Remotely shut down the controller process this request lands on. ADMIN-only.
+    public static final String SYSTEM_SHUTDOWN = "system.shutdown";
 
     // Metrics
     public static final String METRICS_VIEW = "metrics.view";

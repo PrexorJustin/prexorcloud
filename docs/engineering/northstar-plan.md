@@ -1,704 +1,772 @@
-# PrexorCloud — Northstar-Plan: bestes & modernstes MC-Cloud-System
+# PrexorCloud — final acceptance test plan ("the complete cloud test")
 
-**Status:** v1 — gezeichnet am 2026-05-31 nach Gesamt-Audit.
-**Owner:** unzugewiesen.
-**Zielhorizont:** v1.1 (HA-Foundation) → v1.2 (Ökosystem-Reife) → v1.3 (Plattform-Ausbau).
-**Verwandte Dokumente:**
-- [`decisions.md`](./decisions.md) — ADR-Register (Architektur-Entscheidungen)
-- [`design-system.md`](./design-system.md) — Design-System (Reef-Palette, Tokens)
-- [`DOCS_STYLE.md`](./DOCS_STYLE.md) — Docs-/README-Standard
+**This is a transient, do-it-then-delete checklist.** Everything that a machine can verify is
+already green (the automated Tier-1 gate suite — Part 1). What remains to call PrexorCloud
+**100% done** is a real, end-to-end cloud test *you* run on real infrastructure: every feature,
+single-controller → controller-HA → multi-VPS. Work it top to bottom, tick each box, capture the
+screenshots, fill the sign-off matrix at the end. When every box is ticked, the product is done —
+**delete this file** (see [Part 14 — teardown](#part-14--sign-off--teardown)).
 
-> Hinweis: Die abgeschlossenen Detail-/Rahmenpläne (cluster-join, track-e, MASTER_PLAN, WEBSITE_PLAN u.a.) wurden beim Docs-Cleanup entfernt — ihr Inhalt ist in diesem Plan und in `docs/public/` aufgegangen.
+How to read each item: **`- [ ] What — how → Pass: the observable result that means it works.`**
+Commands use real names (`survival-lobby`, `node-fra-1`, port `30000`), never `foo`. Where a flag
+might have drifted, the source of truth is `prexorctl <cmd> --help` and the REST reference at
+`/reference/rest-api/`.
+
+> Convention: `CTRL` = a controller host, `NODE` = a daemon host, `$TOKEN` = an operator JWT
+> (`prexorctl login` then `prexorctl context`). All `prexorctl` calls assume a logged-in context.
+
+> **Why this manual run matters — live findings.** The automated Part-1 gates were all green, yet
+> the very first real install on real infrastructure surfaced bugs no unit test caught. This is the
+> point of the exercise. Findings so far (batched for a `v1.0.1` fix release):
+> 1. **`prexorctl` installer couldn't parse credentialed datastore URIs.** `DialTCPFromURI` left the
+>    `user:pass@` userinfo in front of `host:port` → `too many colons in address`, so the wizard's
+>    Mongo/Redis preflight failed for every production-style URI. Fixed to parse via `net/url`.
+> 2. **cosign verification uses deprecated `--certificate`/`--signature` flags** (in `install.sh` and
+>    `cli/internal/setup/cosign.go`). Still verifies today, but breaks when cosign removes them;
+>    modern form is `--bundle` + `--trusted-root` (also needs the release pipeline to emit a bundle).
+> 3. **`deploy/compose/compose.yml` pins `mongo:8.0`**, which hard-refuses Linux kernel ≥6.19
+>    (SERVER-121912); the Ubuntu hosts here run kernel 7.0. Bumped to `mongo:8`.
+>
+> An all-green automated suite is necessary, not sufficient — environment, real datastores, real
+> kernels, and real credential formats only show up here.
+
+> **▶ LIVE RUN STATUS — resume here (as of 2026-06-14, updated post token-refresh fix).** A live run
+> is in progress on a Hetzner fleet. **Part 2D connect is PROVEN through a proxy, and the core of 3B
+> with it:** a real 1.21 client (`PrexorDev`) joined `survival-lobby` *via the Velocity `edge` proxy*
+> (direct backend join is refused by design — see finding #9). Both `survival-lobby` and `edge` are
+> `RUNNING`, Network `main` wires them. **9 live bugs found and fixed** (working-tree only, deployed to
+> the fleet, NOT committed — see the 2D bug batch below).
+>
+> **⚠ Connect target moved:** all the debug restarts reshuffled ports. Always re-check with
+> `prexorctl instance list` — as of this writing the `edge` proxy instance is on **30000** and the
+> lobby on 30001, i.e. players connect to `49.13.138.202:<edge-port>`. (Instance list is clean now —
+> the STOPPED-instance churn was a real bug, fixed as #10.)
+>
+> **NEXT: Part 2D is COMPLETE** (scale up→auto-drain to min, and `kill -9` crash-heal both verified live
+> 2026-06-14 — crash persisted w/ exit 137/SIGKILL/log-tail, fix #12). Now **Part 3**: 3A templates,
+> finish 3B (kill lobby → fallback failover, live network edit), 3C scaling/deployments (rolling, canary
+> +rollback), 3D node lifecycle (label, drain→eject). Re-verify the token-refresh fix (#8) holds across a
+> full 15-min TTL cycle. Wave-2 hosts (`ctrl-2/3`, `node-fra-2`) for Parts 8–9 are **not provisioned yet**.
+>
+> **Everything built is now deployed + live** (working tree = fleet): controller jar (proxy-uptime #11 /
+> crash-persist #12 / log-file #13 / role-reconcile #14 / `stop` endpoints `nodes|system/shutdown`); daemon jar
+> (log-file #13 / dir-cleanup-race #15); `prexorctl` (`group scale`, `logs` rework, `stop` rework, `crash info`
+> picker+completion). ADMIN role auto-reconciled to 52 perms (incl. `nodes.shutdown`/`system.shutdown`). All
+> uncommitted.
+>
+> **⚠ Deploy lesson:** ALWAYS `docker restart controller-controller-1` immediately after `scp`-ing a
+> new controller jar over the live path. Replacing the jar a running JVM has open corrupts its lazy
+> class loading → bogus `NoClassDefFoundError` on not-yet-loaded classes (cost an hour mid-run).
+>
+> **Fleet access notes (so manual commands work):** use `/usr/bin/ssh` (the kitty `ssh` kitten
+> refuses non-TTY). Controller `:8080` is firewalled from the public net — reach it via an SSH
+> tunnel (`ssh -N -L 8080:localhost:8080 -L 9090:localhost:9090 root@167.233.120.10`) and point a
+> local `prexorctl` context at `http://localhost:8080`, or just run `prexorctl` on `ctrl-1`
+> (`/usr/local/bin/prexorctl`, already logged in; token in `~/.prexorcloud/config.yml`). The initial
+> admin password was rotated (2B done) so `INITIAL_ADMIN_PASS` in `secrets.env` no longer works.
+>
+> **Fleet, Hetzner fsn1, private net `prexor-net` 10.0.0.0/16 (4 of 10 server quota used):**
+> | host | public IP | private IP | role | state |
+> |---|---|---|---|---|
+> | `data-1` | 167.233.102.221 | 10.0.0.2 | Mongo + Valkey (Docker) | Ubuntu 24.04, stable |
+> | `ctrl-1` | 167.233.120.10 | 10.0.0.3 | controller (Docker compose) | up, leader, logged in as `admin` |
+> | `node-frankenstein-1` | 49.13.138.202 | 10.0.0.4 | daemon (native systemd) | **● ONLINE** |
+> | `node-fra-2` | 178.105.112.91 | 10.0.0.5 | daemon (native systemd) | **● ONLINE** (cx33/ubuntu-26.04; provisioned 2026-06-14) |
+>
+> Fleet creds: `~/prexor-fleet/secrets.env` (local, chmod 600). SSH as `root@<public-ip>`. Provisioning:
+> `hcloud` CLI installed at `~/.local/bin/hcloud`, context `prexor` (token stored locally, NOT in repo);
+> server limit raised to 10. Add a daemon by cloning `node-frankenstein-1` (cx33/ubuntu-26.04/fsn1-dc14,
+> ssh-key `dev@scharbau.me`, `--network prexor-net`), tar-pipe `/opt/prexorcloud/{jre,daemon jar,ca.pem}`
+> (NOT `node.p12` — minted fresh on enroll), write `daemon.yml` (`nodeId`, controller `10.0.0.3:9090`,
+> fresh `prexorctl token create --node <id>`), drop the systemd unit, `systemctl enable --now`.
+>
+> **▶ HOW TO RESUME (fresh-session operator runbook).**
+> - **Working tree = source of truth.** Every fix below is an **uncommitted** local edit (`cli/cmd/*.go`,
+>   `java/cloud-*`); the jars running on the fleet were built from this exact tree. **Do NOT** `git
+>   stash`/reset/discard. `git status` shows the modified files. Committing is deferred (user's call;
+>   commit style: short + human, **no** `Co-Authored-By`).
+> - **Use `/usr/bin/ssh` and `/usr/bin/scp`** (the kitty `ssh`/`scp` kitten refuses non-TTY); append
+>   `< /dev/null` to ssh commands so they don't hang on stdin.
+> - **Reach the controller:** either run `prexorctl` on `ctrl-1` (`/usr/local/bin/prexorctl`, logged in),
+>   or from the workstation open the tunnel and use the local build:
+>   `cd cli && go build -o prexorctl . && ./prexorctl context use fleet` (context `fleet` →
+>   `http://localhost:8080` over the tunnel). To (re)create it: `./prexorctl context add fleet
+>   --controller http://localhost:8080 --token "$(ssh root@167.233.120.10 'sed -n "s/.*token: *//p"
+>   ~/.prexorcloud/config.yml' < /dev/null)"`.
+> - **Sanity check on resume:** `prexorctl node list` (node ● ONLINE) · `prexorctl instance list`
+>   (`edge` + `survival-lobby` both RUNNING; note the proxy port = connect target) · controller health
+>   `curl -s localhost:8080/api/v1/system/version` (via tunnel).
+> - **Rebuild + redeploy recipes** (JDK: `JAVA_HOME=~/.jdks/openjdk-26.0.1`; build from `java/`):
+>   - **Controller:** `./gradlew :cloud-controller:shadowJar` → `scp .../build/libs/PrexorCloudController.jar
+>     root@167.233.120.10:/opt/prexorcloud/controller/PrexorCloudController.jar` → **immediately**
+>     `ssh root@167.233.120.10 'docker restart controller-controller-1'` (see deploy lesson above).
+>   - **Daemon:** `./gradlew :cloud-daemon:shadowJar` → `scp .../build/libs/PrexorCloudDaemon.jar
+>     root@49.13.138.202:/opt/prexorcloud/daemon/PrexorCloudDaemon.jar` → `ssh root@49.13.138.202
+>     'systemctl restart prexorcloud-daemon'`.
+>   - **prexorctl:** `cd cli && go build -o prexorctl .` → `scp cli/prexorctl
+>     root@167.233.120.10:/usr/local/bin/prexorctl` (and use locally via the tunnel).
+> - **Datastore debugging (data-1, `docker exec`; creds in `secrets.env`):** Valkey
+>   `docker exec <valkey> redis-cli -a "$VALKEY_PASS" --no-auth-warning KEYS 'prexor:v1:*'` (keys:
+>   `…:plugintoken:*`, `…:workloadseq:<instanceId>`); Mongo `mongosh -u "$MONGO_ROOT_USER" -p
+>   "$MONGO_ROOT_PASS" --authenticationDatabase admin` db `prexorcloud` (e.g. `templates` collection,
+>   `_id` = template name — delete a built-in's doc + restart controller to force regeneration).
+> - **Catch an ephemeral instance log** (the daemon deletes the dir on crash): read it live via
+>   `/proc/<pid>/cwd/logs/latest.log` of the `Xmx…m` MC process on the node.
+>
+> **Done:** Part 1 (all automated gates green) · release **v1.0.0** cut & published · 2A controller
+> install (wizard, Docker, remote datastores) · 2B login + admin-rotate · 2C daemon enrolled & ONLINE ·
+> catalog seeded with **PAPER 1.21** (build 130) **and VELOCITY 3.4.0-SNAPSHOT** (build 559, PROXY) ·
+> 2D group→instance→`RUNNING` · `edge` Velocity proxy group + Network `main` (lobby=survival-lobby,
+> proxyGroups=[edge]) · **client connected through the proxy into the lobby** (2D connect + core 3B).
+>
+> **2D/3B bug batch (live, 2026-06-14) — found by the first real `group create`→`RUNNING`→connect.
+> All fixed in the working tree + redeployed to the fleet; NOT yet committed:**
+> 1. **CLI `group create` → HTTP 500** — CLI sent a nested `portRange` object; `GroupConfig` has flat
+>    `portRangeStart`/`portRangeEnd` and Jackson 500s on unknown fields. Fixed `cli/cmd/group.go`.
+>    (Controller arguably should 400, not 500 — follow-up.)
+> 2. **Daemon `Cannot run program "java"` (error=2)** — bare `java`, host has none on PATH. New
+>    `JavaExecutable.path()` resolves the launcher from `java.home`; used in `ServerProcess` +
+>    `PaperBootstrapCache` (3 spawn sites).
+> 3. **Plugin abort `CLOUD_CONTROLLER_HOST not set`** — daemon injected `CLOUD_CONTROLLER_URL`, the
+>    plugin (`PluginEnv`) wants `CLOUD_CONTROLLER_HOST` + `CLOUD_CONTROLLER_PORT`. Daemon now injects
+>    both (from `DaemonGrpcClient.controllerHost()`/`controllerApiPort()`).
+> 4. **Startup deadlock (401 forever)** — `WorkloadIdentityRegistry.isEntryUsable` required instance
+>    state `RUNNING`, but `/api/plugin/ready` (the call that *sets* RUNNING) is gated by it. Now
+>    accepts `STARTING`/`RUNNING`/`DRAINING`. (`/api/plugin/networks` 404 = no Network yet, benign.)
+> 5. **Sequenced-call 401 on restart** — `unregisterPluginTokens` cleared the in-memory replay map but
+>    not the Valkey `workloadseq:` window, so a reused instance id (restart/rescale) had its plugin's
+>    `seq=1` rejected vs a stale high watermark until the 15-min TTL. Now clears the Valkey window too.
+> 7. **Join-token store fails to load on restart** — `JoinToken.isExpired()` is a JavaBean getter, so
+>    Jackson serialized it as an `"expired"` property that then failed to read back (record has no such
+>    component) → `FileJoinTokenStore` drops all persisted join tokens on startup. Fixed: `@JsonIgnore`
+>    on `isExpired()` + `@JsonIgnoreProperties(ignoreUnknown=true)` on the record. **Deployed + live.**
+> 8. **Running instances go 401-blind ~15 min after their last good token (the big one).** Plugin token
+>    refresh is **reactive-only** (`BaseControllerClient.sendWithRefresh` fires it on a 401), but by the
+>    time a request 401s the token has already expired — and refresh authenticates with that same
+>    expired token, which `isEntryUsable` strictly rejects *and evicts*. So refresh can never succeed
+>    after expiry → no recovery → every plugin/proxy call 401s (player-join, metrics, networks, SSE…).
+>    Fix (controller, `WorkloadIdentityRegistry` + `WorkloadAuthFilter`): a **refresh grace window**
+>    (= token TTL). Normal calls stay strict (expired = 401) but the entry is NOT evicted within grace;
+>    the `/auth/refresh` path (`isEntryRefreshable`) accepts a within-grace-expired token to bootstrap a
+>    fresh one, and the auth before-filter skips `/auth/refresh` so it reaches that handler. Also covers
+>    HA-failover gaps. Unit-tested; **deployed + live.** Cosmetic follow-up: add *proactive* refresh in
+>    the plugin so it never lapses (eliminates the one 401-warn-then-recover per TTL cycle).
+> 10. **Terminal instances (STOPPED/CRASHED) linger forever across a controller restart.** The reaper
+>    (`InstanceLifecycleManager`, removes STOPPED after 60s / CRASHED after 300s) is event-driven +
+>    in-memory: on restart the pending timers are lost and hydrated-terminal instances never fire the
+>    transition event, so they're never re-queued → they accumulate (cosmetic clutter; matters for HA
+>    leader failover). Fix: a startup `sweepHydratedTerminalInstances()` re-queues removal for any
+>    already-terminal instance (the scheduled task re-checks state at fire time, so a reconnect-revived
+>    instance is left alone). Deployed + verified live (the leftover rows reaped after 60s).
+> 11. **Proxy instances show 0 players / 0s uptime forever in `instance list`.** The server (Paper)
+>    metrics path calls `ClusterState.updateInstanceStatus`, which writes the live player count +
+>    uptime into the `InstanceInfo` the instance list reads; the proxy metrics path
+>    (`updateProxyMetrics`) only stashed a `ProxyMetrics` side-record and never touched the
+>    `InstanceInfo`, so every proxy stayed frozen at its initial `0 players / 0s`. Fix: `updateProxyMetrics`
+>    now also calls `updateInstanceStatus` (state preserved) with `totalNetworkPlayers` +
+>    `proxyUptimeMs`. Deployed + verified live (edge uptime now tracks the proxy's real JVM uptime and
+>    advances each 30s metrics cycle).
+> 12. **Crashes never reach the queryable store → dashboard Crashes page always empty.**
+>    `DaemonCrashEventReceiver.handleCrashReport` detected + logged the crash and wrote it to the
+>    in-memory `CrashStore` ring buffer, but the REST read path (`/api/v1/crashes`, trends, detail)
+>    reads from the `StateStore` (Mongo). `StateStore.saveCrash` existed but was **dead code** — never
+>    called — so nothing ever landed in Mongo (and crashes were lost on restart / invisible to other HA
+>    controllers). Fix: inject `StateStore` into the receiver and `saveCrash(record)` right after the
+>    ring-buffer add (best-effort, wrapped). Clears pre-existing follow-up (a). Deployed; pending live
+>    verification on the upcoming `kill -9` step.
+> 13. **Controller/daemon `logs/*.log` files are always empty (no on-disk logs).** `LoggingSetup.configure()`
+>    calls `context.reset()` (to override `logback.xml` programmatically) which wipes the XML-declared
+>    `FILE` RollingFileAppender; only a CONSOLE appender was re-attached, so the configured log file was
+>    created but never written. (The in-memory ring buffer that powers `/api/v1/system/logs` survives
+>    because it's re-attached programmatically after the reset — that's why the API had logs but the file
+>    didn't.) Fix: `LoggingSetup.configure(config, componentName)` now rebuilds a rolling
+>    `<log-dir>/<component>.log` appender programmatically (50MB×30, 500MB cap; `-Dprexorcloud.log.dir`
+>    override); controller + daemon bootstraps pass `"controller"`/`"daemon"`; logback.xml trimmed to a
+>    console-only bootstrap. **Controller deployed + verified live** (`controller.log` now fills and rolls).
+>    Daemon jar built; redeploy deferred (a daemon restart gracefully stops running instances — user's call).
+> 14. **ADMIN (and every role) silently misses any permission added after first boot → 403s (e.g. can't
+>    view controller/daemon logs).** `MongoRoleStore.ensureDefaults()` seeded `defaults/roles.yml`
+>    **only when the roles collection was empty**, and a stored role doc shadows the reflective
+>    `Role.ALL_PERMISSIONS`. So the fleet's ADMIN doc was frozen at its original 41-permission seed and
+>    never gained `system.logs.view`, `share.*`, `events.view`, … (9 missing) — defeating the whole point
+>    of the reflective bundle. This was a *general* RBAC drift bug, not log-specific. Fix: built-in role
+>    definitions are now code-authoritative (`Role.builtInDefaults()`), and `ensureDefaults()` **reconciles
+>    (upserts) the built-in roles on every startup** instead of seed-if-empty (custom roles untouched).
+>    Deployed + verified live: ADMIN doc went 41 → 50 perms, `logs controller`/`daemon`/`instance` all
+>    return 200 (were 403/404). Code-authoritative built-ins also retire the drift-prone `defaults/roles.yml`.
+> 15. **Crash-heal deletes the healed instance's live working directory (dir-cleanup race on id reuse).**
+>    `ProcessManager.onProcessExited` schedules `deleteInstanceDir(group, id)` after a delay; the
+>    scheduler heals the crash by reusing the **same instance id + dir path**, so when the delayed
+>    cleanup fires it deletes the dir the *new* live process is running in → its cwd goes `(deleted)`
+>    (world saves land on a dead inode; console-history / file-access / template re-materialization
+>    break). Found via the 2D `kill -9` check: a never-crashed `edge-2` had a real cwd, the crash-healed
+>    `survival-lobby-1` had a `(deleted)` cwd. Fix (daemon, `deleteInstanceDir`): skip the delete when
+>    `processes.containsKey(instanceId)` (the id is running again). Deployed + **verified live** — re-killed
+>    a healed instance, waited past the cleanup delay, cwd stayed real and the daemon logged
+>    `Skipping stale cleanup … instance is running again`.
+> 16. **Cross-node proxy routing broken — "No servers available" / proxy dials a stale backend address.**
+>    Found live 2026-06-14 (user couldn't join when `edge` and `survival-lobby` were on different nodes).
+>    The Velocity log was explicit: `Routing PrexorDev to survival-lobby-1 … unable to connect … Connection
+>    refused: /10.0.0.4:30001` — the proxy dialed the backend's OLD node:port. Root cause in the shared
+>    proxy plugin (`AbstractProxyCloudPlugin`): the state-cache sync only (re)registered ids in
+>    `added`/`becameRunning`, and `registerBackend` just calls Velocity `registerServer` (which won't
+>    update a registered server's address in place). So when an instance keeps its id but moves node:port
+>    (drain-migrate / crash-heal / affinity reschedule), the proxy never refreshes the registration and
+>    keeps dialing the dead address. Fix: the listener now **reconciles every RUNNING backend to its
+>    current `nodeAddress:port`** (tracked in a `registeredBackends` map) and unregisters-then-registers on
+>    a move; applies to all proxy types (velocity/bungee/geyser) via the shared base. Rebuilt → bundled in
+>    the controller → **`base-velocity` template regenerated** (delete the Mongo doc **AND** the on-disk
+>    `templates/base-velocity/files/` dir, else it just re-hashes the stale files) → edge proxy recreated.
+>    **Verified live:** with `edge` on node-frankenstein-1 and `survival-lobby-2` on node-fra-2, the proxy
+>    now logs `Registered backend server: survival-lobby-2 -> 10.0.0.5:30000` (correct cross-node address).
+> 9. **Backends are NOT directly joinable — by design** (not a bug, a UX decision). `ServerConfigPatcher`
+>    unconditionally forces Velocity forwarding + `online-mode=false` on every Paper/Spigot backend, so
+>    a direct join to `node:30000` is refused ("connect with Velocity") — you must go through a proxy +
+>    Network (what we did). Candidate change captured in `post-v1-platform-redesign.md` §2 (zero-config
+>    direct-join). For this test, the proxy path is the intended flow.
+> 6. **Paper crashes ~40s in (exit 134 / SIGABRT)** — *not a PrexorCloud bug*: bundled **spark**
+>    auto-starts an async-profiler whose native lib SIGSEGVs on this kernel (Ubuntu 26.04 / 7.0,
+>    `perf_event_paranoid=4`; relaxing the sysctl did NOT help). `BaseTemplateGenerator` now writes
+>    `plugins/spark/config.json` with `backgroundProfiler: false` for `paper`-format templates. The
+>    pre-existing `base-paper` template had to be regenerated (Mongo-backed `templates` collection;
+>    deleted the doc + restarted). Verified: server reaches `Done!` and stays up; instance `RUNNING`.
+>
+> **Open follow-ups noticed during 2D/3B (not blocking):** (a) ~~`/api/v1/crashes` stays empty~~
+> **FIXED — see bug #12** (`saveCrash` was dead code; now wired into `handleCrashReport`).
+> (b) Template-watcher `rehash` throws `NoClassDefFoundError com/mongodb/client/
+> TransactionBody` on file-change (latent; class IS in the shaded jar — runtime linkage quirk).
+> (c) 2D prose flag drift: the real flag is `--platform-version`, not `--version`. (d) Controller
+> returns **500 (not 400) on malformed/unknown-field JSON** — hit twice (CLI `portRange`, and a
+> newline pasted into the network `kickMessage`); Jackson parse errors should map to 400. (e) Replay
+> sequence uses a single global `AtomicLong` across concurrent requests vs a strictly-monotonic Redis
+> check, so concurrent sequenced calls occasionally 401 out-of-order — now self-heals via the #8
+> refresh-retry, but a sliding-window or per-endpoint sequence would be cleaner. (f) Bigger
+> product/UX direction (catalog ships filled, zero-config direct-join, `prexorctl network`/`apply`,
+> GitHub org migration, monorepo decoupling) is captured in `docs/engineering/post-v1-platform-redesign.md`.
+> (g) **Scheduler desync under crash-reschedule churn — ROOT CAUSE FOUND (fix needs a repro).** Trigger:
+> a new group whose instance crash-looped onto a conflicting port, + a group delete, + rapid daemon
+> restarts, left the daemon holding **duplicate/orphan MC processes** and every instance stuck `SCHEDULED`
+> (recovered only via hard daemon stop→`pkill`→start). **Mechanism:** when churn bumps an *already-running*
+> instance back to `SCHEDULED` and the controller reassigns it a new port, the daemon (`ProcessManager.startInstance`)
+> finds it in `processes` and acks `INSTANCE_ALREADY_RUNNING / PERMANENT` (on its *old* port).
+> `DaemonCommandAckHandler.handleStartInstanceAck` (l.64–75) treats that as an "idempotent replay" — clears
+> the retry budget and **returns WITHOUT reconciling state** — so the instance sits in `SCHEDULED` forever
+> even though the daemon is running it. Fix candidates (need a clean repro, ideally multi-node, to verify):
+> (1) on `INSTANCE_ALREADY_RUNNING`, the controller should reconcile to the daemon's actual state rather
+> than leave it limbo — but NOT blindly force `RUNNING` (the daemon enters `processes` at spawn, before
+> plugin-ready); query/trust the daemon's reported instance state; (2) upstream, don't reassign a port to
+> an instance that's already running; (3) daemon should reconcile its process map to the controller's
+> desired (id,port) set on handshake. NOT patched live (touches the core state machine; too risky to
+> blind-fix on the single-node fleet mid-test). (h) Minor: deleting a group leaves its auto-created
+> `<group>` group-template orphaned.
+> (j) **Proxy stuck in a plugin-token-refresh 401 loop → frozen backend list (found 3B, 2026-06-14).** A
+> heavily-churned/reused proxy instance id (`edge-1`, rescheduled+moved many times) wedged into an endless
+> `Plugin token refresh failed: HTTP 401` loop (20k+ in ~1h) — **isolated to the proxy**; both
+> `survival-lobby` backends had **zero** 401s. The dead token kills BOTH the SSE state stream *and* the
+> poll fallback (they share the token), so the proxy's backend map froze on stale data: it had only
+> `survival-lobby-2` and never learned about `survival-lobby-1` (RUNNING 3.6 min) → `/server` showed one
+> server → no failover target. **Recovered by restarting the proxy** (fresh token → re-synced → registered
+> both backends). Root cause is the #5/#8 token-lifecycle for reused/moved ids, likely aggravated by the
+> ctrl-1 Raft re-bootstrap; needs a proper repro + fix (the proxy should re-establish identity on
+> persistent 401 rather than loop forever). (k) **`CloudStateCache` poll fallback only covers a *down*
+> stream, not a lossy/blocked one.** `refreshIfStreamInactive` runs the 5s poll only when the SSE stream is
+> inactive; a connected-but-lossy stream (or a dead token blocking both) never gets reconciled. Add a
+> periodic full reconcile as a backstop regardless of stream state, and treat repeated token-401 as a
+> reason to re-bootstrap identity.
+> (i) **Part 8 HA — root cause re-diagnosed and FIXED (branch `ha-enablement`).** Earlier note claimed
+> `RaftBootstrap` couldn't split bind from advertise; that was **wrong** against the Ratis 3.1.3 source.
+> The gRPC server already binds wildcard `0.0.0.0` (`GrpcConfigKeys.Server.host` defaults null; bootstrap
+> only sets the port), and `raft.host` is used on exactly one line — to build the *advertised* peer address.
+> Bind and advertise are already decoupled; no `advertisedHost` field needed. The default `raft.host:
+> "0.0.0.0"` poisons only the *advertised* address. `ctrl-1`'s member is stored at `0.0.0.0:9190` in the
+> Raft state machine, and the real blocker was that nothing migrated it: `ensureSelfMember()` early-returned
+> on restart, so changing `raft.host` alone never re-advertised. **Fix shipped:** (1) `ensureSelfMember()`
+> self-heals — when the stored `raftAddr` ≠ the configured advertised address it re-stamps the member
+> (`applyAddMember` is an upsert), and the commit wakes the reconciler → leader re-runs `setConfiguration`
+> so the live group + join responses carry the new address; (2) `awaitKnownLeader()` replaces the self-only
+> `awaitLeader()` on the bring-up path so a follower restart doesn't hang waiting to lead itself;
+> (3) docs/config corrected (advertise vs bind), HA networking guidance (host networking, routable
+> `raft.host`). Verified by `ClusterControlServiceTest.restartSelfHealsAdvertisedAddress` (single-node
+> leader rewrites its own address and keeps serving). **Live rollout still pending:** roll the new
+> controller image to `ctrl-1`, set `raft.host=10.0.0.3` (host networking), restart, confirm self-heal,
+> then join `ctrl-2/3` per `upgrade-v1.0-to-v1.1.md` Step 2. Found + fixed 2026-06-14.
+> **⚠ LIVE ROLLOUT BLOCKED — Raft cert SAN gap (found 2026-06-14 attempting the rollout).** Deployed the
+> ha-enablement controller jar to `ctrl-1` + `raft.host=10.0.0.3` (+ bridge-published `10.0.0.3:9190:9190`)
+> and it **crash-loops on boot**: `CertificateException: No subject alternative names matching IP address
+> 10.0.0.3 found`. The Member record self-heals (advertised addr → 10.0.0.3), but the node's **Day-0
+> cluster-CA leaf cert** (`config/security/cluster/`) was minted with SANs for the *original* advertised
+> address (`0.0.0.0`/loopback), so the Raft mTLS handshake to the new address fails. The unit test
+> (`restartSelfHealsAdvertisedAddress`) doesn't exercise real Raft mTLS, so it missed this. **The self-heal
+> must also re-mint (or SAN-extend) the cluster leaf cert when `raft.host` changes** — same class as the
+> earlier gRPC loopback-SAN fix. Rolled back to `raft.host=0.0.0.0` (control plane was down ~2 min); fleet
+> healthy again. HA live test deferred to the `ha-enablement` session until the cert re-mint lands.
+> **⚡ LIVE HA BRING-UP — got much further (2026-06-14, user OK'd a clean slate).** Instead of a full wipe,
+> **surgically re-bootstrapped ctrl-1's Raft Day-0** with the correct `raft.host`: stop controller, `rm -rf
+> data/raft config/security/cluster`, set `raft.host=10.0.0.3`, bridge-publish `10.0.0.3:9190:9190`, start →
+> fresh cluster (`66d34e64…`), member advertising **`10.0.0.3:9190`**, **correct cert SAN** (no crash), daemons
+> reconnected, business data + player session intact. *This sidesteps the cert-SAN gap without a wipe.* Then
+> provisioned **ctrl-2** (cx33, native systemd / host-networking, `10.0.0.6`, shared Mongo/Valkey/jwtSecret +
+> copied daemon-CA + forwarding.secret, its own gRPC SAN). To issue a join token: `cluster.manage` is
+> excluded from default ADMIN — created a `CLUSTER_OPS` role (ADMIN perms + `cluster.manage/view/config.write`)
+> + `clusterops` user, logged in, issued the token. ctrl-2 join then surfaced **3 more bugs in the join path,
+> all in `ha-enablement` code** — fixed the first two: (1) `ClusterJoinFlow.insecureChannelTo` used
+> `forTarget("host:port")` → shaded-jar unix-resolver mis-parse → switched to `forAddress(new
+> InetSocketAddress(...))` (the SocketAddress overload bypasses the registry); (2) the controller never
+> registered the `pick_first` LB + DNS resolver providers (shaded jar drops the service files) → added
+> `registerGrpcProviders()` to `PrexorCloudBootstrap.main` (same as the daemon). **(3) REMAINING BLOCKER:**
+> the join handshake then reaches TLS and fails `TLSV1_ALERT_CERTIFICATE_REQUIRED` — `ClusterMembership.RequestJoin`
+> is served on the Raft port (9190) which requires cluster mTLS, but the joiner has no cert yet (it's meant to
+> obtain one *via* the join). The bootstrap join endpoint must allow no/ephemeral client cert (or be a
+> separate listener). Left for the HA session — I won't change their Raft TLS config blind. ctrl-2 is
+> provisioned + `pending-join-token` staged (service stopped) so a retry is one fix away. ctrl-1 still runs
+> the HA jar **without** fixes (1)/(2) (it's the seed, doesn't initiate joins); redeploy the final jar to all
+> controllers once (3) lands.
+>
+> **Patched binaries deployed to the fleet but NOT committed** (working tree only; see below): ctrl-1
+> controller jar + `prexorctl`; node-frankenstein-1 daemon jar.
+>
+> **Uncommitted fix batch (working tree — must be committed before this is "done"):**
+> - **v1.0.1 bugs found live:** daemon gRPC fell back to the `unix` name-resolver (shaded jar drops
+>   grpc-core `META-INF/services`) → direct `InetSocketAddress` + explicit `pick_first`/DNS provider
+>   registration; controller gRPC server cert had **loopback-only SANs** → new `grpc.subjectAltNames`
+>   config + local-IP auto-detect (`PrexorCloudBootstrap.serverCertSans`); `DialTCPFromURI` URI parse;
+>   blank-`uuid` controller crash; Raft/Mongo/Lettuce log spam quieted; CLI `node list` showed `-`
+>   (read `nodeId`, API sends `id`). Plus the 3 findings listed above.
+> - **v1.1 CLI features added reactively:** `prexorctl catalog` command; shell completions (dynamic,
+>   with descriptions) + auto-install in `install.sh`; interactive arg-pickers across resource
+>   commands; NoFileComp fix; install-wizard "start on boot / start now" prompts (CLI **and** browser);
+>   `prexorctl group scale <name> <n>` (the plan's 2D step assumed it existed but only `group update
+>   --min/--max` did — `scale` sets the `minInstances` floor and raises `maxInstances` to match if
+>   lower, so it pins STATIC/MANUAL and sets the floor for DYNAMIC). Deployed to `ctrl-1`.
+>   `prexorctl logs` reworked into the unified, `group info`-style log viewer: bare `logs` opens an
+>   interactive picker (Controller / Daemon / Instance / All), `logs instance [id]` (NEW, picker) tails
+>   a server/proxy console, `logs all [--group/--node]` (NEW) fans out a merged live tail of every
+>   instance with per-instance colored prefixes, `logs daemon [node]` gained a node picker, plus `-f`/`-n`
+>   short flags. Deployed to `ctrl-1`.
+>   `prexorctl stop` reworked from local-systemd-only into a fleet-wide service-stop: `stop local` (now
+>   **Docker-Compose-aware** — detects `docker-compose.yml` in the controller/daemon install dirs and runs
+>   `docker compose stop`, else falls back to `systemctl stop`), `stop node [id]` (NEW — immediate daemon
+>   stop via control plane), `stop controller`
+>   (NEW — stops the connected controller); bare `stop` = interactive picker in a TTY, local fallback in
+>   scripts; `-y/--yes` + non-TTY confirm guard. Backend: new `POST /api/v1/nodes/{id}/shutdown`
+>   (sends `ShutdownNode` directly, `nodes.shutdown` perm, ADMIN-only) and `POST /api/v1/system/shutdown`
+>   (202 then `System.exit(0)` after a flush grace, `system.shutdown` perm, ADMIN-only). Built; **not yet
+>   deployed** (needs a controller restart). Caveat: a restart-always supervisor (Docker
+>   `restart: unless-stopped`) will bring the controller back — stop the container/unit for a permanent stop.
+> - **Deferred:** ratis-grpc `ClassNotFoundException` at controller startup (non-fatal, leader elects);
+>   a full **CLI redesign** is planned for after this acceptance test completes.
 
 ---
 
-## ⏱️ Aktueller Stand — wo wir gerade stehen (Stand 2026-06-07)
+## Part 0 — Lab setup
 
-**Gesamt ≈ 89 % (eng-day-gewichtet).** Milestones: **v1.1 ≈ 100 %** (A.8 Config-History-UI geshippt) · **v1.2 ≈ 90 %** (C+D fertig; E ≈ 90 %, Rest visuell/Browser-bound) · **v1.3 ≈ 65 %** (F.1/F.2/F.3 alle code-complete inkl. Geyser-Daemon-Provisioning, nur Laufzeit-Verifikation offen; H ≈ 88 %) · **v1.4 (Docs, Track I) ≈ 90 %** (I.0/I.1/I.2/I.3 geliefert: `docs/public/` als englischsprachige End-User-+Dev-Doku neu geschrieben, DOCS_STYLE + README-Template + alle 16 READMEs + 33 ADRs + 16 Runbooks; offen nur I.4 Visual-Polish + Dead-Link-Gate).
+You need real machines. Minimum to exercise everything:
 
-**Track-Stand:** A 100 % · B 100 % · C ~97 % · D ~96 % · E ~90 % · F ~88 % · G 100 % · H ~88 % · I ~90 %.
+- [ ] **3 VPS for controllers** (`ctrl-1`, `ctrl-2`, `ctrl-3`) — for the HA quorum (Part 8). 2 vCPU / 4 GB each is enough. Same region / low latency (Raft assumes it).
+- [ ] **2+ VPS for daemons** (`node-fra-1`, `node-fra-2`) — separate from controllers, to prove cross-host scheduling (Part 9).
+- [ ] **1 shared MongoDB + 1 Valkey/Redis** reachable from all controllers (or the Compose stack on `ctrl-1` for the single-host parts). Production HA needs them external and shared.
+- [ ] **Java 25** on every controller and daemon host (`temurin-25-jdk`); the `--enable-preview` flags the Dockerfiles use.
+- [ ] **`prexorctl`** installed on your workstation (the signed release binary, or `cd cli && make build`).
+- [ ] **A Minecraft Java client** (1.20 and 1.21) and a **Minecraft Bedrock Edition client** (phone/console/Win10) for the routing tests.
+- [ ] **Server jars/mods staged** in your catalog: Paper 1.20 + 1.21, Folia, Spigot, Velocity, BungeeCord, a Fabric 1.21.1 server, a NeoForge 21.1.233 server, the Geyser standalone jar.
+- [ ] **A tracing backend** (Jaeger all-in-one is fine: `docker run -d -p16686:16686 -p4317:4317 jaegertracing/all-in-one`) for Part 6.
+- [ ] **An SMTP sink** (MailHog: `docker run -d -p1025:1025 -p8025:8025 mailhog/mailhog`) for the password-reset test.
 
-> **Status-Korrektur (2026-06-08):** Eine frühere Fassung dieses Headers bezifferte Track I auf 8 %. Das war veraltet — der Audit gegen den Ist-Stand zeigt `docs/public/` vollständig neu geschrieben (englisch, task-first, 193 Seiten), DOCS_STYLE/Template/READMEs/ADRs/Runbooks alle geliefert. Offen ist nur noch I.4 (siehe §9b).
-
-**Was zum „fertig" noch fehlt (Stand 2026-06-08):** fast nur noch **Laufzeit-/Infra-Verifikation** (F.1/F.2/F.3 echte MC-Server + Bedrock-Client; H.1 Scheduler-p99 @100 Groups auf Mongo; H.1 Perf-Trend über 60 d; H.2 axe ≥95 mit CI-Test-Login; C.1 Registry-Hosting). Genuin offene Implementierung ist nur dünner Polish: E-P2 Installer-CSS-Dedup + E-P3 Website-Theme-Wiring (beide visuell zu verifizieren) + Track I.4 (Visual-/Dead-Link-Polish; I.1–I.3 sind geliefert). Bewusst out-of-scope: D.1 gRPC-Auto-Instrumentation.
-
-**Zuletzt geliefert (Session 2026-06-07):**
-- **F.1 Edition-bewusstes Bedrock-Routing.** `NetworkComposition` bekommt optionale `bedrockLobbyGroup` + `bedrockFallbackGroups` (leer ⇒ Bedrock folgt der Java-Route); `PlayerEdition` nach `cloud-api` gezogen, damit Controller **und** Proxy denselben UUID-Detektor teilen. `NetworkRouter.joinTargetGroup(edition)` / `fallbackChain(exclude, edition)` lösen pro Edition auf; Velocity- + Bungee-Listener leiten die Edition aus der Spieler-UUID ab (Initial-Join + Failover). Cross-Reference-Validierung im `NetworkManager`, Dashboard-Editor-Sektion (i18n en+de), OpenAPI + SDK-Typen regeneriert. Tests: `NetworkComposition`, `NetworkRouter` (7 Bedrock-Fälle), `NetworkManager`, `PlayerEdition`, `NetworkDialog` (3 neu).
-- **F.1 `cloud-plugins:proxy:geyser`-Sidecar (code-complete).** Echte Geyser-Extension (`AbstractProxyCloudPlugin`-Lifecycle), kompiliert gegen `geyser-api 2.10.0-SNAPSHOT`. `player-join` trägt jetzt optional ein authoritatives `edition` — der Sidecar meldet `bedrock` explizit und schließt die Standalone-Geyser-Sichtbarkeitslücke; `PlayerSessionRegistry` honoriert es (getestet). **Offen:** Daemon-Provisioning + Extension-Install in Geyser, Operator-Catalog-`GEYSER`-Eintrag, Laufzeit-Verifikation.
-- **F.2 `cloud-plugins:server:fabric` (runnable).** Loom-Fabric-Server-Mod (MC 1.21.1), die `server:shared` + Closure in die remappte Mod-Jar shadet — läuft jetzt standalone (nur Laufzeit-Verifikation offen).
-- **F.3 `cloud-plugins:server:neoforge` (runnable).** ModDevGradle-NeoForge-Server-Mod (MC 1.21.1, NeoForge 21.1.233), `@Mod` über NeoForges Game-Event-Bus, **gleiches** `ServerControllerClient`/`InstanceMetricsPayload` wie Fabric/Bukkit; MC-API unter Mojang-Mappings `javap`-verifiziert. Geshadete `PrexorCloudNeoForge.jar` (~3,2 MB) ohne slf4j/logback/Minecraft-Leak; schließt zusammen mit F.2 beide großen 1.21-Modloader ab. → Track F ≈ 50 %.
-- ⚠️ **Repo-Hygiene-Fund:** ein komplett verwaister Parallelbaum `java/cloud-plugins/cloud-plugins-{internal,proxy,server}/…` (Stand v1.0, **nicht** in `settings.gradle.kts`, baut nie) dupliziert die echten Module unter den Kurznamen. Nicht angefasst (Out-of-Scope), aber löschreif — siehe B-Reste.
-
-**Zuletzt geliefert (Session 2026-06-06):**
-- **E-P1.1 authed-Flow-axe als harter Gate — v1.2-A11y-Kriterium erfüllt.** Der Scan war ein stiller False-Green (dev-mock kompilierte aus → 0/16 Routen gescannt, „grün"). Drei Infra-Bugs gefixt (dev-mock `vite.define`-Bridge, `pnpm build` auf `main` durch stale SDK-Types kaputt, CI-axe-Install scheiterte an `workspace:*`), dann den realen Backlog abgearbeitet: `<html lang>`, Audit-Scroll-Region, Neutral-Text-Kontraste, und 5 sub-AA-Accents abgedunkelt. **0 serious/critical über alle 16 authed-Routen**, CI-Gate ist jetzt **hart**. Track E ≈ 75 %.
-
-**Zuletzt geliefert (Session 2026-06-05, Teil 2):**
-- **F.1 Bedrock-vs-Java-Spieler-Sichtbarkeit** — Controller leitet pro Spieler eine `edition` aus der UUID ab (Floodgate-Konvention, kein Plugin-Change); Dashboard zeigt den Java/Bedrock-Split (Stat-Card, Detail-Zeile, Bedrock-Badge). `PlayerEditionTest` + Mapper/Store-Tests; OpenAPI + i18n en/de in sync. Routing-Verhalten + Geyser-Proxy bleiben offen. → erster Anstoß für Track F.
-- **D.1 MongoDB-OTel-Instrumentation** — `MongoCommandTracer` (CommandListener) emittiert pro Mongo-Command eine CLIENT-Span unter der auslösenden HTTP-/Domain-Span; auf `MongoClientSettings` registriert, null-Overhead wenn Telemetry aus. `MongoCommandTracerTest` (5).
-- **D.1 Redis/Lettuce-OTel-Instrumentation** — `RedisTracing` adaptiert Lettuces native Tracing-SPI auf OTel; nur bei `telemetry.enabled` auf `ClientResources` installiert, Command-Args ausgeschlossen. Telemetry-Bau nach vorn gezogen (vor Redis-Connect). `RedisTracingTest` (3). → D.1 nur noch gRPC offen (Javaagent-Domäne).
-- **D.3 MC-Plugin→Controller-Trace-Hop (SDK-frei)** — `W3CTraceparent` mintet pro Plugin-Request einen gesampleten `traceparent`; Controller continued die Trace. `W3CTraceparentTest` (3). → D.3 komplett (bis auf aufgezeichnete Plugin-Span, die ein Plugin-SDK bräuchte).
-- **C.5 backup-orchestrator periodische Snapshots** — `BackupSchedule` (env-getrieben) + `scheduleAtFixedRate` in `onStart`; opt-in via `PREXORCLOUD_BACKUP_INTERVAL_MINUTES`+`PREXORCLOUD_BACKUP_TARGETS`, sonst REST-only. `BackupScheduleTest` (6).
-- **C.4 Scaffolder: Scaffolds durchgängig baubar + Bedrock-Target + `--no-rest`** — Manifest + `build.gradle.kts`-`extensionArtifacts` + `settings`-Includes werden in Lockstep auf die Auswahl geprunt; `bedrock-geyser` ist jetzt erstklassiges Target (Default = 4 Plattformen wie das `example`); `--no-rest` löscht `rest/` + `onRegisterRoutes`-Override. End-to-end gradle-verifiziert (Default/3-/2-Target-Scaffolds bestehen `preparePlatformManifest`). Go-Tests `TestPruneExtensionsBlock`/`TestPruneExtensionArtifacts`/`TestStripOnRegisterRoutes` u.a.
-
-**Zuletzt geliefert (Session 2026-06-05):**
-- **A.8 Config-Version-History/Diff-UI** — neue Dashboard-Seite `/cluster/config` (Versionsverlauf + `DiffViewer` patch-vs-parent + Rollback-Dialog), Nav-Eintrag, Store-Actions, i18n en+de, 8 neue Store-Tests. Reine Frontend-Verdrahtung (Backend war schon da). → **v1.1 komplett.**
-- **H.1 Audit-Log-Keyset-Pagination** — `getAuditLogSeek(cursor,limit)` (Range-Scan über `_id`, kein `skip`), REST-`?cursor=`-Pfad + `nextCursor`, Dashboard-Audit-Seite auf Cursor-Stack migriert. Legacy-Offset-Pfad bleibt. Harness + Vitest-Tests grün; pre-existing Harness-Compile-Break (`TestCluster`/`TelemetryDaemonConfig`) nebenbei gefixt.
-
-**Zuvor (Session 2026-06-03):**
-- **H.3 Dashboard-i18n vollständig** — alle 104 Rest-Hardcode-Strings extrahiert (Batches 20–22), `i18n:check-hardcoded` jetzt **harter** CI-Gate (2072 Keys, en+de).
-- **H.2 statische A11y** — `a11y-lint.mjs` (harter Gate) + 26 Icon-only-Controls mit `aria-label` benannt; **Runtime-axe-Job** (soft) gegen Login-Oberfläche.
-- **Track A Loose Ends** — `/cluster/leases`-Endpoint, `cluster.member.joined`-Audit, tote `ClusterJoinRoutes` entfernt.
-
-**👉 Hier weitermachen:** v1.1 ist vollständig, A.8 + H.1-Pagination durch. Was bleibt, sitzt in den zwei großen Tracks plus H-Resten:
-- **Track E** (~12 d) — Frontend-Konsolidierung + A11y-**Runtime**-Härtung (authed-Flow-axe mit Test-Login, Voll-Contrast-Audit, Keyboard-Nav).
-- **Track F** (~15 d) — Bedrock/Fabric/Forge, echte neue Subsysteme (kein Batch-Job).
-- H-Reste: H.1 Perf-Trend-Review + Scheduler-Tick-Profiling; H.2 Runtime-axe über authed-Flows.
-- **Track E ist gescopet** (4 Phasen, ~13–14 d; der separate `track-e-plan.md` ist beim Docs-Cleanup in diesen Plan gefaltet). Empfohlener Einstieg **E-P1.1** — authed-Flow-axe via dem schon existierenden `dev-mock`-Layer (billigster Weg zum v1.2-A11y-Gate „Lighthouse ≥ 90").
+Reference docs you'll lean on (all under the published site): Getting started, Operations → HA setup,
+Guides → Bedrock with Geyser, Operations → Monitoring, and the runbooks under `docs/runbooks/`.
 
 ---
 
-## 0. Nordstern — was „bestes MC-Cloud-System" konkret bedeutet
+## Part 0B — Production infrastructure & hosting to provision
 
-Die Marketing-Aussage ist sinnlos, wenn man nicht definiert, woran man sich messen lässt. PrexorCloud will in folgenden **acht Dimensionen** das Beste sein, was der Minecraft-Cloud-Markt bietet (Vergleichsgegner: CloudNet 4, SimpleCloud v3, ReformCloud, Aves Cloud):
+These are **setup deliverables you own**, not feature tests — and several are **prerequisites** for the
+tests below (you can't test registry-install without a hosted registry, can't provision a server without
+catalog URLs, can't route Bedrock without a Floodgate key). Stand these up first.
 
-| Dimension | Heutiger Stand | Ziel v1.3 | Gewicht |
-|---|---|---|---|
-| **HA / Cluster-Konsistenz** | 4/10 (Single-Controller + Mongo-Hack) | 9/10 (Raft-Quorum, strong consistency) | 20 % |
-| **Supply-Chain-Security** | 9/10 (cosign + Rekor + mTLS) | 10/10 (+ SBOM-Diffs, automated CVE-Gate) | 15 % |
-| **Observability / Ops** | 8/10 (Perf-Baseline + DR-Drill) | 10/10 (+ OpenTelemetry, distributed tracing) | 15 % |
-| **Modul-Ökosystem** | 7.5/10 (Capability-API, First-Party-Module) | 10/10 (+ Registry, Sandbox, Resource-Limits) | 15 % |
-| **Dev-Experience (SDK, CLI)** | 8/10 (OpenAPI-getrieben) | 9.5/10 (+ language-SDKs, Module-Scaffolder) | 10 % |
-| **MC-Plattform-Breite** | 7/10 (Paper, Folia, Velocity, BC, Bedrock via Geyser) | 9/10 (+ first-class Bedrock-Routing, Fabric, Forge) | 10 % |
-| **UX / Dashboard** | 7/10 (Vue/Nuxt) | 9/10 (Design-System voll integriert, A11y, i18n) | 10 % |
-| **Repo-Hygiene / Onboarding** | 6/10 (Sediment, READMEs fehlen) | 9/10 (sauber, dokumentiert, lehrbar) | 5 % |
+### Domains, DNS, TLS, firewall
 
-**Gewichteter heutiger Gesamtwert: ~7.8/10. Zielwert v1.3: ~9.5/10.**
+- [ ] **DNS** — point records for: the controller's public host, the dashboard origin, `prexor.cloud` (docs/website), and `registry.prexorcloud.dev`.
+- [ ] **TLS termination** — the controller's HTTP edge is **plaintext on purpose**; front it with Caddy / nginx / Traefik + Let's Encrypt. Set `http.cors.allowedOrigins` to the real dashboard origin.
+- [ ] **Firewall** — expose only the reverse-proxy port publicly. Keep `/metrics` (no auth!), gRPC `:9090`, and Raft `:9190` on trusted networks; tighten `network.allowedSubnets` to your daemon/controller ranges.
 
-Alles weitere im Plan ist auf diese Skala kalibriert: kein Feature, das nicht messbar einen dieser Werte hebt, wird priorisiert.
+### The module registry (`registry.prexorcloud.dev`) — the one you flagged
 
----
+Backend + CLI + dashboard UI are shipped; **hosting + content is yours to set up** (ADR 31).
 
-## 1. Strategische Reihenfolge — warum nicht parallel alles
+- [ ] **Decide + stand up the host** — static index on GitHub Pages or S3 (no server needed).
+- [ ] **Build + sign the first-party modules** — cosign keyless (OIDC); publish each module jar **plus** its cosign signature bundle to a stable URL.
+- [ ] **Author the index JSON** — per module: `moduleId`, `version`, `jarUrl`, `sha256`, `cosignBundleUrl`, `manifestUrl`, `compatibleControllerVersions`, `tags`, `readme`, `provides`. Publish it at the registry URL.
+- [ ] **Wire the controller** — set `modules.registries` to the index URL; configure the controller's signing **trust root** to accept your cosign identity.
+- [ ] **Verify end-to-end** — `prexorctl module search` lists your modules and `module install` pulls + verifies one. *(This unblocks Part 5A against real modules instead of local jars.)*
 
-Die Phasenreihenfolge folgt drei Regeln:
+### Catalog (server/proxy downloads) — ships empty
 
-1. **Ohne HA ist alles andere Lippenbekenntnis.** Solange v3-Raft nicht fertig ist, ist „bestes Cluster-System" eine Lüge. Track A geht voraus.
-2. **Hygiene vor Erweiterung.** Tote Verzeichnisse und unverdrahteter Scaffolding-Code müssen weg, bevor neue Subsysteme dazukommen — sonst potenzieren sich die Reib-Punkte für Contributors.
-3. **Ökosystem-Features bauen auf stabilem Kern auf.** Module-Sandboxing und -Registry brauchen die Raft-basierte Trust-Root-Verteilung als Fundament.
+- [ ] **Populate `config/catalog.yml`** (or the catalog REST) with real `downloadUrl` + `sha256` for every platform you'll run: Paper 1.20/1.21, Folia, Spigot, Velocity, BungeeCord, and the **Geyser standalone jar** (its real URL lives in the operator catalog, not the repo).
+- [ ] **Host the Fabric + NeoForge mod jars** somewhere stable and add catalog/version entries (or your provisioning flow) so groups can pull them.
 
-Daraus ergeben sich **sieben Tracks**, die teilweise parallel laufen können, aber klare Reihenfolge-Constraints haben.
+### Release & artifacts — cut the first real release
 
-```
-v1.1 ──── Track A: HA-Foundation (Raft v3, Phase 3-11)         │ 25 eng-days
-          Track B: Repo-Hygiene & Cleanup                       │  4 eng-days
-          Track G: Doku & ADR-Lücken schließen                  │  5 eng-days
+- [ ] **Tag `v1.0.0`** → `release.yml` ships **cosign-signed `prexorctl` binaries**; `release-images.yml` ships **cosign-signed multi-arch GHCR images**.
+- [ ] **`dashboard-static-*.tar.gz`** — produced only by a tagged release. The **native/systemd dashboard install fails until this asset exists**, so this release is a prerequisite for the native-install path (Part 2A).
+- [ ] **GitHub repo settings** — GHCR package visibility (public or pull auth), and OIDC permissions for cosign keyless + Rekor.
 
-v1.2 ──── Track C: Modul-Ökosystem-Reife                       │ 28 eng-days
-          Track D: Observability Gen-2 (OTel/Tracing)           │  8 eng-days
-          Track E: Frontend & Design-System Konsolidierung      │ 20 eng-days
+### Bedrock prerequisites (before Part 4B)
 
-v1.3 ──── Track F: MC-Plattform-Breite & Bedrock-Tiefenausbau   │ 15 eng-days
-          Track H: Polish, Performance, A11y, i18n              │ 10 eng-days
+- [ ] **Generate the Floodgate `key.pem`** shared key and place it in the Geyser group's template **and** the matching Floodgate plugin on your Java backends — PrexorCloud does **not** generate it. Without it, edition detection falls back to `java` and Bedrock routing won't trigger.
 
-v1.4 ──── Track I: Docs- & README-Komplett-Rewrite (End-User+Dev)│ 13 eng-days
-          (strikt nach E/F/H; I.0 Style-Spec darf vorgezogen werden)
+### Production datastores
 
-──────────────────────────────────────────────────────────────
-Gesamt:                                                          128 eng-days
-                                                                ≈ 6–7 Monate bei 1 FTE
-                                                                ≈ 3–3.5 Monate bei 2 FTE
-```
+- [ ] **MongoDB** (replica set recommended) + **Valkey/Redis**, reachable from all controllers, secured (auth + network). Required in production; the in-memory fallback is dev-only and **rejected by prod config validation**.
 
----
+### Backups / DR storage
 
-## 2. Track A — HA-Foundation (Raft v3 fertigstellen)
+- [ ] **Off-host storage** (S3 / rsync target) for the `controller-data` volume and the Raft `dataDir`. The Raft `dataDir` holds the **cluster CA private key, the join-token seed secret, and config history** — back it up like any durable store, or recovery (Part 8E) is impossible.
 
-**Ziel:** Echte Multi-Controller-HA mit Quorum-Konsistenz. **Status heute: ~20 %** (Raft-Scaffolding liegt da, Bootstrap ist nicht verdrahtet).
+### Observability backends
 
-Der ursprüngliche Detailplan (`cluster-join-plan.md`) ist beim Docs-Cleanup entfernt; sein Inhalt steckt jetzt in ADR 29 (`decisions.md`) und im Upgrade-Runbook. Hier nur die **Lücke**, was noch zu tun ist:
+- [ ] **Prometheus** (+ Alertmanager — wire the alert rules from Operations → Monitoring) and your own Grafana to scrape `/metrics`.
+- [ ] **OTLP collector** (Jaeger / Tempo / Honeycomb / Datadog) if you want tracing in prod; set `telemetry.otlpEndpoint` + `telemetry.traceUiTemplate` on controller and daemon.
 
-### A.1 Bootstrap wirklich auf Raft umstellen — *Phase 3 zu Ende bringen* (~4 d) — ✅ **shipped (Commit 2c6960b)**
+### Email + website
 
-**Heutiger Defekt:** `PrexorCloudBootstrap.reconcileClusterIdentity()` ist immer noch der v1-Pfad gegen `cluster_meta` in Mongo. `ClusterControlService` (178 LOC) ist instanziierbar aber nirgends instanziiert.
-
-**Konkret:**
-- `PrexorCloudBootstrap.java:331` — `reconcileClusterIdentity(stateStore)` durch `clusterControlService = new ClusterControlService(config, nodeId)` ersetzen.
-- `ClusterControlService.bootstrap()` aufrufen, das übernimmt: Raft-Group hochfahren (Day-0) oder rejoinen (Restart), `cluster.id` aus State-Machine lesen, in `controller.yml` mirrorn.
-- `MongoStateStore.getClusterId()`/`stampClusterId()` entfernen.
-- `cluster_meta`-Collection bei Migration auslesen, in Raft schreiben, anschließend `DROP`en. **Single-Trip-Migration**, keine Doppelschreibung wie früher geplant.
-- **Phase-1-Spike-Müll löschen:** `cluster/raft/KeyValueStateMachine.java` (88 LOC) + `KvOp.java` (61 LOC). War das Trivial-KV aus dem Spike; jetzt überflüssig.
-
-**Akzeptanz:** Frischer Boot ohne `cluster_meta`-Collection muss ohne Fehler durchlaufen. Boot mit existierender `cluster_meta` muss migrieren und im Audit-Log einen Eintrag hinterlassen.
-
-### A.2 gRPC-Membership + TLS-Bootstrap — *Phase 4* (~5 d)
-
-Konkret (ursprünglich `cluster-join-plan.md` §4, jetzt in ADR 29 zusammengefasst):
-
-- Neuer Proto-Service `ClusterMembership` in `contracts/cluster.proto` mit RPCs: `RequestJoin`, `LeaveCluster`, `ForceEject`.
-- CSR-basierter TLS-Bootstrap: Joining-Controller schickt eine CSR im Join-Request; Leader signiert mit Cluster-CA, returnt signiertes Cert + Cluster-CA-Bundle + Raft-Group-Membership-Info.
-- Snapshot-Streaming-Endpoint für Catchup.
-- `JoinToken.hmac` mit `clusterMeta.seedSecret` verifizieren.
-- Audit-Trail: `cluster.member.joined`, `cluster.member.removed`, `cluster.join_token.redeemed`.
-
-**Risiko:** Ratis' Joint-Consensus-API ist subtil. Empfehlung: vor Phase 4 ein Wochenend-Spike auf einer 3-Node-Konfiguration, um die API zu verstehen. Sonst läuft man in unverständliche Logfile-Botschaften.
-
-### A.3 REST + CLI — *Phase 5* (~3 d)
-
-REST-Endpoints aus der (entfernten) `cluster-join-plan.md`-REST-Surface; alle 11 Routen implementieren. `prexorctl cluster {status,members,leave,eject,join-token,seed,config,recover}` Subcommands.
-
-**Berechtigungen:**
-- Neuer `Permission.CLUSTER_VIEW`, `CLUSTER_CONFIG_WRITE`, `CLUSTER_MANAGE`. Letztere **nicht** in default ADMIN — über `Role.EXCLUDED_FROM_DEFAULT_ADMIN`-Mechanik.
-- Alten `Permission.CLUSTER_JOIN` ausbauen, `ClusterJoinRoutes` löschen.
-
-### A.4 Versioned Config + REST-Patch — *Phase 6* (~3 d) — ✅ **shipped (Commit 15316eb)**
-
-Append-only-Versionierung von `clusterConfig`. `parentVersion`-Konflikterkennung (409). Rollback per `POST /cluster/config/rollback {targetVersion}`. Masking für sensitive Felder (`security.jwtSecret`, `redis.uri`, SMTP).
-
-**Achtung Boundary:** Ein Patch auf `corsAllowList` darf nicht den ganzen Config-State neu schreiben — Patch-Semantik (RFC 7396 oder eigene Path-basierte Patches). Empfehlung: eigene Path-basierte Patches, da JSON-Merge-Patch mit Arrays unklar ist.
-
-### A.5 Live-Reload über Raft `apply()` — *Phase 7* (~2 d) — ✅ **shipped**
-
-`ClusterControlStateMachine.apply()` feuert pro committed Entry ein Event auf den internen `EventBus`. Der `ClusterConfigReloadCoordinator` (`controller/cluster/reload/`) abonniert `ClusterConfigChangedEvent`, foldet die aktive Config-Version über die Parent-Chain (`ClusterConfigProjection`) und verteilt die effektive Config an die registrierten Subscriber:
-
-- ✅ **CorsAllowList** — `CorsAllowListReloader` ersetzt die Live-Origin-Liste (inkl. Removals).
-- ✅ **RateLimiter** — `RateLimitReloader` swappt `perIp`/`perUser`/`failOpen` atomar in `RateLimitMiddleware` (Limits jetzt `volatile` + `reconfigure()`).
-- ✅ **JwtManager** — `JwtSecretReloader` rotiert den aktiven Signaturschlüssel cluster-weit und hält den vorherigen im Acceptance-Window.
-
-Der Coordinator primed beim Start einmalig (joinende Controller adoptieren so die cluster-autoritative Config aus dem Snapshot statt der lokalen `controller.yml`). Tests: `ClusterConfigProjectionTest`, `ReloadersTest`, `ClusterConfigReloadCoordinatorTest`.
-
-**Bewusst nicht live:** `modules.signing.trustRoot` — der Signature-Verifier wird einmalig beim Boot gebaut; Trust-Root-Wechsel brauchen einen Controller-Restart (dokumentiert in `docs/runbooks/module-trust-root-rotation.md`). Ein dedizierter `SigningPolicyManager` existiert nicht; das Signing-Config lebt in `ModuleSigningConfig` und wird vom `PlatformModuleSignatureVerifier` konsumiert.
-
-**Was raus kann:** Redis-Pubsub-Subscriptions für config-Änderungen. Was bleibt: Redis-Pubsub für ephemere Events (Player-Join, Console-Lines, Daemon-Heartbeats).
-
-### A.6 Leader-Leases für Scheduler / Reconciler / DR-Drill / Audit-Pruner — *Phase 8* (~3 d)
-
-Aktuell Redis-basierte Leases mit bekannten TTL-Races. Auf Raft-Leases umstellen:
-
-```java
-clusterLeases.takeLease("scheduler", ttl = 30s,
-    onAcquire = () -> scheduler.start(),
-    onLost    = () -> scheduler.stop());
-```
-
-**Wichtig:** Phase 8 ist **deferrable** auf v1.2. Die Redis-Leases funktionieren heute, sind nur unsauber. Wenn Track-A-Budget knapp wird, kann das nach hinten rutschen.
-
-### A.7 Wizard Token-Branch — *Phase 9* (~2 d)
-
-`installer/`-Wizard bekommt die zweite Hauptfrage: „Hast du ein Join-Token?". Wenn ja: Token einkleben, Bootstrap-Vars für den Day-N-Pfad einrichten, Pending-Token in `data/pending-join-token` schreiben.
-
-### A.8 Dashboard „Cluster"-Page — *Phase 10* (~3 d) — ✅ **shipped**
-
-Dashboard-Seiten unter `/cluster/*`:
-- ✅ **Mitglieder-Tabelle** + Force-Eject-Button mit Confirmation, Join-Token-Management, Lease-Holder-Übersicht — `pages/cluster/controllers.vue` (bereits vorher geliefert).
-- ✅ **Config-Version-History mit Diff-Viewer (2026-06-05)** — neue Seite `pages/cluster/config.vue` + Nav-Eintrag „Cluster config" unter der Cluster-Gruppe (perm `cluster.view`). Zeigt den append-only `cluster_config`-Verlauf (Version/Parent/Mutator/Zeit/Grund, Active-Badge, neueste zuerst); Auswahl einer Zeile diffed deren `patch` gegen den `patch` der Parent-Version über die bestehende `DiffViewer`-Komponente (unified/split, JSON). Rollback-Button pro Nicht-Active-Version (perm `cluster.config.write`) mit Reason-Dialog → `POST /cluster/config/rollback`. Store-Actions `fetchConfigVersions`/`fetchConfigVersion`/`rollbackConfig` (`stores/cluster.ts`), i18n en+de (harter Parity- + Hardcode-Gate grün), Tests in `stores/__tests__/cluster.test.ts` (8 neue, 16 gesamt grün).
-  - **Scope ehrlich:** (1) Der Diff vergleicht den **Per-Version-Patch** gegen den Parent-Patch (jede Version speichert ihr eigenes Delta), nicht die gefoldete *effektive* Config — letzteres bräuchte einen „effective config at version N"-Endpoint (nur die aktive Version ist heute foldbar via `GET /cluster/config`). (2) Sensible Felder kommen maskiert (`"***"`) zurück, solange der Aufrufer kein `CLUSTER_MANAGE` hält — bewusst, kein Reveal-Toggle im UI. (3) Backend (alle 5 `/cluster/config*`-Routen) war bereits geshippt; dies ist reine Frontend-Verdrahtung.
-
-### A.9 Recovery-Tooling — *Phase 11* (~2 d)
-
-`prexorctl cluster recover --i-have-only-survivor` — single-member Raft-Reset für Majority-Loss. Interaktive Confirmation, Audit-Eintrag der den Reset überlebt. Doku in `docs/runbooks/cluster-recovery.md`.
-
-### A.10 ADR + Migration-Guide — *Phase 12* (~2 d) — ✅ **shipped**: ADR 29 (embedded Ratis) + ADR 4 Update in `decisions.md` ✅; Migration-Runbook (`docs/runbooks/upgrade-v1.0-to-v1.1.md`) + Recovery-Runbook (`docs/runbooks/recover-cluster.md`) unter G.2 geliefert
-
-ADR-Eintrag in `docs/decisions.md`: „Embedded Raft via Apache Ratis als Cluster-Control-Plane (statt Mongo-CAS / externem Coordinator)". Migration-Guide in `docs/runbooks/v1.0-to-v1.1.md`: Schritt-für-Schritt für die zwei Operator-Szenarien (Single-Controller-Upgrade, Multi-Controller-Upgrade).
-
-**Track-A-Gesamt: ~25 eng-days. Block für v1.1-Release.**
+- [ ] **Production SMTP** for password-reset emails (MailHog is test-only).
+- [ ] **Website/docs hosting** — deploy the Astro/Starlight site to `prexor.cloud` (the `website.yml` workflow has a Cloudflare Pages deploy job); attach the custom domain.
 
 ---
 
-## 3. Track B — Repo-Hygiene & Cleanup — ✅ **shipped**
+## Part 1 — Automated confidence floor (run first, ~1 session)
 
-**Ziel:** Onboarding-Reibung auf null. Tote Pfade entfernen, Konventionen festziehen.
+These prove the code is correct/formatted/contract-stable/accessible/i18n-complete. All were last
+run green on 2026-06-09; re-run after any change. A red here invalidates everything downstream.
 
-**Stand 2026-05-31:** Alle Sub-Tracks erledigt. Was geliefert wurde, pro Abschnitt unten.
-
-### B.1 Tote Verzeichnisse entfernen (~0.5 d) — ✅ **shipped**
-
-| Pfad | Befund | Aktion |
-|---|---|---|
-| `java/cloud-module/` | 7 build.gradle.kts ohne settings.gradle.kts-Eintrag — Rename-Sediment | **DELETE** kompletter Tree |
-| `java/cloud-modules-core/` | Nur build.gradle.kts, kein Source, nicht im Build | **DELETE** |
-| `config/` (nur `controller.compose.yml`) | Dublette zu `deploy/compose/` | Datei nach `deploy/compose/` MOVEn, `config/` DELETEn |
-| `infra/perf/baselines.json` | Einziger Inhalt unter `infra/` | MOVEn nach `java/cloud-test-harness/perf/`, `infra/` DELETEn |
-| `java/cloud-controller/logs/*.log.gz` | Eingecheckte Logs (im Diff bereits gelöscht) | Commit + `.gitignore`-Eintrag für `logs/` |
-| `java/cloud-controller/config/.initial-admin-password` | Wird bei jedem Boot überschrieben | `.gitignore`-Eintrag |
-| `cluster/raft/{KeyValueStateMachine,KvOp}.java` | Phase-1-Spike, nicht mehr genutzt | **DELETE** nach Track A.1 |
-
-**Geliefert:** `java/cloud-module/`, `java/cloud-modules-core/`, `config/`, `cluster/raft/KeyValueStateMachine.java`, `KvOp.java` sind im Repo nicht mehr vorhanden; eingecheckte Logs gepruned und in `.gitignore`. `infra/perf/baselines.json` bleibt unter `infra/perf/` (vom Test-Harness und perf-Workflow konsumiert; Move blieb aus).
-
-### B.2 READMEs einziehen (~1 d) — ✅ **shipped**
-
-Top-Level-Dirs ohne README → je ein 8–15-Zeilen-README mit Zweck, Layout, „How to add a new X":
-
-- `java/README.md` — Modul-Hierarchie erklären, Build-Reihenfolge
-- `dashboard/README.md` — Setup, dev-server, Storybook-Stories
-- `website/README.md` — Astro/Starlight setup, OpenAPI-Sync
-- `scripts/README.md` — was jedes Skript tut
-- `tools/README.md` — Codegen-Skripte erklären
-
-**Geliefert:** `java/README.md`, `dashboard/README.md`, `website/README.md`, `scripts/README.md`, `tools/README.md`, `installer/README.md` existieren.
-
-### B.3 Gradle-Konventionen vereinheitlichen (~1 d) — ✅ **shipped**
-
-- Alle `build.gradle.kts`-Dateien gegen `build-logic/` Konventionen prüfen (Java 25, Logback-Version, Jackson-Version aus Catalog).
-- `libs.versions.toml` durchgehen — orphaned Aliases entfernen.
-- `cloud-platform`-BOM auditieren: was wird referenziert, was nicht.
-
-**Geliefert:** `java/build-logic/` Konventions-Plugins (`java21-api`, `java21-compat`, `java25-preview`) ziehen Versionen aus `libs.versions.toml`; `cloud-platform` BOM produktiv. Katalog-Audit zeigt keine orphaned Aliases — alle 30 deklarierten Libs/Plugins werden konsumiert (auch `junit-bom` und `geyser-api` via `versionCatalogs.named("libs").findLibrary(...)` aus `build-logic`).
-
-### B.4 Memory-Einträge aktualisieren (~0.5 d) — ✅ **shipped**
-
-`MEMORY.md` und Einzeleinträge gegen heutigen Stand:
-- `project_stats_aggregator.md` — Pfad ist `java/cloud-modules/stats-aggregator/`, nicht `java/cloud-module/...`
-- `project_cluster_join_plan.md` — v3-Stand reflektieren
-
-**Geliefert:** `project_stats_aggregator.md` enthält den korrekten Pfad `java/cloud-modules/stats-aggregator/`. `project_cluster_join_plan.md` reflektiert v3-Stand (alle 12 Phasen shipped).
-
-### B.5 Linter & Format-Konvention (~1 d) — ✅ **shipped**
-
-- ✅ `.editorconfig` im Repo-Root (Java/Kotlin 4-space/120-col, Web 2-space, TOML 4-space).
-- ✅ Spotless mit `palantirJavaFormat` + custom Import-Order in `prexorcloud.java-common` Konventions-Plugin; CI-Gate via `gradlew spotlessCheck build` (`.github/workflows/ci.yml` java job).
-- ✅ Prettier `format`/`format:check`-Skripte in `installer/`, `website/`, `dashboard/`; CI-Gates hart in `ci.yml` (installer) und `website.yml` (website), weich (Warnung) in `ci.yml` (dashboard) bis zum dedizierten Normalize-Pass der 571 Dashboard-Source-Files.
-- ✅ Root-Level `.prettierrc.json` + `.prettierignore` als single source of truth; `website/.prettierrc.json` ergänzt `prettier-plugin-astro`.
-- ✅ `lefthook.yml` im Repo-Root: `spotlessApply` auf staged Java + `prettier --write` auf staged installer/website + `eslint --fix` auf staged dashboard. Setup via `lefthook install` ist optional und in `CONTRIBUTING.md` dokumentiert; CI bleibt der harte Gate.
-
-**Track-B-Gesamt: ~4 eng-days. Komplett geliefert.**
+- [ ] **Java** — `cd java && JAVA_HOME=~/.jdks/openjdk-26.0.1 ./gradlew spotlessCheck build` → **Pass:** BUILD SUCCESSFUL (every `…Test`, palantir format, JaCoCo).
+- [ ] **Contract drift** — covered by the build (`ProtoContractDriftTest`, `StartupContractDriftTest`) + `cd cli && go test ./internal/setup -run TestStartupContractSnapshot`.
+- [ ] **CLI** — `cd cli && go test ./...` → **Pass:** all packages green.
+- [ ] **Dashboard gates** — `cd dashboard && pnpm i18n:check && pnpm i18n:check-hardcoded && pnpm a11y:check && pnpm test` → **Pass:** locale parity, 0 hardcoded strings, static a11y clean, all unit tests green.
+- [ ] **Authed-flow axe** — build with `VITE_DEV_MOCK=1 pnpm build`, `pnpm preview`, run `scripts/axe-authed.mjs` → **Pass:** 0 serious/critical across all 16 routes × light/dark.
+- [ ] **Installer** — `cd installer && pnpm format:check && pnpm a11y:check && pnpm typecheck && pnpm test && pnpm build` → **Pass:** all green.
+- [ ] **Website** — `cd website && pnpm check:links && pnpm build && pnpm exec astro check` → **Pass:** 0 broken links, 286 pages, 0 astro errors.
+- [ ] **Design-system** — `cd design-system && node build-tokens.mjs && git diff --exit-code dist/ && node --test "__tests__/*.test.mjs"` → **Pass:** dist fresh, parity + both-theme contrast + drift green.
 
 ---
 
-## 4. Track C — Modul-Ökosystem zur Marktreife
+## Part 2 — Single controller, single node (the smoke test)
 
-**Ziel:** PrexorCloud-Module sind heute schon **konzeptionell besser** als CloudNet/SimpleCloud — aber als Plattform fehlen drei Dinge zur Reife: Registry, Sandboxing, und Lifecycle-UX.
+Goal: from nothing to a Minecraft client connected to a cloud-managed server. Do this on **`ctrl-1`**
++ **`node-fra-1`**. Reference: Getting started → Installation + Quickstart.
 
-### C.1 Modul-Registry mit signierter Distribution (~10 d) — ⏳ **Backend + CLI (inkl. `upgrade`) + Dashboard-UI shipped; Registry-Hosting offen**
+### 2A. Install (pick one path, then later repeat with the other)
 
-**Geliefert (Backend + CLI):**
-- `modules.registries` (Liste von Index-URLs) in `ModulesConfig` — abwärtskompatibel (3-arg-Ctor für Alt-Call-Sites).
-- Registry-Index-Modell `RegistryIndex` / `RegistryModuleEntry` (`controller/module/registry/`), forward-kompatibel (`@JsonIgnoreProperties`).
-- `ModuleRegistryClient`: aggregiert/searcht alle konfigurierten Registries, `resolve(id, version|latest)` mit numerischem Semver-Vergleich, `download()` mit **sha256-Pin-Verifikation** und Sidecar-Fetch (cosign-bundle/sig). `RegistryFetcher`-Seam (http(s)-only) für Tests.
-- **Trust-Modell:** Registry ist nur Discovery, nie Trust-Anchor — zwei unabhängige Gates: sha256 gegen Index + Cosign-/Sig-Verifikation gegen den **eigenen** Trust-Root des Controllers (über den bestehenden `PlatformModuleManager.install`-Pfad, geteilt via `installPreparedModule`).
-- **REST:** `GET /api/v1/modules/platform/registry[?q=]` (browse/search, `MODULES_VIEW`) + `POST /api/v1/modules/platform/registry/install {moduleId, version?, registryUrl?}` (`MODULES_MANAGE`). SSRF-Guard: `registryUrl` muss in der konfigurierten Liste sein. „installed/installedVersion"-Hinweis für Update-Indikator.
-- **CLI:** `prexorctl module search [query]`, `prexorctl module install <id>[@<version>]` (auto-detektiert lokale Datei vs. Registry-Spec; `--registry` pinnt eine Quelle) und `prexorctl module upgrade <id> | --all` — Convenience über install@latest: liest den Registry-Katalog (der `version`/`installed`/`installedVersion` pro Modul liefert) und (re)installiert die neuere Version pinned auf die exakte Katalog-Version (gleicher verify-Pfad wie install). Up-to-date-Module bleiben unberührt; `--all` upgradet alle installierten mit neuerer Version (Summary + Non-Zero-Exit bei Teil-Fehlern); `--json`-Ausgabe. Entscheidungslogik (`decideUpgrade`/`selectUpgradable`/`parseCatalogEntries`) rein und unit-getestet.
-- **Tests:** `ModuleRegistryClientTest` (8), `ModulesConfigRegistriesTest` (2), CLI `module_registry_install_test.go` (Detection + Spec-Parsing), `module_upgrade_test.go` (3: Katalog-Parsing, Upgrade-Klassifikation, `--all`-Auswahl).
+- [ ] **Docker Compose** — `cp deploy/compose/.env.example .env`, edit `controller.yml` (`security.jwtSecret` = `openssl rand -base64 48`, `security.initialAdminPassword`, `network.allowedSubnets`, `http.cors.allowedOrigins`), `docker compose -f deploy/compose/compose.yml up -d` → **Pass:** `docker compose logs -f controller` shows the readiness line; Mongo + Valkey are on the private network, not host-exposed.
+- [ ] **Native systemd** — follow `deploy/systemd/README.md`: drop jars in `/opt/prexorcloud/`, `chown`, install both unit files, `systemctl enable --now prexorcloud-controller` → **Pass:** `journalctl -u prexorcloud-controller -f` shows readiness; Java 25 confirmed.
+- [ ] **Installer wizard** — `prexorctl setup` → **Pass:** the browser wizard walks mode → essentials → security → review, generates secrets, and writes valid `controller.yml` / `daemon.yml`. Try **both** Docker and native modes in the wizard.
 
-**Dashboard-UI (geliefert):** Seite `/modules/registry` (`dashboard/app/pages/modules/registry.vue`) — Browse-Grid aus den konfigurierten Registries, Suche, Signed/Unsigned-Indikator, Install-Button mit Per-Eintrag-Loading, „Update verfügbar"-Badge (vergleicht `installedVersion` ≠ Registry-Version), No-Registries-Empty-State. Store-Methoden `fetchRegistryCatalog`/`installFromRegistry` (`stores/modules.ts`), Nav-Eintrag unter Configuration (perm `modules.view`), i18n en/de. Tests in `stores/__tests__/modules.test.ts`.
+### 2B. First login + admin
 
-**Offen (Follow-up):** First-Party-Registry `registry.prexorcloud.dev` (Hosting). (ADR-Eintrag geliefert: ADR 31 in `decisions.md`.)
+- [ ] **Login** — `prexorctl login` (or dashboard) with the initial admin password → **Pass:** token issued; `prexorctl context` shows the controller.
+- [ ] **Rotate admin** — change the admin password, then clear `security.initialAdminPassword` from `controller.yml` and restart → **Pass:** old initial password no longer works; new password does.
 
----
+### 2C. Enroll a daemon
 
-**Problem heute:** Module installiert man, indem man eine signierte JAR per REST hochlädt. Das skaliert nicht — Nutzer brauchen einen Discovery-Mechanismus.
+- [ ] **Mint a join token** — `prexorctl token create --node node-fra-1` → **Pass:** prints a single-use token.
+- [ ] **Start the daemon** — put the token in `daemon.yml` `security.joinToken`, start the daemon on `node-fra-1` → **Pass:** daemon receives an mTLS cert signed by the controller CA, clears the token from config; node appears in `prexorctl node list` and on the dashboard Nodes page as connected.
+- [ ] **Restart the daemon** — `systemctl restart prexorcloud-daemon` (no token) → **Pass:** reconnects token-free over mTLS.
 
-**Lösung:** Eigene Modul-Registry — wir bauen *keine* npm-Klon, sondern einen schlanken Index:
+### 2D. First group → instance → connect
 
-- **Backend:** Statisches JSON-Index-File pro Registry (gehostet auf GitHub Pages oder S3): Liste mit `moduleId`, `version`, `jarUrl`, `sha256`, `cosignBundleUrl`, `manifestUrl`, `compatibleControllerVersions`, `tags`, `readme`.
-- **First-Party-Registry:** `registry.prexorcloud.dev` mit den 5 First-Party-Modulen. Erweiterbar.
-- **REST:** `POST /api/v1/modules/install-from-registry {registryUrl, moduleId, version}` → Controller lädt JAR, verifiziert Signatur gegen registrierte Trust-Roots, installiert.
-- **Custom Registries:** Operator kann zusätzliche Registry-URLs konfigurieren (in `clusterConfig.moduleRegistries`).
-- **Dashboard-UI:** Browse-View, Install-Button, „Updates verfügbar"-Indikator.
-- **CLI:** `prexorctl module search`, `prexorctl module install <id>@<version>`, `prexorctl module upgrade`.
-
-**Differenzierung:** Niemand sonst in der MC-Cloud-Welt hat einen signierten Modul-Index. Das wird ein USP.
-
-**Risiko:** Wir wollen *nicht* Plugin-Manager-Hell wie Bukkit-Plugins. Strikt: nur signierte Module aus konfigurierten Trust-Roots, fail-closed-by-default.
-
-### C.2 Modul-Sandboxing & Resource-Limits (~10 d)
-
-**Problem heute:** Module laufen als normale Threads im Controller-Prozess, mit `URLClassLoader`-Isolation. Ein bösartiges oder verbuggtes Modul kann den Controller killen (OOM, Endless-Loop, File-System-Abuse).
-
-**Lösung in drei Stufen:**
-
-1. **Resource-Tracking** (~3 d) — ✅ **shipped**: Jedes Modul bekommt seinen eigenen benannten `ScheduledExecutorService` (`module-<id>-sched-N`) statt des bisherigen geteilten 2-Thread-Pools — der `ModuleResourceTracker` (`controller/module/resource/`) wird in `wireProductionModuleContext` verdrahtet und in den `ModuleContext` jedes Moduls gegeben. Periodischer Sampler: CPU-Time via `ThreadMXBean.getThreadCpuTime()`, Allocation via `com.sun.management.ThreadMXBean.getThreadAllocatedBytes()` (degradiert auf 0 wenn nicht unterstützt), Live-Thread-Count. Tote Threads werden in einen „retired"-Akkumulator gefoldet → monotone Totals. Reconcile-on-Sample fährt Scheduler deinstallierter Module herunter. REST `GET /api/v1/modules/platform/{moduleId}/resources`. Tests: `ModuleResourceTrackerTest`. **Bewusst verschoben:** Heap-Footprint/OQL-Sampling und Micrometer-Gauges → zusammen mit Stufe 2 (dort lebt die `quota.exceeded`-Metrik).
-2. **Soft-Limits** (~3 d) — ✅ **shipped**: Pro-Modul-Quota unter `modules.quotas.<id>` in `controller.yml` (`ModuleQuota`-Record: `maxCpuMillisPerMinute`, `maxAllocatedMbPerMinute`, `maxThreads`; jede `0` = unlimitiert). Der `ModuleQuotaEnforcer` (`controller/module/resource/`) tickt im Minutentakt, differenziert die kumulativen `ModuleResourceTracker.Snapshot`-Totals aus Stufe 1 zu Per-Minute-Raten und vergleicht gegen die Quota. Überschreitung → WARN (nur auf der steigenden Flanke, kein Log-Spam) + Counter `prexorcloud.module.quota.exceeded{module,resource}`. Rein **advisory** — nichts wird gedrosselt/gekillt (das ist Stufe 3). Das `GET /…/{moduleId}/resources`-REST liefert jetzt zusätzlich `quota` + `quotaEvaluation` (Raten + Breach-Flags). Wiring in `bootPlatformModules` (nach dem Context-Factory, sodass die `MetricsCollector`-Senke steht). Tests: `ModuleQuotaEnforcerTest` (7). **Abweichung vom Plan-Sketch ehrlich:** die dritte Dimension ist `maxThreads`, nicht `maxOpenFiles` — Stufe 1 sampelt Live-Threads, nicht File-Deskriptoren; fd-Limits bräuchten extra Sampling und sind deferred.
-3. **Hard-Isolation** (~4 d): Optional: Modul in separatem JVM-Prozess starten, Kommunikation über gRPC-IPC. Aktivierbar per `clusterConfig.modules.<id>.isolation = process`. Erlaubt OS-Level-cgroups/quotas.
-
-**Pragmatik:** Hard-Isolation ist optional, default bleibt In-Process. Nur kritische Module (oder welche aus untrusted-Registries) werden isoliert.
-
-### C.3 Lifecycle-UX-Polish (~3 d) — ✅ **shipped** (Health-Checks Backend + Dashboard, Hot-Reload bereits vorhanden, Dependency-Resolution-UI)
-
-- **Dependency-Resolution-UI** ✅ **shipped**: Die Registry-Index-Einträge tragen jetzt ein `provides`-Feld (`RegistryModuleEntry.Capability{id,version}`, forward-kompatibel via `@JsonIgnoreProperties`; 9-arg-Compat-Ctor für Alt-Call-Sites), das `GET …/registry` mitliefert. Auf der Module-Seite zeigt jeder unaufgelöste `requires`-Eintrag jetzt — falls ein **nicht installiertes** Katalog-Modul diese Capability `provides` — einen „<moduleId> provides this / Install"-Button (`providerFor()` + `installDependency()` in `pages/modules/index.vue`, lädt via bestehendem `installFromRegistry`). Best-effort-Matching per Capability-ID; die echte Versions-Kompatibilität entscheidet weiterhin der Controller-Resolver nach Install. Degradiert sauber: ohne `provides`-Daten im Index keine Suggestion. Tests: `ModuleRegistryClientTest#provides…` (2).
-- **Hot-Reload:** Modul-Update ohne Controller-Restart. — **bereits vorhanden** über den `reloadable: true`-Pfad: `PlatformModule#onReload` + `ModuleLifecycleManager.reload()` (fast `ACTIVE → RELOADING → ACTIVE`, kein Stop/Unload der Vorgänger-Instanz). State-Handoff macht das Modul selbst in `onReload`; ein separates `PlatformModuleStateStore`-Interface wurde dafür bewusst nicht gebaut.
-- **Health-Checks:** ✅ **shipped (Backend)** — optionale `default ModuleHealth healthCheck()` auf `PlatformModule` (cloud-api; `HEALTHY/DEGRADED/UNHEALTHY/UNKNOWN` + Detail, Default `UNKNOWN`). `ModuleLifecycleManager.pollHealth()` ruft die Probe für jedes `ACTIVE`-Modul **außerhalb des Lifecycle-Locks** auf (langsamer Check blockiert keine Installs; Wurf → `UNHEALTHY`). Der `ModuleHealthMonitor` (`controller/module/health/`) hält das jüngste Ergebnis pro Modul (Module, die aus dem Poll fallen, werden gedroppt — keine stale Health). Eigener Poller-Executor `module-health-monitor` (Intervall `max(5s, scheduler.evaluationIntervalSeconds)`), getrennt vom Reconciler. REST `GET /…/{moduleId}/health`; Metrik `prexorcloud.module.health{status}` (Gauge pro Status). Referenz-Override im `example`-Modul. Tests: `ModuleHealthMonitorTest` (4), `ModuleLifecycleManagerTest#pollHealth…` (2). **Dashboard ✅ shipped:** Health-Statuspunkt (grün/gelb/rot, UNKNOWN unterdrückt) auf jeder Modul-Karte (`pages/modules/index.vue`) + Resources/Quota-Block (Live-Threads, CPU- & MB/min aus `quotaEvaluation`, „Quota exceeded"-Badge bei Breach). Store-Actions `fetchModuleHealth`/`fetchModuleResources`/`fetchModuleDiagnostics` (`stores/modules.ts`, nur ACTIVE-Module gepollt), Typen in `types/api.ts`, Tests in `stores/__tests__/modules.test.ts` (4).
-
-### C.4 Module-Scaffolder im CLI (~2 d) — ✅ **shipped**
-
-```bash
-prexorctl module scaffold my-cool-module \
-  --capabilities prexor.smoke@1.0.0 \
-  --requires prexor.player.journey@'[1.0,2.0)' \
-  --mc-plugin paper,velocity \
-  --no-frontend
-```
-
-**Geliefert:**
-- `prexorctl module new` (mit `scaffold` als Cobra-Alias) erzeugt Modul-Skelette unter `java/cloud-modules/<name>/` aus dem `example/`-Template; vor diesem Commit war das Verzeichnislayout im Scaffolder noch das Pre-Track-B `cloud-module/cloud-module-<name>/` und damit **broken**.
-- Composable non-interactive Flags: `--capabilities`, `--requires` (beide `StringArray`, damit Version-Ranges mit Komma — z.B. `[1.0,2.0)` — durchgehen), `--mc-plugin` (Alias für `--targets`), `--no-rest`, `--no-mongo`, `--no-frontend`, `--no-plugin`. Die `--no-rest`/`--no-mongo`-Flags fließen in die Wizard-Spec, deren Strip-Out für Storage/REST noch nicht implementiert ist (`scaffold.go` warnt, Template-Defaults bleiben).
-- GitHub-Actions-Workflow-Template (`.github/workflows/build.yml`) im `example/`-Modul; cosign-keyless via OIDC, signiert JAR und published Signature-Bundle als Artefakt. Liegt unter `java/cloud-modules/<name>/.github/` — vom Monorepo-CI nicht gescannt (GH Actions scannt nur Repo-Root-`.github/workflows/`), aktiviert sich erst wenn ein Contributor den Modul-Subtree als eigenes Repo extrahiert.
-- Pre-Link-Gate des Root-Kommandos (`prexorctl` ohne Cluster-Kontext) kennt jetzt `Annotations["local-only"]="true"`. `module new`/`module scaffold` ist damit ohne `prexorctl login` benutzbar — passt zu dem von der Plan-Aussage „5-Minuten-Hürde" geforderten First-Run-UX.
-- Tests: `cli/cmd/module_scaffold_flags_test.go` lockt Version-Range-Parsing, `--no-frontend`/`--no-plugin`-Semantik und Default-Versions/Ranges fest. Scaffold-Suite (`internal/scaffold/`) blieb intakt, Paths-Sed durch alle Test-Fixtures gezogen.
-
-**Nachgezogen (2026-06-05):**
-- **Scaffolds sind jetzt durchgängig baubar (jede Target-Auswahl).** Der `extensions:`-Block in `module.yaml` **und** die `extensionArtifacts`-Map in `build.gradle.kts` werden in **Lockstep** auf die gewählten Plattformen geprunt (`filterManifestExtensions`/`pruneExtensionsBlock` + `filterBuildGradleArtifacts`/`pruneExtensionArtifacts`, Match über `target:`-Pfadsegment bzw. `:plugin:<target>`). Manifest + Build-Deklaration + `settings.gradle.kts`-Includes stimmen damit immer überein, sonst failt `preparePlatformManifest` („declared … not referenced").
-- **`bedrock-geyser` ist jetzt ein erstklassiges Scaffolder-Target.** Das `example` zeigt alle **vier** Plattformen (inkl. `plugin/bedrock-geyser`), aber `AllTargets`/`patchSettings` kannten nur drei — der Scaffolder konnte also **gar kein** Bedrock-Modul erzeugen und ließ den Bedrock-Eintrag unverdrahtet. Beide kennen jetzt `bedrock-geyser`. Default-Scaffolds spiegeln das `example` (4 konsistente Plattformen), und die Auswahl kann Bedrock enthalten. End-to-end verifiziert: Default (4), `paper,folia,velocity` (3) und `velocity,bedrock-geyser` (2) bestehen alle `preparePlatformManifest`.
-- **`--no-rest`-Strip-Out geliefert:** löscht `rest/` (main + test) und entfernt den `onRegisterRoutes`-Override (no-op-Default auf `PlatformModule`) + `.rest.`-Imports aus dem Entrypoint. Verifiziert durch Scaffold des echten `example` + `gradle compileJava/compileTestJava`.
-- Tests: `TestPruneExtensionsBlock`, `TestPruneExtensionArtifacts`, `TestStripOnRegisterRoutes`, `TestGenerateStripsRest`, erweiterte `TestGenerateSelectiveTargets`/`TestGenerateAllTargetsByDefault`.
-
-**Bewusst out of scope (eigenes follow-up):** `--no-mongo`-Strip-Out — die `repository`→`queryService`→`capabilityHandles`→`healthCheck`-Kette des `example`-Moduls ist zu verzahnt für sichere String-Surgery; braucht eine Template-Restrukturierung. (`--no-plugin` = WithPlugin=false strippt heute die Plugin-Extensions noch nicht vollständig — eigener kleiner Pass.)
-
-### C.5 Erweiterung First-Party-Module (~3 d) — ⏳ **teilweise shipped**
-
-Konkrete Module, die heute fehlen und Differenzierung schaffen:
-- `cloud-module-discord-bridge` — ✅ **shipped (Outbound-Embed-Bridge)**: `java/cloud-modules/discord-bridge/`, abonniert dieselben Cloud-Events wie `webhook-alerts` und postet sie als Discord-Embeds (farb-kodiert nach Severity, strukturierte Fields) an konfigurierte Discord-Incoming-Webhooks (`DiscordTarget`-Repository über Mongo-Storage, Event-Filter pro Target, optionaler Username-Override). Differenzierung zu `webhook-alerts`: Discord-spezifisches Embed-Format statt generischem JSON. Kern ist der **reine** Formatter `DiscordEmbeds` (timestamp-injiziert → voll unit-getestet): `DiscordEmbedsTest` (4), `DiscordTargetTest` (2). **Offen (eigener Pass):** die bidirektionale Hälfte — Discord-Slash-Commands + MC-Chat ↔ Discord — braucht eine Gateway-Bot-Verbindung (JDA); dieses Modul bleibt bewusst ein zustandsloser Webhook-Poster.
-- `cloud-module-grafana-bridge` — Read-only Grafana-Datenquelle — **gestrichen** per ADR 10 (no Grafana dashboard pack)
-- `cloud-module-backup-orchestrator` — ✅ **shipped (config-Snapshot-Scope)**
-
-**Backup-orchestrator (geliefert):**
-- Neues Capability `InstanceFileAccess` (`prexor.instance.files`) in `cloud-api` — modules-public Interface über die bisher controller-internen `InstanceFileTreeService` + `InstanceFileContentService`. Built-in Handle wird in `PrexorCloudBootstrap.registerBuiltinCapabilities` registriert, bevor `loadStoredModules()` läuft (sodass abhängige Module schon beim Erststart resolven).
-- Modul `cloud-modules/backup-orchestrator/`: walk → read → `tar.gz` in `<PREXORCLOUD_BACKUP_DIR | /var/lib/prexorcloud/snapshots>/<instance>/<timestamp>.tar.gz`, Metadaten in der eigenen Mongo-Storage. REST `/api/v1/modules/backup-orchestrator/snapshots` (GET/POST/{id} GET/DELETE).
-- **Scope-Grenze ehrlich dokumentiert:** Daemon-RPC `ReadInstanceFile` deckelt Reads bei 64 KiB pro File und encodet als UTF-8. Brauchbar für `server.properties`, `ops.json`, Plugin-YAML, Whitelist/Banlist — **nicht** für Region-Files / NBT / Welt-Daten. Echte Welt-Snapshots brauchen daemon-side tar (`SnapshotInstance` proto-Erweiterung); ist als follow-up im Service-Javadoc und in der Module-`scope`-Sektion vermerkt. Truncierte Reads landen mit voller Pfadliste in `SnapshotMetadata.truncatedFiles`.
-- ✅ **Periodische Scheduler-Anbindung (Folge-Commit) geliefert:** `BackupSchedule` (env-getrieben, reiner totaler Parser) + `scheduleAtFixedRate` in `onStart`. Opt-in über `PREXORCLOUD_BACKUP_INTERVAL_MINUTES` (>0) **und** `PREXORCLOUD_BACKUP_TARGETS` (Komma-Liste `nodeId/group/instanceId`-Triples; `PREXORCLOUD_BACKUP_INITIAL_DELAY_MINUTES` default 1). Fehlt eins → REST-only wie zuvor. Modul-Kontext kann Instanzen nicht enumerieren, daher **explizite** Target-Liste statt Discovery (passt für persistente Lobbys/Hubs). Per-Target-Fehler werden geloggt + übersprungen (eine unerreichbare Instanz killt den Task nicht). Periodischer Pfad nutzt das Default-Pattern-Set; Per-Target-Filter bleiben Follow-up. Tests: `BackupScheduleTest` (6). **Scope-Grenze unverändert:** weiterhin Config-Files only (64-KiB-Daemon-Read-Cap), keine Welt-Daten.
-
-**Track-C-Gesamt: ~28 eng-days. Beginnt nach Track A. Hängt teilweise von Raft ab (Trust-Roots in `clusterFiles`).**
+- [x] **Register a catalog platform** — PAPER 1.21 (build 130) + VELOCITY 3.4.0 seeded; in `prexorctl catalog`.
+- [x] **Create a group** — `survival-lobby` (paper 1.21, min1/max3) created; scheduler placed an instance.
+- [x] **Watch the instance** — walked to `RUNNING`, port allocated.
+- [x] **Connect a Java client** — joined via the `edge` proxy (direct backend join refused by design, finding #9).
+- [x] **Scale up/down** — scaled to 3, then DYNAMIC auto-drained back to min=1 (verified live 2026-06-14; drain gated by `scaleDownAfterSeconds=300` — UX note: lowering min isn't instant).
+- [x] **Crash handling** — `kill -9` (pid of `survival-lobby-1`) → controller marked CRASHED, recorded `CrashReport` (**exit 137 / SIGKILL / uptime / full log tail**, queryable via `crash list`+`crash info` and the dashboard — fix #12), scheduler healed back to min=1. **PASSED 2026-06-14.**
 
 ---
 
-## 5. Track D — Observability Gen-2 (OpenTelemetry & Tracing)
+## Part 3 — Core orchestration features
 
-**Ziel:** Verteilte Traces über Controller → Daemon → MC-Plugin. Heute fehlt das komplett.
+### 3A. Templates
 
-### D.1 OpenTelemetry-SDK einziehen (~3 d) — ⏳ **Foundation + HTTP- + MongoDB- + Redis-Instrumentation shipped; gRPC-Auto-Instrumentation offen**
+- [x] **Create a versioned template** with files + config overrides → **PASSED** (variable substitution verified live in `survival-lobby-2/server.properties`: `%PORT%`→30001, `%MAX_PLAYERS%`→100, group/instance vars in `motd`). `ConfigMerger` granularity confirmed by code (key-level for `.properties`, deep-merge YAML/JSON/TOML, later-wins).
+- [~] **Layer templates** (base + override chain) → **engine verified, live two-layer-on-new-group test ABANDONED.** Created `layer-a`/`layer-b` override templates + a `layer-test` group layering them; the instance crashed on boot (cause undiagnosed — ephemeral log gone) and the churn cascaded into a controller↔daemon **port-allocation desync** (duplicate/orphan MC processes, all instances stuck `SCHEDULED`, daemon answering "already exists, ignoring start"). Recovered via a hard daemon stop→start. See follow-up below. Merge correctness itself is sound (code + the substitution result above); the gap is a clean live layered-instance run.
+- [x] **New template version + redeploy** → **PASSED** (live on `layer-a`: edited `server.properties` → **3 versions retained**; `POST /rollback` to the original hash returned `{"status":"restored"}` and the file content reverted exactly). Version history + rollback work.
 
-- ✅ `io.opentelemetry:opentelemetry-bom` (1.45.0) + `-api`/`-sdk`/`-exporter-otlp` (okhttp-Sender, kein gRPC-Konflikt) im `libs.versions.toml` + `cloud-controller`-Build; `-sdk-testing` als testImplementation.
-- ✅ `TelemetryConfig` (`controller.yml` → `telemetry`: `enabled`/`otlpEndpoint`/`serviceName`/`samplerRatio`, Ratio auf `[0,1]` geklammert). Top-level statt `clusterConfig.telemetry`, da Tracing keine Raft-replizierte State ist (analog `modules.signing`).
-- ✅ `Telemetry` (`controller/observability/telemetry/`): baut bei `enabled` ein `OpenTelemetrySdk` (BatchSpanProcessor → OTLP/gRPC, `parentBased(traceIdRatio)`-Sampler, `service.name`-Resource, W3C-Propagation); sonst `OpenTelemetry.noop()` → **Null-Overhead by default**. `tracer()`/`flush()`/`close()` (Flush+Shutdown im Shutdown-Hook, vor dem Quota-Enforcer). Exporter-Seam `fromExporter(...)` für Tests. Verdrahtet in `PrexorCloudBootstrap` → `controller.telemetry()`.
-- ✅ Fallback Jaeger / Tempo / Honeycomb / Datadog via OTLP. Tests: `TelemetryConfigTest` (3), `TelemetryTest` (2, inkl. `InMemorySpanExporter`-Span-Roundtrip).
-- ✅ **Javalin-HTTP-Instrumentation** (manuell, ohne Javaagent): `HttpServerTracing` (`controller/observability/telemetry/`) öffnet pro Request eine SERVER-Span (`HTTP <method>`, Attribute `http.request.method`/`url.path`/`http.response.status_code`, 5xx → ERROR), **extrahiert eingehenden W3C-`traceparent`** (inbound-Hälfte von D.3 — externe Traces / Dashboard laufen durch) und macht die Span für den Request-Thread current, sodass Domain-Spans (`auth.login` …) darunter nisten. Verdrahtet im `RestServer`-before/after-Filter, nur wenn `telemetry.enabled`; SSE/Stream-Pfade (`*stream*`, `/console`) werden übersprungen (deren Span würde nie enden). Tests: `HttpServerTracingTest` (2, inkl. Inbound-Trace-Continuation + 5xx-Status).
-- ✅ **MongoDB-Instrumentation** (manuell, ohne Javaagent): `MongoCommandTracer` (`controller/observability/telemetry/`) ist ein `com.mongodb.event.CommandListener`, der pro Command eine CLIENT-Span (`mongodb <op> <collection>`, Attribute `db.system`/`db.operation`/`db.namespace`/`db.collection.name`) öffnet, geparentet an `Context.current()` — DB-Calls nisten so unter der HTTP-/Domain-Span, die sie auslöste. Registriert auf den `MongoClientSettings` zur Client-Bauzeit (vor dem Telemetry-SDK in Bootstrap), inert bis `attachTracer()` nach dem Telemetry-Boot läuft und **nur** wenn `telemetry.enabled` → ein volatile-Read pro Command wenn aus, **kein** Span-Overhead. Korrelation über `requestId` (synchroner Treiber: ein `succeeded`/`failed` pro `started` auf demselben Thread). Monitoring-Chatter (`hello`/`ping`/`endSessions` …) wird übersprungen. Tests: `MongoCommandTracerTest` (5, inkl. ERROR-Span + Disabled-Pfad).
-- ✅ **Redis/Lettuce-Instrumentation** (manuell, ohne Javaagent): `RedisTracing` (`controller/observability/telemetry/`) adaptiert Lettuces **native** Tracing-SPI (`io.lettuce.core.tracing.Tracing`) auf OTel — pro Command eine CLIENT-Span (`redis <op>`, Attribute `db.system`/`db.operation`), geparentet an `Context.current()`. Auf `ClientResources` **nur** installiert, wenn `telemetry.enabled` (sonst wird der Client ohne den Adapter gebaut → identisch zu vorher; Lettuce gated alles Tracing über `isEnabled()`). Command-Args sind aus den Span-Tags ausgeschlossen (`includeCommandArgsInSpanTags()=false`), damit Redis-Werte (Tokens, Lease-Payloads, Revocation-Einträge) nicht in Traces lecken. Telemetry wird dafür direkt nach dem Auflösen der effektiven Cluster-Config gebaut (statt später), sodass Redis zur Connection-Zeit instrumentiert werden kann. Tests: `RedisTracingTest` (3, inkl. ERROR-Span + Args-Exclusion).
-- ⏳ **Offen:** Auto-Instrumentation für gRPC (braucht den OTel-Javaagent; der Controller↔Daemon-gRPC ist zudem ein Long-lived-Bidi-Stream, für den ein generischer ServerInterceptor keine sinnvollen Per-Command-Spans liefert — der Trace-Context reist bereits im Payload, siehe D.3) — bewusst ausgeklammert.
+### 3B. Networks (proxy routing)
 
-### D.2 Eigene Spans für Domain-Flows (~3 d) — ✅ **shipped**
+- [ ] **Create a Velocity proxy group** `edge` and a backend `survival` group → both `RUNNING`.
+- [ ] **Create a Network** (`POST /api/v1/networks`) with `lobbyGroup`, `fallbackGroups`, `proxyGroups: [edge]` → **Pass:** validation enforces referenced groups exist + proxy-platform check.
+- [ ] **Join via the proxy** → **Pass:** player lands in `lobbyGroup`; the proxy routed by the cached `/api/proxy/networks` composition.
+- [ ] **Kill the lobby instance** → **Pass:** player fails over down `fallbackGroups`; exhausted chain disconnects with `kickMessage`.
+- [ ] **Edit the network live** → **Pass:** proxies re-route within milliseconds, no restart.
 
-Wiederverwendbarer Helper `Spans.call/run` (`controller/observability/telemetry/Spans.java`): startet+aktiviert eine Span, setzt `ERROR`+`recordException` bei `RuntimeException` (rethrow), beendet immer. Getestet via `SpansTest` (3, `InMemorySpanExporter`). Tracer wird in jede Komponente per `setTracer()` aus `controller.telemetry().tracer()` injiziert (Default no-op → keine Konstruktor-Änderung, keine Test-Brüche, Null-Overhead wenn Telemetry aus). Lange Methoden via Extract-and-wrap (`doXxx`-Body unverändert) → minimaler Diff.
+### 3C. Scaling & deployments
 
-- ✅ Scheduler-Tick (`scheduler.tick`) — umschließt `Scheduler.evaluate()`, Attribut `scheduler.groups_evaluated`, Status OK/ERROR (inline, vor dem Helper).
-- ✅ Instance-Placement (`placement.evaluate` = `placeResolvedInstance`, `placement.dispatch` = `dispatchStartMessage`) — `InstancePlacementCoordinator`; dispatch nistet unter evaluate, wenn evaluate dispatcht.
-- ✅ Deployment-Reconcile (`deployment.reconcile` = `rollingRestart(_, stepGuard)`) — `DeploymentReconciler`.
-- ✅ Auth-Login (`auth.login` = `AuthManager.login`) — Tracer nach Telemetry-Bau über `controller.authManager().setTracer()` injiziert (AuthManager wird vor dem Controller gebaut).
-- ✅ Raft-`apply()` (`raft.apply`, Attribut `raft.entry_type`) — `ClusterControlStateMachine.applyTransaction` umschließt jeden committed Entry; Tracer lazy via `ClusterControlService.attachTracer()` (Catch-up-Applies vor dem Telemetry-Bau bleiben no-op). Status ERROR wenn `!reply.ok()`.
-- ✅ `auth.token-verify` (per-Request im `JwtAuthMiddleware`) — wrappt JWT-Validierung + Revocation-Check. Auth-Fehlschläge sind ein Client-Outcome (401), kein Server-Fault, daher als `auth.outcome`-Attribut (`valid`/`invalid`/`revoked`) statt ERROR-Status — analog zur HTTP-Server-Span, die nur 5xx als ERROR markiert. Damit das nesten kann, wurde die HTTP-Server-Span-`before`-Registrierung an den **Anfang** der Filter-Kette gezogen (vorher als letzter `before` registriert, lief also *nach* dem Auth-Filter): die Server-Span umschließt jetzt CORS/Subnet/Rate-Limit/Auth, OPTIONS-Preflight wird übersprungen (CORS bleibt effektiv zuerst). Tests: `JwtAuthMiddlewareTracingTest` (3, inkl. Nesting-Assertion).
+- [ ] **Dynamic scaling** — drive players past `scaleUpThreshold` → **Pass:** scheduler scales up; `scaleCooldownSeconds` prevents flapping.
+- [ ] **Rolling deployment** — push a new template version to a running group → **Pass:** instances roll one batch at a time, health-gated; dashboard Deployments shows progress.
+- [ ] **Canary + rollback** — start a deployment, then roll it back mid-flight → **Pass:** reconciler stops and reverts; no orphaned instances.
 
-### D.3 Trace-Propagation Controller → Daemon → MC-Plugin (~2 d) — ✅ **Controller→Daemon- + MC-Plugin→Controller-Hop shipped; Dashboard-Deep-Link shipped**
+### 3D. Node lifecycle
 
-- ✅ **Daemon-OTel-Foundation:** `cloud-daemon` hatte bisher kein OTel — Voraussetzung für die Daemon-Hälfte. Analog zur Controller-D.1-Foundation (Commit 61255d0) gebaut: OTel-Deps (`bom`/`api`/`sdk`/`exporter-otlp`, `sdk-testing` als testImpl), `TelemetryDaemonConfig` (`daemon/config/`, top-level `telemetry`-Block in `daemon.yml`, serviceName `prexorcloud-daemon`, samplerRatio geklammert), `DaemonTelemetry` (`daemon/observability/`): baut bei `enabled` ein `OpenTelemetrySdk` (BatchSpanProcessor → OTLP, `parentBased(traceIdRatio)`-Sampler, W3C-Propagation, `service.name` + `node.id`-Resource-Attribut); sonst `OpenTelemetry.noop()` → **Null-Overhead by default**. Verdrahtet in `PrexorDaemon.start()` (früh gebaut), Flush+Close im Shutdown. Tests: `TelemetryDaemonConfigTest` (3), `DaemonTelemetryTest` (2, inkl. `node.id`-Resource + InMemory-Span-Roundtrip).
-- ✅ **gRPC-Trace-Context Controller → Daemon (W3C-Traceparent):** Additives Feld `ControllerMessage.traceparent = 17` (außerhalb der `oneof`, kein PROTOCOL_VERSION-Bump; `proto-contracts.sha256` aktualisiert). Da der Controller gRPC-*Server* ist und Commands über den Long-lived-Response-Stream pusht, reist der Trace-Context im Payload, nicht in Metadata. Controller stempelt am einzigen Outbound-Chokepoint `NodeSession.send()` via `TraceContextWire.currentTraceparent()` (stateless `W3CTraceContextPropagator`, kein SDK-Ref → identisch ob Telemetry an/aus; ohne aktive Span = leer, nichts wird gestempelt). Daemon extrahiert am Inbound-Chokepoint `MessageDispatcher.dispatch()` und umschließt die synchrone Dispatch in einer `daemon.command`-CONSUMER-Span (`rpc.command`-Attribut = PayloadCase), die die Controller-Trace fortsetzt — **gegated auf nicht-leeren traceparent**, sodass untracete Heartbeats/Pings keine Span-Noise erzeugen. **Scope-Grenze ehrlich:** mehrere Handler offloaden auf Virtual-Threads; die Span endet beim synchronen Hand-off, deckt also Command-Empfang/Annahme, nicht die Downstream-Async-Arbeit. Tests: `TraceContextWireTest` (2), `MessageDispatcherTracingTest` (2, inkl. Trace-Continuation + No-Span-ohne-traceparent).
-- ✅ **Plugin-Token-Calls tragen Trace-Context im Header (SDK-frei):** `W3CTraceparent` (`cloud-plugins:internal`) mintet pro `get`/`postAsync` einen frischen, gesampleten W3C-`traceparent`; die Controller-seitige Inbound-Extraktion (`HttpServerTracing`) macht daraus eine Server-Span, sodass Player-Join/Metrics-Reports end-to-end traceable sind (Plugin-Aktion → Controller → Daemon). Bewusst **kein** OTel-SDK im Bukkit/Velocity-Classloader (schwergewichtig, classloader-fragil) — das Plugin ist Trace-Originator und trifft die Head-Sampling-Entscheidung (flags `01`). Inert wenn Controller-Telemetry aus (Header wird ignoriert, kein Collector-Flood). Tests: `W3CTraceparentTest` (3). **Scope ehrlich:** die Plugin-Span selbst wird nicht aufgezeichnet (kein SDK) — nur die Trace-ID originiert im Plugin; per-Plugin-Sampling-Ratio ist ein möglicher Follow-up.
-- ✅ Dashboard „Trace ansehen"-Deep-Link — **Backend:** optionales `telemetry.traceUiTemplate` (URL mit `{traceId}`-Platzhalter, z.B. Jaeger `http://localhost:16686/trace/{traceId}`), via `GET /api/v1/system/settings` (`tracingEnabled` + `traceUiTemplate`) an die Dashboard exponiert. Jede getracete Response trägt den `X-Trace-Id`-Header (gesetzt im RestServer-after-Filter aus der Server-Span; CORS-`Access-Control-Expose-Headers` ergänzt, damit Cross-Origin-Dashboard-JS ihn lesen darf). **Frontend:** `recordTraceId`/`lastTraceId` (`app/lib/trace-context.ts`) + ein `traceMiddleware` im `useApiClient` erfassen den Header jeder Response; der `system`-Store leitet `tracingEnabled`/`traceUrl(id)`/`lastTraceUrl` aus den Settings + der zuletzt erfassten Trace-ID ab; die Observability-System-Seite zeigt eine „Tracing"-Sektion mit „Letzten Trace ansehen"-Deep-Link (i18n en/de). Tests: Backend `TelemetryConfigTest` (+1), `HttpServerTracingTest#exposesTraceId`, `SystemDtoMapperTest` (+2); Frontend `trace-context.test.ts` (4), `system.test.ts` (+2), `useApiClient.test.ts` (+2). **Scope ehrlich:** per-Action-Trace (die gerade ausgelöste Operation), nicht per-Instance-Historie — letzteres bräuchte Trace-ID-Persistenz pro Instanz-Operation.
-
-**Track-D-Gesamt: ~8 eng-days. Unabhängig von Track A, kann parallel.**
-
-**Bewusst nicht in Scope:** Logs-Aggregation (Loki/ELK) — das ist Ops-Konfiguration, nicht App-Code. Wir publishen strukturierte Logs (JSON über Logstash-Layout), Operator kann anschließen.
+- [x] **Label a node** (`region`/`zone`) → **PASSED 2026-06-14** (2-node fleet). Labeled `node-frankenstein-1` `zone=a` / `node-fra-2` `zone=b` via `daemon.yml labels:` (no REST endpoint; restart to apply). Verified all three on `survival-lobby` via REST PATCH (CLI doesn't expose these): **spreadConstraint=`zone`** → 2 instances placed one-per-zone; **nodeAffinity=`zone=a`** → killed the zone-b instance, heal landed in zone a (and the running zone-b one was NOT evicted = correct *IgnoredDuringExecution*); **nodeAntiAffinity=`zone=a`** → killed a zone-a instance, heal avoided zone a → landed on `node-fra-2`. Affinity match is `key=value` against node labels (`WeightedNodeSelector`).
+- [x] **Drain a node** — drained `node-frankenstein-1` (`shutdown=false`, via REST since CLI drain defaults `shutdown=true`); `edge` + `survival-lobby` migrated to **`node-fra-2`** and reached RUNNING, source node emptied; `undrain` restored it to ONLINE. **PASSED 2026-06-14** (also validates cross-host scheduling / Part 9 core, and the clean reschedule shows the (g) desync is single-node port-contention-specific). `eject` not run — destructive on a live node; mechanism is the same ShutdownNode path as `stop node`.
 
 ---
 
-## 6. Track E — Frontend & Design-System Konsolidierung
+## Part 4 — MC platform breadth (one real server per platform)
 
-> **Detailplan** (ehem. `track-e-plan.md`, beim Docs-Cleanup hierher gefaltet) — phasiertes Vor-Start-Scoping (2026-06-05). Kernkorrektur: ADR 32 hat das gemeinsame Component-Package abgewählt, daher ist Track E **Tokens + Drift-Guard + A11y**, nicht Shared-Code; der messbare Hebel ist die A11y-Runtime-Härtung (E-P1). Reframte Schätzung ~13–14 d statt ~20 d.
+For each: provision a group on that platform, get it `RUNNING`, connect a client, confirm
+registration + metrics. Reference: Concepts → Plugins, Guides → Modded servers.
 
-**Ziel:** Heute existieren drei Vue-/JS-Stacks (Nuxt 4 für Dashboard, Vite-Vue für Installer, Astro + Vue-Islands für Website). Plus ein Design-System-Verzeichnis, das von keinem davon konsumiert wird. Konsolidieren.
+- [ ] **Paper 1.20** — connect → **Pass:** registers, reports join/leave + metrics.
+- [ ] **Paper 1.21** — same.
+- [ ] **Folia** — same (region-threaded).
+- [ ] **Spigot** — same.
+- [ ] **Velocity proxy** — registers as a proxy instance; routes players.
+- [ ] **BungeeCord proxy** — same.
+- [ ] **Fabric 1.21.1 server mod** — build `:cloud-plugins:server:fabric:remapJar`, drop the ~4.2 MB jar in `mods/`, start → **Pass:** registers, reports player join/leave + a metrics snapshot every ~10 s (200 ticks); **no slf4j/logback binding hijack** in the server log.
+- [ ] **NeoForge 21.1.233 server mod** — build `:cloud-plugins:server:neoforge:shadowJar`, drop `PrexorCloudNeoForge.jar` in `mods/`, start → **Pass:** same as Fabric; clean logging (this jar already excludes logback).
 
-### E.1 Design-System operationalisieren (~5 d)
+### 4B. Bedrock (Geyser) — both topologies
 
-- **Token-Pipeline:** ✅ `design-system/tokens.json` ist single source of truth.
-  Statt Style-Dictionary ein dependency-freier Node-Generator (`build-tokens.mjs`)
-  — die bespoke Token-Form (geschachtelte dark/light-Semantik + ANSI) bräuchte
-  ohnehin Custom-Formate, und ein cosign/Rekor-gehärtetes Projekt spart sich die
-  Toolchain in der Supply-Chain. Generiert:
-  - `design-system/dist/tokens.css` — CSS-Variablen (`:root` / `.dark` / `.light`)
-  - `design-system/dist/tokens.ts` — TypeScript-Constants (für JS-Logik in den Frontends)
-  - `design-system/dist/tokens.json` — normalisierter Build-Output (für ggf. Figma-Sync)
-  CI-Job `design-system` erzwingt Parität (`tokens.json` ↔ `colors_and_type.css`)
-  und dist-Frische. Dabei zwei echte Drifts gefixt: Light-Primary `#0891b2`→`#0c8aa8`
-  (cyan-8, wie alle Surfaces), Light-`glass-border-hover` `#a8a59c`→`#aba8a0` (sand-8).
-- **NPM-Workspace:** _(entschieden gegen — siehe ADR 32.)_ Statt Surfaces auf ein `@prexorcloud/design-system`-Package zu migrieren, bleiben sie ge-mirror-t und werden per CI-Drift-Guard an den Canon gepinnt (`design-system/__tests__/surface-drift.test.mjs`). Das löste das eigentliche Problem (stilles Drift) zu einem Bruchteil der Kosten. Package-Stub + `dist/` stehen falls ein echter Consumer-Bedarf entsteht; die Mermaid-Palette konsumiert `dist/` bereits.
-- **Komponenten-Library:** ✅ _Geliefert als **token-only CSS-Layer** (`design-system/components.css`), bewusst **keine** Vue/Radix-Runtime — formal entschieden in **ADR 33**._ Deckt jetzt button/input/**select**/**checkbox**/**switch**/badge/card/**table**/**tooltip** (E-P4, 2026-06-05: select/checkbox/switch/table/tooltip ergänzt). Dieselbe Referenz-Mechanik wie `colors_and_type.css` (Surfaces mirror-n); `__tests__/components.test.mjs` erzwingt „Styling nur über Tokens" (kein hardcoded Farbwert, keine dangling Token-Refs) — 16/16 grün. Echte Vue-Headless-Komponenten bleiben an die Workspace-Entscheidung (ADR 32/33 Boundary) gekoppelt, falls je ein echter Bedarf entsteht.
-- **Histoire-Stories:** ✅ _bewusst gestrichen_ (ADR 33) — kein Component-Runtime, also keine Story-App; das zöge Vue+Histoire in das dependency-freie DS-Package. Surfaces stylen über den CSS-Layer + Tokens.
+Reference: Guides → Bedrock with Geyser.
 
-### E.2 Dashboard auf konsolidierten Stack (~10 d)
-
-- **Optional, bewusst:** Bleibt auf Nuxt 4, importiert Design-System-Komponenten statt eigener Implementierungen.
-- Komponenten-Migration: Buttons, Inputs, Cards überall durch Design-System-Versionen ersetzen.
-- A11y-Pass: ARIA-Labels, Keyboard-Navigation, Color-Contrast-Audit (axe-core in CI).
-- i18n-Foundation: ✅ **bereits vorhanden** (`@nuxtjs/i18n`, `i18n/locales/{en,de}.json`, 646 Keys). ⏳ Coverage-Lücke geschlossen: 40 untranslatete `de`-Keys (das komplette „shares"-Feature — Seite + Store-Messages) nachgezogen, und ein **harter CI-Gate** `pnpm i18n:check` (`i18n/check-locale-parity.mjs`, zero-dep) erzwingt jetzt identische Key-Sets en↔de, damit kein String mehr nur in einer Sprache landet. Offen: Voll-Audit auf noch hardcodete UI-Strings (vgl. Track H.3).
-
-### E.3 Installer-Wizard auf gleichen Stack (~3 d)
-
-- Vue 3 + Vite bleibt (Single-File-HTML-Constraint), aber Components aus `@prexorcloud/design-system` importieren.
-- Vermeidet doppelte Button/Input-Implementationen.
-
-### E.4 Website-Theme aus Design-System ziehen (~2 d) — ✅ **shipped (2026-06-05)**
-
-- ✅ **Starlight-`--sl-color-*`-Block generiert:** `website/scripts/gen-starlight-theme.mjs` mappt die Starlight-Surface-Farben auf die DS-Semantik-Tokens (`dist/tokens.json`) → `src/styles/starlight-theme.generated.css`, via `astro.config` `customCss` nach `starlight.css` geladen. DS-Werte sind Canon; `predev`/`prebuild` + harter Freshness-Guard in `website.yml`; `astro check` clean. Richere Website-only-Tokens (Accent-Ramp/Spacing/`--z-*`) bleiben hand-gepflegt.
-- Starlight-Custom-CSS aus `design-system/dist/tokens.css` generieren. _(Jetzt entsperrt: Canon wurde 2026-06-02 auf die Quiet-Studio/Reef-Palette reconciled — b736c50 —, also würde Generieren die Surfaces nicht mehr umfärben. Aber `website/src/styles/tokens.css` ist reicher als das DS-Token-Set (HSL-Tripletts, `--bg`/`--surface`/`--raised`, eigene Type-Scale), daher kein reiner Drop-in — erst das DS-Token-Set angleichen.)_
-- ✅ Mermaid-Palette nicht mehr hardcoded: `website/scripts/gen-mermaid-theme.mjs` generiert sie aus `design-system/dist/tokens.json` (predev/prebuild), `mermaid.ts` konsumiert die generierte Datei. CI-Frische-Guard in `website.yml`. Erster Consumer der E.1-Pipeline (ea223ff).
-
-**Track-E-Gesamt: ~20 eng-days. Parallel zu A/B/C möglich (Frontend-Team separat).**
+- [ ] **Sidecar** — run Geyser as an extension inside a Velocity proxy instance → **Pass:** registers as a proxy instance; every Bedrock session reports `edition=bedrock`.
+- [ ] **Standalone managed Geyser** — `:cloud-plugins:proxy:geyser:shadowJar`; register the `GEYSER` catalog platform; create a Geyser group with `bedrockProxyGroup: edge` → **Pass:** at provision time the controller injects `remote.address`/`remote.port` from a running `edge` instance into Geyser's `config.yml`.
+- [ ] **Edition-aware routing** — set `bedrockLobbyGroup` + `bedrockFallbackGroups` on the Network; connect with a **real Bedrock client** → **Pass:** the Bedrock player lands in `bedrockLobbyGroup` (not the Java lobby); dashboard shows them as `bedrock` edition (Java/Bedrock split on the Players card).
+- [ ] **Bedrock failover** — kill the Bedrock lobby instance → **Pass:** failover walks `bedrockFallbackGroups`.
+- [ ] **Cold-start ordering** — provision Geyser before any `edge` instance runs → **Pass:** `remote` stays at the `127.0.0.1:25565` default + a warning; restart after `edge` is `RUNNING` picks up the live endpoint.
 
 ---
 
-## 7. Track F — MC-Plattform-Breite
+## Part 5 — Module ecosystem
 
-**Ziel:** Wir unterstützen heute Paper/Folia/Spigot/Velocity/BungeeCord + Bedrock via Geyser-Beispielmodul. Erweitern.
+Reference: Concepts → Modules, Reference → Module SDK.
 
-### F.1 First-Class Bedrock-Routing (~7 d) — ⏳ **Sichtbarkeit + Edition-Routing + Geyser-Sidecar + Daemon-Provisioning shipped; nur Laufzeit-Verifikation offen**
+### 5A. Registry & signed distribution
 
-- ✅ **Dashboard zeigt Bedrock-vs-Java-Spieler getrennt.** Der Controller leitet pro Spieler eine `edition` (`java`/`bedrock`) ab — **aus der UUID**: Floodgate vergibt Bedrock-Spielern eine UUID mit Null-High-Bits (`new UUID(0, xuid)`), der kanonische programmatische Bedrock-Check, also **kein** Plugin-/Transport-/Event-Change nötig (`PlayerEdition.detect`, `PlayerInfo.edition` via Compact-Ctor auch für Jackson-Rehydration alter Daten). Surfaced in den Player-REST-DTOs (main + workload) + `PlayerDto`-Schema (+ OpenAPI). Dashboard: `editionCounts`-Getter, „Edition"-Split-Stat-Card, Detail-Sheet-Zeile, Bedrock-Badge auf der `PlayerCard` (i18n en+de). Tests: `PlayerEditionTest`, erweiterte Mapper- + `players`-Store-Tests. **Scope ehrlich:** erkennt Floodgate-Bedrock (UUID-Konvention); Standalone-Geyser ohne Floodgate vergibt Java-UUIDs und ist nicht unterscheidbar → wird als `java` gemeldet.
-- ✅ **Edition-bewusstes Routing in der `NetworkComposition`** (2026-06-07). Optionale `bedrockLobbyGroup` + `bedrockFallbackGroups` im Domain-Record (leer ⇒ Bedrock folgt unverändert der Java-Route, also rückwärtskompatibel via 7-Arg-Ctor). `PlayerEdition` lebt jetzt in `cloud-api`, sodass der Proxy denselben Floodgate-UUID-Detektor wie der Controller nutzt. `NetworkRouter` löst Lobby + Fallback-Kette pro Edition auf; `VelocityPlayerListener` / `BungeePlayerListener` leiten die Edition aus der Spieler-UUID ab (Initial-Join **und** Kick-Failover). `NetworkManager` validiert die Bedrock-Felder cross-reference (Existenz, keine Blanks/Duplikate, kein Fallback == effektive Bedrock-Lobby). Dashboard-`NetworkDialog` bekommt eine optionale „Bedrock routing"-Sektion. Voll getestet (Router, Manager, Record, Dialog); OpenAPI + SDK-Typen regeneriert. **Laufzeit-Verifikation** (echter Geyser-Client landet in der Bedrock-Lobby) steht noch aus — braucht eine laufende Geyser-Instanz.
-- ✅ **Dedizierter `cloud-plugins:proxy:geyser`-Sidecar** (2026-06-07, code-complete). Eine echte Geyser-**Extension** (`PrexorCloudGeyser implements Extension` + handgeschriebene `extension.yml`), die — wie Velocity/Bungee — `AbstractProxyCloudPlugin` fährt: registriert den Geyser-Prozess als Proxy-Instanz und meldet jede Bedrock-Session. **Kompiliert gegen das echte `geyser-api 2.10.0-SNAPSHOT`** (API per `javap` verifiziert: `GeyserConnection`, `onlineConnections`, `transfer`, `SessionJoin/DisconnectEvent`, Lifecycle-Events). Geyser ist ein Protokoll-Übersetzer ohne Server-Liste → `registerBackend`/`unregisterBackend` sind bewusste No-Ops, `transferPlayer` nutzt `GeyserConnection.transfer` (nur Standalone-Topologie). **Authoritatives Edition-Reporting:** `player-join` trägt jetzt ein optionales `edition`; der Sidecar meldet `bedrock` explizit, womit die F.1-Sichtbarkeitslücke (Standalone-Geyser ohne Floodgate → Java-UUID) **geschlossen** ist. `PlayerSessionRegistry` honoriert es (blank ⇒ UUID-Ableitung), getestet.
-- ✅ **Daemon-Provisioning einer Geyser-Instanz mit dynamischer Remote-Auflösung** (2026-06-07). Eine `GEYSER`-Platform (`category: PROXY`, `configFormat: geyser`) wird jetzt end-to-end provisioniert: additive `ConfigFormat.GEYSER` im Proto (Contract-SHA aktualisiert, **kein** `PROTOCOL_VERSION`-Bump); `parseConfigFormat`/`configFormatName` erweitert. `BaseTemplateGenerator` shadet die **Extension** `PrexorCloudGeyserExtension.jar` ins `base-geyser`-Template — bewusst nach **`extensions/`** statt `plugins/` (eigene Install-Dir-Map) — plus eine Default-`config.yml` (`defaults/platform/geyser/`, `%PORT%`-Substitution für den Bedrock-Listener); die Geyser-Shadow-Jar wandert via `bundledPlugins` in den Controller-Classpath. **Die „richtige" (nicht schnellste) Lösung für das Remote-Ziel:** ein Geyser-Group-Feld `bedrockProxyGroup` benennt die Java-Proxy-Group; der `BedrockRemoteResolver` (backed by `ClusterState`) löst zur Provision-Zeit eine **laufende** Instanz dieser Group auf (Node-Advertise-Host + Instanz-Port) und der `InstanceCompositionPlanner` injiziert `remote.address`/`remote.port` als Config-Patches. Daemon-seitig patcht ein **section-aware** Geyser-Patcher die verschachtelten YAML-Keys (`bedrock.port` vs `remote.port` disambiguiert). Cold-Start (noch keine laufende Proxy-Instanz) ⇒ Config-Default bleibt + Log, bis Neustart. Voll getestet (`ServerConfigPatcher` nested, `InstanceCompositionPlanner` resolved + cold-start, `BaseTemplateGenerator` extensions/); OpenAPI + SDK-Typen regeneriert; `catalog.yml`-Test-Fixture um `GEYSER` ergänzt.
-- ✅ **Dashboard-Form-Feld für `bedrockProxyGroup`** (2026-06-07). GEYSER-only-Selector im Orchestration-Step der `CreateGroupDialog`, der die Java-Proxy-Groups (Velocity/Bungee) anbietet; in die Create-Payload verdrahtet, i18n en+de, auf `ServerGroup` typisiert, getestet (sichtbar nur für GEYSER, submittet die Wahl).
-- ⏳ **Offen / Laufzeit-bound:** (a) echte Laufzeit-Verifikation mit einem Bedrock-Client gegen einen provisionierten Geyser; (b) **reaktive** Re-Auflösung — stirbt/wandert die gefrontete Proxy-Instanz, behält das laufende Geyser sein altes Remote bis zum Neustart (v1 löst zur Provision-Zeit; Follow-up: Re-Provision/Patch bei Proxy-Endpoint-Änderung); (c) realer Geyser-Download-URL lebt im Operator-Catalog, nicht im Repo.
+- [ ] **Configure a registry** — set `modules.registries` to an index URL → **Pass:** dashboard Modules → Registry shows the catalog; `prexorctl module search` lists entries.
+- [ ] **Install from registry** — `prexorctl module install stats-aggregator` (or dashboard Install) → **Pass:** sha256 pin verified against the index **and** cosign signature verified against the controller's own trust root; module reaches `ACTIVE`.
+- [ ] **SSRF guard** — try installing from a `registryUrl` not in the configured list → **Pass:** rejected.
+- [ ] **Upgrade** — `prexorctl module upgrade --all` → **Pass:** only modules with a newer catalog version are reinstalled (pinned to the exact version); up-to-date ones untouched; non-zero exit on partial failure.
+- [ ] **Unsigned / tampered jar** — install a module whose signature doesn't verify → **Pass:** route returns `422 SIGNATURE_VERIFICATION_FAILED`; nothing installed.
+- [ ] **Rekor offline SET** — set `modules.signing.rekor.policy=REQUIRE_SET` and install a module without a valid SET → **Pass:** rejected.
 
-### F.2 Fabric-Server-Plugin (~5 d) — ⏳ **baubar + runnable Mod-Jar (Deps gebundlet); nur Laufzeit-Verifikation offen**
+### 5B. Lifecycle, health, resources, quota
 
-- ✅ **Neues Modul `cloud-plugins:server:fabric`** (2026-06-07). Loom-gebaute Fabric-**Dedicated-Server-Mod** (Minecraft 1.21.1, `DedicatedServerModInitializer`), die sich beim Controller registriert und Player-Join/-Leave + alle 200 Ticks (~10 s) einen Metrics-Snapshot meldet — über Fabrics Event-API (`ServerLifecycleEvents`/`ServerPlayConnectionEvents`/`ServerTickEvents`) statt Bukkit, aber **denselben plattform-agnostischen `ServerControllerClient` + `InstanceMetricsPayload`** wiederverwendend. **Korrektur zum Plan:** die Server-Plugins sprechen **REST `/api/plugin/*`**, nicht gRPC. `FabricMetricsCollector` liest TPS/MSPT/Player/Worlds/Chunks aus `MinecraftServer`; JVM-Teil ist JMX-identisch zum Bukkit-Collector. **Kompiliert + `remapJar` gegen die echte Fabric-API** (Loom 1.16.3 auf Gradle 9.4, Yarn 1.21.1).
-- ⚙️ **Build-Infra:** Loom-Plugin aus dem FabricMC-Maven (in `settings.gradle.kts pluginManagement`); der **Gradle-JVM muss ≥ 21 sein** (das Loom-Plugin lädt in die Daemon-JVM) — CI fährt JDK 25 ✓, lokal das Daemon-JDK auf 21+ setzen. Loom konfiguriert das Fabric-Projekt bei jeder Invocation (cacht aber nach dem ersten MC-Download).
-- ✅ **Runtime-Dep-Bundling** (2026-06-07). `server:shared` + transitive Closure (cloud-api, internal, Jackson) werden via Shadow in die Mod-Jar geshadet, dann remapped Loom das Shadow-Ergebnis (`remapJar.inputFile = shadowJar`). `slf4j-api` ist ausgeschlossen (Loader stellt es), Minecraft bleibt extern. Ergebnis: `fabric.jar` (~4,2 MB) mit eigenen Klassen + 250 Cloud- + 1274 Jackson-Klassen, 0 slf4j, 0 Minecraft. → **läuft jetzt standalone in Fabric** (Code-/Packaging-seitig).
-- ⏳ **Offen:** (a) Laufzeit-Verifikation auf einem echten Fabric-Server; (b) Spotless ist auf dem Loom-Modul nicht verdrahtet (Code von Hand palantir-konform).
-- **Use-Case:** Modded-Server in der Cloud orchestrieren.
+- [ ] **Hot reload** — update a `reloadable: true` module → **Pass:** `ACTIVE → RELOADING → ACTIVE` with no stop/unload; state handed off in `onReload`.
+- [ ] **Health** — `GET /api/v1/modules/platform/<id>/health` → **Pass:** returns `HEALTHY/DEGRADED/UNHEALTHY/UNKNOWN`; dashboard module card shows the colored health dot.
+- [ ] **Resources** — `GET …/<id>/resources` → **Pass:** live thread count, CPU ms/min, MB/min; dashboard shows the resources block.
+- [ ] **Quota (soft)** — set `modules.quotas.<id>` low; drive the module over → **Pass:** WARN on the rising edge + counter `prexorcloud_module_quota_exceeded_total{module,resource}`; "Quota exceeded" badge; module keeps running (advisory).
+- [ ] **Classloader leak metric** — unload a module → **Pass:** `prexorcloud_module_classloader_*` track pending/collected; no steady-climb leak.
 
-### F.3 (Neo)Forge-Server-Plugin (~3 d) — ⏳ **baubar + runnable Mod-Jar (Deps gebundlet); nur Laufzeit-Verifikation offen**
+### 5C. First-party modules (install + exercise each)
 
-- ✅ **Neues Modul `cloud-plugins:server:neoforge`** (2026-06-07). **NeoForge** (nicht klassisches MinecraftForge) als Ziel-Loader gewählt — der für 1.21+ dominante Fork; moderne ModDevGradle-Toolchain (Loom-ähnlich, leichter zu bauen/verifizieren). NeoForge-`@Mod`-Server-Integration (Minecraft 1.21.1, NeoForge 21.1.233), die sich beim Controller registriert und Player-Join/-Leave + alle 200 Ticks (~10 s) einen Metrics-Snapshot meldet — über NeoForges Game-Event-Bus (`ServerStartedEvent`/`PlayerEvent.PlayerLoggedIn|Out`/`ServerTickEvent.Post`), aber **denselben plattform-agnostischen `ServerControllerClient` + `InstanceMetricsPayload`** wie Fabric/Bukkit wiederverwendend. `NeoForgeMetricsCollector` liest TPS/MSPT/Player/Worlds/Chunks aus `MinecraftServer` — unter **Mojang-Official-Mappings** (`getAverageTickTimeNanos`, `getAllLevels`, `ServerLevel.getChunkSource().getLoadedChunksCount`, `ModList.get().size()` etc.), jede Signatur per `javap` gegen die echte NeoForge-Artefakt-Jar verifiziert. **Kompiliert gegen die echte NeoForge-API.**
-- ⚙️ **Build-Infra:** ModDevGradle-Plugin (`net.neoforged.moddev` 2.0.141) aus dem Gradle-Plugin-Portal; der **Gradle-JVM muss ≥ 21 sein** (wie Loom). Anders als Loom **kein Remap-Schritt** — NeoForge nutzt Mojang-Mappings zur Compile- **und** Laufzeit, also ist die geshadete Jar direkt die Mod. Catalog-Key-Falle: `neoforge` + `neoforge-moddev` lässt `neoforge` zum Namespace-Knoten werden → Plugin-Version als `moddevgradle` benannt.
-- ✅ **Runtime-Dep-Bundling.** `server:shared` + transitive Closure (cloud-api, internal, Jackson) via Shadow in die Mod-Jar geshadet (`configurations = listOf(bundled)`, also **kein** NeoForge/Minecraft-Leak). `slf4j-api` ist aus dem `bundled`-Dep ausgeschlossen (NeoForge pinnt strict 2.0.9 + stellt es bereit). **Korrektur ggü. F.2:** zusätzlich `logback-classic`/`-core` **ausgeschlossen** — die Fabric-Jar shadet versehentlich einen `META-INF/services/org.slf4j.spi.SLF4JServiceProvider` (logback) ein, der im Host die Logging-Bindung kapern kann; der NeoForge-Mod meidet das. Ergebnis: `PrexorCloudNeoForge.jar` (~3,2 MB) mit 292 Cloud- + 1274 Jackson-Klassen, **0 slf4j, 0 logback, 0 SLF4JServiceProvider, 0 Minecraft/NeoForge**, `neoforge.mods.toml` + `pack.mcmeta` präsent. → **läuft jetzt standalone in NeoForge** (Code-/Packaging-seitig).
-- ⏳ **Offen:** (a) Laufzeit-Verifikation auf einem echten NeoForge-Server; (b) Spotless ist auf dem ModDevGradle-Modul nicht verdrahtet (Code von Hand palantir-konform, wie beim Fabric-Modul). **Follow-up F.2:** den logback-`SLF4JServiceProvider`-Leak auch aus der gemergten Fabric-Jar entfernen (gleicher Build-Exclude).
-- **Use-Case:** NeoForge-Modded-Server in der Cloud orchestrieren — schließt zusammen mit F.2 (Fabric) beide großen 1.21-Modloader-Ökosysteme ab. Klassisches MinecraftForge bleibt offen (eigenes Modul via ForgeGradle, falls Bedarf).
+- [ ] **stats-aggregator** — runs, exposes its REST/stats.
+- [ ] **player-journey** — records player journeys; `PlayerJourneyService` queryable.
+- [ ] **webhook-alerts** — fires alerts to a configured webhook on cloud events.
+- [ ] **discord-bridge** — posts severity-colored embeds to a Discord incoming webhook.
+- [ ] **tablist** — applies the tablist behavior in-game.
+- [ ] **backup-orchestrator** — `POST /api/v1/modules/backup-orchestrator/snapshots` → **Pass:** walks → reads (≤64 KiB config files) → `tar.gz` under the snapshot dir; periodic schedule via `PREXORCLOUD_BACKUP_INTERVAL_MINUTES` + `PREXORCLOUD_BACKUP_TARGETS`.
+- [ ] **protocol-tap** — taps protocol traffic as designed.
+- [ ] **InstanceFileAccess capability** — a module walks/reads a remote instance's config files via the controller handle → **Pass:** reads bounded at 64 KiB UTF-8; truncated reads listed in `truncatedFiles`.
 
-**Track-F-Gesamt: ~15 eng-days. Niedrigere Priorität — kann auf v1.3 oder später.**
+### 5D. Module scaffolder (CLI, no login needed)
 
----
-
-## 8. Track G — Doku & ADR-Vollständigkeit
-
-**Ziel:** Architecture-Decision-Records (ADR) für alle nicht-trivialen Entscheidungen, sodass spätere Maintainer „warum" verstehen.
-
-### G.1 ADR-Register füllen (~3 d) — ✅ **shipped** (Register lebt in `docs/engineering/decisions.md`, 31 ADRs)
-
-Das Register deckt die unten skizzierten Entscheidungen ab (mit abweichender Nummerierung) und hält Reversals ehrlich nach: **ADR 30** dokumentiert die OpenTelemetry-Einführung (Teil-Reversal von ADR 9 „Prometheus only"), **ADR 31** die signierte Modul-Registry als reinen Index (Teil-Relaxierung von ADR 14 „No marketplace, no central index"). Beide Vorgänger-ADRs tragen jetzt einen Supersession-Hinweis. Die ursprüngliche Wunschliste:
-
-- **ADR-001:** Embedded Raft via Apache Ratis (vs. externer Coordinator / Mongo-CAS)
-- **ADR-002:** Module-Signing via cosign + Rekor (vs. self-signed)
-- **ADR-003:** JVM 25 mit Preview-Features (vs. 21 LTS) — inklusive Risiko-Diskussion
-- **ADR-004:** Mongo + Redis statt einer DB (Architektur-Klärung)
-- **ADR-005:** gRPC mTLS für Daemon-Verbindung (vs. token-basiert)
-- **ADR-006:** Drei Frontends (Dashboard, Installer, Website) — und warum nicht fusioniert
-- **ADR-007:** Eigene Modul-Registry (vs. Maven Central / GitHub Releases)
-- **ADR-008:** OpenAPI als Single Source of Truth für REST → CLI → SDK
-
-### G.2 Runbooks (~2 d)
-
-`docs/runbooks/` ergänzen:
-- `cluster-recovery.md` — Majority-Loss-Recovery — ✅ geliefert als `recover-cluster.md`
-- `v1.0-to-v1.1.md` — Migration mit Raft — ✅ geliefert als `upgrade-v1.0-to-v1.1.md`
-- `module-trust-root-rotation.md` — ✅ **shipped** (Overlap-Rotation + Emergency-Revocation; restart-required dokumentiert)
-- `ca-rotation.md` — ✅ **shipped** (Daemon-mTLS-CA vs. Raft-Cluster-CA getrennt; `rotate-secrets.md` verlinkt jetzt die Deep-Dives)
-- `incident-postmortem-template.md` — ✅ geliefert als `incident.md`
-
-**Track-G-Gesamt: ~5 eng-days. Runbook-Lücken geschlossen.**
+- [ ] **Scaffold** — `prexorctl module new my-cool-module --capabilities prexor.smoke@1.0.0 --mc-plugin paper,velocity` → **Pass:** generates a buildable skeleton under `java/cloud-modules/my-cool-module/`; `./gradlew :cloud-modules:my-cool-module:preparePlatformManifest` succeeds.
+- [ ] **Selective targets + flags** — try `--no-rest`, `--no-frontend`, `velocity,bedrock-geyser` → **Pass:** manifest + `build.gradle.kts` + settings includes stay in lockstep; scaffolds compile.
 
 ---
 
-## 9. Track H — Polish, Performance, A11y, i18n
+## Part 6 — Observability
 
-**Ziel:** Letzter Schliff vor v1.3.
+Reference: Operations → Monitoring.
 
-### H.1 Performance-Tuning (~4 d) — ⏳ **Audit-Log-Keyset-Pagination shipped; Perf-Trend-Review + Scheduler-Profiling offen**
-
-- Perf-Baseline-Trend-Reports der letzten 60 Tage anschauen, Drift-Hotspots identifizieren. — **offen**
-- Mongo-Indices auditieren — die Audit-Log-Queries sind die wahrscheinlichsten Bottlenecks bei großen Clustern.
-  - ✅ **Audit-Log `skip(offset)`-Deep-Pagination ersetzt (2026-06-05):** Der in H.2 identifizierte Hotspot war nicht ein fehlender Index, sondern `getAuditLog(limit, offset)` mit `skip(offset)` — offset-proportionaler Scan-and-Discard auf tiefen Seiten. Neu: `StateStore.getAuditLogSeek(cursor, limit)` → `AuditLogPage(entries, nextCursor)`, Keyset/Seek über `Filters.lt("_id", cursor)` + `sort(_id desc)` (ObjectId ist insertion-monoton → „älter als Cursor" = Range-Scan über den primären `_id`-Index, **kein** `skip`, **kein** neuer Index → kein Index-Wildwuchs). Fetch von `limit+1` entscheidet `nextCursor` ohne Extra-Count. REST: `/api/v1/audit?cursor=<token>&pageSize=N` (blank = neueste Seite) liefert `{data, pageSize, nextCursor, total}`; ungültiger Cursor → 400 `BAD_CURSOR`. Der Legacy-`page`/`offset`-Pfad bleibt unverändert (Backward-Compat, dokumentierter OpenAPI-Contract). Dashboard-Audit-Seite migriert auf Cursor-Stack (Prev/Next ohne Backend-`skip`; loose-typed, da `cursor`/`nextCursor` noch nicht im SDK-Snapshot). Tests: Harness `AuditTest` (Seek-Walk deckt jeden Eintrag genau einmal, kein Overlap; Garbage-Cursor→400), Dashboard `audit.test.ts` (+2 Cursor-Stack) / `audit-index.test.ts`. **Nebenbei gefixt:** ein pre-existing Compile-Break im Test-Harness (`TestCluster` baute `DaemonConfig` ohne das von Track D.3 ergänzte `TelemetryDaemonConfig`-Feld) — `new TelemetryDaemonConfig()` (disabled) nachgereicht, sonst kompiliert die Harness-Test-Quelle nicht.
-- Scheduler-Tick-Profiling: lässt sich der Tick unter 50 ms p99 halten bei 100 Groups? — **offen**
-
-### H.2 Accessibility-Audit (~3 d) — ⏳ **statischer A11y-Gate + Icon-Control-Naming shipped; Runtime-axe/Contrast/Keyboard offen**
-
-- ✅ **Statischer A11y-Lint (2026-06-03):** `dashboard/scripts/a11y-lint.mjs` (`pnpm a11y:check`), zero-dep, dieselbe Tag/Text/Quote-State-Machine wie der Hardcode-Lint. Prüft zwei statisch entscheidbare WCAG-Defekte, die ein authed-SPA mit Running-App-axe schlecht abdeckt (die meisten Routen liegen hinter Login): `<img>` ohne `alt` (1.1.1) und Icon-only-Controls ohne Accessible Name (4.1.2 — Name aus Text/Interpolation/`aria-label`/`title`/`sr-only`). **Harter CI-Gate** in `ci.yml` neben dem i18n-Gate.
-- ✅ **26 Icon-only-Controls benannt:** Alle vom Lint gefundenen namenlosen Buttons/Links (Move-up/down, Remove, Passwort-Show/Hide, Back, Copy …) tragen jetzt ein gebundenes `:aria-label="t('…')"` — geteiltes `common.a11y.*`-Vokabular, en+de, durch den Hardcode-Gate erzwungen (kein hartkodiertes Label). 0 Bilder ohne alt. Keine neuen Typecheck-Fehler (Stash-Vergleich).
-- ✅ **Runtime-axe-Job (soft, 2026-06-03):** `ci.yml` serviert das gebaute Dashboard (`pnpm preview`) und läuft `@axe-core/cli` gegen die unauthed-Oberfläche (Login + Root-Shell) — fängt Contrast/Computed-Role-Defekte, die der statische Lint nicht sieht. Soft-Signal (`continue-on-error`), analog zum Website-axe-Job; authed-Routen brauchen ein Backend zum Scannen.
-- ⏳ **Offen:** axe/Lighthouse-A11y ≥95 als harter Gate über die authed-Flows (braucht Backend + Test-Login im CI), Color-Contrast-Voll-Audit gegen Design-System-Tokens, Voll-Tastatur-Navigation der Critical-Flows (Group Create, Deploy).
-- **Mongo-Index-Audit (H.1, nebenbei geprüft):** Index-Coverage in `MongoStateStore.ensureIndexes()` ist bereits umfassend (deployments/crashes/auditLog/workflows/consoleLines/shares, inkl. TTLs). Der eigentliche Audit-Log-Skalierungs-Hotspot ist nicht ein fehlender Index, sondern die `skip(offset)`-Deep-Pagination (`getAuditLog`) — bewusst als eigener Refactor offen gelassen, kein blinder Index-Wildwuchs.
-
-### H.3 i18n-Coverage (~3 d) — ⏳ **Dashboard vollständig extrahiert (Lint-verifiziert, harter Gate); Website-DE offen**
-
-- Dashboard: alle `app/pages/**` + Leaf-Komponenten extrahiert in `i18n/en.json`, `i18n/de.json`.
-  - **Gemessene Lücke (2026-06-02):** ~119 hardcodete user-facing Attribute (`placeholder`/`aria-label`/`title`) + grob ~250 Text-Node-Literale, verteilt über **44+ Komponenten** — viele davon (z.B. `CommandPalette`, `NotificationsPanel`, `InstanceConsole`) importierten `useI18n` noch gar nicht, d.h. Extraktion hieß nicht nur String→`t()`, sondern auch Composable-Verdrahtung + ~1100 neue Keys × 2 Locales.
-  - **Geliefert (2026-06-03, 19 gescopte Batches):** **Alle 28 `app/pages/**`-Seiten UND alle Leaf-Komponenten** sind vollständig extrahiert (en+de) — inkl. Script-seitiger Toasts, nativer `confirm()`-Prompts, pluralisierter Counter (vue-i18n-Choice-Syntax), der großen Detail-Seiten (`nodes/[id]` 706, `modules/index` 655, `instances/[id]` 543, `groups/[name]` 488, `templates/[name]` 374) und der schwersten Komponenten (`CreateGroupDialog` 816-Zeilen-6-Step-Wizard, `SettingsThemePalette` 576, die Template-Editor-Panels, alle Appearance-Settings-Panels und die `ui/*`-Primitiven inkl. sr-only-A11y-Labels). Ein abschließender Sweep zeigt **0 verbleibende user-facing Hardcode-Strings**. Locale-Set von 646 → **1807 Keys**, harter `i18n:check`-Parity-Gate durchgehend grün (jeder Commit). Wiederkehrende Muster: `v-for="t in …"`-Loop-Vars kollidierten mit der i18n-`t()` → zu `tpl`/`tok` umbenannt; statische Options-Arrays (Presets, Scaling-Modes, Routing, Color-Var-Gruppen, Review-Cards) zu locale-reaktiven `computed`s konvertiert; Daten-getriebene Enum-Labels (`SCALING_MODE_CONFIG`, Git-Status-Buchstaben, logische Keys wie `'Custom'`/`'primary'`) und Einheiten (`ms`/`MB`/`%`/`GHz`/`px`) bewusst gelassen. Typecheck-Fehlerzahl pro Datei via Stash-Vergleich gegen Base verifiziert — keine neuen Fehler eingeführt.
-  - **Hardcode-Lint gebaut + Inventar korrigiert (2026-06-03):** Der angekündigte „keine hardcodeten user-facing Strings"-Lint ist jetzt da — `i18n/check-hardcoded.mjs` (`pnpm i18n:check-hardcoded`), zero-dep wie der Parity-Checker. Statt Regex läuft eine kleine Tag/Text/Quote-State-Machine über die `<template>`-Blöcke (korrektes Handling von `>` in Bindings wie `v-if="a > 0"`, maskiert `<script>`/`<style>` vorab, dekodiert HTML-Entities, überspringt `<code>/<pre>/<kbd>`-Samples und Einheiten-Fragmente, `app/stories/**` exkludiert). Geprüft werden statische `placeholder`/`aria-label`/`title`/`alt`-Attribute (gebundene `:attr` sind ok) + Text-Nodes.
-  - **Befund — die „0"-Behauptung oben stimmte nicht:** Der abschließende Sweep war seiten-fokussiert; der automatisierte Lint findet **104 echte user-facing Hardcode-Strings** in ~27 Dateien, die die Batches nie angefasst haben — ganze Komponenten (`NetworkDialog`, `NodeCachePanel`, `AddVersionDialog`, die Template-Dialoge `Create`/`Edit`/`Import`/`UploadFiles`/`VersionHistory`, `CommandPalette`) plus App-Chrome (`layouts/default.vue` Sidebar/Account/„Log out", `auth.vue`, `error.vue`, `pages/index.vue`). Viele dieser Komponenten importieren `useI18n` noch nicht.
-  - **Residuen extrahiert (2026-06-03, Batches 20–22):** Alle 104 vom Lint gefundenen Strings sind raus, in drei gescopten Batches:
-    - **Batch 20** — App-Chrome + Leaf-Komponenten: `layouts/default.vue` (Sidebar/Account/Skip-Link/„Log out"), `auth.vue`, `error.vue`, `NodeBox`, `DetailSheet`, `FileSearchPanel`, `SettingsAmbientGlows`, `InstanceCard`, `CreateGroupDialog`-Hint. Inkl. der Lint-unsichtbaren Einzelwort-Labels (`Profile`/`Settings`/`Home`). `useI18n` in den 4 Chrome-Dateien nachverdrahtet.
-    - **Batch 21** — Template-Dialoge: `Create`/`Edit`/`Import`/`UploadFiles`/`VersionHistory`-Dialog + `TemplateOverviewPanel` + `TemplateVersionHistory`. Geteilte `templateForm.*`/`common.optional`/`versionHistory.empty`-Keys, pluralisierte Counter (`t(key, { count }, n)`).
-    - **Batch 22** — `NetworkDialog`, `AddVersionDialog`, `NodeCachePanel`, `CommandPalette` (Theme-Items zu `computed`, `heading=`-Attribute), `overview`/`nodes`/`logs`-Seiten.
-    - Verifikation pro Batch: Lint grün, Parity grün (646 → **2057 Keys**), jede `t()`-Referenz gegen `en.json` aufgelöst (0 missing), Typecheck-Fehlerzahl per Stash-Vergleich gegen Base = unverändert (keine neuen Fehler; die bestehenden `unknown`-Store-Typing-Fehler bleiben pre-existing Debt). Diffs minimal gehalten (kein Prettier-Reformat — der Dashboard-Tree ist noch nicht normalisiert).
-  - **Gate jetzt HART:** `i18n:check-hardcoded` ist in `ci.yml` ein harter Fail-Gate (Inventar = 0). Language-neutrale Ausnahmen (Beispiel-Hostnames, CLI-Snippets, ARIA-Landmark-Namen) in der `ALLOW`-Liste des Linters dokumentiert.
-- Website: Übersetzung der `docs/public/`-Inhalte ins Deutsche. — **→ nach Track I verschoben** (2026-06-07). Track I schreibt die gesamte Doku ohnehin neu (de+en); die jetzige, bald ersetzte Doku zu übersetzen wäre Wegwerf-Arbeit. Die DE-Lokalisierung der Public-Docs ist Teil von **I.1**.
-
-**Track-H-Gesamt: ~10 eng-days. ≈ 88 % — Rest ist infra/ops-bound oder nach Track I verschoben.**
-
-> **Ehrlicher Stand (2026-06-07):** Track H ist weitgehend durch frühere Sessions (E-P1.x-A11y) abgedeckt. **Code-complete:** Audit-Pagination (H.1), Scheduler-Tick-Benchmark inkl. p99-Publizierung (H.1 — `PerformanceBaselineTest.measureSchedulerTick`; der Timer `prexorcloud.scheduler.tick.duration` publisht 0.5/0.95/**0.99**), Contrast-Audit (`design-system/__tests__/contrast.test.mjs`, beide Themes grün), statischer A11y-Lint + Icon-Naming, authed-Flow-axe-**Hard-Gate**, Dashboard-i18n. **Genuin offen, aber nicht hier codierbar:** Perf-Trend-Review (braucht 60 d Produktionsdaten), Scheduler-Tick-Lauf @100 Groups gegen das 50-ms-p99-Ziel (braucht externes Mongo via `TestCluster`), axe/Lighthouse-≥95-Schwelle als harter CI-Gate (braucht Backend + Test-Login im CI). Website-DE → Track I.
+- [ ] **Prometheus scrape** — point Prometheus at `CTRL:8080/metrics` → **Pass:** every `prexorcloud_*` family appears (nodes/instances/players/groups gauges, scheduler tick timer with p50/p95/p99, gRPC counters, HTTP, SSE, workflows, module health/quota/classloader, capabilities). Confirm `up{job="prexorcloud"}==1`.
+- [ ] **Distributed tracing** — set the `telemetry` block (`enabled: true`, `otlpEndpoint: http://jaeger:4317`, `samplerRatio: 1.0`, `traceUiTemplate`) on **both** controller and daemon; trigger a player join via a plugin → **Pass:** in Jaeger you see one trace spanning **plugin → controller (HTTP server span) → daemon (`daemon.command`)**, with domain spans (`auth.login`, `scheduler.tick`, `placement.*`, `raft.apply`, Mongo/Redis client spans) nested. Zero overhead when `enabled: false`.
+- [ ] **Trace deep-link** — with `traceUiTemplate` set, trigger an action in the dashboard → **Pass:** Observability page shows a "view trace" link that opens the right Jaeger trace (`X-Trace-Id` header round-trips).
+- [ ] **DR drill** — run `:cloud-test-harness:drDrill` (or the nightly `dr-drill` job) → **Pass:** backup → wipe → restore completes; data intact.
+- [ ] **Scheduler perf** — `:cloud-test-harness:perfBaselines -Dperf.scheduler.groups=100` → **Pass:** record `schedulerTick.p99 < 50` ms at 100 groups.
 
 ---
 
-## 9b. Track I — Docs- & README-Komplett-Rewrite (End-User + Developer)
+## Part 7 — Security
 
-**Ziel:** Die gesamte Doku (`docs/`) **und jede README** im Repo von Grund auf neu schreiben — für echte Zielgruppen statt für uns selbst, im Projekt-Design-Standard, visuell überzeugend, ausführlich, best-practice.
-
-**Warum (Auslöser, 2026-06-07):**
-1. **Es hat sich viel geändert.** v1.1–v1.3 haben Subsysteme dazugebracht (Raft-Control-Plane, OTel, Modul-Registry, Bedrock/Fabric/NeoForge, Geyser-Provisioning) — die bestehende Doku beschreibt teils einen veralteten Stand.
-2. **Zu „KI-lastig" geschrieben.** Der Ton ist essayistisch/hedging statt direkt. Neuer Ton: knapp, aktiv, konkret, ohne Füllwörter.
-3. **Für UNS geschrieben, nicht für Zielgruppen.** Die Docs lesen sich wie ein internes Engineering-Log. Sie müssen für **(a) End-User/Operatoren** (installieren, betreiben, troubleshooten) und **(b) Plugin-/Mod-/Module-Developer** (gegen die APIs bauen) geschrieben sein — klar getrennt.
-4. **READMEs uneinheitlich & unattraktiv.** Jede README soll **einem projektweiten Design-Standard** folgen (Struktur, Badges, Hero, Code-Beispiele, Visuals) und visuell überzeugen.
-
-**Sequencing-Entscheidung:** **Zuletzt** ausführen — erst wenn E/F/H feature-complete sind, sonst churnt die Doku mit jedem User-facing-Change. **Ausnahme: I.0 (Style-/Voice-Spec) wird FRÜH definiert**, damit der spätere Rewrite mechanisch statt zur Diskussion wird.
-
-### I.0 Docs/README-Style- & Voice-Spec (~1 d) — ✅ **shipped (2026-06-07, vorgezogen)**
-- `docs/engineering/DOCS_STYLE.md` geliefert: Zielgruppen-Matrix (Operator / Integrator-Developer / Contributor), Voice-Regeln (aktiv, konkret, ruhig; Banned-Phrases-Liste gegen robotisches Hedging; reuse der `lint:voice`-Prinzipien), Sentence-Case + CLI-Glyph-Konvention, Begriffs-Glossar (eine Schreibweise pro Term), Struktur-Standard (task-first), README-Standard (Pflicht-Sektionen + Badge-/Diagramm-/Screenshot-Visual-Language im Reef-Palette-Look) inkl. Per-Package-Matrix für alle 16 READMEs, Code-Beispiel-Bar und Enforcement-Pfad. Plus das kanonische `docs/engineering/templates/README.template.md`, das der I.3-Sweep kopiert. Self-compliant (sentence-case, keine Prosa-Emoji, alle Links aufgelöst).
-
-### I.1 End-User-Docs (~4 d)
-- `docs/public/` (de+en) neu: Getting-Started, Install (Docker/native/Cluster), Betrieb, Upgrade, Troubleshooting, Recipes — aufgabenorientiert, nicht subsystem-orientiert.
-
-### I.2 Developer-Docs (~4 d)
-- Plugin-/Proxy-/Server-Plugin-Dev-Guide (Paper/Velocity/Bungee/Fabric/NeoForge/Geyser), Module-SDK + Capability-API, Platform-Module-REST, OpenAPI→CLI→SDK-Flow. Jede öffentliche API mit lauffähigem Minimalbeispiel.
-
-### I.3 README-Sweep (~3 d) — ✅ **shipped (2026-06-07)**
-- Alle 16 READMEs der Per-Package-Matrix auf den I.0-Standard gezogen. Root + die fünf Hero-Surfaces (`java/`, `dashboard/`, `website/`, `design-system/`, `installer/`) bekamen die zentrierte Hero-/Badge-Zeile (Reef `0c8aa8`-Docs-Badge), Sentence-Case-Headings, Quickstart und aufgelöste Links; `vscode-extension` einen Marketplace-Hero.
-- **Code-grounded gegen Ist-Stand korrigiert** (nicht nur Kosmetik): Root-README hatte falsche Jar-Namen (`cloud-controller-*-all.jar` → `PrexorCloudController.jar`/`PrexorCloudDaemon.jar`), einen nicht existierenden Daemon-`--join-token`-CLI-Flag (real: `security.joinToken` in `daemon.yml`), `Gradle 8.x` (real 9.4.1), stale `v1.0` und fehlende Fabric/NeoForge/Bedrock-Plattformbreite. `java/`: `:cloud-controller:run` existiert nicht (kein application-Plugin), „5 reference modules" → 7. `dashboard/`: `pnpm storybook` → `pnpm story` (Histoire), `PREXORCLOUD_CONTROLLER_URL` → `nitro.devProxy` / `VITE_DEV_MOCK`. `website/`: `src/content/docs/` → Collection aus `../docs/public/en/` + prebuild-Theme-Generatoren. `docs/README` + Root: „Not OpenTelemetry" gegen den geshippten D-Track korrigiert. `deploy/{compose,systemd}`: `prexorctl node generate-token` (existiert nicht) → `prexorctl token create --node`, stale Mongo/Valkey-Lease-HA → Raft. `design-system`: „MIT-licensed" → Apache 2.0. `vscode-extension`: dangling `MASTER_PLAN 4.4`-Referenz entfernt.
-- `tools/`, `scripts/`, `java/build-logic/`, `dashboard/tests/visual/`, `protocol/_generated/` waren bereits standardkonform (Sentence-Case, akkurat) — belassen bzw. nur Faktenfix.
-
-### I.4 Visual- & Konsistenz-Polish (~1 d)
-- Diagramme (Mermaid im Design-System-Palette), Screenshots/GIFs der Frontends, Cross-Linking, Dead-Link-Check.
-
-**Track-I-Gesamt: ~13 eng-days. Strikt nach E/F/H. I.0 vorgezogen.** → eigener v1.4-„Docs & DX"-Meilenstein (siehe §11). **Stand 2026-06-07:** I.0 ✅, I.3 ✅; I.1/I.2 (`docs/public/` End-User- + Developer-Rewrite) in den vorangehenden Sessions code-grounded gelandet; offen nur noch **I.4** (Dead-Link-Check über die GitHub-Blob-Links auf entfernte Engineering-Pläne, Mermaid-/Screenshot-Polish).
+- [ ] **mTLS daemon channel** — confirm the daemon connects only with a CA-signed cert; present a revoked/forged cert → **Pass:** `MtlsEnforcementInterceptor` rejects.
+- [ ] **Subnet guard** — set `network.allowedSubnets` to exclude a daemon's IP → **Pass:** that daemon's gRPC is refused.
+- [ ] **RBAC** — create a custom role with a subset of permissions; assign a user → **Pass:** user can do only the permitted actions; `CLUSTER_MANAGE`/`CLUSTER_CONFIG_WRITE` are excluded from default admin and gate the cluster routes.
+- [ ] **Password reset** — request a reset for a user → **Pass:** email token lands in MailHog; the token resets the password; token is single-use + TTL-bounded.
+- [ ] **Rate limiting** — hammer an endpoint past `security.rateLimiting` → **Pass:** `429`s; window resets after 60 s.
+- [ ] **JWT revocation** — log out / revoke a token → **Pass:** subsequent calls with it are rejected.
+- [ ] **Audit log** — perform sensitive actions → **Pass:** each is audited; dashboard Audit page pages via cursor (`?cursor=`) with no `skip`; sensitive cluster events present (`cluster.member.joined`, `*.ejected`, `join_token.redeemed`).
 
 ---
 
-## 10. Was wir NICHT machen (bewusst out of scope)
+## Part 8 — Controller HA (the Raft quorum) — multi-VPS
 
-- **Cross-Region-Cluster.** Raft setzt low-latency same-region voraus. Multi-Region wäre eine eigene Layer, kein v1.x-Thema.
-- **OIDC/SAML-Login für Operatoren.** Aus v1.0-Aufräum explizit gestrichen. Custom-Roles + Audit-Log decken die Enterprise-Use-Cases ausreichend ab.
-- **Business-State in Raft.** Templates, Instances, Audit, Shares bleiben in Mongo. Raft ist ausschließlich Control-Plane.
-- **Eigenes Logging-Backend.** Wir publishen strukturiert, Operator pluggt Loki/ELK an.
-- **Eigene Metrics-DB.** Wir exponieren `/metrics` (Prometheus-Format), Operator betreibt Prometheus/VictoriaMetrics.
-- **Plugin-Marketplace mit Bezahlfunktion.** Registry: ja. Marketplace mit Stripe: nein, das ist ein anderes Produkt.
-- **Auto-Skalierung der Controller-Quorum-Größe.** Operator entscheidet 1/3/5 Member. Auto-Resize ist Komplexität ohne ausreichenden Nutzen.
+This is the headline. Bring up a real **3-controller quorum** across `ctrl-1/2/3`. Reference:
+Operations → HA setup, Concepts → Cluster model, `docs/runbooks/upgrade-v1.0-to-v1.1.md`,
+`docs/runbooks/recover-cluster.md`.
 
----
+### 8A. Form the quorum
 
-## 11. Release-Milestones
+- [ ] **Seed `ctrl-1`** as the first member (empty `raft.joinAddrs`) → **Pass:** stamps a `clusterId`; `prexorctl cluster status` shows 1 member, this node leader.
+- [ ] **Mint a join token** on `ctrl-1` — `POST /api/v1/cluster/join-tokens` → **Pass:** HMAC-signed token with member endpoints + expiry.
+- [ ] **Join `ctrl-2`** — feed the token (wizard "Hast du ein Join-Token?" branch or `data/pending-join-token`) → **Pass:** `ctrl-2` redeems the token over the `ClusterMembership` gRPC, receives a cluster-CA-signed cert + peer list, joins via Ratis joint consensus; `InstallSnapshot` fills its state machine.
+- [ ] **Join `ctrl-3`** the same way → **Pass:** `prexorctl cluster members` shows 3 members; `prexorctl cluster status` shows one leader, two followers.
+- [ ] **Token guard rails** — replay a redeemed token → **Pass:** `TOKEN_ALREADY_REDEEMED`; expired → `TOKEN_EXPIRED`; revoked (`DELETE …/join-tokens/{jti}`) → rejected.
 
-### v1.1 — „HA-Foundation" (Block: Track A + B + G) — ✅ **shipped 2026-05-31**
+### 8B. Active-active + failover
 
-**Inhalt:**
-- ✅ Raft-basierte Control-Plane (Phasen 3–12 vollständig)
-- ✅ Repo-Hygiene (tote Dirs raus, READMEs drin, `.editorconfig`, Prettier-Gates, lefthook)
-- ✅ ADR-Register (29 ADRs in `docs/engineering/decisions.md`) + Migration-Runbook (`docs/runbooks/upgrade-v1.0-to-v1.1.md`)
-- ✅ Phase 8 (Raft-Leases) shipped — `ClusterLeaseManager` trägt Scheduler / Deployment-Reconciler / Audit-Pruner
-- ✅ **Loose-Ends-Nachzug (2026-06-03, Post-Audit):** `GET /api/v1/cluster/leases` nachgereicht (Dashboard-Lease-Panel rief eine nie geshippte Route → 404; jetzt `ClusterControlPlane.getLeases()`); `cluster.member.joined`-Audit-Event beim gRPC-`RequestJoin` ergänzt (vorher nur `.ejected`/`.leave` auditiert); die tote Pre-Raft-`ClusterJoinRoutes` (`/admin/cluster/join-template`) + ungenutzte `CLUSTER_JOIN`-Permission entfernt (`ClusterJoinTemplate` bleibt — speist die v1.0→v1.1-Migration). Tests + spotless grün.
+- [ ] **Active-active** — point `prexorctl` at each controller in turn and read/write → **Pass:** every healthy controller serves REST + gRPC; no standby.
+- [ ] **Kill the leader** — `kill -9` the current leader's process → **Pass:** a new leader is elected and `prexorctl cluster status` reflects it **in under 5 seconds**; in-flight scheduling resumes on a surviving controller (per-group lease re-acquired).
+- [ ] **Daemon continuity** — during the failover, confirm a running MC instance stays up and a connected player isn't dropped → **Pass:** daemons reconnect to a live controller; node ownership lease moves.
 
-**Erfolgs-Kriterien (Gates):**
-- 3-Node-Cluster läuft, Killing-the-Leader führt zu Reelection in <5 s
-- v1.0 → v1.1 Migration auf einer Single-Controller-Installation läuft ohne Datenverlust
-- Repo-Audit zeigt keine toten Top-Level-Dirs mehr
-- Alle Tracks-A-Doku in `docs/runbooks/` vorhanden
+### 8C. Cluster config versioning + live reload
 
-**Aufwand: ~34 eng-days. Realistisch: 6–8 Wochen bei 1 FTE.**
+- [ ] **Propose a config patch** — `POST /api/v1/cluster/config` (e.g. change `corsAllowList`) with correct `parentVersion` → **Pass:** new append-only version; wrong `parentVersion` → `409 PARENT_VERSION_STALE`.
+- [ ] **Live reload (no restart)** — change `corsAllowList`, `rateLimiting`, and rotate `jwtSecret` via config patches → **Pass:** `CorsAllowListReloader` / `RateLimitReloader` / `JwtSecretReloader` apply cluster-wide live; previous JWT secret honored in the acceptance window.
+- [ ] **Config history UI** — dashboard Cluster config page → **Pass:** version list (version/parent/mutator/time/reason, active badge); selecting a row diffs its patch vs the parent; sensitive fields masked unless `CLUSTER_MANAGE`.
+- [ ] **Rollback** — `POST /api/v1/cluster/config/rollback {targetVersion}` (or the UI button) → **Pass:** active version moves back; effect applied live.
+- [ ] **Trust-root is NOT live** — change `modules.signing.trustRoot` → **Pass:** documented restart required (`docs/runbooks/module-trust-root-rotation.md`).
 
-### v1.2 — „Ökosystem-Reife" (Track C + D + E)
+### 8D. Leader leases (cluster singletons)
 
-**Inhalt:**
-- Modul-Registry produktiv mit 5+ First-Party-Modulen
-- Sandboxing-Stufe 1+2 (Tracking + Soft-Limits)
-- OpenTelemetry + verteilte Traces
-- Design-System operational, alle drei Frontends nutzen es
+- [ ] **Lease holders** — `GET /api/v1/cluster/leases` → **Pass:** `audit-pruner` (and the deployment-reconcile gate) show a single holder UUID; cross-reference against `cluster/members`.
+- [ ] **Lease failover** — kill the lease holder → **Pass:** after TTL another controller acquires it; the audit prune / deployment reconcile keeps running exactly once cluster-wide (no double-run).
 
-**Erfolgs-Kriterien:**
-- 3 externe Module aus Community-Registry installiert + signaturgeprüft
-- Trace-Pfad Controller → Daemon → MC-Plugin sichtbar in Jaeger/Tempo
-- ✅ Lighthouse-A11y >= 90 auf Dashboard — **erfüllt (2026-06-06)**: authed-Flow-axe (E-P1.1) ist 0 serious/critical über alle 16 Critical-Routes und ein **harter** CI-Gate
+### 8E. Recovery
 
-**Aufwand: ~56 eng-days. Realistisch: 10–14 Wochen bei 1 FTE.**
-
-### v1.3 — „Plattform-Ausbau" (Track F + H)
-
-**Inhalt:**
-- Bedrock-First-Class
-- Fabric + Forge Server-Plugins
-- Performance-Tuning, A11y >=95, i18n DE/EN vollständig
-
-**Aufwand: ~25 eng-days. Realistisch: 5–7 Wochen.**
-
-### v1.4 — „Docs & DX" (Track I)
-
-**Inhalt:**
-- Komplette Doku-Neuschrift für End-User **und** Developer (aufgaben- statt subsystem-orientiert, neuer Ton)
-- Jede README im Design-Standard, visuell überzeugend
-- Style-/Voice-Spec + README-Template als wiederverwendbarer Gate
-
-**Erfolgs-Kriterien:**
-- Ein neuer Operator kommt ohne Rückfragen von 0 auf laufendes Cluster
-- Ein Plugin-/Module-Developer baut ein lauffähiges Beispiel allein aus den Docs
-- 0 tote Links, jede README folgt dem Template, `lint-voice` grün über die Docs
-
-**Aufwand: ~13 eng-days. Strikt nach v1.3 (I.0-Spec darf vorgezogen werden).**
+- [ ] **Single-controller restart** — restart one member → **Pass:** snapshot + log replay restores identity, config history, members, tokens, cluster CA; rejoins quorum.
+- [ ] **Majority loss** — stop 2 of 3 → **Pass:** cluster writes return `503 RAFT_UNAVAILABLE`; reads still serve from local projection.
+- [ ] **Single-survivor reset** — `prexorctl cluster recover --i-have-only-survivor` on the last node → **Pass:** interactive confirmation; single-member Raft reset; an audit entry survives the reset (`docs/runbooks/recover-cluster.md`).
+- [ ] **Graceful leave / eject** — `POST /cluster/leave` on a member; `DELETE /cluster/members/{id}` on another → **Pass:** member removed via joint consensus; `409 LAST_MEMBER` if you try to leave a one-member cluster; `404 MEMBER_NOT_FOUND` for unknown id.
 
 ---
 
-## 12. Risiken & Mitigationen
+## Part 9 — Multi-VPS production topology
 
-| Risiko | Wahrscheinlichkeit | Impact | Mitigation |
-|---|---|---|---|
-| **Apache Ratis hat undokumentierte Edge-Cases im Joint-Consensus** | Mittel | Hoch | Wochenend-Spike vor Phase 4. Notfall: MicroRaft als Plan B (Lib-Wechsel kostet ~5 Tage). |
-| **JVM 25 Preview-Features blockieren Library-Updates** | Niedrig | Mittel | Vor v1.2 evaluieren: stable-Migration auf was JVM 26 LTS bietet (sobald released). Backup: Fallback auf JVM 21 LTS dokumentiert. |
-| **Modul-Sandboxing-Hard-Isolation killt die DX** | Mittel | Mittel | Hard-Isolation bleibt **optional** per Modul, In-Process default. Erst aktivieren wenn echt nötig. |
-| **Track-E (Frontend) wird größer als geschätzt** | Hoch | Niedrig | Backlog-Item, kein Release-Blocker. v1.2 kann auch mit hälftiger Migration shippen. |
-| **Track-C-Registry braucht Hosting + Moderation** | Mittel | Mittel | First-Party-Registry auf GitHub Pages, kein eigener Server. Community-Registries: dezentral, kein Hosting-Aufwand für uns. |
-| **Bedrock-Geyser-Integration zerbricht bei MC-Updates** | Hoch | Niedrig | Klare Versions-Matrix: PrexorCloud x.y unterstützt Geyser-Versions Liste Z. Updates folgen Geyser-Releases. |
+Now combine: the 3-controller quorum (Part 8) **plus** daemons on `node-fra-1` and `node-fra-2`
+(different hosts from the controllers).
 
----
-
-## 13. Was wäre nötig, damit dieser Plan losgeht?
-
-1. **Eine Person, die Track A komplett owned.** Raft-Arbeit darf nicht zwischen Personen springen — zu subtil. Ideal: 1 FTE für 6–8 Wochen.
-2. **Entscheidung: Track-E parallel oder seriell?** Wenn ein Frontend-FTE verfügbar ist: parallel. Sonst: nach v1.1.
-3. **Wochenend-Spike für Ratis-Joint-Consensus vor Phase 4 starten.** Reduziert Phase-4-Risiko deutlich.
-4. **Entscheidung über Registry-Hosting:** GitHub Pages reicht für v1.2. Ist das ok, oder eigener Server geplant?
-5. **Memory-Cleanup vorab:** `project_stats_aggregator.md` und ggf. weitere veraltete Einträge aktualisieren — kostet 30 Minuten, spart später Verwirrung.
+- [ ] **Cross-host scheduling** — create groups that must spread across both daemon hosts → **Pass:** instances land on the right nodes per labels/affinity; `node-fra-2` instances are reachable.
+- [ ] **Cross-host network routing** — proxy on one host, backends on another → **Pass:** players route across hosts; failover works across hosts.
+- [ ] **Node ownership** — confirm commands for a node route through the controller that owns its gRPC session (`prexor:v1:nodeowner:`) → **Pass:** killing that controller moves ownership; commands still land.
+- [ ] **Heartbeat / drain on node loss** — `kill -9` a daemon → **Pass:** controller detects stream loss after `nodeTimeoutSeconds`, marks node offline, starts the drain workflow; instances reschedule.
+- [ ] **Network partition (best-effort)** — firewall a controller off the others briefly → **Pass:** it steps down (no split-brain writes; fencing via lease ownership); rejoins cleanly when restored.
+- [ ] **Cross-controller events** — subscribe to SSE on `ctrl-1`, cause an event handled by `ctrl-2` → **Pass:** event fans out via Redis pub/sub and reaches the SSE client.
 
 ---
 
-## 14. Nicht-trivial: was am Plan unsicher ist
+## Part 10 — Dashboard walkthrough + screenshots
 
-Ehrlichkeit über Schwächen dieses Plans:
+Walk **every page** against the **real cluster** (not dev-mock), in **both light and dark** themes,
+toggling **en/de**. Capture screenshots into `dashboard/docs/screenshots/` (dark theme, real data,
+Reef accent — these supersede the dev-mock placeholders).
 
-- **Effort-Schätzungen sind grob.** Die ±30 % Variance pro Track ist normal, kumuliert kann das zu ±50 % auf Track-Ebene werden. Phase-4 (gRPC-Membership) ist besonders unsicher — könnte 5 oder 12 Tage dauern.
-- **Track-E-Scope ist groß und schlecht definiert.** Frontend-Konsolidierung tendiert zu Scope-Creep. Mögliche Erweiterung: User-Settings, Theme-Switcher, Notifications-Inbox. Sollte vor Start sauber gescopet werden.
-- **Track-C-Sandboxing hat einen Unknown-Unknown:** Wir wissen nicht, welche existierenden Module die neuen Resource-Limits sprengen würden. Erst nach Tracking-Phase ist klar, wie eng Limits sein dürfen.
-- **Bedrock-First-Class hängt von Geyser-Maintainer-Schicksal ab.** Falls Geyser unmaintained wird, wird das aufwändiger.
+Pages to verify + screenshot:
 
-Dieser Plan ist eine *Hypothese*. Nach v1.1 sollte ein Re-Review stattfinden, der die Schätzungen für v1.2 und v1.3 anhand der v1.1-Empirie kalibriert.
+- [ ] **Overview** (stat cards, instance table, players chart, recent events)
+- [ ] **Groups** (list + a group detail)
+- [ ] **Instances** (list + an instance detail + live console stream)
+- [ ] **Nodes** (list + a node detail, cache panel)
+- [ ] **Networks** (+ the Bedrock routing section in the dialog)
+- [ ] **Deployments** (a rolling deployment in progress)
+- [ ] **Cluster → Controllers** (members table, force-eject, join-token mgmt, lease holders)
+- [ ] **Cluster → Config** (version history + diff viewer + rollback)
+- [ ] **Templates** (list + editor/version history)
+- [ ] **Catalog** (list + detail)
+- [ ] **Modules** (cards with health dot + resources/quota block) + **Registry** (browse/install)
+- [ ] **Crashes** (a real crash report)
+- [ ] **Audit** (cursor pagination)
+- [ ] **Observability / system** (tracing section + "view trace" link)
+- [ ] **Users** + **Roles** (RBAC management)
+- [ ] **Settings** + **Profile** + **Map**
+
+Cross-checks:
+
+- [ ] **i18n** — toggle de → **Pass:** every string translates; no raw keys.
+- [ ] **Keyboard nav** — tab through Group Create and a Deployment → **Pass:** fully operable without a mouse; focus visible.
+- [ ] **Both themes** — each captured page reads correctly in light and dark.
 
 ---
 
-## 15. Was nach v1.3 kommt (Out-of-Plan-Vision)
+## Part 11 — CLI coverage (`prexorctl`)
 
-Damit klar ist, wo das Ganze hinläuft — aber **nicht** Teil dieses Plans:
+Exercise every command group (use `--help` for exact flags). Tick when each works against the real cluster:
 
-- **PrexorCloud-as-a-Service:** Hosted-Variante mit Multi-Tenancy. Eigenes Produkt, eigene Roadmap.
-- **GitOps-Integration:** Group-Configs als Code-Repo, ArgoCD-Pattern. Reizvoll, aber separate Initiative.
-- **Cloud-native-Modus:** Daemon als Kubernetes-Operator statt nativem Prozess. Ändert das gesamte Deployment-Modell.
-- **AI-Assistant im Dashboard:** „Warum crasht meine Lobby-Group?" → LLM-basierte Trace-Auswertung. Cool, aber spekulativ.
-
-Diese vier Ideen sind alle größer als das v1.x-Programm. Sie gehören auf eine eigene Liste, nicht in diesen Plan.
+- [ ] **setup / login / context** — wizard, auth, kubeconfig-shaped context switching.
+- [ ] **group / instance** — create, list, scale, update, delete, info.
+- [ ] **template** — create, version, list.
+- [ ] **catalog** — register/list platforms + versions.
+- [ ] **node** — list, drain, eject, labels.
+- [ ] **network** — (REST-managed; confirm `GET /api/proxy/networks` from a proxy).
+- [ ] **module** — search, install (`<id>@<version>`, local file, `--registry`), upgrade (`--all`), new/scaffold.
+- [ ] **plugin** — `plugin new --platform=<p>`.
+- [ ] **cluster** — status, members, leave, eject, join-token, seed, config, recover.
+- [ ] **token** — create (`--node`).
+- [ ] **users / roles** — create, assign, permissions.
+- [ ] **backup / restore / logs** — see Part 12.
+- [ ] **`--json` output** — where supported, parses cleanly for scripting.
 
 ---
 
-**Zusammenfassung in einem Satz:** Mit dieser Roadmap (~115 eng-days über v1.1–v1.3) bringt PrexorCloud sich von „branchenführend bei Security/Ops, mittelmäßig bei HA" zu „branchenführend in allen acht Nordstern-Dimensionen" — wobei der absolute Block für die ehrliche Selbstdarstellung Track A ist (Raft fertig verdrahten).
+## Part 12 — Backup, restore, upgrade
+
+- [ ] **Backup** — `prexorctl backup create` → **Pass:** manifest written under the controller-data volume.
+- [ ] **Restore (dry-run first)** — `prexorctl restore <manifest> --dry-run`, then for real → **Pass:** state restored; players/instances reconcile from Mongo + gRPC.
+- [ ] **Off-host backup** — snapshot the `controller-data` volume / Raft `dataDir` to off-host storage → **Pass:** a fresh host can be rebuilt from it.
+- [ ] **v1.0 → v1.1 upgrade** — on a single-controller v1.0 install, follow `docs/runbooks/upgrade-v1.0-to-v1.1.md` → **Pass:** the `cluster_meta` → Raft single-trip migration runs, leaves an audit entry, drops the legacy collection; no data loss; then expand to a quorum (Part 8).
+- [ ] **Rolling upgrade** — `docker compose pull && up -d` (or new jars per `docs/runbooks/upgrade.md`) → **Pass:** controllers upgrade without dropping the cluster.
+
+---
+
+## Part 13 — Known follow-ups (decide: do / defer / descope)
+
+Each needs a one-line written call (these never go green from a test). *(Registry hosting moved to
+Part 0B — it's a setup task, not just a decision.)*
+
+- [ ] **Lighthouse-A11y ≥ 95 hard gate** — needs a CI test-login backend (the 0-serious/critical axe gate already satisfies the ≥90 bar). **Call:** defer / do.
+- [ ] **Perf-trend over 60 days** — ops review, not a release gate. **Call:** defer.
+- [ ] **F.1(b) reactive Geyser re-resolution** — v1 resolves at provision time. **Call:** descope / schedule.
+- [ ] **Fabric logback `SLF4JServiceProvider` exclude** — one-line build exclude mirroring NeoForge, then re-run the Fabric test (Part 4). **Call:** do.
+- [ ] **C.2 stage-3 hard module isolation** (separate JVM) — optional; default stays in-process. **Call:** descope.
+- [ ] **D.1 gRPC auto-instrumentation** — out of scope (trace context already rides the payload). **Call:** note.
+
+---
+
+## Part 14 — Sign-off & teardown
+
+### Sign-off matrix
+
+The product is **100% done** when every box above is ticked and every Part 13 item carries a written
+call. Record the headline results:
+
+| Area | Result |
+|---|---|
+| Part 0B — infrastructure provisioned (registry, catalog, release, DNS/TLS, datastores, backups) | ☐ |
+| Part 1 — automated gates | ☐ all green |
+| Part 2 — single controller smoke | ☐ |
+| Part 3 — core orchestration | ☐ |
+| Part 4 — platform breadth (8 platforms + Bedrock) | ☐ |
+| Part 5 — module ecosystem | ☐ |
+| Part 6 — observability (incl. scheduler p99 = ____ ms) | ☐ |
+| Part 7 — security | ☐ |
+| Part 8 — controller HA (reelection = ____ s) | ☐ |
+| Part 9 — multi-VPS topology | ☐ |
+| Part 10 — dashboard + screenshots | ☐ |
+| Part 11 — CLI coverage | ☐ |
+| Part 12 — backup/restore/upgrade | ☐ |
+| Part 13 — follow-up decisions logged | ☐ |
+
+### Teardown (when every row is ✅)
+
+The product is done; this file has served its purpose. To remove it cleanly:
+
+1. Delete this file: `git rm docs/engineering/northstar-plan.md`.
+2. Remove the now-dangling link in `docs/engineering/design-system.md` (line ~20, the
+   `[northstar-plan.md](./northstar-plan.md)` reference) and the prose mentions in
+   `docs/engineering/decisions.md` (search `northstar-plan.md`).
+3. Run `node tools/check-doc-links.mjs` → must be clean.
+4. Tag the release.
+
+That's it — every feature exercised on real infrastructure, single-controller through multi-VPS HA.

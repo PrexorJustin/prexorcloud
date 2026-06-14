@@ -286,6 +286,58 @@ func TestResolveControllerStartupValidationSkipsWithoutServiceRegistration(t *te
 	}
 }
 
+func TestResolveEnableOnBootAndStartNowNonInteractive(t *testing.T) {
+	cases := []struct {
+		name     string
+		boot     string
+		start    string
+		svcMode  string // legacy --service-mode fallback for boot
+		valMode  string // legacy --startup-validation-mode fallback for start
+		wantBoot bool
+		wantNow  bool
+	}{
+		{name: "defaults enabled", wantBoot: true, wantNow: true},
+		{name: "explicit disable", boot: lifecycleModeDisable, start: lifecycleModeDisable, wantBoot: false, wantNow: false},
+		{name: "explicit enable", boot: lifecycleModeEnable, start: lifecycleModeEnable, wantBoot: true, wantNow: true},
+		{name: "legacy service-mode disables boot", svcMode: serviceModeDisable, wantBoot: false, wantNow: true},
+		{name: "legacy validation-mode disables start", valMode: startupValidationDisable, wantBoot: true, wantNow: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			restore := saveSetupState()
+			defer restore()
+			setupNonInteractive = true
+			setupBootMode = tc.boot
+			setupStartMode = tc.start
+			setupServiceMode = tc.svcMode
+			setupStartupValidationMode = tc.valMode
+
+			boot, err := resolveEnableOnBoot("controller")
+			if err != nil {
+				t.Fatalf("resolveEnableOnBoot() error = %v", err)
+			}
+			now, err := resolveStartNow("controller")
+			if err != nil {
+				t.Fatalf("resolveStartNow() error = %v", err)
+			}
+			if boot != tc.wantBoot || now != tc.wantNow {
+				t.Fatalf("boot=%v now=%v, want boot=%v now=%v", boot, now, tc.wantBoot, tc.wantNow)
+			}
+		})
+	}
+}
+
+func TestResolveLifecyclePromptModeRejectedInNonInteractive(t *testing.T) {
+	restore := saveSetupState()
+	defer restore()
+	setupNonInteractive = true
+	setupBootMode = lifecycleModePrompt
+
+	if _, err := resolveEnableOnBoot("daemon"); err == nil {
+		t.Fatal("resolveEnableOnBoot() with --boot-mode=prompt in non-interactive should error")
+	}
+}
+
 func TestPromptControllerConfigNonInteractiveUsesFlags(t *testing.T) {
 	restore := saveSetupState()
 	defer restore()
@@ -366,6 +418,8 @@ func saveSetupState() func() {
 	installMode := setupInstallMode
 	serviceMode := setupServiceMode
 	startupValidationMode := setupStartupValidationMode
+	bootMode := setupBootMode
+	startMode := setupStartMode
 	runtimeGOOS := setupRuntimeGOOS
 	controllerInstall := setupControllerInstallDir
 	controllerMongoMode := setupControllerMongoMode
@@ -387,6 +441,8 @@ func saveSetupState() func() {
 		setupInstallMode = installMode
 		setupServiceMode = serviceMode
 		setupStartupValidationMode = startupValidationMode
+		setupBootMode = bootMode
+		setupStartMode = startMode
 		setupRuntimeGOOS = runtimeGOOS
 		setupControllerInstallDir = controllerInstall
 		setupControllerMongoMode = controllerMongoMode

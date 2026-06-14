@@ -3,6 +3,7 @@ package setup
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -190,8 +191,15 @@ func DialTCPRetry(addr string, total time.Duration) error {
 // DialTCPFromURI extracts host:port from a URI like "mongodb://host:port" or "redis://host:port"
 // and attempts a TCP connection.
 func DialTCPFromURI(uri string, timeout time.Duration) error {
+	// Prefer a real URI parse: credentialed URIs ("scheme://user:pass@host:port/db")
+	// must dial host:port only — the userinfo and path are not part of the TCP
+	// address. net/url.Host excludes both. (Manual stripping left "user:pass@"
+	// in front of host, breaking SplitHostPort with "too many colons".)
+	if u, err := url.Parse(uri); err == nil && u.Host != "" {
+		return DialTCP(u.Host, timeout)
+	}
+	// Fallback for scheme-less / unparseable inputs (no userinfo present).
 	addr := stripScheme(uri)
-	// Remove any path component (e.g. "/prexorcloud")
 	if idx := indexByte(addr, '/'); idx >= 0 {
 		addr = addr[:idx]
 	}

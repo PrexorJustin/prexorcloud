@@ -71,11 +71,17 @@ var crashListCmd = &cobra.Command{
 }
 
 var crashInfoCmd = &cobra.Command{
-	Use:   "info <id>",
+	Use:   "info [id]",
 	Short: "Show crash details",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+
+		id, err := resolveArg(args, "crash id required (e.g. `prexorctl crash info <id>`)",
+			func() (string, error) { return pickCrash(client, "Select a crash") })
 		if err != nil {
 			return err
 		}
@@ -84,14 +90,14 @@ var crashInfoCmd = &cobra.Command{
 		if share.enabled {
 			return runShare(
 				client,
-				"/api/v1/crashes/"+args[0]+"/share",
+				"/api/v1/crashes/"+id+"/share",
 				share.toRequest("", "", 0),
-				"crash "+args[0],
+				"crash "+id,
 			)
 		}
 
 		var crash map[string]any
-		if err := client.Get("/api/v1/crashes/"+args[0], &crash); err != nil {
+		if err := client.Get("/api/v1/crashes/"+id, &crash); err != nil {
 			return err
 		}
 

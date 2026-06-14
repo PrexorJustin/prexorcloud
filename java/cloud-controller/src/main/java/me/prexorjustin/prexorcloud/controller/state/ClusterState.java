@@ -508,6 +508,17 @@ public final class ClusterState {
 
     public void updateProxyMetrics(ProxyMetrics metrics) {
         instanceRegistry.updateProxyMetrics(metrics);
+        // Proxy metrics also carry the instance's live uptime + connected players; without this
+        // the proxy InstanceInfo never gets them (the server metrics path does the same), so the
+        // instance list shows a proxy frozen at 0 players / 0s uptime.
+        var instance = instanceRegistry.get(metrics.instanceId()).orElse(null);
+        if (instance != null) {
+            updateInstanceStatus(
+                    metrics.instanceId(),
+                    instance.state(),
+                    metrics.totalNetworkPlayers(),
+                    metrics.proxyUptimeMs());
+        }
     }
 
     public Optional<ProxyMetrics> getProxyMetrics(String instanceId) {

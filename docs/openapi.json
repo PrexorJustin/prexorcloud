@@ -4867,6 +4867,45 @@
         ]
       }
     },
+    "/api/v1/nodes/{id}/shutdown": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "Immediately stop a node\u0027s daemon",
+        "description": "Sends a ShutdownNode command straight to the daemon — no drain. The daemon stops its running instances and exits; the scheduler reschedules them onto other nodes if capacity allows. Use `node drain` instead for a graceful, instance-preserving stop.",
+        "operationId": "shutdownNode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Shutdown command sent"
+          },
+          "404": {
+            "description": "Node not found"
+          },
+          "409": {
+            "description": "Node not currently connected"
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/nodes/{id}/uncordon": {
       "post": {
         "tags": [
@@ -7172,6 +7211,28 @@
           },
           "403": {
             "description": "Forbidden"
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/system/shutdown": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Shut down this controller",
+        "description": "Gracefully stops the controller process this request is served by. Responds 202 first, then exits shortly after so the response can flush. In an HA cluster this stops only the targeted controller; the remaining peers re-elect a leader. ADMIN-only.",
+        "operationId": "shutdownController",
+        "parameters": [],
+        "responses": {
+          "202": {
+            "description": "Shutdown initiated"
           }
         },
         "deprecated": false,

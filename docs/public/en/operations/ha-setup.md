@@ -81,13 +81,23 @@ These live in `controller.yml`. Defaults come from the controller config records
 | `runtime.profile` | `development` | Set to `production` for HA. |
 | `redis.uri` | `redis://localhost:6379` | Shared Valkey endpoint. Required in production. |
 | `cluster.id` | none | Pins this controller to a Mongo cluster. Boot cross-checks it against the `cluster_meta` collection and the Raft state; a mismatch refuses startup. |
-| `raft.host` | `0.0.0.0` | Bind address for the Raft gRPC transport. |
+| `raft.host` | `0.0.0.0` | **Advertised** address — what this controller tells peers to dial it at. The transport always *binds* `0.0.0.0:port`; this value is purely the advertised host. The `0.0.0.0` default works for a single controller but **must** be set to a routable address (the node's private IP) for HA — otherwise peers are told to dial `0.0.0.0` and the join fails. |
 | `raft.port` | `9190` | Raft gRPC port. Must be reachable from peers. |
 | `raft.dataDir` | `data/raft` | On-disk Raft log + snapshots for this node. Persistent; replayed on restart. |
 | `raft.joinAddrs` | `[]` | Raft endpoints of existing members used at boot to discover the cluster. Empty means "first controller, or restart of an existing member" — the bootstrap reads `raft.dataDir` to disambiguate. |
 | `scheduler.evaluationIntervalSeconds` | `15` | Scheduler tick. Also sets the Valkey lease TTL (see below). |
 
 The Valkey lease TTL is `scheduler.evaluationIntervalSeconds * 2`. With the default tick of 15 s the TTL is 30 s — a controller renews its group lease on every tick, and a dead controller's group lease expires after at most 30 s.
+
+### Raft networking
+
+The Raft transport binds `0.0.0.0:9190` and advertises `raft.host:9190`. Every controller must be able to dial every other controller's advertised address, so:
+
+- **Set `raft.host` to a routable address** — the node's private IP (`10.0.0.3`), not `0.0.0.0` and not a loopback. Peers receive this address in the join handshake and dial it directly.
+- **Run controllers on host networking** (`network_mode: host` in Compose, or native systemd). Under Docker bridge networking a controller's Raft client dials its *own* advertised IP, which only works if the bridge hairpins NAT back to the published port — fragile and easy to misconfigure. Host networking makes the bound address, the advertised address, and the reachable address the same private IP.
+- If you must use bridge networking, publish `9190` bound to the private interface (`10.0.0.3:9190:9190`), never to `0.0.0.0` — the Raft port is unauthenticated at the transport layer beyond mTLS and should stay on a trusted network.
+
+Changing `raft.host` on a controller that already booted is safe: on the next restart it re-advertises the new address to the cluster automatically (the membership record self-heals and the leader re-runs the group configuration).
 
 ## Lease scopes
 

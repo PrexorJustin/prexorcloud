@@ -78,17 +78,23 @@ var instanceListCmd = &cobra.Command{
 }
 
 var instanceInfoCmd = &cobra.Command{
-	Use:   "info <id>",
+	Use:   "info [id]",
 	Short: "Show instance details",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
 
+		id, err := resolveArg(args, "instance id required (e.g. `prexorctl instance info <id>`)",
+			func() (string, error) { return pickInstance(client, "Select an instance") })
+		if err != nil {
+			return err
+		}
+
 		var inst map[string]any
-		if err := client.Get("/api/v1/services/"+args[0], &inst); err != nil {
+		if err := client.Get("/api/v1/services/"+id, &inst); err != nil {
 			return err
 		}
 
@@ -148,19 +154,25 @@ var instanceStartCmd = &cobra.Command{
 }
 
 var instanceStopCmd = &cobra.Command{
-	Use:   "stop <id>",
+	Use:   "stop [id]",
 	Short: "Stop an instance",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
 
+		id, err := resolveArg(args, "instance id required (e.g. `prexorctl instance stop <id>`)",
+			func() (string, error) { return pickInstance(client, "Select an instance to stop") })
+		if err != nil {
+			return err
+		}
+
 		force, _ := cmd.Flags().GetBool("force")
-		path := "/api/v1/services/" + args[0] + "/stop"
+		path := "/api/v1/services/" + id + "/stop"
 		if force {
-			path = "/api/v1/services/" + args[0] + "/force-stop"
+			path = "/api/v1/services/" + id + "/force-stop"
 		}
 
 		if err := client.Post(path, nil, nil); err != nil {
@@ -168,9 +180,9 @@ var instanceStopCmd = &cobra.Command{
 		}
 
 		if force {
-			theme.PrintSuccess("Instance " + args[0] + " force-stopped")
+			theme.PrintSuccess("Instance " + id + " force-stopped")
 		} else {
-			theme.PrintSuccess("Instance " + args[0] + " stopping")
+			theme.PrintSuccess("Instance " + id + " stopping")
 		}
 		return nil
 	},
@@ -199,15 +211,20 @@ var instanceExecCmd = &cobra.Command{
 }
 
 var instanceConsoleCmd = &cobra.Command{
-	Use:   "console <id>",
+	Use:   "console [id]",
 	Short: "Attach to an instance's live console",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
-		return attachConsole(cmd.Context(), client, args[0])
+		id, err := resolveArg(args, "instance id required (e.g. `prexorctl instance console <id>`)",
+			func() (string, error) { return pickInstance(client, "Select an instance") })
+		if err != nil {
+			return err
+		}
+		return attachConsole(cmd.Context(), client, id)
 	},
 }
 

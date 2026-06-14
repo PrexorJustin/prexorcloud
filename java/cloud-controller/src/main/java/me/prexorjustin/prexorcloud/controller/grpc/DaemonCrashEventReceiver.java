@@ -4,9 +4,11 @@ import me.prexorjustin.prexorcloud.api.event.events.InstanceCrashedEvent;
 import me.prexorjustin.prexorcloud.common.util.InputValidator;
 import me.prexorjustin.prexorcloud.controller.crash.CrashClassifier;
 import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
+import me.prexorjustin.prexorcloud.controller.crash.CrashRecord;
 import me.prexorjustin.prexorcloud.controller.crash.CrashStore;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
+import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.protocol.CrashReport;
 import me.prexorjustin.prexorcloud.protocol.ErrorReport;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
@@ -27,13 +29,19 @@ final class DaemonCrashEventReceiver {
     private final CrashStore crashStore;
     private final CrashLoopDetector crashLoopDetector;
     private final EventBus eventBus;
+    private final StateStore stateStore;
 
     DaemonCrashEventReceiver(
-            ClusterState clusterState, CrashStore crashStore, CrashLoopDetector crashLoopDetector, EventBus eventBus) {
+            ClusterState clusterState,
+            CrashStore crashStore,
+            CrashLoopDetector crashLoopDetector,
+            EventBus eventBus,
+            StateStore stateStore) {
         this.clusterState = clusterState;
         this.crashStore = crashStore;
         this.crashLoopDetector = crashLoopDetector;
         this.eventBus = eventBus;
+        this.stateStore = stateStore;
     }
 
     void handleCrashReport(String nodeId, CrashReport report) {
@@ -56,7 +64,7 @@ final class DaemonCrashEventReceiver {
         String classification = CrashClassifier.classify(report.getExitCode(), report.getLogTailList());
         clusterState.updateInstanceState(report.getInstanceId(), InstanceState.CRASHED);
 
-        crashStore.add(
+        CrashRecord record = crashStore.add(
                 report.getInstanceId(),
                 report.getGroup(),
                 nodeId,
@@ -64,6 +72,14 @@ final class DaemonCrashEventReceiver {
                 classification,
                 report.getLogTailList(),
                 report.getUptimeMs());
+        // The in-memory ring buffer is only a hot cache; the REST/dashboard Crashes view reads from
+        // the StateStore. Without this the crash is logged + detected but never shows up in
+        // /api/v1/crashes (and is lost on restart / invisible to other HA controllers).
+        try {
+            stateStore.saveCrash(record);
+        } catch (RuntimeException e) {
+            logger.warn("Failed to persist crash {} to state store: {}", record.id(), e.getMessage());
+        }
         crashLoopDetector.recordCrash(report.getGroup());
 
         eventBus.publish(new InstanceCrashedEvent(

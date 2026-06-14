@@ -1,13 +1,14 @@
 package me.prexorjustin.prexorcloud.proxy.shared;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import me.prexorjustin.prexorcloud.api.client.env.PluginEnv;
 import me.prexorjustin.prexorcloud.api.domain.InstanceState;
+import me.prexorjustin.prexorcloud.api.domain.InstanceView;
 import me.prexorjustin.prexorcloud.plugin.common.CloudStateCache;
 import me.prexorjustin.prexorcloud.plugin.common.dto.PendingTransferDto;
 
@@ -22,6 +23,10 @@ public abstract class AbstractProxyCloudPlugin {
 
     protected ProxyControllerClient controllerClient;
     protected CloudStateCache stateCache;
+
+    // instanceId -> currently-registered "addr:port", so we can detect a backend that kept its id
+    // but moved node/port and re-point the proxy at it (the proxy APIs won't update in place).
+    private final Map<String, String> registeredBackends = new ConcurrentHashMap<>();
 
     /**
      * Initialises controller connection and state cache. Returns {@code true}
@@ -43,16 +48,25 @@ public abstract class AbstractProxyCloudPlugin {
         stateCache.addListener((current, added, removed, becameRunning) -> {
             for (String instanceId : removed) {
                 unregisterBackend(instanceId);
+                registeredBackends.remove(instanceId);
             }
-            Set<String> toRegister = new HashSet<>(added);
-            toRegister.addAll(becameRunning);
-            for (String instanceId : toRegister) {
+            // Reconcile every RUNNING backend against its CURRENT node:port rather than only
+            // reacting to added/becameRunning. An instance that keeps its id but moves node:port
+            // (drain-migrate, crash-heal, affinity reschedule) stays "present" in the cache, so a
+            // diff-only sync never refreshes its registration and the proxy keeps dialing the old
+            // address ("No servers available"). Velocity/Bungee can't update a registered server's
+            // address in place, so on a move we unregister the stale entry before re-registering.
+            for (InstanceView instance : current) {
+                String instanceId = instance.instanceId();
                 if (instanceId.equals(PluginEnv.instanceId())) continue;
-                stateCache.getInstance(instanceId).ifPresent(instance -> {
-                    if (instance.state() == InstanceState.RUNNING) {
-                        registerBackend(instanceId, instance.nodeAddress(), instance.port());
-                    }
-                });
+                if (instance.state() != InstanceState.RUNNING) continue;
+                String endpoint = instance.nodeAddress() + ":" + instance.port();
+                if (endpoint.equals(registeredBackends.get(instanceId))) continue;
+                if (registeredBackends.containsKey(instanceId)) {
+                    unregisterBackend(instanceId);
+                }
+                registerBackend(instanceId, instance.nodeAddress(), instance.port());
+                registeredBackends.put(instanceId, endpoint);
             }
         });
 

@@ -201,6 +201,23 @@ public final class RaftBootstrap implements AutoCloseable {
         return info.getRoleInfoProto().getRole() == org.apache.ratis.proto.RaftProtos.RaftPeerRole.LEADER;
     }
 
+    /**
+     * Whether this peer's group currently has a leader it can route to — either this
+     * peer is the leader, or it is a follower that knows who the leader is. Distinct
+     * from {@link #isLeader()}: a restarting follower in a multi-node cluster never
+     * becomes leader, so waiting on self-leadership would hang it forever; what it
+     * actually needs before serving is a reachable leader for its Raft writes.
+     */
+    public boolean hasKnownLeader() throws IOException {
+        var role = client.getGroupManagementApi(selfPeer.getId()).info(groupId).getRoleInfoProto();
+        return switch (role.getRole()) {
+            case LEADER -> true;
+            case FOLLOWER ->
+                !role.getFollowerInfo().getLeaderInfo().getId().getId().isEmpty();
+            default -> false; // CANDIDATE / not-yet-initialised: no leader to route to
+        };
+    }
+
     private RaftProperties baseProperties(Path storage) {
         RaftProperties props = new RaftProperties();
         RaftConfigKeys.Rpc.setType(props, SupportedRpcType.GRPC);
@@ -270,12 +287,42 @@ public final class RaftBootstrap implements AutoCloseable {
     /**
      * Wait until this peer has stabilised as the group leader. Single-node groups always
      * elect self, but the election still takes the configured min timeout.
+     *
+     * <p>Use {@link #awaitKnownLeader(long)} on the restart/bootstrap path instead — a
+     * follower restart never re-takes leadership and would time out here.
      */
     public void awaitLeader(long timeoutMs) throws IOException, TimeoutException {
+        awaitCondition(timeoutMs, this::isLeader, "become leader", "leader elected");
+    }
+
+    /**
+     * Wait until this peer's group has a leader it can route to (self or remote). This is
+     * the correct gate for bring-up: Day-0 / single-node elects self; a follower restart in
+     * a multi-node cluster waits for the established leader rather than for itself.
+     */
+    public void awaitKnownLeader(long timeoutMs) throws IOException, TimeoutException {
+        awaitCondition(timeoutMs, this::hasKnownLeader, "see a leader", "leader available");
+    }
+
+    /** Shared poll loop for the await* gates. {@code condition} may throw while the server is still coming up. */
+    private interface RaftCondition {
+        boolean test() throws IOException;
+    }
+
+    private void awaitCondition(long timeoutMs, RaftCondition condition, String failVerb, String okMessage)
+            throws IOException, TimeoutException {
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        long start = System.nanoTime();
         while (System.nanoTime() < deadline) {
             try {
-                if (isLeader()) {
+                if (condition.test()) {
+                    // Ratis' own election logs are silenced (WARN); surface the outcome ourselves.
+                    logger.info(
+                            "Raft control plane {}: peer {} (group {}) after {}ms",
+                            okMessage,
+                            selfPeer.getId(),
+                            groupId,
+                            TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
                     return;
                 }
             } catch (IOException ignored) {
@@ -288,7 +335,7 @@ public final class RaftBootstrap implements AutoCloseable {
                 throw new IOException("interrupted awaiting leader", e);
             }
         }
-        throw new TimeoutException("peer " + selfPeer.getId() + " did not become leader within " + timeoutMs + "ms");
+        throw new TimeoutException("peer " + selfPeer.getId() + " did not " + failVerb + " within " + timeoutMs + "ms");
     }
 
     public RaftGroup group() {

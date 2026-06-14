@@ -58,9 +58,12 @@ public final class BootstrapManager {
         // Connect with TLS but trust any server cert (no CA cert yet during bootstrap).
         // The join token itself authenticates this request.
         var sslContext = ClientTlsCredentials.buildInsecure();
-        ManagedChannel channel = NettyChannelBuilder.forAddress(controllerHost, controllerPort)
-                .sslContext(sslContext)
-                .build();
+        // Direct InetSocketAddress: skip the NameResolver registry (shaded jar only registers the
+        // unix-socket resolver, which would mangle host:port into a unix path). See DaemonGrpcClient.
+        ManagedChannel channel =
+                NettyChannelBuilder.forAddress(new java.net.InetSocketAddress(controllerHost, controllerPort))
+                        .sslContext(sslContext)
+                        .build();
 
         try {
             var stub = BootstrapServiceGrpc.newBlockingStub(channel).withDeadlineAfter(30, TimeUnit.SECONDS);

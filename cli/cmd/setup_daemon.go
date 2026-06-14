@@ -112,20 +112,73 @@ func runDaemonSetup(installMode string) error {
 
 	if installMode == installModeCompose {
 		printSetupSection("Docker Compose Project")
-		if err := setup.WriteDaemonComposeProject(installDir); err != nil {
+
+		enableOnBoot, err := resolveEnableOnBoot("daemon")
+		if err != nil {
+			return err
+		}
+		startNow, err := resolveStartNow("daemon")
+		if err != nil {
+			return err
+		}
+		restartPolicy := "no"
+		if enableOnBoot {
+			restartPolicy = "unless-stopped"
+		}
+
+		if err := setup.WriteDaemonComposeProjectWithRestart(installDir, restartPolicy); err != nil {
 			return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 		}
 		fmt.Printf("  %s\n", styleSetupOK.Render("✓ Compose project written"))
+
+		if startNow {
+			if err := tui.SpinWith("Starting daemon (docker compose up -d)...", func() error {
+				return setup.ComposeUp(installDir)
+			}); err != nil {
+				return err
+			}
+			fmt.Printf("  %s\n", styleSetupOK.Render("✓ Daemon started"))
+		}
+
 		printDaemonDone(installDir, installMode, false)
 		return nil
 	}
 
-	// ── Service registration ──────────────────────────────────────────────────
-	registered, err := promptServiceRegistration(func() error {
-		return setup.RegisterDaemonService(installDir, setup.ManagedJREPath)
-	})
+	// ── Service install ───────────────────────────────────────────────────────
+	// Two questions: auto-start on boot (systemctl enable) and start now
+	// (systemctl start). The systemd unit is installed if either is yes.
+	enableOnBoot, err := resolveEnableOnBoot("daemon")
 	if err != nil {
 		return err
+	}
+	startNow, err := resolveStartNow("daemon")
+	if err != nil {
+		return err
+	}
+
+	registered := enableOnBoot || startNow
+	if registered {
+		action := "Installing systemd service..."
+		if enableOnBoot {
+			action = "Installing systemd service (enabled on boot)..."
+		}
+		if err := tui.SpinWith(action, func() error {
+			if enableOnBoot {
+				return setup.RegisterDaemonService(installDir, setup.ManagedJREPath)
+			}
+			return setup.InstallDaemonUnit(installDir, setup.ManagedJREPath)
+		}); err != nil {
+			return fmt.Errorf("failed to install service: %w", err)
+		}
+	}
+
+	if startNow {
+		if err := tui.SpinWith("Starting daemon...", func() error {
+			return setup.StartService(setup.DaemonServiceName())
+		}); err != nil {
+			return err
+		}
+		fmt.Printf("  %s\n", styleSetupOK.Render("✓ Daemon started"))
 	}
 
 	printDaemonDone(installDir, installMode, registered)

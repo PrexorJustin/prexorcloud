@@ -8,7 +8,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * Node-local configuration for the Raft transport that backs the cluster control
  * plane. Cluster-wide tuning (snapshot retention, election timeout) lives in the
  * Raft state machine itself, not here — this struct only describes how THIS node
- * binds and finds its peers. See docs/engineering/cluster-join-plan.md.
+ * advertises itself and finds its peers. See docs/engineering/cluster-join-plan.md.
+ *
+ * <p>{@code host} is the <b>advertised</b> address — what this node tells peers to
+ * dial it at. The Raft gRPC transport always <em>binds</em> the wildcard address
+ * (Ratis listens on {@code 0.0.0.0:port} regardless of this value), so {@code host}
+ * must be an address that peers can actually route to. The {@code 0.0.0.0} default
+ * is only valid for a single-node control plane; a multi-controller (HA) cluster
+ * MUST set this to a routable address (the node's private IP), or peers will be
+ * told to dial {@code 0.0.0.0} and fail to connect.
  *
  * <p>{@code joinAddrs} are the gRPC endpoints of existing cluster members used at
  * boot to discover the cluster. Empty list means "I'm either the first controller

@@ -1,14 +1,9 @@
 package me.prexorjustin.prexorcloud.controller.auth;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import me.prexorjustin.prexorcloud.common.config.YamlConfigLoader;
-
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
@@ -60,19 +55,17 @@ public final class MongoRoleStore implements RoleStore {
     }
 
     /**
-     * Seed default roles from classpath if no roles exist in the database.
+     * Reconcile the built-in roles from the code-authoritative definitions in {@link Role} on every
+     * startup. This is an upsert, not a seed-if-empty: a role doc written by an older build silently
+     * shadows the reflective code defaults, so without re-reconciling, existing clusters keep denying
+     * ADMIN any permission added after the doc was first seeded (this is exactly how ADMIN ended up
+     * unable to view {@code system.logs.view}). Custom roles — any name not in
+     * {@link Role#builtInDefaults()} — are left untouched.
      */
-    public void ensureDefaults() throws IOException {
-        if (roles.countDocuments() > 0) return;
-
-        try (InputStream in = getClass().getClassLoader().getResourceAsStream("defaults/roles.yml")) {
-            if (in == null) throw new IOException("Default roles.yml not found on classpath");
-            var defaults = YamlConfigLoader.mapper().readValue(in, new TypeReference<List<RoleConfig>>() {});
-            for (var role : defaults) {
-                save(role);
-            }
-            logger.info("Seeded {} default roles", defaults.size());
-        }
+    public void ensureDefaults() {
+        var defaults = Role.builtInDefaults();
+        defaults.forEach((name, perms) -> save(new RoleConfig(name, List.copyOf(perms), true)));
+        logger.info("Reconciled {} built-in roles from code defaults", defaults.size());
     }
 
     private static Document toDocument(RoleConfig role) {

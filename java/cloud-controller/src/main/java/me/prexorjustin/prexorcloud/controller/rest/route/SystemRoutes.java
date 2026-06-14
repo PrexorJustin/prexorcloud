@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.controller.rest.route;
 
 import static io.javalin.apibuilder.ApiBuilder.*;
+import static me.prexorjustin.prexorcloud.controller.rest.RestServer.audit;
 
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,8 @@ import io.javalin.openapi.OpenApiResponse;
 import io.javalin.openapi.OpenApiSecurity;
 
 public final class SystemRoutes {
+
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SystemRoutes.class);
 
     // Substring anchor for scripts/check-openapi-routes.sh (the stream endpoint
     // is registered in RestServer, not here).
@@ -78,7 +81,48 @@ public final class SystemRoutes {
             post("/logs/ticket", this::createSystemLogTicket);
             get("/diagnostics", this::getDiagnostics);
             post("/diagnostics/share", this::shareDiagnostics);
+            post("/shutdown", this::shutdownController);
         });
+    }
+
+    @OpenApi(
+            path = "/api/v1/system/shutdown",
+            methods = {HttpMethod.POST},
+            operationId = "shutdownController",
+            summary = "Shut down this controller",
+            description =
+                    "Gracefully stops the controller process this request is served by. Responds 202 first,"
+                            + " then exits shortly after so the response can flush. In an HA cluster this stops only"
+                            + " the targeted controller; the remaining peers re-elect a leader. ADMIN-only.",
+            tags = {"System"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            responses = {@OpenApiResponse(status = "202", description = "Shutdown initiated")})
+    private void shutdownController(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.SYSTEM_SHUTDOWN);
+        String reason = ctx.queryParam("reason");
+        if (reason == null || reason.isBlank()) {
+            reason = "Operator requested controller shutdown";
+        }
+        audit(ctx, controller.stateStore(), "system.shutdown", "controller", "self");
+        logger.warn("Controller shutdown requested via API: {}", reason);
+        ctx.status(202);
+        ctx.json(Map.of("status", "STOPPING", "reason", reason));
+
+        // Exit on a separate thread after a short grace so the 202 flushes to the client first. The
+        // JVM shutdown hook runs the controller's graceful close(); under systemd Restart=on-failure a
+        // clean exit(0) stays down.
+        Thread shutdownThread = new Thread(
+                () -> {
+                    try {
+                        Thread.sleep(750);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    System.exit(0);
+                },
+                "api-shutdown");
+        shutdownThread.setDaemon(true);
+        shutdownThread.start();
     }
 
     @OpenApi(

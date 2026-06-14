@@ -59,6 +59,7 @@ public final class DaemonGrpcClient {
     private volatile StreamObserver<DaemonMessage> requestStream;
     private ScheduledExecutorService statusScheduler;
     private volatile String controllerApiUrl = "";
+    private volatile int controllerApiPort = 0;
 
     private ReconnectManager reconnectManager;
     private IntSupplier instanceCountSupplier = () -> 0;
@@ -111,7 +112,12 @@ public final class DaemonGrpcClient {
 
             logger.info("Connecting to controller at {}:{}", host, port);
 
-            var builder = NettyChannelBuilder.forAddress(host, port)
+            // Connect via an explicit InetSocketAddress so gRPC uses its direct-address path and
+            // never consults the NameResolver registry. In the shaded jar the only registered
+            // NameResolverProvider is the unix-domain-socket one, so the default scheme resolves
+            // to "unix:///host:port" and Netty's TCP transport rejects it. A direct address skips
+            // name resolution entirely. Authority stays "host:port", identical to forAddress(host, port).
+            var builder = NettyChannelBuilder.forAddress(new java.net.InetSocketAddress(host, port))
                     .maxInboundMessageSize(ProtocolConstants.MAX_MESSAGE_SIZE)
                     .keepAliveTime(30, TimeUnit.SECONDS)
                     .keepAliveTimeout(10, TimeUnit.SECONDS)
@@ -237,6 +243,7 @@ public final class DaemonGrpcClient {
 
     /** Called by the dispatcher when the HandshakeAck arrives with the API port. */
     public void setControllerApiPort(int apiPort) {
+        this.controllerApiPort = apiPort;
         this.controllerApiUrl = "http://" + host + ":" + apiPort;
         logger.debug("Controller API URL resolved: {}", controllerApiUrl);
     }
@@ -244,6 +251,16 @@ public final class DaemonGrpcClient {
     /** Returns the controller REST API base URL (e.g. "http://10.0.0.1:8080"). */
     public String controllerApiUrl() {
         return controllerApiUrl;
+    }
+
+    /** Returns the controller host the daemon is connected to. */
+    public String controllerHost() {
+        return host;
+    }
+
+    /** Returns the controller REST API port resolved from the handshake (0 if unknown). */
+    public int controllerApiPort() {
+        return controllerApiPort;
     }
 
     public void disconnect() {

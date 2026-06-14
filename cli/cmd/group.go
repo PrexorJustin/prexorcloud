@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,17 +87,23 @@ var groupListCmd = &cobra.Command{
 }
 
 var groupInfoCmd = &cobra.Command{
-	Use:   "info <name>",
+	Use:   "info [name]",
 	Short: "Show group details",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
 
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group info <name>`)",
+			func() (string, error) { return pickGroup(client, "Select a group") })
+		if err != nil {
+			return err
+		}
+
 		var group map[string]any
-		if err := client.Get("/api/v1/groups/"+args[0], &group); err != nil {
+		if err := client.Get("/api/v1/groups/"+name, &group); err != nil {
 			return err
 		}
 
@@ -104,7 +111,7 @@ var groupInfoCmd = &cobra.Command{
 			return theme.PrintJSON(group)
 		}
 
-		return runGroupInfo(cmd.Context(), client, args[0], group)
+		return runGroupInfo(cmd.Context(), client, name, group)
 	},
 }
 
@@ -141,7 +148,8 @@ var groupCreateCmd = &cobra.Command{
 			"maxInstances":    maxInst,
 			"memoryMb":        memory,
 			"routing":         routing,
-			"portRange":       map[string]any{"start": portStart, "end": portEnd},
+			"portRangeStart":  portStart,
+			"portRangeEnd":    portEnd,
 		}
 
 		var result map[string]any
@@ -158,11 +166,17 @@ var groupCreateCmd = &cobra.Command{
 }
 
 var groupUpdateCmd = &cobra.Command{
-	Use:   "update <name>",
+	Use:   "update [name]",
 	Short: "Update a group",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group update <name>`)",
+			func() (string, error) { return pickGroup(client, "Select a group to update") })
 		if err != nil {
 			return err
 		}
@@ -191,31 +205,37 @@ var groupUpdateCmd = &cobra.Command{
 		}
 
 		var result map[string]any
-		if err := client.Patch("/api/v1/groups/"+args[0], body, &result); err != nil {
+		if err := client.Patch("/api/v1/groups/"+name, body, &result); err != nil {
 			return err
 		}
 
 		if flagJSON {
 			return theme.PrintJSON(result)
 		}
-		theme.PrintSuccess(fmt.Sprintf("Group '%s' updated", args[0]))
+		theme.PrintSuccess(fmt.Sprintf("Group '%s' updated", name))
 		return nil
 	},
 }
 
 var groupDeleteCmd = &cobra.Command{
-	Use:   "delete <name>",
+	Use:   "delete [name]",
 	Short: "Delete a group",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
 
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group delete <name>`)",
+			func() (string, error) { return pickGroup(client, "Select a group to delete") })
+		if err != nil {
+			return err
+		}
+
 		var confirm bool
 		if err := huh.NewConfirm().
-			Title(fmt.Sprintf("Delete group '%s'?", args[0])).
+			Title(fmt.Sprintf("Delete group '%s'?", name)).
 			Description("This will stop all running instances in the group. This action cannot be undone.").
 			Value(&confirm).
 			WithTheme(tui.HuhTheme()).
@@ -227,30 +247,51 @@ var groupDeleteCmd = &cobra.Command{
 			return nil
 		}
 
-		if err := client.Delete("/api/v1/groups/"+args[0], nil); err != nil {
+		if err := client.Delete("/api/v1/groups/"+name, nil); err != nil {
 			return err
 		}
 
-		theme.PrintSuccess(fmt.Sprintf("Group '%s' deleted", args[0]))
+		theme.PrintSuccess(fmt.Sprintf("Group '%s' deleted", name))
 		return nil
 	},
 }
 
 var groupMaintenanceCmd = &cobra.Command{
-	Use:   "maintenance <name> <on|off>",
+	Use:   "maintenance [name] [on|off]",
 	Short: "Toggle maintenance mode",
-	Args:  cobra.ExactArgs(2),
+	Args:  cobra.MaximumNArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		client, err := requireAuth()
 		if err != nil {
 			return err
 		}
 
-		enabled := args[1] == "on" || args[1] == "true" || args[1] == "1"
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group maintenance <name> <on|off>`)",
+			func() (string, error) { return pickGroup(client, "Select a group") })
+		if err != nil {
+			return err
+		}
+
+		var toggle string
+		if len(args) >= 2 {
+			toggle = args[1]
+		} else if interactive() {
+			toggle, err = pickOne("Maintenance mode", []huh.Option[string]{
+				huh.NewOption("on  — enable maintenance", "on"),
+				huh.NewOption("off — disable maintenance", "off"),
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("on|off required (e.g. `prexorctl group maintenance %s on`)", name)
+		}
+
+		enabled := toggle == "on" || toggle == "true" || toggle == "1"
 		body := map[string]any{"maintenance": enabled}
 
 		var result map[string]any
-		if err := client.Patch("/api/v1/groups/"+args[0], body, &result); err != nil {
+		if err := client.Patch("/api/v1/groups/"+name, body, &result); err != nil {
 			return err
 		}
 
@@ -261,7 +302,79 @@ var groupMaintenanceCmd = &cobra.Command{
 		if enabled {
 			state = "enabled"
 		}
-		theme.PrintSuccess(fmt.Sprintf("Maintenance %s for group '%s'", state, args[0]))
+		theme.PrintSuccess(fmt.Sprintf("Maintenance %s for group '%s'", state, name))
+		return nil
+	},
+}
+
+var groupScaleCmd = &cobra.Command{
+	Use:   "scale [name] [replicas]",
+	Short: "Scale a group to N instances",
+	Long: "Set a group's instance floor (minInstances) to the given replica count, raising the " +
+		"ceiling (maxInstances) to match if it would otherwise be lower. For STATIC and MANUAL groups " +
+		"this pins the size to N; for DYNAMIC groups it sets the floor (the autoscaler still ranges up " +
+		"to max under load).",
+	Args: cobra.MaximumNArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group scale <name> <replicas>`)",
+			func() (string, error) { return pickGroup(client, "Select a group to scale") })
+		if err != nil {
+			return err
+		}
+
+		var replicas int
+		if len(args) >= 2 {
+			replicas, err = strconv.Atoi(args[1])
+			if err != nil || replicas < 0 {
+				return fmt.Errorf("replicas must be a non-negative integer, got %q", args[1])
+			}
+		} else if interactive() {
+			input := ""
+			if err := huh.NewInput().
+				Title(fmt.Sprintf("Scale group '%s' to how many instances?", name)).
+				Value(&input).
+				Validate(func(s string) error {
+					n, perr := strconv.Atoi(strings.TrimSpace(s))
+					if perr != nil || n < 0 {
+						return fmt.Errorf("enter a non-negative integer")
+					}
+					return nil
+				}).
+				WithTheme(tui.HuhTheme()).
+				Run(); err != nil {
+				return err
+			}
+			replicas, _ = strconv.Atoi(strings.TrimSpace(input))
+		} else {
+			return fmt.Errorf("replica count required (e.g. `prexorctl group scale %s 3`)", name)
+		}
+
+		// Read the current group so we only raise the ceiling, never silently lower it.
+		var group map[string]any
+		if err := client.Get("/api/v1/groups/"+name, &group); err != nil {
+			return err
+		}
+		curMax := int(num(group, "maxInstances"))
+
+		body := map[string]any{"minInstances": replicas}
+		if replicas > curMax {
+			body["maxInstances"] = replicas
+		}
+
+		var result map[string]any
+		if err := client.Patch("/api/v1/groups/"+name, body, &result); err != nil {
+			return err
+		}
+
+		if flagJSON {
+			return theme.PrintJSON(result)
+		}
+		theme.PrintSuccess(fmt.Sprintf("Group '%s' scaled to %d", name, replicas))
 		return nil
 	},
 }
@@ -291,7 +404,7 @@ func init() {
 	groupListCmd.Flags().StringVar(&groupListSort, "sort", "name", "Sort by: name, players, instances")
 	groupListCmd.Flags().BoolVar(&groupListWatch, "watch", false, "Re-render every 2s")
 
-	groupCmd.AddCommand(groupListCmd, groupInfoCmd, groupCreateCmd, groupUpdateCmd, groupDeleteCmd, groupMaintenanceCmd)
+	groupCmd.AddCommand(groupListCmd, groupInfoCmd, groupCreateCmd, groupUpdateCmd, groupScaleCmd, groupDeleteCmd, groupMaintenanceCmd)
 }
 
 // filterAndSortGroups applies --filter and --sort to a group list.

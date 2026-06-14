@@ -34,6 +34,13 @@ public final class WorkloadAuthFilter implements Handler {
         if (ctx.method().name().equals("OPTIONS")) {
             return;
         }
+        // The refresh endpoint must accept a just-expired (within-grace) token to
+        // bootstrap a fresh one -- which this strict filter would reject, permanently
+        // locking out a plugin whose token lapsed. Let the refresh handler do its own
+        // grace-aware validation (WorkloadRouteAuth.rotatePluginToken).
+        if (ctx.path().endsWith("/auth/refresh")) {
+            return;
+        }
         String authHeader = ctx.header("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             ctx.status(401);

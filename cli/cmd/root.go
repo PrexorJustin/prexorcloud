@@ -128,7 +128,35 @@ type ExitCodeError struct {
 
 func (e *ExitCodeError) Error() string { return e.Message }
 
+// fileCompletionCommands are the leaf commands that legitimately take a
+// filesystem path as a positional argument, so they keep Cobra's default
+// (filename) completion. Everything else gets NoFileComp.
+var fileCompletionCommands = map[string]bool{
+	"upload":  true, // module upload <file.jar>
+	"install": true, // module install <jar|bundle.tar|id>
+	"doctor":  true, // module doctor <jar>
+}
+
+// suppressFileCompletion walks the command tree and, for every leaf command that
+// doesn't already declare argument completion (a ValidArgsFunction or static
+// ValidArgs) and isn't a file-taking command, installs a no-op completer that
+// returns NoFileComp. Without this, bash falls back to listing local files
+// (including dotfiles) for no-arg commands like `node list` — a cluster CLI
+// should not be completing the working directory.
+func suppressFileCompletion(cmd *cobra.Command) {
+	for _, c := range cmd.Commands() {
+		suppressFileCompletion(c)
+		isLeaf := len(c.Commands()) == 0
+		if isLeaf && c.ValidArgsFunction == nil && len(c.ValidArgs) == 0 && !fileCompletionCommands[c.Name()] {
+			c.ValidArgsFunction = func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+		}
+	}
+}
+
 func Execute() error {
+	suppressFileCompletion(rootCmd)
 	err := rootCmd.Execute()
 	if err != nil {
 		theme.PrintError(err.Error())
@@ -172,6 +200,7 @@ func init() {
 		contextCmd,
 		nodeCmd,
 		groupCmd,
+		catalogCmd,
 		instanceCmd,
 		tokenCmd,
 		userCmd,

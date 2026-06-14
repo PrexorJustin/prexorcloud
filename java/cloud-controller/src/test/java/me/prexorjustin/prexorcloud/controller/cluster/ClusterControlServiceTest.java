@@ -14,6 +14,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
+import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.config.CorsConfig;
@@ -44,6 +45,11 @@ class ClusterControlServiceTest {
 
     private static ControllerConfig sampleConfigWithRaft(Path tmp, int raftPort, String yamlClusterId)
             throws Exception {
+        return sampleConfigWithRaft(tmp, "127.0.0.1", raftPort, yamlClusterId);
+    }
+
+    private static ControllerConfig sampleConfigWithRaft(Path tmp, String raftHost, int raftPort, String yamlClusterId)
+            throws Exception {
         return new ControllerConfig(
                 "node-local-uuid",
                 new HttpConfig("0.0.0.0", 8080, new CorsConfig(List.of("https://dashboard.example.com"))),
@@ -66,7 +72,15 @@ class ClusterControlServiceTest {
                 List.of(),
                 new RedisConfig("redis://10.0.0.50:6379"),
                 new ClusterConfig(yamlClusterId, null, null),
-                new RaftConfig("127.0.0.1", raftPort, tmp.resolve("raft").toString(), List.of()));
+                new RaftConfig(raftHost, raftPort, tmp.resolve("raft").toString(), List.of()));
+    }
+
+    private static String selfRaftAddr(ClusterControlService svc, String nodeId) {
+        return svc.controlPlane().listMembers().stream()
+                .filter(m -> nodeId.equals(m.nodeId()))
+                .map(Member::raftAddr)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no self member " + nodeId));
     }
 
     @Test
@@ -177,6 +191,56 @@ class ClusterControlServiceTest {
         });
         assertTrue(ex.getMessage().contains("deliberately-wrong-cluster-id"));
         assertTrue(ex.getMessage().contains(stampedClusterId), "error must show the actual Raft id");
+    }
+
+    @Test
+    @DisplayName("Day-0 boot stamps the self member at the advertised raft.host")
+    void day0StampsSelfMember(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        ControllerConfig cfg = sampleConfigWithRaft(tmp, "127.0.0.1", port, null);
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.start();
+            assertEquals("127.0.0.1:" + port, selfRaftAddr(svc, "controller-1"));
+        }
+    }
+
+    @Test
+    @DisplayName("restart with a changed raft.host self-heals the member's advertised address")
+    void restartSelfHealsAdvertisedAddress(@TempDir Path tmp) throws Exception {
+        // Mirrors the live ctrl-1 scenario: Day-0 stamped 0.0.0.0, the operator later sets a
+        // routable raft.host for HA. The advertised address must self-heal on the next boot so
+        // the membership reconciler re-advertises it (and joiners are handed the right address).
+        // Same port across boots — the transport always binds wildcard; only the advertised host
+        // changes, exactly as 0.0.0.0 -> 10.0.0.3 does in production.
+        int port = freePort();
+        ControllerConfig boot1 = sampleConfigWithRaft(tmp, "127.0.0.1", port, null);
+        try (ClusterControlService svc = new ClusterControlService(boot1, "controller-1")) {
+            svc.start();
+            assertEquals("127.0.0.1:" + port, selfRaftAddr(svc, "controller-1"));
+        }
+
+        // Boot 2 — same data dir, changed advertised host. ensureSelfMember must rewrite it.
+        ControllerConfig boot2 = sampleConfigWithRaft(tmp, "127.0.0.2", port, null);
+        try (ClusterControlService svc = new ClusterControlService(boot2, "controller-1")) {
+            svc.start();
+            assertEquals(
+                    "127.0.0.2:" + port,
+                    selfRaftAddr(svc, "controller-1"),
+                    "advertised address must self-heal to the new raft.host on restart");
+            // The single-node leader must still serve reads/writes after reconfiguring its own
+            // address — getClusterMeta is a read; the v1.0 migration on boot 1 proves writes work.
+            assertNotNull(svc.controlPlane().getClusterMeta().orElseThrow().clusterId());
+        }
+
+        // Boot 3 — unchanged host. Self-heal must be a no-op: still exactly one self member.
+        try (ClusterControlService svc = new ClusterControlService(boot2, "controller-1")) {
+            svc.start();
+            long selfCount = svc.controlPlane().listMembers().stream()
+                    .filter(m -> "controller-1".equals(m.nodeId()))
+                    .count();
+            assertEquals(1, selfCount, "unchanged address must not duplicate the self member");
+            assertEquals("127.0.0.2:" + port, selfRaftAddr(svc, "controller-1"));
+        }
     }
 
     @Test

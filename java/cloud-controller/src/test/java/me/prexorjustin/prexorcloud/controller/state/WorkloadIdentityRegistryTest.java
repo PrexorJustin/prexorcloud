@@ -22,31 +22,83 @@ class WorkloadIdentityRegistryTest {
     private static final Instant NOW = Instant.parse("2026-04-14T12:00:00Z");
 
     @Test
-    void validateRequiresRunningInstance() {
+    void validateAcceptsLiveInstanceStates() {
         var registry = new WorkloadIdentityRegistry(Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(15));
         String token = registry.issuePluginToken("instance-1");
 
-        var startingInstance = runningInstance("instance-1", InstanceState.STARTING);
-        assertTrue(registry.validatePluginToken(token, id -> Optional.of(startingInstance))
-                .isEmpty());
+        // STARTING must be accepted: the plugin authenticates during boot to run
+        // the readiness handshake (POST /api/plugin/ready) that itself promotes
+        // the instance to RUNNING. Gating on RUNNING alone deadlocks startup.
+        for (var live : new InstanceState[] {InstanceState.STARTING, InstanceState.RUNNING, InstanceState.DRAINING}) {
+            assertEquals(
+                    Optional.of("instance-1"),
+                    registry.validatePluginToken(token, id -> Optional.of(runningInstance("instance-1", live))),
+                    "token should be usable while instance is " + live);
+        }
 
-        var running = runningInstance("instance-1", InstanceState.RUNNING);
-        assertEquals(Optional.of("instance-1"), registry.validatePluginToken(token, id -> Optional.of(running)));
+        // Pre-launch and terminal states have no live plugin -- reject.
+        for (var dead : new InstanceState[] {
+            InstanceState.SCHEDULED,
+            InstanceState.PREPARING,
+            InstanceState.STOPPING,
+            InstanceState.STOPPED,
+            InstanceState.CRASHED
+        }) {
+            assertTrue(
+                    registry.validatePluginToken(token, id -> Optional.of(runningInstance("instance-1", dead)))
+                            .isEmpty(),
+                    "token should be rejected while instance is " + dead);
+        }
     }
 
     @Test
-    void expiredTokensAreRejected() {
+    void expiredTokensAreRejectedForNormalCallsAndEvictedPastGrace() {
         var clock = new MutableClock(NOW);
         var registry = new WorkloadIdentityRegistry(clock, Duration.ofMinutes(15));
         String token = registry.issuePluginToken("instance-1");
 
+        // Expired but within the refresh grace (grace == TTL == 15m): normal calls
+        // are rejected, but the entry is RETAINED so the reactive refresh can use it.
         clock.advance(Duration.ofMinutes(16));
         assertTrue(registry.validatePluginToken(
                         token, id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING)))
                 .isEmpty());
+        assertTrue(registry.getPluginToken(token).isPresent(), "within-grace token must be retained for refresh");
 
-        // expired entries are evicted on the read path
-        assertTrue(registry.getPluginToken(token).isEmpty());
+        // Past the grace window (expiresAt 15m + grace 15m = 30m): evicted on read.
+        clock.advance(Duration.ofMinutes(15));
+        assertTrue(registry.validatePluginToken(
+                        token, id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING)))
+                .isEmpty());
+        assertTrue(registry.getPluginToken(token).isEmpty(), "past-grace token must be evicted");
+    }
+
+    @Test
+    void justExpiredTokenCanStillRefreshWithinGrace() {
+        var clock = new MutableClock(NOW);
+        var registry = new WorkloadIdentityRegistry(clock, Duration.ofMinutes(15));
+        String token = registry.issuePluginToken("instance-1");
+
+        // Token has lapsed (reactive-on-401 case) but is within the grace window.
+        clock.advance(Duration.ofMinutes(16));
+        var refreshed = registry.refreshPluginToken(
+                token, id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING)));
+        assertTrue(refreshed.isPresent(), "a just-expired token must bootstrap a fresh one within grace");
+
+        // The fresh token authenticates normal calls again.
+        assertEquals(
+                Optional.of("instance-1"),
+                registry.validatePluginToken(
+                        refreshed.get().token(),
+                        id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING))));
+
+        // A token expired beyond the grace window cannot refresh.
+        String stale = registry.issuePluginToken("instance-2");
+        clock.advance(Duration.ofMinutes(31));
+        assertTrue(
+                registry.refreshPluginToken(stale, id -> Optional.of(runningInstance("instance-2", InstanceState.RUNNING)))
+                        .isEmpty(),
+                "a token past the grace window must not refresh");
     }
 
     @Test
@@ -74,12 +126,15 @@ class WorkloadIdentityRegistryTest {
     }
 
     @Test
-    void refreshRejectsExpiredToken() {
+    void refreshRejectsTokenExpiredBeyondGrace() {
         var clock = new MutableClock(NOW);
         var registry = new WorkloadIdentityRegistry(clock, Duration.ofMinutes(15));
         String token = registry.issuePluginToken("instance-1");
 
-        clock.advance(Duration.ofMinutes(16));
+        // Within grace (expiresAt 15m + grace 15m), a lapsed token can still refresh
+        // (see justExpiredTokenCanStillRefreshWithinGrace). Only past the grace window
+        // is refresh rejected.
+        clock.advance(Duration.ofMinutes(31));
         assertTrue(registry.refreshPluginToken(
                         token, id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING)))
                 .isEmpty());
@@ -237,6 +292,31 @@ class WorkloadIdentityRegistryTest {
                 Optional.of("instance-1"),
                 restarted.validatePluginToken(
                         token, 8L, id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING))));
+    }
+
+    @Test
+    void unregisterClearsSequenceWindowSoRestartedInstanceStartsFresh() {
+        var sequenceStore = new FakeSequenceWindowStore();
+        var registry =
+                new WorkloadIdentityRegistry(Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(15), sequenceStore);
+
+        String token = registry.issuePluginToken("instance-1");
+        // Drive the replay window up while the instance runs.
+        assertEquals(
+                Optional.of("instance-1"),
+                registry.validatePluginToken(
+                        token, 5L, id -> Optional.of(runningInstance("instance-1", InstanceState.RUNNING))));
+
+        // Instance terminates -> tokens + replay window must be cleared.
+        registry.unregisterPluginTokens("instance-1");
+
+        // A restarted instance reuses the id and its plugin restarts its sequence
+        // at 1. Without clearing the window this would be rejected as a replay.
+        String restartToken = registry.issuePluginToken("instance-1");
+        assertEquals(
+                Optional.of("instance-1"),
+                registry.validatePluginToken(
+                        restartToken, 1L, id -> Optional.of(runningInstance("instance-1", InstanceState.STARTING))));
     }
 
     private static InstanceInfo runningInstance(String id, InstanceState state) {

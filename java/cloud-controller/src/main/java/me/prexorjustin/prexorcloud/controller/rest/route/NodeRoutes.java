@@ -24,6 +24,7 @@ import me.prexorjustin.prexorcloud.controller.state.NodeState;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.protocol.ControllerMessage;
 import me.prexorjustin.prexorcloud.protocol.RequestCacheStatus;
+import me.prexorjustin.prexorcloud.protocol.ShutdownNode;
 
 import io.javalin.http.Context;
 import io.javalin.openapi.HttpMethod;
@@ -49,6 +50,7 @@ public final class NodeRoutes {
             get("/{id}", this::getNode);
             delete("/{id}", this::deleteNode);
             post("/{id}/drain", this::drainNode);
+            post("/{id}/shutdown", this::shutdownNode);
             post("/{id}/undrain", this::undrainNode);
             post("/{id}/cordon", this::cordonNode);
             post("/{id}/uncordon", this::uncordonNode);
@@ -228,6 +230,50 @@ public final class NodeRoutes {
                 id,
                 Map.of("shutdown", shutdown, "timeout", drainTimeout));
         ctx.json(NodeDtoMapper.nodeDrainDto("DRAINING", shutdown, drainTimeout, kickMessage));
+    }
+
+    @OpenApi(
+            path = "/api/v1/nodes/{id}/shutdown",
+            methods = {HttpMethod.POST},
+            operationId = "shutdownNode",
+            summary = "Immediately stop a node's daemon",
+            description =
+                    "Sends a ShutdownNode command straight to the daemon — no drain. The daemon stops its"
+                            + " running instances and exits; the scheduler reschedules them onto other nodes if"
+                            + " capacity allows. Use `node drain` instead for a graceful, instance-preserving stop.",
+            tags = {"Nodes"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            pathParams = {@OpenApiParam(name = "id", required = true)},
+            responses = {
+                @OpenApiResponse(status = "202", description = "Shutdown command sent"),
+                @OpenApiResponse(status = "404", description = "Node not found"),
+                @OpenApiResponse(status = "409", description = "Node not currently connected")
+            })
+    private void shutdownNode(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.NODES_SHUTDOWN);
+        String id = ctx.pathParam("id");
+        requireFound(controller.clusterState().getNode(id), "Node", id);
+
+        String reason = ctx.queryParam("reason");
+        if (reason == null || reason.isBlank()) {
+            reason = "Operator requested immediate shutdown";
+        }
+
+        var session = controller.sessionManager().getByNodeId(id);
+        if (session.isEmpty()) {
+            ctx.status(409);
+            ctx.json(errorResponse("NODE_NOT_CONNECTED", "Node " + id + " is not currently connected", 409));
+            return;
+        }
+
+        session.get()
+                .send(ControllerMessage.newBuilder()
+                        .setShutdownNode(ShutdownNode.newBuilder().setReason(reason))
+                        .build());
+        controller.clusterState().setNodeStatus(id, NodeState.NodeStatus.DRAINING);
+        audit(ctx, controller.stateStore(), "node.shutdown", "node", id, Map.of("reason", reason));
+        ctx.status(202);
+        ctx.json(NodeDtoMapper.nodeStatusDto("STOPPING"));
     }
 
     @OpenApi(

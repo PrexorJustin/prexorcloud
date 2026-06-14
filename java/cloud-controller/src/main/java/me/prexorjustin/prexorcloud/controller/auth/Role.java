@@ -134,6 +134,20 @@ public final class Role {
             Permission.EVENTS_VIEW);
 
     /**
+     * Code-authoritative permission sets for the built-in roles, keyed by role name. This is the
+     * single source of truth — {@code ADMIN} is the reflective {@link #ALL_PERMISSIONS} so it never
+     * drifts as new permissions are added. The role store reconciles these into persistence on every
+     * startup (see {@code MongoRoleStore.ensureDefaults}) so existing deployments pick up new grants.
+     */
+    public static Map<String, Set<String>> builtInDefaults() {
+        return Map.of(
+                ADMIN, ALL_PERMISSIONS,
+                OPERATOR, OPERATOR_PERMISSIONS,
+                VIEWER, VIEWER_PERMISSIONS,
+                DAEMON_HOST, DAEMON_HOST_PERMISSIONS);
+    }
+
+    /**
      * Initialize with a config loader for dynamic role resolution.
      */
     public static void initialize(RoleStore loader) {

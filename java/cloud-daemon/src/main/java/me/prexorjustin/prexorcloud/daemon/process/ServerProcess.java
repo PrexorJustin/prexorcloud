@@ -149,6 +149,13 @@ public final class ServerProcess {
         if (!apiUrl.isBlank()) {
             processEnv.put("CLOUD_CONTROLLER_URL", apiUrl);
         }
+        // The in-server plugin reads host + port separately (PluginEnv), not the URL.
+        String controllerHost = grpcClient.controllerHost();
+        int controllerApiPort = grpcClient.controllerApiPort();
+        if (controllerHost != null && !controllerHost.isBlank() && controllerApiPort > 0) {
+            processEnv.put("CLOUD_CONTROLLER_HOST", controllerHost);
+            processEnv.put("CLOUD_CONTROLLER_PORT", String.valueOf(controllerApiPort));
+        }
 
         reportState(InstanceState.STARTING);
         process = pb.start();
@@ -181,7 +188,7 @@ public final class ServerProcess {
 
     private List<String> buildCommand() {
         List<String> cmd = new ArrayList<>();
-        cmd.add("java");
+        cmd.add(JavaExecutable.path());
         cmd.add("-Xmx" + memoryMb + "m");
         cmd.add("-Xms" + (memoryMb / 2) + "m");
         cmd.add("--add-opens");

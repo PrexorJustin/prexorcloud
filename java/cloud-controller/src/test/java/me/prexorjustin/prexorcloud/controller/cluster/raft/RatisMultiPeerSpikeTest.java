@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.controller.cluster.raft;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeoutException;
 
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
+import me.prexorjustin.prexorcloud.controller.config.RaftConfig;
 
 import org.apache.ratis.RaftConfigKeys;
 import org.apache.ratis.client.RaftClient;
@@ -321,6 +323,90 @@ class RatisMultiPeerSpikeTest {
                 assertNotNull(p4.sm.getClusterMeta().orElse(null));
             }
         }
+    }
+
+    @Test
+    @DisplayName("awaitKnownLeader: a restarted follower returns on the remote leader instead of hanging")
+    void followerRestartSeesLeader(@TempDir Path tmp) throws Exception {
+        // Regression guard for the HA bring-up fix: start(materials) must wait for "a leader exists"
+        // (self OR remote), not for self-leadership. A follower that restarts in a multi-node cluster
+        // never re-takes leadership, so the old awaitLeader(self) would hang it until timeout and fail
+        // boot. Here we form a real 2-node group via RaftBootstrap, restart the follower, and assert
+        // awaitKnownLeader() returns while the node is still a follower.
+        int leaderPort = freePort();
+        int followerPort = freePort();
+        RaftConfig leaderCfg =
+                new RaftConfig("127.0.0.1", leaderPort, tmp.resolve("l").toString(), List.of());
+        RaftConfig followerCfg =
+                new RaftConfig("127.0.0.1", followerPort, tmp.resolve("f").toString(), List.of());
+
+        RaftBootstrap leader =
+                new RaftBootstrap(leaderCfg, GROUP_UUID, "controller-1", new ClusterControlStateMachine());
+        RaftBootstrap follower = null;
+        RaftBootstrap restarted = null;
+        try {
+            leader.start(); // no TLS, bootstrap single-member group
+            leader.awaitLeader(10_000);
+
+            RaftPeer leaderPeer = leader.selfPeer();
+            RaftPeer followerPeer = RaftPeer.newBuilder()
+                    .setId("controller-2")
+                    .setAddress("127.0.0.1:" + followerPort)
+                    .build();
+            RaftGroup twoNode = RaftGroup.valueOf(GROUP_ID, List.of(leaderPeer, followerPeer));
+
+            // Bring the follower in: join-mode add() on itself, then leader expands membership.
+            follower = new RaftBootstrap(followerCfg, GROUP_UUID, "controller-2", new ClusterControlStateMachine());
+            follower.startInJoinMode(null, twoNode);
+            follower.joinExistingGroup(twoNode);
+            setConfigurationWithRetry(leader, List.of(leaderPeer, followerPeer));
+
+            // Core of the fix: a node that is NOT the leader still has a leader it can route to.
+            // controller-1 keeps leadership (head start + log); controller-2 settles as a follower
+            // that knows the leader. The old awaitLeader(self) would hang forever on such a node.
+            long settle = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < settle && !(follower.hasKnownLeader() && !follower.isLeader())) {
+                Thread.sleep(50);
+            }
+            assertFalse(follower.isLeader(), "controller-2 must be a follower in this group");
+            assertTrue(follower.hasKnownLeader(), "follower must know its leader");
+            follower.awaitKnownLeader(5_000); // returns because a remote leader is known — the regression guard
+
+            // And the restart bring-up path must not hang either: reload the persisted group and gate
+            // on awaitKnownLeader. (In a 2-node group the restarted node may re-win the election; we
+            // only assert the gate returns — the non-leader case above is the discriminating proof.)
+            follower.close();
+            follower = null;
+            restarted = new RaftBootstrap(followerCfg, GROUP_UUID, "controller-2", new ClusterControlStateMachine());
+            restarted.start(); // restart path (isRestart=true)
+            restarted.awaitKnownLeader(15_000);
+        } finally {
+            for (RaftBootstrap b : new RaftBootstrap[] {restarted, follower, leader}) {
+                if (b != null) {
+                    try {
+                        b.close();
+                    } catch (IOException ignored) {
+                        // best-effort cleanup
+                    }
+                }
+            }
+        }
+    }
+
+    /** Drive a membership change from the leader, retrying through the joiner-not-yet-acked window. */
+    private static void setConfigurationWithRetry(RaftBootstrap leader, List<RaftPeer> peers) throws Exception {
+        IOException last = null;
+        for (int attempt = 0; attempt < 40; attempt++) {
+            try {
+                if (leader.setConfiguration(peers).isSuccess()) {
+                    return;
+                }
+            } catch (IOException e) {
+                last = e; // joiner quorum not ready yet — same race the production reconciler retries through
+            }
+            Thread.sleep(250);
+        }
+        throw new IllegalStateException("setConfiguration did not converge", last);
     }
 
     @Test

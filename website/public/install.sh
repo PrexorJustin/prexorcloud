@@ -292,6 +292,101 @@ printf "\n%sprexorctl installed successfully.%s\n" "$tty_bold" "$tty_reset"
 [ -L "${INSTALL_DIR}/${ALIAS}" ] && echo "Alias: ${ALIAS} -> ${BINARY}"
 echo
 
+# ─── Shell completions ───────────────────────────────────────────────────────
+# Install tab-completion for every shell we can detect (bash/zsh/fish), wiring
+# up the `pc` alias too. Entirely best-effort: nothing here aborts the install.
+# Root operations go through try_root, which silently no-ops when it can't
+# elevate, so an unprivileged --install-dir install simply skips system dirs.
+try_root() {
+  if [ "$(id -u)" -eq 0 ]; then "$@"
+  elif command -v sudo >/dev/null 2>&1; then sudo "$@"
+  else return 1
+  fi
+}
+
+# put_file <dir> <filename> <srcfile> — copy into a (possibly root-owned) dir.
+put_file() {
+  _d="$1"; _f="$2"; _src="$3"; _parent=$(dirname "$_d")
+  if { [ -d "$_d" ] && [ -w "$_d" ]; } || { [ ! -d "$_d" ] && [ -w "$_parent" ]; }; then
+    mkdir -p "$_d" 2>/dev/null && cp "$_src" "${_d}/${_f}" 2>/dev/null && return 0
+    return 1
+  fi
+  try_root mkdir -p "$_d" 2>/dev/null && try_root cp "$_src" "${_d}/${_f}" 2>/dev/null
+}
+
+# bash's completion needs the bash-completion runtime; install it if absent.
+ensure_bash_completion() {
+  [ "$PLATFORM" = linux ] || return 0
+  [ -r /usr/share/bash-completion/bash_completion ] && return 0
+  [ -r /etc/bash_completion ] && return 0
+  if   command -v apt-get >/dev/null 2>&1; then _pm="apt-get install -y bash-completion"
+  elif command -v dnf     >/dev/null 2>&1; then _pm="dnf install -y bash-completion"
+  elif command -v yum     >/dev/null 2>&1; then _pm="yum install -y bash-completion"
+  elif command -v zypper  >/dev/null 2>&1; then _pm="zypper --non-interactive install bash-completion"
+  elif command -v apk     >/dev/null 2>&1; then _pm="apk add bash-completion"
+  elif command -v pacman  >/dev/null 2>&1; then _pm="pacman -S --noconfirm bash-completion"
+  else _pm=""
+  fi
+  if [ -n "$_pm" ]; then
+    ohai "Installing bash-completion runtime"
+    try_root sh -c "$_pm" >/dev/null 2>&1 \
+      || warn "Couldn't auto-install bash-completion; bash tab-completion may be limited until you do."
+  else
+    warn "bash-completion runtime missing and no known package manager; bash tab-completion may be limited."
+  fi
+}
+
+install_completions() {
+  ohai "Installing shell completions"
+
+  if command -v bash >/dev/null 2>&1; then
+    _dir=/etc/bash_completion.d
+    [ "$PLATFORM" = darwin ] && _dir=/usr/local/etc/bash_completion.d
+    if "${INSTALL_DIR}/${BINARY}" completion bash > "${workdir}/comp.bash" 2>/dev/null; then
+      printf 'complete -o default -F __start_%s %s\n' "$BINARY" "$ALIAS" >> "${workdir}/comp.bash"
+      if put_file "$_dir" "$BINARY" "${workdir}/comp.bash"; then
+        ohai "  bash  -> ${_dir}/${BINARY}"
+      else
+        warn "  bash completion skipped (no writable ${_dir})"
+      fi
+    fi
+    ensure_bash_completion
+  fi
+
+  if command -v zsh >/dev/null 2>&1; then
+    _dir=/usr/share/zsh/site-functions
+    [ "$PLATFORM" = darwin ] && [ -d /usr/local/share/zsh/site-functions ] && _dir=/usr/local/share/zsh/site-functions
+    if "${INSTALL_DIR}/${BINARY}" completion zsh > "${workdir}/comp.zsh" 2>/dev/null; then
+      if put_file "$_dir" "_${BINARY}" "${workdir}/comp.zsh"; then
+        # Tiny autoloaded shim so the `pc` alias completes via _prexorctl too.
+        printf '#compdef %s\ncompdef _%s %s\n' "$ALIAS" "$BINARY" "$ALIAS" > "${workdir}/comp.zsh.alias"
+        put_file "$_dir" "_${ALIAS}" "${workdir}/comp.zsh.alias" 2>/dev/null || true
+        ohai "  zsh   -> ${_dir}/_${BINARY}"
+      else
+        warn "  zsh completion skipped (no writable ${_dir})"
+      fi
+    fi
+  fi
+
+  if command -v fish >/dev/null 2>&1; then
+    _dir=/usr/share/fish/vendor_completions.d
+    [ "$PLATFORM" = darwin ] && [ -d /usr/local/share/fish/vendor_completions.d ] && _dir=/usr/local/share/fish/vendor_completions.d
+    if "${INSTALL_DIR}/${BINARY}" completion fish > "${workdir}/comp.fish" 2>/dev/null; then
+      printf 'complete -c %s -w %s\n' "$ALIAS" "$BINARY" >> "${workdir}/comp.fish"
+      if put_file "$_dir" "${BINARY}.fish" "${workdir}/comp.fish"; then
+        ohai "  fish  -> ${_dir}/${BINARY}.fish"
+      else
+        warn "  fish completion skipped (no writable ${_dir})"
+      fi
+    fi
+  fi
+
+  echo "  Open a new shell (or 'exec \$SHELL') to pick up completions."
+}
+
+install_completions || true
+echo
+
 case ":${PATH}:" in
   *":${INSTALL_DIR}:"*) ;;
   *)

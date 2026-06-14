@@ -75,6 +75,27 @@ func RegisterDaemonService(installDir, jrePath string) error {
 	return registerService(daemonServiceName, fmt.Sprintf(daemonUnitTemplate, installDir, jrePath))
 }
 
+// InstallControllerUnit writes the controller systemd unit and reloads systemd,
+// WITHOUT enabling it on boot. Used by the cobra wizard when the operator wants
+// to start the service now but not have it auto-start on reboot.
+func InstallControllerUnit(installDir, jrePath string, opts ControllerServiceOptions) error {
+	return installUnit(controllerServiceName, renderControllerUnit(installDir, jrePath, opts))
+}
+
+// InstallDaemonUnit writes the daemon systemd unit and reloads systemd, WITHOUT
+// enabling it on boot.
+func InstallDaemonUnit(installDir, jrePath string) error {
+	return installUnit(daemonServiceName, fmt.Sprintf(daemonUnitTemplate, installDir, jrePath))
+}
+
+// EnableService enables an already-installed systemd unit so it starts on boot.
+func EnableService(name string) error {
+	if out, err := runCmd(exec.Command("systemctl", "enable", name)); err != nil {
+		return fmt.Errorf("systemctl enable %s failed: %w\n%s", name, err, out)
+	}
+	return nil
+}
+
 // StartService starts an already-registered systemd unit. Used by the browser
 // wizard's native path after RegisterControllerService/RegisterDaemonService —
 // those enable the unit but leave starting to the caller so the cobra path can
@@ -87,16 +108,24 @@ func StartService(name string) error {
 }
 
 func registerService(name, content string) error {
+	if err := installUnit(name, content); err != nil {
+		return err
+	}
+	if err := exec.Command("systemctl", "enable", name).Run(); err != nil {
+		return fmt.Errorf("systemctl enable %s failed: %w", name, err)
+	}
+	return nil
+}
+
+// installUnit writes a systemd unit file and reloads the systemd manager, but
+// does not enable it. registerService layers `systemctl enable` on top.
+func installUnit(name, content string) error {
 	unitPath := filepath.Join(systemdUnitDir, name+".service")
 	if err := os.WriteFile(unitPath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write unit file: %w", err)
 	}
-
 	if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
 		return fmt.Errorf("systemctl daemon-reload failed: %w", err)
-	}
-	if err := exec.Command("systemctl", "enable", name).Run(); err != nil {
-		return fmt.Errorf("systemctl enable %s failed: %w", name, err)
 	}
 	return nil
 }

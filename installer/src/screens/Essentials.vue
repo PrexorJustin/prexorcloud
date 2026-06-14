@@ -7,6 +7,7 @@ import Field from '@/components/Field.vue';
 import TextInput from '@/components/TextInput.vue';
 import NumInput from '@/components/NumInput.vue';
 import ListInput from '@/components/ListInput.vue';
+import ToggleInput from '@/components/ToggleInput.vue';
 import NavBar from '@/components/NavBar.vue';
 
 const wiz = useWizardStore();
@@ -101,6 +102,33 @@ function generateJoinToken() {
                 Native unavailable: {{ wiz.nativeReason || 'requires Linux + root.' }}
               </span>
             </template>
+          </div>
+        </div>
+
+        <!-- Service lifecycle -->
+        <div class="profile-card" style="margin-bottom: 12px">
+          <div class="eyebrow">Service lifecycle</div>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px">
+            <ToggleInput
+              v-model="wiz.enableOnBoot"
+              :label="
+                isNative
+                  ? 'Start automatically on boot (systemctl enable)'
+                  : 'Start automatically on boot (restart: unless-stopped)'
+              "
+            />
+            <ToggleInput
+              v-model="wiz.startNow"
+              :label="
+                isNative
+                  ? 'Start now when setup finishes (systemctl start)'
+                  : 'Start now when setup finishes (docker compose up -d)'
+              "
+            />
+          </div>
+          <div class="hint">
+            Auto-start on boot keeps the component running after a reboot. Start now brings it up as
+            soon as installation completes — leave both on for a hands-off install.
           </div>
         </div>
 

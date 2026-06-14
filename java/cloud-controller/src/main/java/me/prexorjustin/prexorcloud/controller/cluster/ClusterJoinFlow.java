@@ -67,7 +67,20 @@ public final class ClusterJoinFlow {
         var sslContext = GrpcSslContexts.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
                 .build();
-        return NettyChannelBuilder.forTarget(hostPort).sslContext(sslContext).build();
+        // Parse host:port and use the forAddress(SocketAddress) overload — it bypasses gRPC name
+        // resolution entirely. forTarget("host:port") and forAddress(String,int) both consult the
+        // NameResolver registry, which in the shaded jar has only the unix-domain-socket provider
+        // (the DNS resolver's META-INF/services is dropped by shading), so they mis-read
+        // "10.0.0.3:9190" as a unix socket path. Same fix as the daemon→controller channel.
+        int idx = hostPort.lastIndexOf(':');
+        if (idx <= 0 || idx == hostPort.length() - 1) {
+            throw new IllegalArgumentException("Expected host:port, got: " + hostPort);
+        }
+        String host = hostPort.substring(0, idx);
+        int port = Integer.parseInt(hostPort.substring(idx + 1));
+        return NettyChannelBuilder.forAddress(new java.net.InetSocketAddress(host, port))
+                .sslContext(sslContext)
+                .build();
     }
 
     /** Identity the joiner advertises to the cluster as part of {@code RequestJoin}. */

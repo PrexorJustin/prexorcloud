@@ -88,6 +88,43 @@ func TestWriteDaemonComposeProjectWritesDaemonService(t *testing.T) {
 	}
 }
 
+func TestWriteControllerComposeProjectRestartPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		policy string
+		want   string
+	}{
+		{"default", "", "unless-stopped"},
+		{"explicit unless-stopped", "unless-stopped", "unless-stopped"},
+		{"no auto-start", "no", "no"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := WriteControllerComposeProject(dir, ControllerConfig{HTTPPort: "8080", GRPCPort: "9090"},
+				ControllerComposeProjectOptions{RestartPolicy: tc.policy}); err != nil {
+				t.Fatalf("WriteControllerComposeProject() error = %v", err)
+			}
+			doc := readComposeDoc(t, filepath.Join(dir, "docker-compose.yml"))
+			controller := doc["services"].(map[string]any)["controller"].(map[string]any)
+			if controller["restart"] != tc.want {
+				t.Fatalf("restart = %v, want %v", controller["restart"], tc.want)
+			}
+		})
+	}
+}
+
+func TestWriteDaemonComposeProjectWithRestart(t *testing.T) {
+	dir := t.TempDir()
+	if err := WriteDaemonComposeProjectWithRestart(dir, "no"); err != nil {
+		t.Fatalf("WriteDaemonComposeProjectWithRestart() error = %v", err)
+	}
+	doc := readComposeDoc(t, filepath.Join(dir, "docker-compose.yml"))
+	daemon := doc["services"].(map[string]any)["daemon"].(map[string]any)
+	if daemon["restart"] != "no" {
+		t.Fatalf("restart = %v, want no", daemon["restart"])
+	}
+}
+
 func readComposeDoc(t *testing.T, path string) map[string]any {
 	t.Helper()
 
