@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 
 import me.prexorjustin.prexorcloud.common.util.FilePermissions;
 
@@ -181,9 +182,8 @@ public final class CertificateAuthority {
         if (extraSans != null && !extraSans.isEmpty()) {
             GeneralName[] names = extraSans.stream()
                     .filter(s -> s != null && !s.isBlank())
-                    .map(san -> isIpAddress(san)
-                            ? new GeneralName(GeneralName.iPAddress, san)
-                            : new GeneralName(GeneralName.dNSName, san))
+                    .map(CertificateAuthority::toGeneralName)
+                    .filter(Objects::nonNull)
                     .toArray(GeneralName[]::new);
             if (names.length > 0) {
                 builder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(names));
@@ -284,14 +284,13 @@ public final class CertificateAuthority {
         // Build SANs
         if (sans != null && !sans.isEmpty()) {
             GeneralName[] names = sans.stream()
-                    .map(san -> {
-                        if (isIpAddress(san)) {
-                            return new GeneralName(GeneralName.iPAddress, san);
-                        }
-                        return new GeneralName(GeneralName.dNSName, san);
-                    })
+                    .filter(s -> s != null && !s.isBlank())
+                    .map(CertificateAuthority::toGeneralName)
+                    .filter(Objects::nonNull)
                     .toArray(GeneralName[]::new);
-            builder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(names));
+            if (names.length > 0) {
+                builder.addExtension(Extension.subjectAlternativeName, false, new GeneralNames(names));
+            }
         }
 
         ContentSigner signer = new JcaContentSignerBuilder(SIGNATURE_ALGORITHM)
@@ -356,6 +355,23 @@ public final class CertificateAuthority {
 
     private static boolean isIpAddress(String value) {
         return value.matches("\\d{1,3}(\\.\\d{1,3}){3}") || value.contains(":");
+    }
+
+    /**
+     * Convert one SAN string to a {@link GeneralName}, defensively: if the X.509 encoder rejects the
+     * entry (e.g. an auto-detected global IPv6 like {@code 2a01:…::1%eth0} that {@link #isIpAddress}
+     * classifies as an IP but BouncyCastle's {@code GeneralName(iPAddress, …)} refuses), skip just that
+     * entry with a warning instead of failing the whole certificate.
+     */
+    private static GeneralName toGeneralName(String san) {
+        try {
+            return isIpAddress(san)
+                    ? new GeneralName(GeneralName.iPAddress, san)
+                    : new GeneralName(GeneralName.dNSName, san);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Skipping SAN entry '{}' rejected by the X.509 encoder: {}", san, e.getMessage());
+            return null;
+        }
     }
 
     /**

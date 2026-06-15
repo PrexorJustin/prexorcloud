@@ -147,6 +147,11 @@ public final class ClusterControlService implements AutoCloseable {
             GrpcTlsConfig tls = buildTls(loaded);
             raft.start(tls);
             logger.info("Restarted Raft with persisted cluster TLS material from {}", materials.directory());
+            // Restart path: a leader may not be immediately available — in a multi-member quorum this
+            // node may be a follower rejoining, or the group may be briefly leaderless while peers
+            // restart. Wait best-effort so a follower restart doesn't hang forever waiting to lead
+            // itself; the Raft server stays up and converges in the background.
+            awaitLeaderBestEffort();
         } else {
             CertificateAuthority ca = mintAndPersistDay0Materials(materials);
             LocalClusterMaterials.Loaded loaded = materials.load();
@@ -156,8 +161,9 @@ public final class ClusterControlService implements AutoCloseable {
             // there. ensureClusterCa() checks raft state first; we write the bytes in
             // a moment.
             day0InMemoryCa = ca;
+            // Day-0 single-member bring-up must elect itself before we proceed — keep this strict.
+            raft.awaitKnownLeader(15_000);
         }
-        raft.awaitKnownLeader(15_000);
         controlPlane = new ClusterControlPlane(raft, stateMachine);
 
         reconcileClusterIdentity();
@@ -186,6 +192,30 @@ public final class ClusterControlService implements AutoCloseable {
         // path has test/prod parity (the TLS branch is the only difference).
         ensureSelfMember();
         startMembershipReconciler();
+    }
+
+    /**
+     * Best-effort leader wait for the restart path. Unlike {@link RaftBootstrap#awaitKnownLeader} on
+     * Day-0 (which must self-elect), a restarting member rejoining an existing quorum may legitimately
+     * find no leader yet (peers restarting, brief quorum loss). Timing out here must NOT propagate and
+     * exit the JVM — that would kill the very Raft server the quorum needs alive to elect a leader, so a
+     * controller restarting into a quorum-less multi-member group would crash-loop forever. Instead we
+     * log a degraded-mode warning and continue; the cluster converges in the background.
+     */
+    private void awaitLeaderBestEffort() {
+        try {
+            raft.awaitKnownLeader(15_000);
+        } catch (TimeoutException e) {
+            logger.warn("No Raft leader visible within 15s on restart — continuing bring-up in degraded mode."
+                    + " The Raft server stays up; the cluster elects a leader once a quorum of peers"
+                    + " is present, and the membership reconciler re-runs setConfiguration. Cluster"
+                    + " writes (joins, config patches, lease grants) fail until a leader is available.");
+        } catch (IOException e) {
+            logger.warn(
+                    "Error while awaiting a Raft leader on restart ({}) — continuing bring-up;"
+                            + " the cluster will converge in the background.",
+                    e.getMessage());
+        }
     }
 
     /**

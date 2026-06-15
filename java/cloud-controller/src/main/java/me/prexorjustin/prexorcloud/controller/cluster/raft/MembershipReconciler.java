@@ -35,6 +35,9 @@ public final class MembershipReconciler implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(MembershipReconciler.class);
     private static final long RETRY_DELAY_MS = 500;
     private static final long SETCONFIG_TIMEOUT_HINT_MS = 5_000;
+    // How many reconcile attempts to keep retrying while this node is not (yet) the leader, before
+    // giving up. Tolerates a brief post-election settle window where leadership is still converging.
+    private static final int LEADER_SETTLE_ATTEMPTS = 6;
 
     private final RaftBootstrap raft;
     private final ClusterControlStateMachine sm;
@@ -53,6 +56,15 @@ public final class MembershipReconciler implements AutoCloseable {
     public void start() {
         sm.setCommitListener(this::onCommit);
         worker.start();
+        // Startup reconcile kick: don't wait for the next AddMember/RemoveMember commit. If the Ratis
+        // group has drifted from the SM member list (e.g. a join whose setConfiguration never committed),
+        // nothing else would re-trigger alignment — so fire one idempotent pass on startup.
+        requestReconcile();
+    }
+
+    /** Wake the reconciler for an idempotent pass (startup kick / external nudge). */
+    public void requestReconcile() {
+        wake.offer(new Object());
     }
 
     private void onCommit(ClusterEntry entry) {
@@ -81,20 +93,29 @@ public final class MembershipReconciler implements AutoCloseable {
         for (int attempt = 1; attempt <= 30 && !stopped; attempt++) {
             try {
                 if (!raft.isLeader()) {
-                    return; // only the leader drives setConfiguration
+                    // Only the leader drives setConfiguration. Tolerate a brief post-election settle
+                    // window (leadership still converging) instead of bailing on the first check.
+                    if (attempt >= LEADER_SETTLE_ATTEMPTS) {
+                        return;
+                    }
+                } else {
+                    List<Member> members = sm.listMembers();
+                    if (members.isEmpty()) {
+                        return; // nothing to configure
+                    }
+                    List<RaftPeer> peers =
+                            members.stream().map(MembershipReconciler::toPeer).toList();
+                    raft.setConfiguration(peers);
+                    logger.info(
+                            "Raft membership reconciled to {} peer(s) on attempt {}: {}",
+                            peers.size(),
+                            attempt,
+                            peers.stream().map(p -> p.getId().toString()).toList());
+                    return;
                 }
-                List<Member> members = sm.listMembers();
-                if (members.isEmpty()) {
-                    return; // nothing to configure
-                }
-                List<RaftPeer> peers =
-                        members.stream().map(MembershipReconciler::toPeer).toList();
-                raft.setConfiguration(peers);
-                logger.info(
-                        "Raft membership reconciled to {} peer(s) on attempt {}: {}",
-                        peers.size(),
-                        attempt,
-                        peers.stream().map(p -> p.getId().toString()).toList());
+                Thread.sleep(RETRY_DELAY_MS);
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
                 return;
             } catch (IOException e) {
                 // NotLeaderException, joiner-not-yet-up timeouts, transient gRPC failures all land here.

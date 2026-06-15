@@ -142,7 +142,9 @@ Requires the `CLUSTER_VIEW` permission.
 
 ## Add a controller
 
-A new controller joins an existing cluster with a single-use join token. The token is HMAC'd with the cluster seed, committed to the Raft log, and carries the Raft `joinAddrs` of existing members.
+A new controller joins an existing cluster with a single-use join token. The token is HMAC'd with the cluster seed, committed to the Raft log, and carries the **gRPC** `joinAddrs` of existing members — the addresses the joiner dials to redeem the token over the `ClusterMembership` service.
+
+> **`joinAddrs` is the gRPC port (`grpc.port`, default `9090`), not the Raft port (`9190`).** The join handshake (`ClusterMembership.RequestJoin`) is served on the controller gRPC server, which is mTLS-exempt for this call — the join token is the authentication. The joiner has no cluster cert yet, so it *cannot* reach the Raft port (`9190`), which requires cluster mTLS. Pointing `joinAddrs` at `:9190` makes the join fail with a TLS `CERTIFICATE_REQUIRED` alert. (Once joined, peers dial each other's `9190` for Raft using the cluster-CA cert they obtained via the join.)
 
 ### 1. Issue a join token on a running controller
 
@@ -151,7 +153,7 @@ curl -s -X POST https://controller-1:8080/api/v1/cluster/join-tokens \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-        "joinAddrs": ["controller-1:9190"],
+        "joinAddrs": ["controller-1:9090"],
         "ttlSeconds": 3600,
         "label": "controller-2"
       }'
@@ -169,7 +171,7 @@ Expected:
 
 Notes:
 
-- `joinAddrs` is required and must be a non-empty array of `host:port` Raft endpoints. Omitting it returns `400 MISSING_JOIN_ADDRS`.
+- `joinAddrs` is required and must be a non-empty array of `host:port` **gRPC** endpoints (the `grpc.port`, default `9090` — see the note above; **not** the Raft `9190`). Omitting it returns `400 MISSING_JOIN_ADDRS`.
 - `ttlSeconds` defaults to 24 h (`86400`) and is capped at 30 days. Out-of-range returns `400 BAD_TTL`.
 - Tokens are single-use. List outstanding ones with `GET /api/v1/cluster/join-tokens`; revoke with `DELETE /api/v1/cluster/join-tokens/{jti}`.
 - The call needs `CLUSTER_MANAGE`. If the cluster meta is not yet stamped you get `409 CLUSTER_NOT_READY`; if Raft can't commit, `503 RAFT_UNAVAILABLE`.
