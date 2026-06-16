@@ -1,8 +1,10 @@
 # Issue #22 — controller join-lifecycle: the joiner's Raft division won't catch up
 
-**Status: FIXED (listener-join → promote → in-process restart). Green in `ClusterControlServiceJoinTest`
-and `RatisMultiPeerSpikeTest` (10/10).** Captured during the v1.1 HA live acceptance run (see
-`northstar-plan.md`, Part 8). The original problem statement, root cause, and the tried/reverted
+**Status: FIXED + LIVE-VALIDATED (1→3 HA restored on the fleet 2026-06-16).** Listener-join → promote
+→ in-process restart. Green in `ClusterControlServiceJoinTest` and `RatisMultiPeerSpikeTest` (10/10),
+and rejoined ctrl-2 + ctrl-3 live to a 3-member quorum (needed a CA self-heal for a *separate*
+pre-existing blocker — see Live validation status). Captured during the v1.1 HA live acceptance run
+(see `northstar-plan.md`, Part 8). The original problem statement, root cause, and the tried/reverted
 attempts are kept below for history; the implemented fix is in **Resolution** at the end.
 
 ## Problem
@@ -185,19 +187,25 @@ join then never woke the reconciler, so the joiner was never staged. The SM now 
 commit listeners and fires all. The in-process tests miss this because they don't wire the EventBus;
 `ClusterControlPlaneTest.commitListenersCoexist` is the guard.
 
-## Live validation status
+## Live validation status — PASSED (1→3 HA restored)
 
-Deployed to the Hetzner fleet and confirmed the join now flows through every new path: ctrl-2
-RequestJoins, comes up as a Ratis **LISTENER**, ctrl-1's reconciler (with the commit-stream fix) stages
-it via `setConfiguration(servers, [listener])`. Full 1→3 HA is **blocked by a separate, pre-existing
-issue, not #22**: ctrl-1's on-disk cluster TLS material is signed by an *older* CA (SHA1 `35:9C:…`)
-than the cluster's authoritative signing CA held in Raft state (SHA1 `CE:08:…`, the one handed to new
-joiners). A 1-member cluster never does peer-mTLS so it boots fine, but the leader↔joiner Raft
-handshake fails `PKIX path validation … signature check failed`, so the listener-staging
-`setConfiguration` NOPROGRESSes. This CA split is a leftover of the fleet's single-survivor-reset /
-Day-0-rebuild history (the reset regenerated the Raft-state CA but not ctrl-1's on-disk leaf+trust);
-realigning it needs either a clean Day-0 rebuild (new `clusterId`, also re-issues daemon trust) or a
-CA self-heal that re-issues the survivor's own leaf from the Raft-state CA on boot. Tracked separately.
+Validated on the Hetzner fleet 2026-06-16: rejoined ctrl-2 then ctrl-3 to a clean **3-member HA
+quorum** (committed Raft voting set = `[338e744b (ctrl-1), 79a0c054 (ctrl-2), 5e1489a7 (ctrl-3)]`, no
+phantom; daemons stayed online). Each joiner came up as a Ratis **LISTENER**, the leader's reconciler
+staged it via `setConfiguration(servers, [listener])`, it caught up, was promoted, and restarted
+in-process into a voting FOLLOWER — exactly the designed flow.
+
+Driving the rejoin surfaced (and we fixed) a **separate, pre-existing blocker, not #22**: ctrl-1's
+on-disk cluster TLS material was signed by an *older* CA (SHA1 `35:9C:…`) than the cluster's
+authoritative signing CA in Raft state (SHA1 `CE:08:…`, the one handed to joiners) — a leftover of the
+fleet's single-survivor-reset history. A 1-member cluster never does peer-mTLS so it booted fine, but
+the leader↔joiner Raft handshake failed `PKIX … signature check failed` and the listener-staging
+`setConfiguration` NOPROGRESS'd. Fixed by the **CA self-heal** (`reconcileSelfClusterTls`): on boot, if
+the on-disk CA no longer matches the Raft-state CA, re-issue this node's leaf from the Raft-state CA
+and restart Raft in-process with consistent material. It is `clusterId`-preserving and touches only the
+Raft peer CA (not the daemon-facing `server.p12`/`ca.p12`), so the daemon fleet is unaffected. Guarded
+by `ClusterControlServiceJoinTest.selfCaReconcileRealignsStaleOnDiskCa`. On the live ctrl-1 it realigned
+`35:9C:…` → `CE:08:…` on the first boot of the new jar, after which both rejoins succeeded.
 
 ### Ratis 3.1.3 caveats found along the way
 
