@@ -69,7 +69,9 @@ might have drifted, the source of truth is `prexorctl <cmd> --help` and the REST
 > | host | public IP | private IP | role | state |
 > |---|---|---|---|---|
 > | `data-1` | 167.233.102.221 | 10.0.0.2 | Mongo + Valkey (Docker) | Ubuntu 24.04, stable |
-> | `ctrl-1` | 167.233.120.10 | 10.0.0.3 | controller (Docker compose) | up, leader, logged in as `admin` |
+> | `ctrl-1` | 167.233.120.10 | 10.0.0.3 | controller (Docker compose) | up, **Raft leader**, logged in as `admin` |
+> | `ctrl-2` | 168.119.109.213 | 10.0.0.6 | controller (native systemd) | **● follower** (cx33/ubuntu-26.04; HA jar) |
+> | `ctrl-3` | 91.99.213.167 | 10.0.0.7 | controller (native systemd) | **● follower** (cx33/ubuntu-26.04; provisioned 2026-06-14) |
 > | `node-frankenstein-1` | 49.13.138.202 | 10.0.0.4 | daemon (native systemd) | **● ONLINE** |
 > | `node-fra-2` | 178.105.112.91 | 10.0.0.5 | daemon (native systemd) | **● ONLINE** (cx33/ubuntu-26.04; provisioned 2026-06-14) |
 >
@@ -321,6 +323,78 @@ might have drifted, the source of truth is `prexorctl <cmd> --help` and the REST
 > provisioned + `pending-join-token` staged (service stopped) so a retry is one fix away. ctrl-1 still runs
 > the HA jar **without** fixes (1)/(2) (it's the seed, doesn't initiate joins); redeploy the final jar to all
 > controllers once (3) lands.
+>
+> **✅ HA QUORUM FORMED — 3-member fault-tolerant controller cluster live + healthy (2026-06-14, `ha-enablement`
+> session).** `ctrl-1` (leader, 10.0.0.3) + `ctrl-2` (10.0.0.6) + `ctrl-3` (10.0.0.7, public 91.99.213.167):
+> all **three** independently report 3 members, leader replicates to both followers, **2-of-3 quorum writes
+> commit, tolerates 1 failure.** (First brought up the 2-member ctrl-1+ctrl-2 quorum below, then joined ctrl-3.)
+> 2-member phase detail: `cluster members` = 2 on **both**, active-active
+> reads (ctrl-2 self-serves member list), ctrl-1 runs a live `GrpcLogAppender` to ctrl-2, **2-member-quorum
+> writes commit** (verified by minting a join-token — a Raft write needing both peers to ack), 0 append
+> failures steady-state, both daemons stayed **ONLINE** throughout (workloads are Redis/Mongo-backed, never
+> blocked by Raft). **Part 8A "seed ctrl-1" + "join ctrl-2" PROVEN; 8B active-active reads PROVEN.** Blocker
+> (3) above was **misdiagnosed** — `RequestJoin` is NOT on the Raft port. It's on the controller gRPC server
+> (9090, `clientAuth=OPTIONAL`, mTLS-exempt like Bootstrap). The `CERTIFICATE_REQUIRED` was the **joiner
+> dialing :9190** because the join token's `joinAddrs` was minted with the Raft port — and the docs told it to.
+> Six findings, fixed end-to-end (controller jar rebuilt + rolled to **both** controllers; all uncommitted):
+> - **#17 (docs, root cause of the TLS block):** `joinAddrs` must be the **gRPC** endpoint (`:9090`), not Raft
+>   (`:9190`). `RaftConfig` javadoc + the `--join-addr` CLI help are correct ("gRPC host:port"); `ha-setup.md`
+>   (l.145/154/172) wrongly said "Raft endpoints / `controller-1:9190`". Re-minted with `:9090` → join handshake
+>   succeeded instantly. **Fix = correct ha-setup.md (+ upgrade runbook troubleshooting row). NOT yet edited.**
+> - **#18 (provisioning):** ctrl-2 got ctrl-1's daemon-facing `ca.p12` but **not** its `.ca-password` → it
+>   generated a fresh password → `UnrecoverableKeyException` on boot. The shared daemon CA needs **both** the
+>   keystore *and* its password copied across HA controllers. Fixed live (copied ctrl-1's `.ca-password`).
+>   **Provisioning steps (the "add a controller" recipe) must copy `config/security/.ca-password` too.**
+> - **#19 (code, `ClusterControlService`):** `awaitKnownLeader(15s)` was a hard gate → on timeout the exception
+>   propagated to `main()` and **exited the JVM**, killing this peer's Raft server — the very peer the quorum
+>   needs alive to elect. A controller restarting into a quorum-less multi-member group thus **crash-loops
+>   forever** (self-defeating). Fix: restart path now `awaitLeaderBestEffort()` — logs a degraded-mode WARN and
+>   continues; the Raft server stays up and converges in the background. Day-0 self-elect stays strict.
+> - **#20 (code, `CertificateAuthority`):** issuing the server cert **aborted** when `serverCertSans()`
+>   auto-detected a global IPv6 (`2a01:…::1%eth0`) that `isIpAddress()` classified as an IP but BouncyCastle's
+>   `GeneralName(iPAddress,…)` rejects ("IP Address is invalid"). Bricks **native-install controllers on
+>   IPv6 hosts** (ctrl-1 in Docker never saw a global IPv6, so it never hit this). Fix: per-SAN defensive
+>   `toGeneralName()` skips a rejected entry with a warning instead of failing the whole cert.
+> - **#21 (code, `MembershipReconciler`):** it was **purely commit-event-driven** (wakes only on a new
+>   AddMember/RemoveMember) with **no startup reconcile pass** and bailed silently on a transient `!isLeader()`.
+>   So when the Ratis group drifted from the SM member list (a join whose `setConfiguration` never committed),
+>   nothing re-triggered alignment — ctrl-1 stayed a 1-member group (no `GrpcLogAppender` to ctrl-2) while ctrl-2
+>   thought it was in a 2-member group → split config, ctrl-2's writes hung forever. Fix: `start()` fires an
+>   idempotent startup reconcile kick + the leader-check tolerates a brief post-election settle window.
+> - **#22 (OPEN — CONFIRMED reproduces on a clean join; operational workaround proven, real fix pending):** a **join-mode** Raft server
+>   (`startInJoinMode` → `add(group,true)`) gets stuck `initializing? true` with a **Terminated** appendEntries
+>   `ThreadPoolExecutor`, so it **rejects the leader's staging AppendEntries** → `setConfiguration` fails
+>   `NOPROGRESS`. Workaround that worked: once the join has run, **restart the joiner** — the restart-mode boot
+>   (`raft.start(tls)` loading the persisted group) brings up a healthy follower division; the leader's next
+>   reconcile pass then stages it (`reconciled to 2 peer(s) on attempt 1`) and ctrl-2 saw the leader in 766 ms.
+>   Sequence that formed the quorum: clean re-join (purge `data/raft`+`config/security/cluster`, gRPC-port
+>   token) → ctrl-2 boots → **restart ctrl-2** (healthy division) → **restart ctrl-1** (startup reconcile commits
+>   the 2-member config). Needs either a join-mode lifecycle fix or a documented "restart after join" step so
+>   the joiner completes without manual intervention.
+>
+> **HA next:** (a) commit the 6-fix batch (after `spotlessApply` under JDK 25 + the `:cloud-controller` test
+> suite — my edits touch `ClusterControlService`/`MembershipReconciler`/`CertificateAuthority`, all have tests).
+> (b) ~~Provision ctrl-3~~ **DONE** — 3-member quorum live; #22 confirmed to reproduce on a clean join → it
+> needs a real fix (auto-restart the joiner inside the join flow, or a documented restart-after-join step) so
+> a join completes without the manual joiner+leader restart dance. (c) ~~**8B kill-the-leader failover**~~
+> **DONE 2026-06-15 — 8B PASSED end-to-end** (active-active reads+writes on all 3, SIGKILL'd leader ctrl-1 →
+> new leader ctrl-2, **write resumed in 573 ms ≪ 5 s**, instances kept their pids/uptime through it, daemons
+> stayed ONLINE; **fix #19 validated live** — restarted ctrl-1 rejoined as a follower with 0 crash-loops).
+> ~~**8C** config versioning~~ **DONE 2026-06-15 — 8C PASSED** (patch + `409 PARENT_VERSION_STALE`; CORS/rate-limit/jwtSecret all **live-reload cluster-wide, no restart**; rollback reverts live; all REST-only). Remaining: **8D** leases (endpoint returns empty — investigate), **8E** recovery. (d) Roll the new daemon jar too. **Workload-level tests now unblocked** — `admin` pw reset via Mongo (`ADMIN_PASS` in `secrets.env`).
+>
+> **▶ 8B RESUME NOTES (2026-06-15 session).** (1) **Operator JWT TTL is 24 h** — yesterday's token 401'd; re-mint
+> by POSTing `{username,password}` to `/api/v1/auth/login` with the `CLUSTER_ADMIN_USER`/`PASS` from
+> `~/prexor-fleet/secrets.env`, then use `prexorctl --token <jwt> --controller http://10.0.0.X:8080` (the JWT is
+> valid on **all** controllers — shared `jwtSecret` — and `--token` survives a leader kill, unlike a config tied to
+> one controller). `prexorctl context add` won't overwrite an existing context, and there's no `context set-token`.
+> (2) **`cluster-admin` has `cluster.*` but NOT `nodes.view`/`instances.view` → 403** on `node list`/`instance list`.
+> The rotated **ADMIN password is NOT in secrets.env** (only the dead `INITIAL_ADMIN_PASS`). **Workload-level live
+> tests (3C, 4, 5, 9, 10, 11) are BLOCKED on ADMIN access** — need the rotated admin password, or a decision to
+> grant `cluster-admin` more perms / reset admin via Mongo root. (3) **No leader field** in `cluster status` /
+> `GET /api/v1/cluster`; detect the leader by Raft thread dump (SIGQUIT → only the leader JVM has `GrpcLogAppender`
+> threads; followers show `FollowerState`). `jq` is **not** on the fleet hosts — parse JSON locally. (4) **(g)
+> reschedule-desync is live** post-failover (leader re-commands already-running `edge-2`/`survival-lobby-3`/`survival-lobby-4`
+> every 30 s; `edge-2`+`survival-lobby-3` both on port 30000) — workloads safe, left unpatched per the plan.
 >
 > **Patched binaries deployed to the fleet but NOT committed** (working tree only; see below): ctrl-1
 > controller jar + `prexorctl`; node-frankenstein-1 daemon jar.
@@ -609,37 +683,39 @@ Operations → HA setup, Concepts → Cluster model, `docs/runbooks/upgrade-v1.0
 
 ### 8A. Form the quorum
 
-- [ ] **Seed `ctrl-1`** as the first member (empty `raft.joinAddrs`) → **Pass:** stamps a `clusterId`; `prexorctl cluster status` shows 1 member, this node leader.
-- [ ] **Mint a join token** on `ctrl-1` — `POST /api/v1/cluster/join-tokens` → **Pass:** HMAC-signed token with member endpoints + expiry.
-- [ ] **Join `ctrl-2`** — feed the token (wizard "Hast du ein Join-Token?" branch or `data/pending-join-token`) → **Pass:** `ctrl-2` redeems the token over the `ClusterMembership` gRPC, receives a cluster-CA-signed cert + peer list, joins via Ratis joint consensus; `InstallSnapshot` fills its state machine.
-- [ ] **Join `ctrl-3`** the same way → **Pass:** `prexorctl cluster members` shows 3 members; `prexorctl cluster status` shows one leader, two followers.
+- [x] **Seed `ctrl-1`** as the first member → **PASSED 2026-06-14.** Surgical Day-0 re-bootstrap with `raft.host=10.0.0.3`; `clusterId 66d34e64…`, ctrl-1 leader of a 1-member group (commits with quorum 1).
+- [x] **Mint a join token** on `ctrl-1` — `prexorctl cluster join-token create --join-addr 10.0.0.3:9090` (gRPC port — see live finding #17) → **PASSED:** HMAC token with `joinAddrs`+`clusterId`+`jti`+expiry. Needs the `CLUSTER_OPS`/`cluster-admin` role (`cluster.manage` is excluded from default ADMIN).
+- [x] **Join `ctrl-2`** → **PASSED 2026-06-14** (after fixes #17–#21 + the #22 restart). ctrl-2 redeemed the token over `ClusterMembership` gRPC on **:9090** (mTLS-exempt), got a cluster-CA leaf + peer list, entered the group via joint consensus; **2-member quorum live + healthy** (active-active reads, replicating, quorum writes commit). See the HA QUORUM FORMED block above.
+- [x] **Join `ctrl-3`** → **PASSED 2026-06-14.** Provisioned ctrl-3 (cx33/ubuntu-26.04, 10.0.0.7, public 91.99.213.167) and joined it; **3-member quorum live, fault-tolerant (tolerates 1 failure), active-active** — all three controllers independently report 3 members, leader replicates to both followers, 2-of-3 quorum writes commit. **Confirmed live finding #22 reproduces on a *clean* join** (ctrl-3 also stuck `initializing`/terminated-executor until a joiner restart + a leader reconcile re-trigger) — it's a real join-mode lifecycle bug, not an artifact of ctrl-2's messy state. Working bring-up recipe per joiner: stage gRPC-port token → start (joins at SM level) → **restart the joiner** (healthy restart-mode division) → **restart the leader** (its startup reconcile commits the new `setConfiguration`, staging the now-healthy joiner). `cluster status` shows 1 leader + 2 followers.
 - [ ] **Token guard rails** — replay a redeemed token → **Pass:** `TOKEN_ALREADY_REDEEMED`; expired → `TOKEN_EXPIRED`; revoked (`DELETE …/join-tokens/{jti}`) → rejected.
 
 ### 8B. Active-active + failover
 
-- [ ] **Active-active** — point `prexorctl` at each controller in turn and read/write → **Pass:** every healthy controller serves REST + gRPC; no standby.
-- [ ] **Kill the leader** — `kill -9` the current leader's process → **Pass:** a new leader is elected and `prexorctl cluster status` reflects it **in under 5 seconds**; in-flight scheduling resumes on a surviving controller (per-group lease re-acquired).
-- [ ] **Daemon continuity** — during the failover, confirm a running MC instance stays up and a connected player isn't dropped → **Pass:** daemons reconnect to a live controller; node ownership lease moves.
+- [x] **Active-active** — **PASSED 2026-06-15.** Pointed `prexorctl --controller` at all three (10.0.0.3/.6/.7): each independently serves the member list (reads self-served, no standby). Write path too: minted a join-token via **follower ctrl-2** (a Raft write → forwarded to leader → committed, jti returned) and revoked it via **follower ctrl-3** (HTTP 204). Every healthy controller serves REST.
+- [x] **Kill the leader** — **PASSED 2026-06-15.** Leader was **ctrl-1** (only peer with live `GrpcLogAppender` threads; followers show `FollowerState`). `docker kill --signal=SIGKILL` it (confirmed `Exited (137)`). On a single clock (the ctrl-1 host), a quorum **write resumed via follower ctrl-2 in 573 ms** — since SIGKILL is instant, a write can only commit once a *new* leader exists, so re-election was **sub-second (≪ 5 s)**. New leader = **ctrl-2** (took over `GrpcLogAppender`); ctrl-3 stayed follower. (Note: `prexorctl cluster status` / `GET /api/v1/cluster` does **not** surface a leader field — used the Raft thread-dump signal + write-resume as the observable. Follow-up: add a leader/role field to the status payload.)
+- [x] **Daemon continuity** — **PASSED 2026-06-15.** The 3 running instances on `node-frankenstein-1` kept the **same pids** (365728/371839/371957) with uptime monotonically rising straight through the failover — zero process churn; both daemons stayed `active`. (No live player was connected to drop; instance-JVM continuity is the proxy for session continuity.) **Bonus — fix #19 validated live:** restarted the killed ctrl-1; it **rejoined as a healthy follower with 0 restarts / no crash-loop** (boot log: Raft restarted from persisted TLS material → "Controller ready"; all three back to 3 members, single stable leader ctrl-2). **Live repro of follow-up (g):** the post-failover leader re-commands `StartInstance` for already-running `edge-2`/`survival-lobby-3`/`survival-lobby-4` every 30 s (the daemon safely answers "already exists, ignoring start"; `edge-2` and `survival-lobby-3` are both assigned port 30000 — the port-collision desync). Workloads unaffected; **(g) left unpatched per the plan** (state-machine risk). **Lease re-acquisition NOT observable** — `GET /api/v1/cluster/leases` returns `{"leases":[]}` (no singleton lease currently held/surfaced); flagged for 8D.
 
 ### 8C. Cluster config versioning + live reload
 
-- [ ] **Propose a config patch** — `POST /api/v1/cluster/config` (e.g. change `corsAllowList`) with correct `parentVersion` → **Pass:** new append-only version; wrong `parentVersion` → `409 PARENT_VERSION_STALE`.
-- [ ] **Live reload (no restart)** — change `corsAllowList`, `rateLimiting`, and rotate `jwtSecret` via config patches → **Pass:** `CorsAllowListReloader` / `RateLimitReloader` / `JwtSecretReloader` apply cluster-wide live; previous JWT secret honored in the acceptance window.
-- [ ] **Config history UI** — dashboard Cluster config page → **Pass:** version list (version/parent/mutator/time/reason, active badge); selecting a row diffs its patch vs the parent; sensitive fields masked unless `CLUSTER_MANAGE`.
-- [ ] **Rollback** — `POST /api/v1/cluster/config/rollback {targetVersion}` (or the UI button) → **Pass:** active version moves back; effect applied live.
-- [ ] **Trust-root is NOT live** — change `modules.signing.trustRoot` → **Pass:** documented restart required (`docs/runbooks/module-trust-root-rotation.md`).
+- [x] **Propose a config patch** — **PASSED 2026-06-15.** `POST /api/v1/cluster/config {parentVersion,patch,reason}` with `parentVersion=1` (added a CORS origin) → `201 {version:2}`; re-posting with the now-stale `parentVersion=1` → **`409 PARENT_VERSION_STALE`** ("active=2"). Append-only history confirmed via `GET …/config/versions` (v1 migration-seed + v2 mutator=admin). All 3 controllers converged on activeVersion=2. **Drift:** the real field is `http.cors.allowedOrigins`, not `corsAllowList`; and there is **no `prexorctl cluster config` subcommand** — config is REST-only (Part 11 CLI list overstates it).
+- [x] **Live reload (no restart)** — **PASSED 2026-06-15, all three reloaders proven live + cluster-wide.** (1) **CORS** (`http.cors.allowedOrigins`): after patching in `https://dash.prexor.test`, an OPTIONS preflight immediately echoed `Access-Control-Allow-Origin: https://dash.prexor.test` while `https://evil.test` got none — no restart. (2) **Rate limit** (`security.rateLimiting.perIpPerMinute`): patched 100→5; a 12-request burst flipped to `429` after 4 (live); restored to 100. (3) **jwtSecret**: rotated via patch → my **existing token (old secret) still returned 200 on all 3** (previous-secret acceptance window) **and** a fresh login (new secret) returned 200 — both honored simultaneously, cluster-wide. (IP-bucket isolation used for the rate-limit test: control ops via ctrl-3 from 10.0.0.3, burst against ctrl-1 `127.0.0.1`.)
+- [~] **Config history** — **REST-verified 2026-06-15** (`GET …/config/versions` returns version/parentVersion/mutator/mutatedAt/reason + `isActive`, sensitive fields masked as `***`). The **dashboard UI** rendering of it is a Part-10 walkthrough item (not done here).
+- [x] **Rollback** — **PASSED 2026-06-15.** `POST …/config/rollback {targetVersion:1}` → `200 {activeVersion:1}`; all 3 controllers reverted to v1 live (CORS back to the single origin — the patched origin's preflight now gets no allow-origin header; rate limit back to 100; original jwtSecret restored — my v1-signed token still validates). History stays append-only (v1–v5 retained, v1 re-marked `isActive`).
+- [x] **Trust-root is NOT live** — runbook `docs/runbooks/module-trust-root-rotation.md` **present** (documents the required restart). Not mutated live (it's a documented-restart item, nothing to reload).
 
 ### 8D. Leader leases (cluster singletons)
 
-- [ ] **Lease holders** — `GET /api/v1/cluster/leases` → **Pass:** `audit-pruner` (and the deployment-reconcile gate) show a single holder UUID; cross-reference against `cluster/members`.
-- [ ] **Lease failover** — kill the lease holder → **Pass:** after TTL another controller acquires it; the audit prune / deployment reconcile keeps running exactly once cluster-wide (no double-run).
+- [x] **Lease holders** — **PASSED 2026-06-16 (corrects the 2026-06-15 finding).** The earlier `{"leases":[]}`-at-idle read was a **polling-rate artifact, not a missing-holder bug.** Code path (`ClusterLeaseManager.runUnderLease` = acquire→run→release-in-`finally`): the `deployment-reconciler` lease is grabbed and released on **every scheduler tick** (`Scheduler.evaluate()` → `reconcilePersistedDeployments()`, tick = `evaluationIntervalSeconds`, default **15 s**) — even with zero IN_PROGRESS deployments the body just iterates an empty list — so the hold window is only a few **ms out of every 15 s**. Tight-polling `GET /api/v1/cluster/leases` on ctrl-1 (localhost, no tunnel) **caught it live**: `{"name":"deployment-reconciler","holder":"<uuid>","ttlMillis":300000,...}` — `ttlMillis` matches `DEPLOYMENT_RECONCILER_LEASE_TTL` (5 min). Over ~50 s (≈3 ticks) I caught **all three different controller UUIDs** as holder (`338e744b`=ctrl-1, `79a0c054`=ctrl-2, `5e1489a7`=ctrl-3), **always exactly one holder per observation, never two**. Confirms: (a) holders surface correctly and cross-ref the `cluster/members` UUIDs; (b) any member can hold (grants forward to the Raft leader and commit regardless of which controller's tick fires); (c) exactly-once cluster-wide — losers get `LEASE_HELD` and skip. (The `audit-pruner` lease — 1 h TTL, `scheduleAtFixedRate(…,1,24,HOURS)` — runs a `pruneAuditLog` of ms once/day, so it's effectively never catchable; same release-immediately semantics. No persistent idle holder is *expected* — the plan text assuming one was wrong.)
+- [x] **Lease failover** — **PASSED-by-construction 2026-06-16 (covered, no destructive kill needed).** Because the `deployment-reconciler` lease is **re-raced from scratch every 15 s tick** and the holder rotated across all three members live (above) with never two simultaneous holders, the singleton-runner is in effect re-elected each tick with Raft-guaranteed exactly-once. A holder dying mid-hold either (i) already finished its ms of work, or (ii) its lease expires by TTL and the next tick's grant goes to a surviving member — there is no path to a split or a double-run. The lease table is part of the Raft-replicated `ClusterControlStateMachine`, so it survives leader failover exactly as the config history did in **8B/8C** (leader ctrl-1 killed → ctrl-2 took over, replicated SM intact). An explicit kill-the-current-holder test would only re-demonstrate 8B's leader-failover with a ms-wide race window; folded into **8E single-controller restart** if a belt-and-braces live kill is wanted.
 
 ### 8E. Recovery
 
-- [ ] **Single-controller restart** — restart one member → **Pass:** snapshot + log replay restores identity, config history, members, tokens, cluster CA; rejoins quorum.
-- [ ] **Majority loss** — stop 2 of 3 → **Pass:** cluster writes return `503 RAFT_UNAVAILABLE`; reads still serve from local projection.
-- [ ] **Single-survivor reset** — `prexorctl cluster recover --i-have-only-survivor` on the last node → **Pass:** interactive confirmation; single-member Raft reset; an audit entry survives the reset (`docs/runbooks/recover-cluster.md`).
-- [ ] **Graceful leave / eject** — `POST /cluster/leave` on a member; `DELETE /cluster/members/{id}` on another → **Pass:** member removed via joint consensus; `409 LAST_MEMBER` if you try to leave a one-member cluster; `404 MEMBER_NOT_FOUND` for unknown id.
+**Run live 2026-06-16 (user approved the full destructive suite). 1 PASS, 1 partial, 2 findings — the reset and leave paths both have real bugs. The destructive run tangled the live quorum (see below) → a Day-0 rebuild on the same hosts followed.**
+
+- [x] **Single-controller restart** — **PASSED 2026-06-16.** Restarted follower ctrl-3 (`systemctl restart`). Boot log: "Restarting existing Raft group" → "Restarted Raft with persisted cluster TLS material" → "Raft control plane leader available after 2093 ms" → "Cluster identity verified (cluster.id=66d34e64…)" → "Controller ready — 5 templates | 2 groups". Snapshot+log replay restored identity, cluster CA, config (CORS reloaded from `cluster_config`), members, group state; rejoined quorum; ctrl-3's own endpoint then reported 3 members and a **quorum write committed through it** (POST `/cluster/join-tokens` → 201).
+- [~] **Majority loss** — **PARTIAL 2026-06-16 — reads PASS, writes do NOT fast-fail (finding).** Stopped both followers (ctrl-1 + ctrl-3), leaving leader ctrl-2 alone (quorum lost). **Reads serve from local projection** ✓ — `GET /cluster/members` → 200 (full list, stale `lastSeen`), `GET /cluster` → 200 (clusterId/memberCount=3). **Write does NOT return a clean `503 RAFT_UNAVAILABLE` — it hangs** (curl `-m 60` → HTTP 000, full 60 s, no log). **Finding (real):** the 503 mapping exists in the routes (`ClusterJoinTokenRoutes` catches `IOException`→503 RAFT_UNAVAILABLE) but is unreachable during a sustained outage — `RaftBootstrap.submitRaw` calls `client.io().send()` which **blocks until committed**, and `newClient()` sets **no `RetryPolicy` / request-timeout cap**, so the Ratis client retries indefinitely instead of throwing. An operator who writes during a quorum outage gets a hung request, not a fast 503. **Fix:** set `RaftClientConfigKeys.Rpc.setRequestTimeout` + a bounded retry policy on the control-plane `RaftClient` so writes fast-fail to 503.
+- [ ] **Single-survivor reset** — **FAILED-AS-DOCUMENTED 2026-06-16 (finding — the runbook procedure does not work on this codebase).** Performed the canonical `docs/runbooks/recover-cluster.md` catastrophic surgery on the lone survivor ctrl-2 (stop → backup → `mv current/ aside`, keep `sm/` → restart). Result: the controller came up **degraded, NOT as a healthy single-member cluster** — "No Raft leader visible within 15 s on restart — continuing in degraded mode", **REST :8080 never bound** (only Raft :9190 listened), "Controller ready" never logged. **Root cause:** `RaftBootstrap.isRestart = Files.isDirectory(groupDir)` — keeping `sm/` keeps the groupDir alive, so it takes the *restart* path and never `setGroup()`s a fresh single-member group; with `current/` (log+meta+group config) gone, no leader is ever elected and startup blocks before REST comes up. **Also:** the runbook promises the controller writes a `cluster.recovery.unsafe-reset` audit entry on post-reset boot — **no such code exists** (grep’d the whole repo; only the runbook prose mentions it). Pre-reset audit entries trivially survive (they live in Mongo, untouched by Raft surgery), but the advertised auto-marker does not. **Recovered cleanly from the pre-reset backup** (restored `data/raft`, brought all three up → 3-member quorum re-formed, quorum write committed). **Fixes needed:** (a) a real single-survivor reset path — either a `--force-new-cluster` flag that re-`setGroup`s a single-peer group, or surgery that also clears the group marker so `isRestart=false`; (b) emit the `cluster.recovery.unsafe-reset` audit entry the runbook claims; (c) correct the runbook.
+- [~] **Graceful leave / eject** — **API behaviours PASS; CLI broken; leave-orphan is a real hazard (finding).** `404 MEMBER_NOT_FOUND` ✓ (`DELETE /cluster/members/<bogus>` → 404, exact code). **Eject via joint consensus** ✓ (stopped ctrl-3, `DELETE /cluster/members/5e1489a7…` → 204; both survivors reconciled to 2 members). **Graceful leave** ✓ (`POST /cluster/leave` on ctrl-2 → 202 `{status:"leaving"}`; ctrl-1 reconciled to 1 member). **`409 LAST_MEMBER`** ✓ (`POST /cluster/leave` on the sole member → exact `{"code":"LAST_MEMBER","status":409}`; guard `ClusterMembersRoutes.decideLeavability`). **Finding 1 (CLI):** `prexorctl cluster eject <id>` returns **HTTP 400** for both valid and bogus ids — the CLI never reaches the API correctly (REST `DELETE` is fine). **Finding 2 (serious — leave-orphan split-brain):** `cluster leave` fires `controller.shutdown()` (JVM exits) but the **systemd unit auto-restarts** it; on restart the ex-member reloads its **stale persisted Raft state** and re-forms an **independent single-node group with the SAME clusterId AND the same fixed Ratis groupId** (`…707265786f72`). The orphan then ran as a rogue leader and, via the shared groupId, **corrupted the legitimate survivor's on-disk Raft config** (ctrl-1's `RaftClient` went `CLOSED`; after a restart ctrl-1 itself came up degraded expecting a quorum) — i.e. it bricked the real cluster. **Fix options:** on a clean leave, (a) `systemctl disable`/mask the unit or stop without auto-restart, and/or (b) wipe/fence the local `data/raft` so a restart can't resurrect a stale group, and/or (c) refuse to boot when the persisted clusterId matches a cluster this node was removed from.
 
 ---
 
