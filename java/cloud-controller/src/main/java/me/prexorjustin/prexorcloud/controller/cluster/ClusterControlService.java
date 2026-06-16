@@ -173,6 +173,7 @@ public final class ClusterControlService implements AutoCloseable {
 
         reconcileClusterIdentity(raft.wasFreshBootstrap());
         ensureClusterCa();
+        reconcileSelfClusterTls(materials);
         runV10MigrationIfNeeded();
         ensureSelfMember();
         startMembershipReconciler();
@@ -646,6 +647,70 @@ public final class ClusterControlService implements AutoCloseable {
         } catch (Exception e) {
             throw new IOException("Failed to generate cluster CA", e);
         }
+    }
+
+    /**
+     * Heal a cluster-CA split left by a single-survivor reset. The reset regenerates the cluster CA
+     * in Raft state (see {@link #reconcileClusterIdentity} / {@link #ensureClusterCa}) but keeps this
+     * controller's <em>stale on-disk</em> leaf + trust anchor, so its Raft server presents and trusts
+     * an older CA than the authoritative one handed to joiners. A single-member cluster never does
+     * peer mTLS, so it boots fine — but the moment a peer connects the Raft handshake fails
+     * {@code PKIX path validation … signature check failed} and membership changes
+     * {@code NOPROGRESS}. When the on-disk CA no longer matches the Raft-state CA we re-issue this
+     * node's leaf from the Raft-state CA and restart the Raft server in-process so it presents the
+     * consistent material. Best-effort: on any failure we log and continue on the existing material
+     * rather than fail boot (a controller that can't realign still serves as a single member).
+     */
+    private void reconcileSelfClusterTls(LocalClusterMaterials materials) {
+        if (materials == null || !materials.exists()) {
+            return; // no on-disk material to realign (no-TLS test path / Day-0 mints consistent material)
+        }
+        try {
+            Optional<ClusterFile> raftCaCert = controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT);
+            Optional<ClusterFile> raftCaKey = controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY);
+            if (raftCaCert.isEmpty() || raftCaKey.isEmpty()) {
+                return; // no authoritative CA in Raft state to realign against
+            }
+            byte[] raftCaDer = raftCaCert.get().bytes();
+            LocalClusterMaterials.Loaded onDisk = materials.load();
+            if (java.util.Arrays.equals(onDisk.caCert().getEncoded(), raftCaDer)) {
+                return; // on-disk trust already matches the Raft-state CA — nothing to do
+            }
+            logger.warn("Cluster CA split detected: this controller's on-disk CA does not match the authoritative"
+                    + " Raft-state CA. Re-issuing the local leaf from the Raft-state CA and restarting Raft so"
+                    + " peers can complete mTLS (leftover of a single-survivor reset — see"
+                    + " docs/engineering/issue-22-join-lifecycle.md).");
+            CertificateAuthority ca = CertificateAuthority.loadFromDer(raftCaDer, raftCaKey.get().bytes());
+            List<String> sans = Stream.of(nodeId, config.raft().host(), "127.0.0.1", "localhost")
+                    .distinct()
+                    .toList();
+            var leaf = ca.issueClusterPeerCertificate(nodeId, sans, 365);
+            materials.persist(
+                    ca.certificate(), leaf.certificate(), leaf.keyPair().getPrivate());
+            restartRaftWithCurrentMaterials(materials);
+            logger.info("Cluster CA realigned to the Raft-state CA (fingerprint={}); Raft restarted with consistent"
+                    + " material — peers can now mTLS.", ca.fingerprint());
+        } catch (Exception e) {
+            logger.warn("Self cluster-TLS reconcile failed ({}) — continuing on the existing on-disk material;"
+                    + " peer mTLS may fail until the CA is realigned.", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Tear down and restart the embedded Raft server in-process with whatever TLS material is now on
+     * disk, replaying state into a fresh state machine. Used to pick up realigned cluster TLS material
+     * (a single-member survivor re-elects itself within the election timeout). The membership
+     * reconciler is intentionally NOT (re)started here — the caller's bring-up tail does that.
+     */
+    private void restartRaftWithCurrentMaterials(LocalClusterMaterials materials)
+            throws IOException, TimeoutException {
+        raft.close();
+        stateMachine = new ClusterControlStateMachine();
+        raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
+        LocalClusterMaterials.Loaded loaded = materials.load();
+        raft.start(buildTls(loaded));
+        awaitLeaderBestEffort();
+        controlPlane = new ClusterControlPlane(raft, stateMachine);
     }
 
     /**

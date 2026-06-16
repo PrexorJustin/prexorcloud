@@ -1,6 +1,8 @@
 package me.prexorjustin.prexorcloud.controller.cluster;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -15,6 +17,7 @@ import java.util.concurrent.TimeoutException;
 
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlStateMachine;
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
@@ -26,6 +29,7 @@ import me.prexorjustin.prexorcloud.controller.config.RedisConfig;
 import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.config.SecurityControllerConfig;
 import me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl;
+import me.prexorjustin.prexorcloud.security.ca.CertificateAuthority;
 
 import io.grpc.ManagedChannel;
 import io.grpc.Server;
@@ -179,6 +183,61 @@ class ClusterControlServiceJoinTest {
                 inProcServer.awaitTermination(5, TimeUnit.SECONDS);
             }
             leader.close();
+        }
+    }
+
+    @Test
+    @DisplayName("self CA reconcile: a stale on-disk CA (single-survivor-reset split) is realigned to the Raft-state CA")
+    void selfCaReconcileRealignsStaleOnDiskCa(@TempDir Path tmp) throws Exception {
+        int raftPort = freePort();
+        Path raftDir = tmp.resolve("raft");
+        Path materialsDir = tmp.resolve("materials");
+        LocalClusterMaterials materials = new LocalClusterMaterials(materialsDir);
+        ControllerConfig cfg = sampleConfig(raftDir, raftPort, "survivor-uuid");
+
+        // Day-0: mints a cluster CA that is consistent on disk and in Raft state.
+        String clusterId;
+        byte[] raftCaDer;
+        ClusterControlService svc = new ClusterControlService(cfg, "controller-1");
+        try {
+            svc.start(materials);
+            clusterId = svc.clusterId();
+            raftCaDer = svc.controlPlane()
+                    .getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow()
+                    .bytes();
+        } finally {
+            svc.close();
+        }
+        assertArrayEquals(
+                raftCaDer, materials.load().caCert().getEncoded(), "precondition: on-disk CA matches Raft-state CA");
+
+        // Simulate the single-survivor-reset split: the Raft-state CA was regenerated but this
+        // controller's on-disk leaf+trust was left on an OLDER CA. Overwrite the on-disk material
+        // with a different, unrelated CA and a leaf signed by it.
+        CertificateAuthority rogue = CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
+        var rogueLeaf = rogue.issueClusterPeerCertificate(
+                "controller-1", List.of("controller-1", "127.0.0.1", "localhost"), 365);
+        materials.persist(
+                rogue.certificate(), rogueLeaf.certificate(), rogueLeaf.keyPair().getPrivate());
+        assertFalse(
+                java.util.Arrays.equals(raftCaDer, materials.load().caCert().getEncoded()),
+                "precondition: on-disk CA now differs from the Raft-state CA");
+
+        // Restart: reconcileSelfClusterTls must detect the split and realign the on-disk material to
+        // the authoritative Raft-state CA, preserving the clusterId.
+        ClusterControlService restarted = new ClusterControlService(cfg, "controller-1");
+        try {
+            restarted.start(materials);
+            assertEquals(clusterId, restarted.clusterId(), "clusterId must be preserved across the realign");
+            assertArrayEquals(
+                    raftCaDer,
+                    materials.load().caCert().getEncoded(),
+                    "on-disk CA must be realigned to the Raft-state CA");
+            // The re-issued leaf must chain to the realigned CA.
+            materials.load().leafCert().verify(materials.load().caCert().getPublicKey());
+        } finally {
+            restarted.close();
         }
     }
 
