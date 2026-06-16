@@ -12,7 +12,6 @@ import me.prexorjustin.prexorcloud.controller.config.RaftConfig;
 
 import org.apache.ratis.RaftConfigKeys;
 import org.apache.ratis.client.RaftClient;
-import org.apache.ratis.client.RaftClientConfigKeys;
 import org.apache.ratis.conf.Parameters;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
@@ -24,7 +23,6 @@ import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
 import org.apache.ratis.protocol.exceptions.RaftException;
-import org.apache.ratis.retry.RetryPolicies;
 import org.apache.ratis.rpc.SupportedRpcType;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
@@ -244,22 +242,15 @@ public final class RaftBootstrap implements AutoCloseable {
     }
 
     private RaftClient newClient(RaftProperties props, Parameters params, RaftGroup group) {
-        // Bound control-plane writes. The default Ratis client retry policy retries
-        // effectively forever, so a write submitted to a controller that has lost quorum
-        // (e.g. 2 of 3 controllers down) blocks indefinitely — the request just queues
-        // waiting for a commit that can never happen, and the REST layer never reaches its
-        // IOException -> 503 RAFT_UNAVAILABLE mapping (the HTTP client times out instead).
-        // A per-request timeout plus a bounded retry count makes such a write fail fast:
-        // the budget (~3 retries x (3s timeout + 1s sleep) ~= 12s) is generous enough to
-        // ride through a sub-5s leader re-election but short enough to surface a sustained
-        // quorum loss as a clean 503 instead of a hang.
-        RaftClientConfigKeys.Rpc.setRequestTimeout(props, TimeDuration.valueOf(3, TimeUnit.SECONDS));
+        // Keep the default (patient) retry policy. Internal/startup writes — Day-0 self-member
+        // stamping, the membership reconciler staging a joiner, the #22 join-restart dance —
+        // legitimately need to retry until the local server reaches RUNNING and a leader stages
+        // them, which can take tens of seconds. Bounding the shared client breaks boot. Operator
+        // (REST) writes that must fail fast on quorum loss use {@link #submitRawBounded} instead.
         var b = RaftClient.newBuilder()
                 .setClientId(clientId)
                 .setRaftGroup(group)
-                .setProperties(props)
-                .setRetryPolicy(RetryPolicies.retryUpToMaximumCountWithFixedSleep(
-                        3, TimeDuration.valueOf(1, TimeUnit.SECONDS)));
+                .setProperties(props);
         if (params != null) {
             b.setParameters(params);
         }
@@ -275,6 +266,34 @@ public final class RaftBootstrap implements AutoCloseable {
             throw new IOException("Raft write failed: " + (exception == null ? "unknown" : exception.getMessage()));
         }
         return reply.getMessage().getContent();
+    }
+
+    /**
+     * Submit a write bounded by {@code timeoutMillis}, for operator/REST-triggered writes that
+     * must fail fast with a 503 when the cluster has lost quorum rather than block on the patient
+     * retry policy. Uses the async client and a future timeout, so the patient retry policy that
+     * internal/startup writes rely on is unaffected; on timeout the request is abandoned and an
+     * {@link IOException} (-> RAFT_UNAVAILABLE) is thrown.
+     */
+    public org.apache.ratis.thirdparty.com.google.protobuf.ByteString submitRawBounded(
+            org.apache.ratis.thirdparty.com.google.protobuf.ByteString payload, long timeoutMillis) throws IOException {
+        try {
+            RaftClientReply reply =
+                    client.async().send(Message.valueOf(payload)).get(timeoutMillis, TimeUnit.MILLISECONDS);
+            if (!reply.isSuccess()) {
+                RaftException exception = reply.getException();
+                throw new IOException("Raft write failed: " + (exception == null ? "unknown" : exception.getMessage()));
+            }
+            return reply.getMessage().getContent();
+        } catch (TimeoutException e) {
+            throw new IOException("Raft write timed out after " + timeoutMillis + "ms (no quorum?)", e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause();
+            throw new IOException("Raft write failed: " + (cause == null ? e.getMessage() : cause.getMessage()), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Raft write interrupted", e);
+        }
     }
 
     /** Read through the state machine query path (sequentially consistent). */

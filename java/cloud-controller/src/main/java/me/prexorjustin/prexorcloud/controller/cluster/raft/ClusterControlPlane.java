@@ -109,7 +109,7 @@ public final class ClusterControlPlane {
     }
 
     public void rotateSeed(String newSeedSecretBase64, String rotatedBy) throws IOException {
-        submitOrThrow(new ClusterEntry.RotateSeed(newSeedSecretBase64, rotatedBy, Instant.now()));
+        submitOrThrowBounded(new ClusterEntry.RotateSeed(newSeedSecretBase64, rotatedBy, Instant.now()));
     }
 
     /**
@@ -127,7 +127,7 @@ public final class ClusterControlPlane {
                 existing.isEmpty() ? 1 : existing.get(existing.size() - 1).version() + 1;
         ClusterConfigVersion v =
                 new ClusterConfigVersion(proposedVersion, parentVersion, mutator, Instant.now(), patch, reason);
-        ClusterEntry.Reply reply = submit(new ClusterEntry.WriteConfigVersion(v));
+        ClusterEntry.Reply reply = submitBounded(new ClusterEntry.WriteConfigVersion(v));
         if (!reply.ok()) {
             throw new ClusterWriteConflict(reply.code(), reply.message());
         }
@@ -136,7 +136,7 @@ public final class ClusterControlPlane {
     }
 
     public void rollbackConfig(int targetVersion, String setBy) throws IOException {
-        submitOrThrow(new ClusterEntry.SetActiveConfigVersion(targetVersion, setBy, Instant.now()));
+        submitOrThrowBounded(new ClusterEntry.SetActiveConfigVersion(targetVersion, setBy, Instant.now()));
     }
 
     public void addMember(Member member) throws IOException {
@@ -144,7 +144,7 @@ public final class ClusterControlPlane {
     }
 
     public void removeMember(String nodeId, String reason) throws IOException {
-        submitOrThrow(new ClusterEntry.RemoveMember(nodeId, reason, Instant.now()));
+        submitOrThrowBounded(new ClusterEntry.RemoveMember(nodeId, reason, Instant.now()));
     }
 
     public void touchMember(String nodeId, Instant lastSeen) throws IOException {
@@ -185,7 +185,8 @@ public final class ClusterControlPlane {
                 false,
                 null,
                 null);
-        writeJoinToken(record);
+        // Operator-triggered mint: fail fast (503) on quorum loss rather than hang.
+        submitOrThrowBounded(new ClusterEntry.WriteJoinToken(record));
         return new IssuedJoinToken(issued.token(), issued.jti(), expiresAt);
     }
 
@@ -202,19 +203,19 @@ public final class ClusterControlPlane {
     }
 
     public void revokeJoinToken(String jti, String revokedBy) throws IOException {
-        submitOrThrow(new ClusterEntry.RevokeJoinToken(jti, revokedBy, Instant.now()));
+        submitOrThrowBounded(new ClusterEntry.RevokeJoinToken(jti, revokedBy, Instant.now()));
     }
 
     public void grantLease(String name, String holder, long ttlMillis) throws IOException {
-        submitOrThrow(new ClusterEntry.GrantLease(name, holder, Instant.now(), ttlMillis));
+        submitOrThrowBounded(new ClusterEntry.GrantLease(name, holder, Instant.now(), ttlMillis));
     }
 
     public void renewLease(String name, String holder) throws IOException {
-        submitOrThrow(new ClusterEntry.RenewLease(name, holder, Instant.now()));
+        submitOrThrowBounded(new ClusterEntry.RenewLease(name, holder, Instant.now()));
     }
 
     public void releaseLease(String name, String holder) throws IOException {
-        submitOrThrow(new ClusterEntry.ReleaseLease(name, holder));
+        submitOrThrowBounded(new ClusterEntry.ReleaseLease(name, holder));
     }
 
     /** Stamp a binary blob into the cluster Raft state under {@code key}. */
@@ -246,6 +247,22 @@ public final class ClusterControlPlane {
 
     private void submitOrThrow(ClusterEntry entry) throws IOException {
         ClusterEntry.Reply reply = submit(entry);
+        if (!reply.ok()) {
+            throw new ClusterWriteConflict(reply.code(), reply.message());
+        }
+    }
+
+    // Budget for operator/REST-triggered writes: long enough to ride a sub-5s leader
+    // re-election, short enough to surface a sustained quorum loss as a fast 503 instead
+    // of a hang. Internal/startup writes do NOT use this — they retry patiently.
+    private static final long REST_WRITE_TIMEOUT_MS = 8_000;
+
+    private ClusterEntry.Reply submitBounded(ClusterEntry entry) throws IOException {
+        return ClusterEntry.Reply.decode(raft.submitRawBounded(entry.encode(), REST_WRITE_TIMEOUT_MS));
+    }
+
+    private void submitOrThrowBounded(ClusterEntry entry) throws IOException {
+        ClusterEntry.Reply reply = submitBounded(entry);
         if (!reply.ok()) {
             throw new ClusterWriteConflict(reply.code(), reply.message());
         }
