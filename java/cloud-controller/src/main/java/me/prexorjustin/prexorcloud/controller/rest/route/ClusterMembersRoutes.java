@@ -6,12 +6,15 @@ import static io.javalin.apibuilder.ApiBuilder.post;
 import static me.prexorjustin.prexorcloud.controller.rest.RestServer.errorResponse;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import me.prexorjustin.prexorcloud.controller.PrexorCloudBootstrap;
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
@@ -153,6 +156,20 @@ public final class ClusterMembersRoutes {
             ctx.status(503);
             ctx.json(errorResponse("RAFT_UNAVAILABLE", "Could not leave cluster: " + e.getMessage(), 503));
             return;
+        }
+        // Fence against the leave-orphan split-brain: drop a marker so that if the process is
+        // auto-restarted (systemd Restart=, Docker restart policy) it refuses to re-form a rogue
+        // single-node group from its now-stale Raft state instead of corrupting the live cluster.
+        // Best-effort: the leave already committed; a missing marker only loses the restart guard.
+        try {
+            String leftClusterId =
+                    plane.getClusterMeta().map(meta -> meta.clusterId()).orElse("(unknown)");
+            Files.writeString(
+                    PrexorCloudBootstrap.LEFT_MARKER_FILE,
+                    "clusterId=" + leftClusterId + " leftAt=" + Instant.now() + " by="
+                            + (mutator == null ? "(unknown)" : mutator) + System.lineSeparator());
+        } catch (IOException e) {
+            logger.warn("could not write cluster-left fence marker (restart-orphan protection): {}", e.getMessage());
         }
         RestServer.audit(
                 ctx,

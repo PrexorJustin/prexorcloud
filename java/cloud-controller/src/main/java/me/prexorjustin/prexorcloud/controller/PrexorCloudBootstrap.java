@@ -121,6 +121,9 @@ public final class PrexorCloudBootstrap {
      * so the operator can retry by restarting.
      */
     private static final Path PENDING_JOIN_TOKEN_FILE = SECURITY_DIR.resolve("pending-join-token");
+    // Written by a graceful `cluster leave`; fences this controller from auto-rejoining (and
+    // forming a rogue same-groupId group) on a systemd/Docker restart. Cleared on a real re-join.
+    public static final Path LEFT_MARKER_FILE = SECURITY_DIR.resolve(".cluster-left");
 
     private static final Path CLUSTER_MATERIALS_DIR = SECURITY_DIR.resolve("cluster");
 
@@ -171,6 +174,19 @@ public final class PrexorCloudBootstrap {
         startClusterControlPlane();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
+        if (clusterControlService.unsafeResetDetected()) {
+            // Record the catastrophic single-survivor reset as an audit event (the runbook
+            // promises this marker). The audit log lives in Mongo and survives the Raft wipe.
+            store.audit(
+                    "system",
+                    "cluster.recovery.unsafe-reset",
+                    "cluster",
+                    clusterControlService.clusterId(),
+                    "Single-survivor reset: Raft state was re-formed as a single-member cluster from a wiped"
+                            + " dataDir under a retained cluster.id. Cluster CA, seed secret, and config history"
+                            + " were regenerated; join tokens must be re-issued.",
+                    null);
+        }
         // Distributed tracing (Track D). Built here — after the effective cluster config resolves —
         // so the Redis client can be instrumented at connection time. No-op unless telemetry.enabled.
         telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
@@ -274,6 +290,9 @@ public final class PrexorCloudBootstrap {
         var materials = new me.prexorjustin.prexorcloud.controller.cluster.LocalClusterMaterials(CLUSTER_MATERIALS_DIR);
 
         if (Files.isRegularFile(PENDING_JOIN_TOKEN_FILE)) {
+            // The operator is (re)joining this controller to a cluster. Clear any stale
+            // "gracefully left" fence so the join proceeds.
+            Files.deleteIfExists(LEFT_MARKER_FILE);
             String token = Files.readString(PENDING_JOIN_TOKEN_FILE).trim();
             if (token.isEmpty()) {
                 throw new IllegalStateException(PENDING_JOIN_TOKEN_FILE + " exists but is empty — "
@@ -300,6 +319,20 @@ public final class PrexorCloudBootstrap {
             Files.delete(PENDING_JOIN_TOKEN_FILE);
             logger.info("Cluster join complete — deleted {}", PENDING_JOIN_TOKEN_FILE);
             return;
+        }
+
+        // Fence against the leave-orphan split-brain: a controller that gracefully left the
+        // cluster must NOT auto-rejoin on a systemd/Docker restart. Its persisted Raft state is
+        // stale, and re-forming a group (same fixed groupId + clusterId) makes it a rogue peer
+        // that corrupts the live cluster's Raft config. Refuse to start until an operator either
+        // stages a join token (handled above — re-join) or explicitly re-bootstraps.
+        if (Files.isRegularFile(LEFT_MARKER_FILE)) {
+            String marker = Files.readString(LEFT_MARKER_FILE).trim();
+            throw new IllegalStateException("This controller gracefully left its cluster (" + LEFT_MARKER_FILE
+                    + ": " + marker + ") and will not rejoin automatically — auto-restarting it would resurrect"
+                    + " stale Raft state and corrupt the live cluster. To rejoin, stage a join token at "
+                    + PENDING_JOIN_TOKEN_FILE + ". To re-bootstrap a brand-new cluster on this host, delete "
+                    + LEFT_MARKER_FILE + " and the " + CLUSTER_MATERIALS_DIR + " directory.");
         }
 
         clusterControlService.start(materials);
@@ -1470,8 +1503,7 @@ public final class PrexorCloudBootstrap {
         try {
             io.grpc.LoadBalancerRegistry.getDefaultRegistry()
                     .register(new io.grpc.internal.PickFirstLoadBalancerProvider());
-            io.grpc.NameResolverRegistry.getDefaultRegistry()
-                    .register(new io.grpc.internal.DnsNameResolverProvider());
+            io.grpc.NameResolverRegistry.getDefaultRegistry().register(new io.grpc.internal.DnsNameResolverProvider());
         } catch (RuntimeException | LinkageError e) {
             logger.warn("Could not pre-register gRPC providers: {}", e.toString());
         }

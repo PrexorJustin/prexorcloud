@@ -78,6 +78,11 @@ public final class ClusterControlService implements AutoCloseable {
     private ClusterControlPlane controlPlane;
     private MembershipReconciler reconciler;
     private String resolvedClusterId;
+    // Set when this boot freshly stamped cluster identity (Day-0 branch) while controller.yml
+    // already carried a cluster.id — i.e. the Raft state was wiped but the configured identity
+    // was retained. That is the signature of a catastrophic single-survivor reset
+    // (docs/runbooks/recover-cluster.md), as opposed to a virgin first-ever boot (no yaml id).
+    private volatile boolean unsafeResetDetected;
 
     /** Effective config after first-boot seeding or v1.0 migration. May equal the input on restart. */
     private ControllerConfig effectiveConfig;
@@ -498,6 +503,30 @@ public final class ClusterControlService implements AutoCloseable {
                 "Stamped fresh cluster.id={} into Raft state (yamlSource={})",
                 clusterId,
                 yamlClusterId != null ? "yes" : "no");
+        if (yamlClusterId != null) {
+            // Fresh Raft state but a retained configured cluster.id => the Raft dataDir was
+            // wiped under an existing install. This is a catastrophic single-survivor reset,
+            // not a virgin boot. Flag it so bootstrap records the cluster.recovery.unsafe-reset
+            // audit event. The clusterId is preserved; the cluster CA, seed secret, and config
+            // history are regenerated (operators must re-issue join tokens — see the runbook).
+            unsafeResetDetected = true;
+            logger.warn(
+                    "Catastrophic single-survivor reset detected: Raft state was empty but cluster.id={}"
+                            + " is configured. Re-formed a single-member cluster; CA + seed + config history"
+                            + " were regenerated. Rotate the seed and re-issue join tokens"
+                            + " (docs/runbooks/recover-cluster.md).",
+                    clusterId);
+        }
+    }
+
+    /**
+     * True when this boot took the Day-0 stamping path but {@code controller.yml} already
+     * carried a {@code cluster.id} — the signature of a single-survivor reset (wiped Raft
+     * dataDir under an existing install). Bootstrap reads this to write the
+     * {@code cluster.recovery.unsafe-reset} audit event.
+     */
+    public boolean unsafeResetDetected() {
+        return unsafeResetDetected;
     }
 
     /**

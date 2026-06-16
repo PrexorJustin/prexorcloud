@@ -141,37 +141,47 @@ You are doing the same kind of unilateral takeover.
 
 ### The reset
 
-The survivor's Raft state machine snapshot under
-`data/raft/<groupId>/sm/` already contains the latest committed cluster
-state. The reset discards the Raft log and config — which were waiting
-on a quorum that's never coming — then restarts the controller as a
-brand-new single-member Raft group. The state machine reads back from
-the preserved snapshot — clusterId, cluster CA, join tokens, every Raft
-entry that committed before the failure.
+**What survives and what does not.** The reset re-forms a brand-new
+single-member Raft group on the survivor. It **preserves the clusterId**
+(taken from `cluster.id` in `controller.yml`, which every controller mirrors
+after it first joins) so daemons, integrations, and operators keep seeing the
+same cluster identity. It **regenerates** the cluster CA, the join-token seed
+secret, and the cluster config history — these live only in the Raft state and
+cannot be carried across the reset. (Do not be misled by the `sm/` snapshot
+directory: re-forming a Raft group formats the storage, which clears `sm/` too —
+there is no FS trick that both re-forms a single-member group *and* keeps the old
+state machine snapshot. Preserving the clusterId via `controller.yml` is the
+supported guarantee.) Daemons are unaffected — they authenticate against the
+*daemon* CA, not the cluster (controller-to-controller) CA.
 
 ```bash
 # from the survivor's host
 
-# 1. Make sure the controller is stopped.
+# 1. Stop the controller.
 sudo systemctl stop prexorcloud-controller
 
-# 2. Locate the Raft group dir.
+# 2. Make sure controller.yml carries the cluster.id you want to keep. After this
+#    controller's first join it is already mirrored there; confirm it is non-empty:
+sudo grep -A1 '^cluster:' /etc/prexorcloud/config/controller.yml   # cluster: \n   id: "<uuid>"
+#    If it is null/empty and you want to retain the old id, set it now to the
+#    clusterId you recorded from `prexorctl cluster status` before the failure.
+
+# 3. Locate the Raft group dir and wipe ALL of it (log, meta, AND the sm/ snapshot).
 GROUP_ID="00000000-0000-0000-0000-707265786f72"   # fixed, see ClusterControlService
 RAFT_DIR=/etc/prexorcloud/data/raft/${GROUP_ID}
+sudo mv ${RAFT_DIR} ${RAFT_DIR}.broken-$(date +%s)   # keep a copy for forensics
 
-# 3. Preserve the state machine snapshot, blow away log + meta.
-sudo mv ${RAFT_DIR}/current ${RAFT_DIR}/.broken-current-$(date +%s)
-sudo mv ${RAFT_DIR}/log_inprogress ${RAFT_DIR}/.broken-log-$(date +%s) 2>/dev/null || true
-sudo find ${RAFT_DIR} -maxdepth 1 -name 'raft-meta*' -exec mv {} {}.broken-$(date +%s) \;
-
-# 4. Confirm only sm/ remains under the group dir.
-sudo ls -la ${RAFT_DIR}
-
-# 5. Restart. The controller boots as a single-member group, the SM
-#    reloads from sm/, and the surviving cluster state is intact.
+# 4. Restart. With an empty Raft dataDir and a configured cluster.id, the controller
+#    re-bootstraps a fresh single-member group, reuses the clusterId, mints a NEW
+#    cluster CA + seed, and writes a `cluster.recovery.unsafe-reset` audit entry.
 sudo systemctl start prexorcloud-controller
 sudo journalctl -u prexorcloud-controller -f
 ```
+
+> A future release will add a state-preserving reset (keeping the CA, join
+> tokens, and config history). Until then the procedure above is the supported
+> catastrophic path; the regenerated material is replaced by the post-flight
+> steps (seed rotation + fresh join tokens) anyway.
 
 ### Post-flight
 

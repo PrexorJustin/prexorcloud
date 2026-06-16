@@ -12,6 +12,7 @@ import me.prexorjustin.prexorcloud.controller.config.RaftConfig;
 
 import org.apache.ratis.RaftConfigKeys;
 import org.apache.ratis.client.RaftClient;
+import org.apache.ratis.client.RaftClientConfigKeys;
 import org.apache.ratis.conf.Parameters;
 import org.apache.ratis.conf.RaftProperties;
 import org.apache.ratis.grpc.GrpcConfigKeys;
@@ -23,6 +24,7 @@ import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftGroupId;
 import org.apache.ratis.protocol.RaftPeer;
 import org.apache.ratis.protocol.exceptions.RaftException;
+import org.apache.ratis.retry.RetryPolicies;
 import org.apache.ratis.rpc.SupportedRpcType;
 import org.apache.ratis.server.RaftServer;
 import org.apache.ratis.server.RaftServerConfigKeys;
@@ -242,10 +244,22 @@ public final class RaftBootstrap implements AutoCloseable {
     }
 
     private RaftClient newClient(RaftProperties props, Parameters params, RaftGroup group) {
+        // Bound control-plane writes. The default Ratis client retry policy retries
+        // effectively forever, so a write submitted to a controller that has lost quorum
+        // (e.g. 2 of 3 controllers down) blocks indefinitely — the request just queues
+        // waiting for a commit that can never happen, and the REST layer never reaches its
+        // IOException -> 503 RAFT_UNAVAILABLE mapping (the HTTP client times out instead).
+        // A per-request timeout plus a bounded retry count makes such a write fail fast:
+        // the budget (~3 retries x (3s timeout + 1s sleep) ~= 12s) is generous enough to
+        // ride through a sub-5s leader re-election but short enough to surface a sustained
+        // quorum loss as a clean 503 instead of a hang.
+        RaftClientConfigKeys.Rpc.setRequestTimeout(props, TimeDuration.valueOf(3, TimeUnit.SECONDS));
         var b = RaftClient.newBuilder()
                 .setClientId(clientId)
                 .setRaftGroup(group)
-                .setProperties(props);
+                .setProperties(props)
+                .setRetryPolicy(RetryPolicies.retryUpToMaximumCountWithFixedSleep(
+                        3, TimeDuration.valueOf(1, TimeUnit.SECONDS)));
         if (params != null) {
             b.setParameters(params);
         }

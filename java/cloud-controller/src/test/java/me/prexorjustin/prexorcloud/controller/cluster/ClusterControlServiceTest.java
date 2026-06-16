@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.controller.cluster;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -103,6 +104,28 @@ class ClusterControlServiceTest {
             assertEquals(Instant.parse("2026-05-29T18:00:00Z"), meta.createdAt());
             assertEquals(ClusterMeta.CURRENT_SCHEMA_VERSION, meta.schemaVersion());
             assertEquals(meta.clusterId(), svc.clusterId());
+            assertFalse(
+                    svc.unsafeResetDetected(),
+                    "a virgin first boot (no configured cluster.id) is NOT a single-survivor reset");
+        }
+    }
+
+    @Test
+    @DisplayName("Day-0 stamping with a configured cluster.id is flagged as a single-survivor reset")
+    void day0WithConfiguredClusterIdFlagsUnsafeReset(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        // Empty Raft dataDir (fresh tmp) + a retained controller.yml cluster.id is the signature
+        // of a catastrophic reset: the Raft state was wiped under an existing install.
+        String retainedId = "11111111-1111-1111-1111-111111111111";
+        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, retainedId);
+
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.start();
+
+            assertTrue(
+                    svc.unsafeResetDetected(),
+                    "Day-0 stamping while a cluster.id is configured must be flagged as an unsafe reset");
+            assertEquals(retainedId, svc.clusterId(), "the configured clusterId must be preserved across the reset");
         }
     }
 

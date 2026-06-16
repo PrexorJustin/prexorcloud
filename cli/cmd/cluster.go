@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -103,9 +104,9 @@ var clusterEjectCmd = &cobra.Command{
 			return nil
 		}
 		reason, _ := cmd.Flags().GetString("reason")
-		path := "/api/v1/cluster/members/" + args[0]
+		path := "/api/v1/cluster/members/" + url.PathEscape(args[0])
 		if reason != "" {
-			path += "?reason=" + reason
+			path += "?reason=" + url.QueryEscape(reason)
 		}
 		if err := client.Delete(path, nil); err != nil {
 			return err
