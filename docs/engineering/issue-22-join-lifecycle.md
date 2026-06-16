@@ -1,10 +1,9 @@
 # Issue #22 — controller join-lifecycle: the joiner's Raft division won't catch up
 
-**Status: open engineering task. Root-caused, partially fixed; the core needs a Ratis-lifecycle
-change.** Captured during the v1.1 HA live acceptance run (see `northstar-plan.md`, Part 8). This note
-is the scoped hand-off for closing #22 — it records what was proven, what is already fixed, what was
-tried and reverted, and the candidate designs with their trade-offs. Nothing in "Candidate fixes" is
-implemented yet.
+**Status: FIXED (listener-join → promote → in-process restart). Green in `ClusterControlServiceJoinTest`
+and `RatisMultiPeerSpikeTest` (10/10).** Captured during the v1.1 HA live acceptance run (see
+`northstar-plan.md`, Part 8). The original problem statement, root cause, and the tried/reverted
+attempts are kept below for history; the implemented fix is in **Resolution** at the end.
 
 ## Problem
 
@@ -148,3 +147,51 @@ the full `ClusterControlService.startInJoinMode` path (not just `RaftBootstrap`)
 - Live evidence + the full fix/attempt history: `northstar-plan.md` Part 8 (8A notes + the "#22 ROOT
   INVESTIGATION" block under 8E).
 - Shipped identity-fork fix: commit `22515f0`.
+
+## Resolution (implemented)
+
+The fix is **A (listener-role join) for the catch-up, plus a one-shot in-process restart for the
+promotion** — Ratis 3.1.3 forces the hybrid (see caveats). End to end:
+
+1. **Join as a non-voting LISTENER.** `RaftBootstrap.joinExistingGroup` now marks the joiner's own
+   peer with `setStartupRole(LISTENER)` in the `add()` group. A listener starts `RUNNING` straight
+   away (Ratis `RaftServerImpl.start` puts a peer that is a listener in its initial conf into the
+   running follower-state, not the stuck "initializing" state), and it receives
+   `AppendEntries`/`InstallSnapshot` to catch up **without** joining the quorum.
+2. **Stage + promote from the leader.** `MembershipReconciler` builds the desired config each pass:
+   self and already-voting members stay voters (never demoted on a transient lag); a not-yet-caught-up
+   joiner is added to the **listeners** list — which commits immediately against the existing voters,
+   so there is no `NOPROGRESS`. Once the listener's commit index has caught up (within a small slack),
+   the next pass moves it into the **voters** list. `pendingPromotion` keeps the worker polling on a
+   short cadence until every joiner is promoted.
+3. **Assume the voting role via an in-process restart.** Ratis 3.1.3 does **not** transition a running
+   listener's role when the config promotes it to a voter — it stays a `LISTENER` (and so would not
+   vote in an election) until its division restarts. `ClusterControlService.startInJoinMode` therefore
+   waits for the promotion to land in its own committed conf (`RaftBootstrap.awaitLocalVoter`, read off
+   the **local** division), then tears down the listener division and re-`start()`s it from the
+   persisted (now-voting) conf, where it comes up as a voting `FOLLOWER`. The heavy catch-up already
+   happened as a listener, so this restart is fast and is the proven-healthy restart-mode path. If the
+   promotion does not land within the timeout the node degrades gracefully (stays a caught-up listener,
+   serving reads / forwarding writes; becomes a voter on its next restart) rather than failing the join.
+
+The shipped await-not-stamp invariant (`22515f0`) is untouched — the restart never stamps a fresh
+identity. `hasKnownLeader()` now also treats `LISTENER` like `FOLLOWER` so a catching-up listener does
+not hang the bring-up gate (#19/8B regression guard `followerRestartSeesLeader` stays green).
+
+### Ratis 3.1.3 caveats found along the way
+
+- **`GroupInfoReply.getConf()` is empty over the wire.** `ClientProtoUtils.toGroupInfoReplyProto`
+  never sets the `conf` field, so a client-side read of the committed voter/listener split is always
+  empty. Per-peer commit progress (`getCommitInfos()`) and role (`getRoleInfoProto()`) *are* shipped.
+  So the reconciler reads the voting set from the leader's **local** division, and catch-up from
+  `getCommitInfos()`; promotion detection on the joiner reads its **local** conf.
+- **No automatic listener → follower transition** on a config change (`changeToFollower` explicitly
+  excludes the `LISTENER` role) — hence the restart in step 3.
+
+### Test bar
+
+- `RatisMultiPeerSpikeTest.joinerCatchesUpThroughReconciler` — reproduces the production ordering
+  (joiner `add()`, then the real `MembershipReconciler` fires *late*); asserts the joiner syncs and is
+  promoted into the committed voting set with no phantom, leader undisrupted.
+- `ClusterControlServiceJoinTest.joinThenRestart` — full `startInJoinMode` path (TLS + gRPC); asserts
+  the joiner finishes the join as a voting member (FOLLOWER/LEADER), not a stuck listener.

@@ -163,22 +163,46 @@ public final class RaftBootstrap implements AutoCloseable {
     }
 
     /**
-     * Inform this peer's server "you now belong to {@code group}". Triggers Ratis storage
-     * format on the joiner and primes it to receive log entries. The leader must then
-     * call {@link #setConfiguration(java.util.List)} to actually expand the Raft group's
-     * membership via joint consensus.
+     * Inform this peer's server "you now belong to {@code group}", joining as a non-voting
+     * Ratis <b>LISTENER</b>. Triggers Ratis storage format on the joiner and primes it to
+     * receive log entries / snapshots. The leader then stages this peer as a listener via
+     * {@link #setConfiguration(java.util.List, java.util.List)} and, once it has caught up,
+     * promotes it to a voting follower.
+     *
+     * <p>Why listener, not follower (#22): a peer added straight as a voting FOLLOWER makes the
+     * leader's {@code setConfiguration} block on the not-yet-caught-up joiner's quorum
+     * acknowledgement — joint consensus needs the new member in the new-config majority — so a
+     * deferred reconcile {@code NOPROGRESS}es and the join-mode division can stall before its
+     * state machine ever syncs. A listener starts {@code RUNNING} immediately (see Ratis
+     * {@code RaftServerImpl.start}: a peer present as a listener in its initial conf becomes a
+     * running follower-state listener, not the stuck "initializing" state) and is designed to
+     * receive {@code AppendEntries}/{@code InstallSnapshot} and catch up <em>without</em>
+     * joining the quorum, so adding it as a listener commits against the existing voters alone.
      */
     public void joinExistingGroup(RaftGroup group) throws IOException {
-        var reply = client.getGroupManagementApi(selfPeer.getId()).add(group, true);
+        RaftGroup listenerGroup = withSelfAsListener(group);
+        var reply = client.getGroupManagementApi(selfPeer.getId()).add(listenerGroup, true);
         if (!reply.isSuccess()) {
             RaftException ex = reply.getException();
             throw new IOException("GroupManagementApi.add failed: " + (ex == null ? "unknown" : ex.getMessage()));
         }
         this.currentGroup = group;
         logger.info(
-                "Joined existing group {} ({} peers)",
+                "Joined existing group {} as a LISTENER ({} peers); awaiting promotion once caught up",
                 group.getGroupId(),
                 group.getPeers().size());
+    }
+
+    /** Copy {@code group} but mark this node's own peer with the LISTENER startup role. */
+    private RaftGroup withSelfAsListener(RaftGroup group) {
+        List<RaftPeer> peers = group.getPeers().stream()
+                .map(p -> p.getId().equals(selfPeer.getId())
+                        ? RaftPeer.newBuilder(p)
+                                .setStartupRole(org.apache.ratis.proto.RaftProtos.RaftPeerRole.LISTENER)
+                                .build()
+                        : p)
+                .toList();
+        return RaftGroup.valueOf(group.getGroupId(), peers);
     }
 
     /** Rebuild the management client to know about the current peer list. */
@@ -198,6 +222,124 @@ public final class RaftBootstrap implements AutoCloseable {
      */
     public RaftClientReply setConfiguration(List<RaftPeer> newPeers) throws IOException {
         return client.admin().setConfiguration(newPeers);
+    }
+
+    /**
+     * Drive a joint-consensus membership change with an explicit voting set ({@code servers}) and
+     * non-voting set ({@code listeners}). Adding a member only as a listener does not change the
+     * voting majority, so it commits against the existing voters without waiting for the new
+     * member to catch up — the basis of the #22 listener-join-then-promote flow. Idempotent.
+     */
+    public RaftClientReply setConfiguration(List<RaftPeer> servers, List<RaftPeer> listeners) throws IOException {
+        return client.admin().setConfiguration(servers, listeners);
+    }
+
+    /** Node id this peer advertises itself under. */
+    public String selfNodeId() {
+        return selfPeer.getId().toString();
+    }
+
+    /**
+     * Snapshot of per-peer commit progress across the current Raft group, as seen by this server.
+     * Only meaningful when queried on the leader (the leader tracks every peer's match/commit index
+     * for all members it replicates to — voters and listeners alike). Used by
+     * {@link MembershipReconciler} to tell which joiners are still catching up (keep them as
+     * listeners) from those that have synced and can be promoted to voting followers.
+     *
+     * <p>Note we deliberately do <em>not</em> surface the voter/listener split from the Ratis group
+     * config here: Ratis 3.1.3 drops the {@code conf} field from {@code GroupInfoReply} on the wire
+     * (its {@code toGroupInfoReplyProto} never sets it), so a client-side read of the committed conf
+     * is always empty. The reconciler instead tracks which members it has promoted itself; current
+     * <em>role</em> is observable per-peer via {@link #currentRole()} (the role info proto IS sent).
+     *
+     * @param commitIndexes per-peer (node id) commit index the leader has observed
+     * @param leaderCommit  the highest commit index observed (the cluster's committed index)
+     */
+    public record GroupView(java.util.Map<String, Long> commitIndexes, long leaderCommit) {
+        // Promote a listener that is within this many entries of the leader. leaderCommit is a moving
+        // target — every reconcile pass writes the 2 joint-consensus conf entries, plus any live
+        // cluster writes — so an exact match would let a busy cluster starve a forever-near listener.
+        // A small slack promotes a near-synced listener; it finishes the last entries as a follower
+        // (safe — the heavy catch-up already happened as a listener).
+        private static final long CATCH_UP_SLACK = 4;
+
+        /** True once {@code nodeId}'s commit index has effectively caught up to {@code leaderCommit}. */
+        public boolean isCaughtUp(String nodeId) {
+            return leaderCommit > 0 && commitIndexes.getOrDefault(nodeId, -1L) >= leaderCommit - CATCH_UP_SLACK;
+        }
+
+        /** Node ids currently in the Raft group (everyone the leader tracks a commit index for). */
+        public java.util.Set<String> memberIds() {
+            return commitIndexes.keySet();
+        }
+    }
+
+    /** Read per-peer commit progress from this server's view (meaningful on the leader). */
+    public GroupView groupView() throws IOException {
+        var info = client.getGroupManagementApi(selfPeer.getId()).info(groupId);
+        java.util.Map<String, Long> commits = new java.util.HashMap<>();
+        long leaderCommit = 0;
+        for (var ci : info.getCommitInfos()) {
+            long idx = ci.getCommitIndex();
+            commits.put(ci.getServer().getId().toStringUtf8(), idx);
+            leaderCommit = Math.max(leaderCommit, idx);
+        }
+        return new GroupView(commits, leaderCommit);
+    }
+
+    /** This peer's current Raft role (LEADER / FOLLOWER / CANDIDATE / LISTENER) as it sees itself. */
+    public org.apache.ratis.proto.RaftProtos.RaftPeerRole currentRole() throws IOException {
+        return client.getGroupManagementApi(selfPeer.getId())
+                .info(groupId)
+                .getRoleInfoProto()
+                .getRole();
+    }
+
+    /**
+     * Voting-follower node ids in this server's <em>local</em> committed Raft configuration. Read
+     * straight off the local division (not over the client), so unlike {@link GroupView} this is
+     * reliable despite Ratis 3.1.3 dropping the conf from {@code GroupInfoReply} on the wire. The
+     * {@link MembershipReconciler} uses it on the leader to know who is already a voter (never demote
+     * one); a joiner uses {@link #isLocalVoter()} to detect its own promotion.
+     */
+    public java.util.Set<String> localVoterIds() {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        try {
+            var conf = server.getDivision(groupId).getRaftConf();
+            for (RaftPeer p : conf.getAllPeers(org.apache.ratis.proto.RaftProtos.RaftPeerRole.FOLLOWER)) {
+                ids.add(p.getId().toString());
+            }
+        } catch (IOException e) {
+            // Division not up yet (mid (re)start) — caller treats this as "unknown / not a voter".
+            logger.debug("localVoterIds: division not ready: {}", e.getMessage());
+        }
+        return ids;
+    }
+
+    /** True once this node appears as a voting follower in its own committed conf (i.e. promoted). */
+    public boolean isLocalVoter() {
+        return localVoterIds().contains(selfPeer.getId().toString());
+    }
+
+    /**
+     * Block until this node has been promoted into the voting set in its own committed conf, i.e. the
+     * leader's {@link MembershipReconciler} moved it from listener to follower and that conf entry
+     * replicated here. Returns {@code true} on promotion, {@code false} on timeout.
+     */
+    public boolean awaitLocalVoter(long timeoutMs) {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            if (isLocalVoter()) {
+                return true;
+            }
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return isLocalVoter();
     }
 
     /**
@@ -225,7 +367,10 @@ public final class RaftBootstrap implements AutoCloseable {
         var role = client.getGroupManagementApi(selfPeer.getId()).info(groupId).getRoleInfoProto();
         return switch (role.getRole()) {
             case LEADER -> true;
-            case FOLLOWER ->
+            // A LISTENER runs a follower state and tracks its leader exactly like a FOLLOWER (Ratis
+            // builds the same followerInfo/leaderInfo for both), so a catching-up listener-joiner has
+            // a reachable leader and must not hang the bring-up gate waiting for one.
+            case FOLLOWER, LISTENER ->
                 !role.getFollowerInfo().getLeaderInfo().getId().getId().isEmpty();
             default -> false; // CANDIDATE / not-yet-initialised: no leader to route to
         };

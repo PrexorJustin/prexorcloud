@@ -393,6 +393,162 @@ class RatisMultiPeerSpikeTest {
         }
     }
 
+    /**
+     * #22 regression: reproduce the <em>production</em> join lifecycle end-to-end — through the real
+     * {@link MembershipReconciler}, not a hand-rolled immediate {@code setConfiguration} — and assert
+     * the joiner catches up and becomes a healthy voting member with no phantom.
+     *
+     * <p>The spike's {@link #multiPeerMembershipAndCatchup} and {@link #followerRestartSeesLeader}
+     * both drive {@code setConfiguration} <em>immediately</em> after {@code add()}, so the bug never
+     * shows. Production instead: (1) {@code RequestJoin} commits {@code AddMember(joiner)} on the
+     * leader, (2) the joiner does {@code add()} on its own server, (3) the async reconciler — only
+     * <em>later</em> — drives {@code setConfiguration}. We model that ordering exactly, with a
+     * {@link #JOIN_RECONCILE_DELAY_MS} gap before the reconciler starts so the join-mode division has
+     * sat idle the way it does in production.
+     *
+     * <p>Under the old voting-FOLLOWER join this is exactly where #22 bites: the deferred
+     * {@code setConfiguration} can't commit until the not-yet-synced joiner acks (joint-consensus
+     * needs it in the new-config majority), so it {@code NOPROGRESS}es and the joiner never syncs.
+     * The listener-join-then-promote fix stages the joiner as a non-voting listener (commits against
+     * the existing voters alone), lets it catch up, then promotes it. This test is the bar that fix
+     * must keep green, deterministically (10/10).
+     */
+    @Test
+    @DisplayName(
+            "#22: joiner catches up + is promoted to a voting member via the real reconciler, even when it fires late")
+    void joinerCatchesUpThroughReconciler(@TempDir Path tmp) throws Exception {
+        int leaderPort = freePort();
+        int joinerPort = freePort();
+        RaftConfig leaderCfg =
+                new RaftConfig("127.0.0.1", leaderPort, tmp.resolve("l").toString(), List.of());
+        RaftConfig joinerCfg =
+                new RaftConfig("127.0.0.1", joinerPort, tmp.resolve("j").toString(), List.of());
+
+        ClusterControlStateMachine leaderSm = new ClusterControlStateMachine();
+        ClusterControlStateMachine joinerSm = new ClusterControlStateMachine();
+        RaftBootstrap leader = new RaftBootstrap(leaderCfg, GROUP_UUID, "controller-1", leaderSm);
+        RaftBootstrap joiner = null;
+        MembershipReconciler reconciler = null;
+        try {
+            leader.start();
+            leader.awaitLeader(10_000);
+            // Real state for the joiner to sync: cluster meta committed before it ever joins.
+            submitMetaVia(leader, "cluster-22");
+            // The leader must keep itself in the SM member list (production: ensureSelfMember) so the
+            // reconciler keeps it a voter rather than configuring it out of its own group.
+            addMemberVia(leader, "controller-1", "127.0.0.1:" + leaderPort);
+            // RequestJoin commits AddMember(joiner) on the leader BEFORE the joiner is a Raft member.
+            addMemberVia(leader, "controller-2", "127.0.0.1:" + joinerPort);
+
+            RaftPeer leaderPeer = leader.selfPeer();
+            RaftPeer joinerPeer = RaftPeer.newBuilder()
+                    .setId("controller-2")
+                    .setAddress("127.0.0.1:" + joinerPort)
+                    .build();
+            RaftGroup twoNode = RaftGroup.valueOf(GROUP_ID, List.of(leaderPeer, joinerPeer));
+
+            joiner = new RaftBootstrap(joinerCfg, GROUP_UUID, "controller-2", joinerSm);
+            // Production join sequence: join-mode start, then add() ourselves (as a LISTENER).
+            joiner.startInJoinMode(null, twoNode);
+            joiner.joinExistingGroup(twoNode);
+
+            // The reconciler does NOT fire immediately. Let the join-mode division sit idle the way
+            // it does in production before the reconciler wakes and stages the joiner.
+            Thread.sleep(JOIN_RECONCILE_DELAY_MS);
+
+            // Now bring up the leader's reconciler — it stages the joiner as a listener, lets it
+            // catch up, then promotes it to a voting follower.
+            reconciler = new MembershipReconciler(leader, leaderSm);
+            reconciler.start();
+
+            // (1) The joiner's SM must converge on the pre-join meta (it syncs as a listener).
+            awaitMetaApplied(joinerSm, "cluster-22", 30_000);
+
+            // (2) The reconciler promotes the caught-up listener into the committed voting set — and
+            //     that promotion replicates to the joiner's own committed conf. (The role reload from
+            //     listener to follower happens via an in-process restart in ClusterControlService;
+            //     that end-to-end step is asserted in ClusterControlServiceJoinTest. Here we prove the
+            //     Raft-level primitive: the deferred reconcile makes progress and the joiner becomes a
+            //     committed voter, which the old voting-FOLLOWER join could not.)
+            assertTrue(joiner.awaitLocalVoter(30_000), "joiner must be promoted into the committed voting set");
+
+            // (3) No phantom: the leader's committed voting set and the Raft group are exactly the two
+            //     expected members (memberCount == 2 == SM member count).
+            assertEquals(
+                    java.util.Set.of("controller-1", "controller-2"),
+                    leader.localVoterIds(),
+                    "committed voting set must be exactly the 2 members: " + leader.localVoterIds());
+            RaftBootstrap.GroupView view = leader.groupView();
+            assertEquals(
+                    java.util.Set.of("controller-1", "controller-2"),
+                    view.memberIds(),
+                    "Raft group must be exactly the 2 members, no phantom: " + view.memberIds());
+
+            // (4) The leader was never disrupted — listener staging does not trigger an election.
+            assertTrue(leader.isLeader(), "leader stayed leader throughout the join");
+        } finally {
+            if (reconciler != null) {
+                reconciler.close();
+            }
+            for (RaftBootstrap b : new RaftBootstrap[] {joiner, leader}) {
+                if (b != null) {
+                    try {
+                        b.close();
+                    } catch (IOException ignored) {
+                        // best-effort cleanup
+                    }
+                }
+            }
+        }
+    }
+
+    /** Gap before the reconciler starts — models the async reconciler firing only after a backoff. */
+    private static final long JOIN_RECONCILE_DELAY_MS = 6_000;
+
+    /** Submit an AddMember entry through a {@link RaftBootstrap} leader (mirrors RequestJoin / ensureSelfMember). */
+    private static void addMemberVia(RaftBootstrap leader, String nodeId, String raftAddr) throws IOException {
+        var entry = new me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.AddMember(new Member(
+                nodeId,
+                raftAddr,
+                "",
+                "",
+                nodeId,
+                Instant.parse("2026-05-31T12:00:00Z"),
+                Instant.parse("2026-05-31T12:00:00Z")));
+        leader.submitRaw(entry.encode());
+    }
+
+    /** Submit a SetClusterMeta entry through a {@link RaftBootstrap} leader (production write path). */
+    private static void submitMetaVia(RaftBootstrap leader, String clusterId) throws IOException {
+        var entry =
+                new me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.SetClusterMeta(new ClusterMeta(
+                        clusterId,
+                        "c2VlZC1zZWVkLXNlZWQtc2VlZC1zZWVkLXNlZWQtc2VlZC1zZWVkPT0=",
+                        Instant.parse("2026-05-31T12:00:00Z"),
+                        ClusterMeta.CURRENT_SCHEMA_VERSION));
+        leader.submitRaw(entry.encode());
+    }
+
+    /** Wait until {@code sm} reflects the meta {@code expectedClusterId}; polls the local projection. */
+    private static void awaitMetaApplied(ClusterControlStateMachine sm, String expectedClusterId, long timeoutMs)
+            throws TimeoutException {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        while (System.nanoTime() < deadline) {
+            var meta = sm.getClusterMeta();
+            if (meta.isPresent() && expectedClusterId.equals(meta.get().clusterId())) {
+                return;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(ie);
+            }
+        }
+        throw new TimeoutException("state machine did not see meta " + expectedClusterId + " within " + timeoutMs
+                + "ms (joiner never synced — #22)");
+    }
+
     /** Drive a membership change from the leader, retrying through the joiner-not-yet-acked window. */
     private static void setConfigurationWithRetry(RaftBootstrap leader, List<RaftPeer> peers) throws Exception {
         IOException last = null;

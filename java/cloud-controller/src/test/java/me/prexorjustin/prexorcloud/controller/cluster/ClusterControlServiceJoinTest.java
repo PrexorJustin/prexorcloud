@@ -140,6 +140,13 @@ class ClusterControlServiceJoinTest {
 
             // Joiner sees the leader-stamped cluster meta — proves the SM replicated.
             awaitMeta(joiner.controlPlane(), clusterId, 30_000);
+            // #22: startInJoinMode joins as a non-voting LISTENER (so the leader's deferred
+            // setConfiguration can't NOPROGRESS on an unsynced joiner), then — once the leader's
+            // reconciler promotes the caught-up listener into the voting set — restarts the division
+            // in-process to assume the voting FOLLOWER role. By the time startInJoinMode returns the
+            // joiner must be a voting member (FOLLOWER, or LEADER if the restarted node wins the
+            // election in this small group), not a stuck/phantom LISTENER.
+            awaitVotingMember(joiner, 15_000);
             // Joiner persisted its TLS material to disk for a future restart.
             assertTrue(Files.exists(joinerMaterialsDir.resolve(LocalClusterMaterials.CA_CERT_FILE)));
             assertTrue(Files.exists(joinerMaterialsDir.resolve(LocalClusterMaterials.LEAF_CERT_FILE)));
@@ -173,6 +180,30 @@ class ClusterControlServiceJoinTest {
             }
             leader.close();
         }
+    }
+
+    private static void awaitVotingMember(ClusterControlService svc, long timeoutMs) throws TimeoutException {
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs);
+        org.apache.ratis.proto.RaftProtos.RaftPeerRole last = null;
+        while (System.nanoTime() < deadline) {
+            try {
+                last = svc.raftRole();
+                if (last == org.apache.ratis.proto.RaftProtos.RaftPeerRole.FOLLOWER
+                        || last == org.apache.ratis.proto.RaftProtos.RaftPeerRole.LEADER) {
+                    return;
+                }
+            } catch (Exception ignored) {
+                // server still settling — retry until deadline
+            }
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(ie);
+            }
+        }
+        throw new TimeoutException("joiner did not become a voting member within " + timeoutMs + "ms (last=" + last
+                + ") — #22: stuck as a listener");
     }
 
     private static void awaitMeta(ClusterControlPlane plane, String expectedClusterId, long timeoutMs)

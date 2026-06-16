@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.controller.cluster.raft;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -38,12 +39,20 @@ public final class MembershipReconciler implements AutoCloseable {
     // How many reconcile attempts to keep retrying while this node is not (yet) the leader, before
     // giving up. Tolerates a brief post-election settle window where leadership is still converging.
     private static final int LEADER_SETTLE_ATTEMPTS = 6;
+    // While a joiner is still catching up as a listener, re-run the reconcile on this cadence so the
+    // promotion (listener -> voting follower) fires as soon as it has synced, without waiting for the
+    // next AddMember/RemoveMember commit. Shorter than the idle poll so promotion is prompt.
+    private static final long PROMOTION_POLL_MS = 1_000;
 
     private final RaftBootstrap raft;
     private final ClusterControlStateMachine sm;
     private final LinkedBlockingQueue<Object> wake = new LinkedBlockingQueue<>();
     private final Thread worker;
     private volatile boolean stopped = false;
+    // Set by a reconcile pass that staged one or more joiners as listeners that have not yet caught
+    // up. While true the worker re-reconciles on a short poll so the listeners get promoted to voting
+    // followers the moment they sync — see #22 (docs/engineering/issue-22-join-lifecycle.md).
+    private volatile boolean pendingPromotion = false;
 
     public MembershipReconciler(RaftBootstrap raft, ClusterControlStateMachine sm) {
         this.raft = raft;
@@ -76,8 +85,12 @@ public final class MembershipReconciler implements AutoCloseable {
     private void run() {
         while (!stopped) {
             try {
-                // Drain the queue — multiple commits collapse into one reconcile pass.
-                if (wake.poll(RETRY_DELAY_MS * 4, TimeUnit.MILLISECONDS) == null) {
+                // Drain the queue — multiple commits collapse into one reconcile pass. When a
+                // promotion is pending, poll on the short cadence and reconcile on timeout too, so a
+                // caught-up listener gets promoted without waiting for the next membership commit.
+                long waitMs = pendingPromotion ? PROMOTION_POLL_MS : RETRY_DELAY_MS * 4;
+                Object signal = wake.poll(waitMs, TimeUnit.MILLISECONDS);
+                if (signal == null && !pendingPromotion) {
                     continue;
                 }
                 wake.clear();
@@ -101,16 +114,10 @@ public final class MembershipReconciler implements AutoCloseable {
                 } else {
                     List<Member> members = sm.listMembers();
                     if (members.isEmpty()) {
+                        pendingPromotion = false;
                         return; // nothing to configure
                     }
-                    List<RaftPeer> peers =
-                            members.stream().map(MembershipReconciler::toPeer).toList();
-                    raft.setConfiguration(peers);
-                    logger.info(
-                            "Raft membership reconciled to {} peer(s) on attempt {}: {}",
-                            peers.size(),
-                            attempt,
-                            peers.stream().map(p -> p.getId().toString()).toList());
+                    reconcileMembership(members, attempt);
                     return;
                 }
                 Thread.sleep(RETRY_DELAY_MS);
@@ -136,8 +143,68 @@ public final class MembershipReconciler implements AutoCloseable {
         logger.warn("setConfiguration retries exhausted — membership may be out of sync until next AddMember");
     }
 
+    /**
+     * Drive the committed Ratis group config toward the SM member list using the #22
+     * listener-join-then-promote flow:
+     *
+     * <ul>
+     *   <li>Self and members already in the committed voting set stay voting followers — we never
+     *       demote an established member on a transient lag.</li>
+     *   <li>A new member that has not yet caught up is staged as a non-voting <b>listener</b>. That
+     *       commits immediately against the existing voters (it doesn't change the quorum), and the
+     *       leader then replicates log/snapshot to it.</li>
+     *   <li>Once a listener's commit index has caught up to the leader's, it is <b>promoted</b> to a
+     *       voting follower on the next pass. {@link #pendingPromotion} keeps the worker polling
+     *       until every joiner has been promoted.</li>
+     * </ul>
+     */
+    private void reconcileMembership(List<Member> members, int attempt) throws IOException {
+        RaftBootstrap.GroupView view = raft.groupView();
+        String self = raft.selfNodeId();
+        // Who is already a voting follower in the committed conf — read from the leader's own local
+        // division (reliable; the wire-level conf is dropped by Ratis 3.1.3). We never demote an
+        // established voter on a transient commit-index lag; only brand-new joiners that haven't
+        // caught up are staged as listeners.
+        java.util.Set<String> established = raft.localVoterIds();
+        List<RaftPeer> voters = new ArrayList<>();
+        List<RaftPeer> listeners = new ArrayList<>();
+        for (Member m : members) {
+            String id = m.nodeId();
+            if (id.equals(self) || established.contains(id) || view.isCaughtUp(id)) {
+                voters.add(toPeer(m, false));
+            } else {
+                listeners.add(toPeer(m, true));
+            }
+        }
+        raft.setConfiguration(voters, listeners);
+        pendingPromotion = !listeners.isEmpty();
+        if (listeners.isEmpty()) {
+            logger.info(
+                    "Raft membership reconciled to {} voting peer(s) on attempt {}: {}",
+                    voters.size(),
+                    attempt,
+                    voters.stream().map(p -> p.getId().toString()).toList());
+        } else {
+            logger.info(
+                    "Raft membership: {} voting, {} listener(s) catching up (attempt {}): voters={} listeners={}",
+                    voters.size(),
+                    listeners.size(),
+                    attempt,
+                    voters.stream().map(p -> p.getId().toString()).toList(),
+                    listeners.stream().map(p -> p.getId().toString()).toList());
+        }
+    }
+
+    private static RaftPeer toPeer(Member m, boolean asListener) {
+        RaftPeer.Builder b = RaftPeer.newBuilder().setId(m.nodeId()).setAddress(m.raftAddr());
+        if (asListener) {
+            b.setStartupRole(org.apache.ratis.proto.RaftProtos.RaftPeerRole.LISTENER);
+        }
+        return b.build();
+    }
+
     private static RaftPeer toPeer(Member m) {
-        return RaftPeer.newBuilder().setId(m.nodeId()).setAddress(m.raftAddr()).build();
+        return toPeer(m, false);
     }
 
     /**

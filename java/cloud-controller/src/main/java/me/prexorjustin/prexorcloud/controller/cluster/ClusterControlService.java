@@ -300,11 +300,66 @@ public final class ClusterControlService implements AutoCloseable {
         startMembershipReconciler();
 
         logger.info(
-                "Joined cluster {} as {} with {} existing peer(s); local TLS material persisted to {}",
+                "Joined cluster {} as {} (non-voting listener) with {} existing peer(s); local TLS material"
+                        + " persisted to {}",
                 joinResult.clusterId(),
                 nodeId,
                 joinResult.existingPeers().size(),
                 materials.directory());
+
+        promoteToVotingMemberByRestart(materials);
+    }
+
+    /** Generous bound for the leader to promote a caught-up listener into the voting set. */
+    private static final long JOIN_PROMOTION_TIMEOUT_MS = 60_000;
+
+    /**
+     * Finish the #22 listener-join: once the leader has promoted this caught-up listener into the
+     * voting set (its local committed conf now lists it as a follower), restart the Raft division
+     * in-process so it assumes the voting FOLLOWER role.
+     *
+     * <p>Why a restart is needed: a controller joins as a non-voting Ratis LISTENER so it can catch
+     * up without stalling the leader's {@code setConfiguration} (a voting-follower join makes the
+     * deferred reconcile {@code NOPROGRESS} on the not-yet-synced joiner — the core of #22). Ratis
+     * 3.1.3 does not transition a <em>running</em> listener's role when the configuration promotes it
+     * to a voter; only a (re)start re-reads the persisted conf and picks the follower role. The
+     * heavy catch-up already happened as a listener, so this restart is fast and is the proven-healthy
+     * restart-mode division path (see {@code RatisMultiPeerSpikeTest.followerRestartSeesLeader}).
+     *
+     * <p>Degrades gracefully: if the promotion does not land within the timeout we stay a listener
+     * (still serving reads and forwarding writes to the leader) rather than fail the join — the node
+     * becomes a voter on its next restart once the promotion has replicated. It never stamps a fresh
+     * identity (the await-not-stamp invariant from commit {@code 22515f0} is untouched).
+     */
+    private void promoteToVotingMemberByRestart(LocalClusterMaterials materials) throws IOException, TimeoutException {
+        boolean promoted = raft.awaitLocalVoter(JOIN_PROMOTION_TIMEOUT_MS);
+        if (!promoted) {
+            logger.warn(
+                    "Join: not promoted into the voting set within {}ms — continuing as a non-voting listener."
+                            + " The node serves reads and forwards writes to the leader but does not yet count toward HA"
+                            + " quorum; it becomes a voting member on its next restart once the promotion replicates.",
+                    JOIN_PROMOTION_TIMEOUT_MS);
+            return;
+        }
+        logger.info("Join: promoted into the voting set; restarting Raft division in-process to assume the"
+                + " voting follower role.");
+        // Tear down the listener division and its (dormant — we are not the leader) reconciler.
+        if (reconciler != null) {
+            reconciler.close();
+        }
+        raft.close();
+        // Rebuild from the persisted, now-voting conf. start() takes the restart path (storage is
+        // already formatted), re-reads the conf and starts as a FOLLOWER; the fresh state machine
+        // replays log + snapshot. Best-effort leader wait so a transient leaderless window doesn't
+        // crash the bring-up (mirrors the restart branch of start(materials)).
+        stateMachine = new ClusterControlStateMachine();
+        raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
+        LocalClusterMaterials.Loaded loaded = materials.load();
+        raft.start(buildTls(loaded));
+        awaitLeaderBestEffort();
+        controlPlane = new ClusterControlPlane(raft, stateMachine);
+        startMembershipReconciler();
+        logger.info("Join: promotion complete — now a voting follower.");
     }
 
     private static ManagedChannel defaultJoinChannel(String hostPort) throws Exception {
@@ -672,6 +727,15 @@ public final class ClusterControlService implements AutoCloseable {
 
     public String clusterId() {
         return resolvedClusterId;
+    }
+
+    /**
+     * This node's current Raft role. {@code FOLLOWER}/{@code LEADER} mean it is a voting member;
+     * {@code LISTENER} means it joined and caught up but has not (yet) been promoted into the voting
+     * set. Surfaced for bring-up diagnostics and join-lifecycle tests.
+     */
+    public org.apache.ratis.proto.RaftProtos.RaftPeerRole raftRole() throws IOException {
+        return raft.currentRole();
     }
 
     /**
