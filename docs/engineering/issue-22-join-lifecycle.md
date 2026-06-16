@@ -178,6 +178,27 @@ The shipped await-not-stamp invariant (`22515f0`) is untouched — the restart n
 identity. `hasKnownLeader()` now also treats `LISTENER` like `FOLLOWER` so a catching-up listener does
 not hang the bring-up gate (#19/8B regression guard `followerRestartSeesLeader` stays green).
 
+**Commit-stream fix (found driving the live rejoin).** `ClusterControlStateMachine` kept a single
+commit listener, so `ClusterControlService.attachEventBus` — wired *after* the reconciler during full
+bootstrap — silently replaced the reconciler's wake. On a live leader the `AddMember` commit from a
+join then never woke the reconciler, so the joiner was never staged. The SM now holds a *list* of
+commit listeners and fires all. The in-process tests miss this because they don't wire the EventBus;
+`ClusterControlPlaneTest.commitListenersCoexist` is the guard.
+
+## Live validation status
+
+Deployed to the Hetzner fleet and confirmed the join now flows through every new path: ctrl-2
+RequestJoins, comes up as a Ratis **LISTENER**, ctrl-1's reconciler (with the commit-stream fix) stages
+it via `setConfiguration(servers, [listener])`. Full 1→3 HA is **blocked by a separate, pre-existing
+issue, not #22**: ctrl-1's on-disk cluster TLS material is signed by an *older* CA (SHA1 `35:9C:…`)
+than the cluster's authoritative signing CA held in Raft state (SHA1 `CE:08:…`, the one handed to new
+joiners). A 1-member cluster never does peer-mTLS so it boots fine, but the leader↔joiner Raft
+handshake fails `PKIX path validation … signature check failed`, so the listener-staging
+`setConfiguration` NOPROGRESSes. This CA split is a leftover of the fleet's single-survivor-reset /
+Day-0-rebuild history (the reset regenerated the Raft-state CA but not ctrl-1's on-disk leaf+trust);
+realigning it needs either a clean Day-0 rebuild (new `clusterId`, also re-issues daemon trust) or a
+CA self-heal that re-issues the survivor's own leaf from the Raft-state CA on boot. Tracked separately.
+
 ### Ratis 3.1.3 caveats found along the way
 
 - **`GroupInfoReply.getConf()` is empty over the wire.** `ClientProtoUtils.toGroupInfoReplyProto`
