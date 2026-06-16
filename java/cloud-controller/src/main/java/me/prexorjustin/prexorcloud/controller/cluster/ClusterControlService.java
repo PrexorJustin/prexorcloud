@@ -171,7 +171,7 @@ public final class ClusterControlService implements AutoCloseable {
         }
         controlPlane = new ClusterControlPlane(raft, stateMachine);
 
-        reconcileClusterIdentity();
+        reconcileClusterIdentity(raft.wasFreshBootstrap());
         ensureClusterCa();
         runV10MigrationIfNeeded();
         ensureSelfMember();
@@ -190,7 +190,7 @@ public final class ClusterControlService implements AutoCloseable {
         raft.awaitKnownLeader(15_000);
         controlPlane = new ClusterControlPlane(raft, stateMachine);
 
-        reconcileClusterIdentity();
+        reconcileClusterIdentity(raft.wasFreshBootstrap());
         ensureClusterCa();
         runV10MigrationIfNeeded();
         // Mirror the production start(materials) tail so the self-member / reconciler
@@ -470,10 +470,28 @@ public final class ClusterControlService implements AutoCloseable {
      * to boot — same shape as the Phase 1 check, just sourced from Raft instead
      * of Mongo.
      */
-    private void reconcileClusterIdentity() throws IOException {
+    private void reconcileClusterIdentity(boolean day0Bootstrap) throws IOException {
         Optional<ClusterMeta> existing = controlPlane.getClusterMeta();
         String yamlClusterId =
                 config.cluster() == null ? null : config.cluster().id();
+
+        if (existing.isEmpty() && !day0Bootstrap) {
+            // This is a restart (or a joiner's restart) of a member that already belongs to a
+            // cluster — NOT a virgin Day-0 boot. An empty state machine here just means the SM
+            // hasn't replayed/synced the cluster meta yet; it is replicated in from the leader via
+            // Raft. Stamping a fresh identity now would FORK the cluster (a second clusterId + seed),
+            // and on a stuck joiner the patient write would hang the whole boot (#22). Wait for the
+            // meta to arrive instead; if it doesn't, continue degraded (the SM will adopt the
+            // leader's identity once it catches up) — never stamp.
+            existing = awaitClusterMeta(java.time.Duration.ofSeconds(30));
+            if (existing.isEmpty()) {
+                resolvedClusterId = yamlClusterId;
+                logger.warn("Cluster meta not yet synced 30s into a restart — continuing in degraded mode without"
+                        + " stamping a fresh identity; the state machine adopts the leader's identity once it"
+                        + " catches up.");
+                return;
+            }
+        }
 
         if (existing.isPresent()) {
             ClusterMeta meta = existing.get();
@@ -488,8 +506,8 @@ public final class ClusterControlService implements AutoCloseable {
             return;
         }
 
-        // No cluster meta in Raft yet. First-ever boot (or first v1.1 boot post-migration).
-        // Generate a fresh identity AND a fresh seed secret.
+        // No cluster meta AND a genuine fresh bootstrap (day0). First-ever boot (or first v1.1 boot
+        // post-migration, or a single-survivor reset). Generate a fresh identity AND seed secret.
         String clusterId =
                 yamlClusterId != null ? yamlClusterId : UUID.randomUUID().toString();
         byte[] seed = new byte[32];
@@ -517,6 +535,22 @@ public final class ClusterControlService implements AutoCloseable {
                             + " (docs/runbooks/recover-cluster.md).",
                     clusterId);
         }
+    }
+
+    /** Poll the local SM projection until the cluster meta replicates in from the leader, or timeout. */
+    private Optional<ClusterMeta> awaitClusterMeta(java.time.Duration timeout) {
+        long deadlineNanos = System.nanoTime() + timeout.toNanos();
+        Optional<ClusterMeta> meta = controlPlane.getClusterMeta();
+        while (meta.isEmpty() && System.nanoTime() < deadlineNanos) {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            meta = controlPlane.getClusterMeta();
+        }
+        return meta;
     }
 
     /**

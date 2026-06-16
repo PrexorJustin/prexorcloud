@@ -58,6 +58,10 @@ public final class RaftBootstrap implements AutoCloseable {
 
     private RaftServer server;
     private RaftClient client;
+    // True when the last start() formatted a fresh group (Day-0), false on a restart of an
+    // existing member. Lets the caller tell a genuine first boot (which stamps cluster identity)
+    // from a restart/joiner whose state machine simply hasn't replayed/synced yet.
+    private volatile boolean freshBootstrap;
 
     public RaftBootstrap(RaftConfig config, UUID groupUuid, String selfNodeId, StateMachine stateMachine) {
         this.config = config;
@@ -91,6 +95,7 @@ public final class RaftBootstrap implements AutoCloseable {
         // disk and rejects setGroup() because the dir is already formatted.
         Path groupDir = storage.resolve(groupId.getUuid().toString());
         boolean isRestart = Files.isDirectory(groupDir);
+        this.freshBootstrap = !isRestart;
 
         RaftServer.Builder builder = RaftServer.newBuilder()
                 .setServerId(selfPeer.getId())
@@ -193,6 +198,14 @@ public final class RaftBootstrap implements AutoCloseable {
      */
     public RaftClientReply setConfiguration(List<RaftPeer> newPeers) throws IOException {
         return client.admin().setConfiguration(newPeers);
+    }
+
+    /**
+     * True when the most recent {@link #start} formatted a fresh group (Day-0 bootstrap), false on
+     * a restart of an existing member. Defaults to false (a join-mode start is not a fresh bootstrap).
+     */
+    public boolean wasFreshBootstrap() {
+        return freshBootstrap;
     }
 
     /** Whether this peer's server currently believes it is the group leader. */
