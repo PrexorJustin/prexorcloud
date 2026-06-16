@@ -567,17 +567,17 @@ Goal: from nothing to a Minecraft client connected to a cloud-managed server. Do
 
 ### 3B. Networks (proxy routing)
 
-- [ ] **Create a Velocity proxy group** `edge` and a backend `survival` group → both `RUNNING`.
-- [ ] **Create a Network** (`POST /api/v1/networks`) with `lobbyGroup`, `fallbackGroups`, `proxyGroups: [edge]` → **Pass:** validation enforces referenced groups exist + proxy-platform check.
-- [ ] **Join via the proxy** → **Pass:** player lands in `lobbyGroup`; the proxy routed by the cached `/api/proxy/networks` composition.
-- [ ] **Kill the lobby instance** → **Pass:** player fails over down `fallbackGroups`; exhausted chain disconnects with `kickMessage`.
-- [ ] **Edit the network live** → **Pass:** proxies re-route within milliseconds, no restart.
+- [x] **Create a Velocity proxy group** `edge` and a backend `survival-lobby` group → both `RUNNING`. **PASSED** (live: `edge-1` VELOCITY + `survival-lobby-1/-3` PAPER all RUNNING cross-host on the rebuilt fleet; also done earlier 2026-06-14).
+- [x] **Create a Network** + **validation** → **PASSED 2026-06-16.** Network `main` (lobbyGroup=survival-lobby, proxyGroups=[edge]) live. Validation enforced: bad `lobbyGroup` → `422 VALIDATION_ERROR "lobbyGroup not found: does-not-exist"`; a non-proxy group as a proxy → `422 "proxyGroups entry 'survival-lobby' is not a proxy platform (got PAPER)"`. Both reference-existence + proxy-platform checks confirmed.
+- [ ] **Join via the proxy** → **BLOCKED on a real MC client** (player-join — agent can't drive a client; proven earlier 2026-06-14 with client `PrexorDev`). Defer to a user-in-the-loop session.
+- [ ] **Kill the lobby instance → fallback failover** → **BLOCKED on a real MC client** (also needs `fallbackGroups` populated — currently empty). Defer.
+- [~] **Edit the network live** → **control-plane PASSED 2026-06-16** (`PUT /api/v1/networks/main` changed `kickMessage` → `200`, `GET` reflected it immediately, no restart; reverted). The **proxy re-route observation needs a client** (defer the millisecond-reroute check to a user-in-the-loop session).
 
 ### 3C. Scaling & deployments
 
-- [ ] **Dynamic scaling** — drive players past `scaleUpThreshold` → **Pass:** scheduler scales up; `scaleCooldownSeconds` prevents flapping.
-- [ ] **Rolling deployment** — push a new template version to a running group → **Pass:** instances roll one batch at a time, health-gated; dashboard Deployments shows progress.
-- [ ] **Canary + rollback** — start a deployment, then roll it back mid-flight → **Pass:** reconciler stops and reverts; no orphaned instances.
+- [ ] **Dynamic scaling** — drive players past `scaleUpThreshold` → **Pass:** scheduler scales up; `scaleCooldownSeconds` prevents flapping. **BLOCKED on a real MC client** (needs live players to cross the threshold — agent can't drive a client; defer to a user-in-the-loop session).
+- [x] **Rolling deployment** — **PASSED 2026-06-16.** `POST /api/v1/groups/survival-lobby/deploy {strategy:ROLLING,batchSize:1,healthGateEnabled:true}` on a 2-instance group → **textbook batch-by-batch roll:** batch 1 replaced `survival-lobby-2`→`-1` while `-3` stayed RUNNING; health-gated — waited until `-1` was RUNNING (`updatedInstances` 1→2) *before* batch 2 replaced `-3`→`-4`; `state` walked IN_PROGRESS→**COMPLETED**; **≥1 instance RUNNING throughout (no service gap), old instances reaped, no orphans, no port collision.** (Trigger = `POST /groups/{name}/deploy`; snapshots current templates + runs `scheduler.rollingRestart` on a virtual thread; progress via `GET …/deployments/{rev}`. Driven by the `deployment-reconciler` Raft lease — see 8D.)
+- [x] **Canary + rollback** — **PASSED 2026-06-16.** `POST …/deploy {strategy:CANARY,canaryInstances:1}` → canary instance came up mid-flight (`updatedInstances:1`, `state:IN_PROGRESS`, holding at the canary stage). `POST …/deployments/{rev}/rollback` mid-flight → `200 {"status":"rolled_back"}`; `state`→**ROLLED_BACK**; the in-flight canary was stopped + reaped and the group **settled back to the desired 2 RUNNING instances — no orphaned instances**, ≥1 RUNNING throughout. (Routes: `pause`/`resume`/`rollback` under `/api/v1/groups/{name}/deployments/{rev}/…`.)
 
 ### 3D. Node lifecycle
 
