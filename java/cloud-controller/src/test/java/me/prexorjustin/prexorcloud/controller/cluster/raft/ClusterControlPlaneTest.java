@@ -426,7 +426,7 @@ class ClusterControlPlaneTest {
         java.util.List<me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry> committed =
                 new java.util.concurrent.CopyOnWriteArrayList<>();
         java.util.concurrent.atomic.AtomicBoolean failOnce = new java.util.concurrent.atomic.AtomicBoolean(false);
-        sm.setCommitListener(entry -> {
+        sm.addCommitListener(entry -> {
             if (failOnce.compareAndSet(true, false)) {
                 throw new RuntimeException("boom — listener throws on this one only");
             }
@@ -455,6 +455,32 @@ class ClusterControlPlaneTest {
                     .allMatch(e -> e
                             instanceof
                             me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry.WriteConfigVersion));
+        }
+    }
+
+    @Test
+    @DisplayName("multiple commit listeners coexist — registering one must not clobber another (#22)")
+    void commitListenersCoexist(@TempDir Path tmp) throws Exception {
+        // Regression for the live #22 miss: the membership reconciler and the EventBus bridge both
+        // subscribe to commits. A single overwritable slot let the EventBus registration (wired after
+        // the reconciler during bootstrap) silently clobber the reconciler's wake, so a controller
+        // joining after bootstrap never got staged into the Raft voting set. Both must fire.
+        int port = freePort();
+        UUID groupId = UUID.fromString("00000000-0000-0000-0000-00000000d202");
+        ClusterControlStateMachine sm = new ClusterControlStateMachine();
+        java.util.concurrent.atomic.AtomicInteger a = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger b = new java.util.concurrent.atomic.AtomicInteger();
+        sm.addCommitListener(entry -> a.incrementAndGet());
+        sm.addCommitListener(entry -> b.incrementAndGet()); // second registration must NOT replace the first
+        try (RaftBootstrap raft = newBootstrap(tmp, sm, port, groupId)) {
+            raft.start();
+            raft.awaitLeader(10_000);
+            ClusterControlPlane cp = new ClusterControlPlane(raft, sm);
+
+            cp.proposeConfigPatch(0, "alice", Map.of("k", "v1"), "first");
+
+            assertTrue(a.get() >= 1, "first listener must still fire after a second is registered");
+            assertEquals(a.get(), b.get(), "both listeners must see the same commits");
         }
     }
 }

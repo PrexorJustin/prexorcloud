@@ -700,7 +700,7 @@ public final class ClusterControlService implements AutoCloseable {
         if (eventBus == null || stateMachine == null) {
             return;
         }
-        stateMachine.setCommitListener(entry -> {
+        stateMachine.addCommitListener(entry -> {
             CloudEvent event = toCloudEvent(entry);
             if (event != null) {
                 eventBus.publish(event);

@@ -74,15 +74,20 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
     private final ConcurrentHashMap<String, ClusterFile> clusterFiles = new ConcurrentHashMap<>();
 
     /**
-     * Hook fired after each successful apply, on every controller. Set lazily by
-     * {@code ClusterControlService} once the controller's EventBus exists (apply
-     * happens before EventBus is wired during early bootstrap, those entries are
-     * intentionally not surfaced — there is no listener yet).
+     * Hooks fired after each successful apply, on every controller. Multiple independent subscribers
+     * register here — the membership reconciler (wakes on {@code AddMember}/{@code RemoveMember}) and
+     * the EventBus bridge — and they must coexist: a single overwritable slot let {@code attachEventBus}
+     * silently clobber the reconciler's wake, so a controller that joined after bootstrap never got
+     * staged into the Raft voting set (#22). Registered lazily as those subsystems come up.
      */
-    private volatile java.util.function.Consumer<ClusterEntry> commitListener;
+    private final java.util.List<java.util.function.Consumer<ClusterEntry>> commitListeners =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
 
-    public void setCommitListener(java.util.function.Consumer<ClusterEntry> listener) {
-        this.commitListener = listener;
+    /** Register a commit subscriber. Idempotent-safe to call from each subsystem as it starts. */
+    public void addCommitListener(java.util.function.Consumer<ClusterEntry> listener) {
+        if (listener != null) {
+            commitListeners.add(listener);
+        }
     }
 
     /**
@@ -157,15 +162,13 @@ public final class ClusterControlStateMachine extends BaseStateMachine {
     }
 
     private void notifyCommit(ClusterEntry entry) {
-        java.util.function.Consumer<ClusterEntry> listener = commitListener;
-        if (listener == null) {
-            return;
-        }
-        try {
-            listener.accept(entry);
-        } catch (RuntimeException ex) {
-            // A faulty subscriber must not break the Raft apply loop — log and continue.
-            logger.warn("commit listener threw on {}: {}", entry.getClass().getSimpleName(), ex.getMessage(), ex);
+        for (java.util.function.Consumer<ClusterEntry> listener : commitListeners) {
+            try {
+                listener.accept(entry);
+            } catch (RuntimeException ex) {
+                // A faulty subscriber must not break the Raft apply loop — log and continue.
+                logger.warn("commit listener threw on {}: {}", entry.getClass().getSimpleName(), ex.getMessage(), ex);
+            }
         }
     }
 

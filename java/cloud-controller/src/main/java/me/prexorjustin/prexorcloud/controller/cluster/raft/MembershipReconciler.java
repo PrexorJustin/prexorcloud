@@ -63,7 +63,7 @@ public final class MembershipReconciler implements AutoCloseable {
 
     /** Subscribe to SM commits and start the worker. Safe to call before any peers exist. */
     public void start() {
-        sm.setCommitListener(this::onCommit);
+        sm.addCommitListener(this::onCommit);
         worker.start();
         // Startup reconcile kick: don't wait for the next AddMember/RemoveMember commit. If the Ratis
         // group has drifted from the SM member list (e.g. a join whose setConfiguration never committed),
