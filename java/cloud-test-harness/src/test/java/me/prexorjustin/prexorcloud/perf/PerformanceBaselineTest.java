@@ -38,7 +38,7 @@ import org.junit.jupiter.api.Test;
  * {@code perfBaselines} gradle task and the nightly CI job. Measurements:
  *
  * <ul>
- *   <li>controller cold start (TestCluster.startWithRedis() → /api/v1/system/status 200)</li>
+ *   <li>controller cold start (TestCluster.startWithRedis() → /api/v1/system/ready 200)</li>
  *   <li>coordination-store latency (Lettuce SET/GET round trip)</li>
  *   <li>SSE event latency (REST → SSE round trip)</li>
  *   <li>scheduler tick at N groups (Micrometer p50/p95)</li>
@@ -98,7 +98,7 @@ class PerformanceBaselineTest {
         try (TestCluster cluster = TestCluster.startWithRedis()) {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(cluster.restBaseUrl() + "/api/v1/system/status"))
+                    .uri(URI.create(cluster.restBaseUrl() + "/api/v1/system/ready"))
                     .header("Authorization", "Bearer " + cluster.adminJwtToken())
                     .GET()
                     .build();

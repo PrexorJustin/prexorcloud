@@ -132,7 +132,7 @@ class DrDrillTest {
         var groupsResp = admin.get("/api/v1/groups").assertStatus(200);
         List<String> groupNames = new ArrayList<>();
         Map<String, Map<String, Object>> groupsByName = new LinkedHashMap<>();
-        for (JsonNode node : groupsResp.json()) {
+        for (JsonNode node : listData(groupsResp.json())) {
             String name = node.get("name").asText();
             groupNames.add(name);
             groupsByName.put(
@@ -159,7 +159,7 @@ class DrDrillTest {
 
         var templatesResp = admin.get("/api/v1/templates").assertStatus(200);
         List<String> templateNames = new ArrayList<>();
-        for (JsonNode node : templatesResp.json()) {
+        for (JsonNode node : listData(templatesResp.json())) {
             templateNames.add(node.get("name").asText());
         }
         templateNames.sort(String::compareTo);
@@ -180,6 +180,15 @@ class DrDrillTest {
                     after.groupsByName().get(name),
                     "post-restore group " + name + " config diverged from pre-incident snapshot");
         }
+    }
+
+    /**
+     * The list endpoints wrap their results in a paginated envelope
+     * {@code {data:[...], page, pageSize, total}}. Unwrap to the {@code data}
+     * array; tolerate a bare array for forward/backward compatibility.
+     */
+    private static JsonNode listData(JsonNode root) {
+        return root != null && root.has("data") ? root.get("data") : root;
     }
 
     private static String textOr(JsonNode node, String field, String fallback) {
