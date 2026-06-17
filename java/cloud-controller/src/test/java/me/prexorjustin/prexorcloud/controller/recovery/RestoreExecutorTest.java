@@ -51,6 +51,30 @@ final class RestoreExecutorTest {
     }
 
     @Test
+    void dryRunSkipsOptionalScopeFilesAbsentFromBundle() throws Exception {
+        // join-tokens.json is optional: when absent at backup time it isn't in the
+        // bundle. Validation must still pass and the restore must skip it rather than
+        // throwing NoSuchFileException on Files.size().
+        Path optional = Path.of("config", "security", "join-tokens.json");
+        BackupScope scope = new BackupScope(
+                "db",
+                List.of(),
+                List.of(),
+                List.of(Path.of("config", "controller.yml"), optional),
+                List.of(Path.of("templates")));
+        Path backupRoot = tempDir.resolve("backup");
+        Path targetRoot = tempDir.resolve("target");
+        createValidBackup(scope, backupRoot);
+        Files.deleteIfExists(backupRoot.resolve(optional));
+
+        var report = executor().restoreFilesystem(scope, backupRoot, targetRoot, RestoreMode.DRY_RUN);
+
+        assertFalse(report.applied());
+        // controller.yml + templates dir = 2 entries; the absent optional file is skipped.
+        assertEquals(2, report.entries().size());
+    }
+
+    @Test
     void applyRestoresFilesAndDirectoriesAndKeepsRollbackSnapshot() throws Exception {
         BackupScope scope = smallScope();
         Path backupRoot = tempDir.resolve("backup");
@@ -212,8 +236,11 @@ final class RestoreExecutorTest {
 
             DataRestoreReport report = executor()
                     .restoreDatastores(
+                            // The bundle lives under mongo/<scope.mongoDatabase()>/; the validator
+                            // resolves it by the scope's db name, so it must match the name the
+                            // bundle was written under (the random db above is only the restore target).
                             new BackupScope(
-                                    mongoDatabaseName,
+                                    scope.mongoDatabase(),
                                     scope.mongoCollections(),
                                     scope.redisKeyPrefixes(),
                                     List.of(),
@@ -265,8 +292,10 @@ final class RestoreExecutorTest {
 
             DataRestoreReport report = executor()
                     .restoreDatastores(
+                            // Bundle path resolves by scope.mongoDatabase(); keep it consistent with
+                            // the db the bundle was written under (random db above is the target only).
                             new BackupScope(
-                                    mongoDatabaseName,
+                                    scope.mongoDatabase(),
                                     scope.mongoCollections(),
                                     scope.mongoCollectionPrefixes(),
                                     scope.redisKeyPrefixes(),

@@ -274,17 +274,14 @@ public final class BackupRoutes {
             response.put("dryRun", dryRun);
             if (filesystem) {
                 RestoreReport report = executor.restoreFilesystem(scope, bundle, services.workingDirectory(), mode);
-                response.put(
-                        "filesystem",
-                        Map.of(
-                                "applied",
-                                report.applied(),
-                                "entryCount",
-                                report.entries().size(),
-                                "rollbackRoot",
-                                report.rollbackRoot() == null
-                                        ? null
-                                        : report.rollbackRoot().toString()));
+                // rollbackRoot is null on a dry run; Map.of rejects null values, so use a
+                // null-tolerant map for the filesystem report.
+                Map<String, Object> filesystemReport = new java.util.LinkedHashMap<>();
+                filesystemReport.put("applied", report.applied());
+                filesystemReport.put("entryCount", report.entries().size());
+                filesystemReport.put(
+                        "rollbackRoot", report.rollbackRoot() == null ? null : report.rollbackRoot().toString());
+                response.put("filesystem", filesystemReport);
             }
             if (datastores) {
                 DataRestoreReport report = executor.restoreDatastores(

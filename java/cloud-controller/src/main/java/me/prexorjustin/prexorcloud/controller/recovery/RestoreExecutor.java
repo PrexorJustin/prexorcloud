@@ -157,6 +157,10 @@ public final class RestoreExecutor {
         var entries = new ArrayList<RestoreEntry>();
         for (Path file : scope.files()) {
             Path source = resolveInside(backupRoot, file);
+            // Optional scope files (e.g. join-tokens.json) may be absent from the bundle
+            // when they didn't exist at backup time — validation already passed, so a
+            // missing file here is legitimately not part of this backup; skip it.
+            if (!Files.isRegularFile(source)) continue;
             entries.add(new RestoreEntry(file, RestoreEntryType.FILE, Files.size(source)));
         }
         for (Path directory : scope.directories()) {

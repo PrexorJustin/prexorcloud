@@ -48,6 +48,14 @@ public record BackupScope(
             Path.of("config", "security", "join-tokens.json"),
             Path.of("config", "security", "forwarding.secret"));
 
+    /**
+     * Scope files that are backed up when present but whose absence is NOT a
+     * restore-blocking validation failure. {@code join-tokens.json} is only
+     * written when cluster join tokens are persisted, so a controller with no
+     * pending joins legitimately has none — the backup must still verify valid.
+     */
+    public static final List<Path> OPTIONAL_FILES = List.of(Path.of("config", "security", "join-tokens.json"));
+
     public static BackupScope from(ControllerConfig config) {
         return new BackupScope(
                 config.database().database(),

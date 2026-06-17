@@ -28,7 +28,7 @@ public final class BackupVerifier {
 
         for (Path file : scope.files()) {
             Path resolved = backupRoot.resolve(file).normalize();
-            if (!Files.isRegularFile(resolved)) {
+            if (!Files.isRegularFile(resolved) && !BackupScope.OPTIONAL_FILES.contains(file)) {
                 missingFiles.add(file);
             }
         }

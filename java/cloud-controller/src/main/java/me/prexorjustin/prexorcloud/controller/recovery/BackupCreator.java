@@ -27,6 +27,8 @@ import io.lettuce.core.api.sync.RedisCommands;
 import org.bson.Document;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Writes a controller backup bundle to disk in the format
@@ -43,6 +45,8 @@ import org.bson.json.JsonWriterSettings;
  * </pre>
  */
 public final class BackupCreator {
+
+    private static final Logger log = LoggerFactory.getLogger(BackupCreator.class);
 
     private static final DateTimeFormatter ID_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
@@ -87,7 +91,11 @@ public final class BackupCreator {
         long sizeBytes = directorySize(normalizedBundle);
 
         BackupManifest manifest = new BackupManifest(
-                generateId(),
+                // The manifest id MUST equal the bundle directory name — verify/restore/
+                // get/delete all resolve the bundle via catalog.bundleRoot(manifest.id()).
+                // Generating a fresh id here desynced it from the directory the caller
+                // created, so every lookup by the cataloged id 404'd.
+                normalizedBundle.getFileName().toString(),
                 Instant.now(clock).toEpochMilli(),
                 controllerId == null ? "" : controllerId,
                 controllerVersion == null ? "" : controllerVersion,
@@ -190,10 +198,19 @@ public final class BackupCreator {
     private long scanAndWritePrefix(RedisCommands<String, String> redis, String prefix, BufferedWriter writer)
             throws IOException {
         long count = 0;
+        long skippedNonString = 0;
         var args = ScanArgs.Builder.matches(prefix + "*").limit(500);
         var cursor = redis.scan(args);
         while (true) {
             for (String key : cursor.getKeys()) {
+                // The backup artifact is a flat string key/value model. Non-string
+                // keys (e.g. the ephemeral SSE replay stream `sse:replay-stream`) can't
+                // be represented and aren't durable state — skip them rather than letting
+                // GET throw WRONGTYPE and fail the whole backup.
+                if (!"string".equals(redis.type(key))) {
+                    skippedNonString++;
+                    continue;
+                }
                 String value = redis.get(key);
                 if (value == null) continue;
                 long ttl = redis.ttl(key);
@@ -212,6 +229,9 @@ public final class BackupCreator {
             }
             if (cursor.isFinished()) break;
             cursor = redis.scan(cursor, args);
+        }
+        if (skippedNonString > 0) {
+            log.debug("Backup skipped {} non-string Redis key(s) under prefix {}", skippedNonString, prefix);
         }
         return count;
     }

@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.mongodb.client.MongoClients;
@@ -63,11 +64,17 @@ final class BackupCreatorIT {
             redis.set("prexor:lease:scheduler", "owner-a");
             redis.setex("prexor:lease:placement", 90, "owner-b");
             redis.set("prexor:other:noise", "ignored");
+            // A non-string key under the scanned prefix (mirrors the live SSE
+            // replay stream): the backup must skip it, not WRONGTYPE-fail the run.
+            redis.xadd("prexor:lease:replay", Map.of("event", "noise"));
 
             var manifest = new BackupCreator()
                     .create(scope, bundleRoot, workingDir, sourceMongo, redis, "controller-uuid", "0.0.0-it");
 
             assertNotNull(manifest);
+            // The manifest id must match the bundle directory name, else verify/restore/
+            // get/delete (which resolve catalog.bundleRoot(manifest.id())) cannot find it.
+            assertEquals(bundleRoot.getFileName().toString(), manifest.id(), "manifest id must equal bundle dir name");
             assertEquals(2L, manifest.mongoDocumentCount());
             assertEquals(2L, manifest.redisKeyCount());
             assertTrue(manifest.fileCount() >= 2, "expected at least controller.yml + templates/lobby/server.yml");
