@@ -219,8 +219,12 @@ Drove Part 4 (provision each platform to RUNNING). First target Paper 1.20.4 (ca
 >    instance lifecycle/status all live on one controller. Unit tests in `ClusterStateRedisReconcileTest`; the group
 >    lease still guards the *scaling decision* (how many) — only *execution* moved to the owner.
 > **Follow-up (not done):** `StartRetryOrchestrator` still gates execution on the group lease (the token read-through
-> covers its 401 correctness; full co-location is a smaller follow-up). And a **pre-existing** gap surfaced: deleting
-> a group does NOT stop its running instances (they linger until manually stopped) — separate from this work.
+> covers its 401 correctness; full co-location is a smaller follow-up).
+>
+> **▶ Group-delete orphan gap — FIXED + LIVE-VALIDATED (2026-06-18 session 3).** `GroupRoutes.deleteGroup` now stops
+> the group's running instances (`scheduler.stopInstance`, routes to each node-owner) BEFORE removing the group, so
+> they drain STOPPING→STOPPED→reaped instead of orphaning. Live: deleted a RUNNING paper120 group → the instance
+> stopped in ~13s and was fully reaped in ~65s (was orphan-forever before).
 
 **(original analysis below)**
 ### G4. Plugin/workload token rejected by the owner controller under *placer ≠ node-owner* — was OPEN

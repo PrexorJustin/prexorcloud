@@ -223,6 +223,17 @@ public final class GroupRoutes {
         JwtAuthMiddleware.requirePermission(ctx, Permission.GROUPS_DELETE);
         String name = ctx.pathParam("name");
         var before = requireFound(controller.groupManager().get(name), "Group", name);
+        // Stop the group's running instances BEFORE removing the group, so they don't orphan
+        // (the group is gone, so nothing re-places them; they drain STOPPING -> STOPPED -> reaped).
+        // Done while the group still exists so stopInstance resolves cleanly; the dispatch routes
+        // to each instance's node-owner.
+        var running = controller.clusterState().getInstancesByGroup(name);
+        for (var inst : running) {
+            controller.scheduler().stopInstance(inst.id(), false);
+        }
+        if (!running.isEmpty()) {
+            logger.info("Stopping {} instance(s) of group {} before delete", running.size(), name);
+        }
         controller.groupManager().delete(name);
         controller.groupStore().delete(name);
         // Peers drop the group from their caches on this event (CHANNEL_GROUP).
