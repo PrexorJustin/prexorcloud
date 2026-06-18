@@ -15,6 +15,21 @@ everything functional here is on `main`. The session-2 HA-divergence fixes (G1/G
 runningInstances count fix in `0113c44`. Only the Geyser/Bedrock edition-routing live-validation remains (needs
 Floodgate, user-in-loop).
 
+> **⚠️ 2026-06-18 (Part 4 platform-breadth session) — fleet runs an OLD controller jar.** The 3 fleet controllers
+> are still on the pre-`c5c80f1` build (no placer==node-owner co-location; the in-flight fixes `c5c80f1`/`4baa42d`
+> and the new `94938c9`/`6541bb1` are committed on `main` but **not deployed**). Symptoms seen live: node↔controller
+> ownership **flaps on reconnect**, instances wedge at VALIDATION (`INSTANCE_ALREADY_STARTING` → `Node disconnected →
+> CRASHED → No eligible node` loop), and base-template **files replicate inconsistently** across controllers. This
+> blocked the live RUNNING of Folia (finding #8) and Spigot even though their provisioning artifacts are correct.
+> **Access limit this session:** only **ctrl-1 (10.0.0.3)** + **node-frankenstein-1** were reachable (ctrl-2/10.0.0.6,
+> ctrl-3/10.0.0.7, node-fra-2/10.0.0.5 refuse SSH), so a fleet-wide rolling redeploy wasn't possible. **To unblock:**
+> roll the current `main` controller jar to all 3 cluster members. Paper 1.20 + BungeeCord still reached RUNNING (they
+> landed on a controller/node combo that happened to be stable at dispatch time).
+>
+> **Spigot self-host note:** `spigot-1.21.1.jar` (BuildTools) is served by a `python3 -m http.server 8088` on
+> **data-1** (`/root/spigot-host/`), referenced by catalog `SPIGOT 1.21.1` → `http://10.0.0.2:8088/spigot-1.21.1.jar`.
+> That server is a throwaway background process; restart it (or re-host the jar) if data-1 reboots.
+
 ---
 
 ## Fixed this pass (CODED, uncommitted)
