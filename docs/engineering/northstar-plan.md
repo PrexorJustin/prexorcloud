@@ -607,7 +607,7 @@ registration + metrics. Reference: Concepts → Plugins, Guides → Modded serve
 
 - [ ] **Paper 1.20** — connect → **Pass:** registers, reports join/leave + metrics.
 - [x] **Paper 1.21** — **PASSED 2026-06-18 (user-in-the-loop, `PrexorDev` via the `edge` proxy).** Registers + reports **join AND leave**: join → controller `/players` 1, `playerCount:1`, `edition=java`, backend `joined the game`; leave → `/players` empty, `playerCount:0` on both, proxy `has disconnected`, backend `PrexorDev left the game`. See 3B "Join via the proxy".
-- [ ] **Folia** — same (region-threaded).
+- [~] **Folia** — **BUG FOUND + FIXED (code); live-validation blocked by fleet access.** `FOLIA 1.21.8` catalog entry added (config-format PAPER). Provisioning surfaced a real product bug: the controller handed the Folia server the **Paper** plugin (keyed on config-format, which Folia shares) → Folia rejects it (`not marked as supporting Folia!`) → 0 plugins → wedged STARTING. Fixed in `BaseTemplateGenerator` to select the bundled plugin by **platform** first (commit `94938c9`). Full live RUNNING + client connect blocked: the fix must reach all 3 controllers but only ctrl-1 is reachable this session — see live-run-findings #8 for the deploy-to-close steps.
 - [ ] **Spigot** — same.
 - [x] **Velocity proxy** — **PASSED 2026-06-18.** `edge-1` registers as a proxy instance (VELOCITY 3.4.0) and routed `PrexorDev` cross-host to `survival-lobby-1` (`Registered backend server: survival-lobby-1 -> 10.0.0.5:30000`, then `Routing PrexorDev to survival-lobby-1`). proxy `playerCount` tracked by controller.
 - [ ] **BungeeCord proxy** — same.

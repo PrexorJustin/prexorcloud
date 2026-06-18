@@ -108,6 +108,31 @@ Files (4 + 5): `controller/grpc/DaemonConnectionLifecycle.java`, `controller/sch
 `controller/lifecycle/InstanceLifecycleManager.java`, `controller/PrexorCloudBootstrap.java`,
 `controller/lifecycle/InstanceLifecycleManagerTest.java`. Deployed to all 3 fleet controllers.
 
+### 8. Folia servers get the Paper plugin (which Folia rejects) → no integration — **COMMITTED (`94938c9`); NOT yet deployed to fleet**
+- **File:** `java/cloud-controller/.../controller/template/BaseTemplateGenerator.java`.
+- **Cause:** `BUNDLED_PLUGINS` is keyed on **config format**. Folia correctly shares the **`paper`** config format
+  (server.properties, paper-global.yml, spark disable, bootstrap cache all key on `paper` — see the line-109 comment),
+  so the lookup handed a Folia server `PrexorCloudPaperPlugin.jar`. Folia refuses it at load:
+  `Could not load plugin 'PrexorCloud v1.0.0' as it is not marked as supporting Folia!` → `Initialized 0 plugins` →
+  no controller registration → the instance never signals ready → **wedged in `STARTING`**. The dedicated
+  `PrexorCloudFoliaPlugin.jar` (folia-supported, region schedulers) is built + bundled into the controller
+  (`cloud-controller/build.gradle.kts:103`) but was **never selected**.
+- **Fix applied (committed `94938c9`):** added `BUNDLED_PLUGINS_BY_PLATFORM` (`folia → PrexorCloudFoliaPlugin.jar`)
+  and select by **platform first**, falling back to config-format. Controller compiles clean.
+- **Live status (2026-06-18):** root cause confirmed from the instance log on node-frankenstein-1. **Full live
+  validation BLOCKED by fleet access:** base templates are generated per-controller from each controller's bundled
+  plugins, so the fix must reach **all 3 cluster controllers** — but only **ctrl-1 (10.0.0.3)** is SSH-reachable
+  this session (ctrl-2/10.0.0.6 + ctrl-3/10.0.0.7 refuse publickey; node-fra-2/10.0.0.5 unreachable too). Hand-patched
+  ctrl-1's `base-folia` template (swapped in the Folia jar; the template auto-rehashed), but daemon↔controller
+  ownership kept flapping on reconnect and the folia instance landed on node-fra-2 (owned by an unreachable
+  controller, still serving the Paper-plugin template) → re-wedged. Forcing it onto node-frankenstein-1 via a 2600 MB
+  memory pin landed it there but it then pulled a template with **no plugin jar + eula=false** (post-reconnect it was
+  no longer served by ctrl-1). **To close:** deploy the fixed controller jar to all 3 cluster members
+  (`scp PrexorCloudController.jar` + restart each, rolling) and regenerate `base-folia` (delete its shared-Mongo doc +
+  each controller's on-disk `templates/base-folia/files/` + each daemon's `cache/templates/base-folia`), then
+  re-provision a FOLIA group. Catalog entry `FOLIA 1.21.8` is already added. The crash-looping `folia-test` group was
+  deleted to stop churn.
+
 ---
 
 ## 2026-06-18 (session 2) — three HA-divergence findings from the 3C scale-up test — **FIXED + LIVE-VALIDATED**
