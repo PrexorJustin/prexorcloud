@@ -9,9 +9,11 @@ any remaining open findings from it into here first, and commit the working-tree
 Status legend: **OPEN** = not yet coded · **CODED (uncommitted)** = fix in the working tree, must be committed ·
 **DONE** = committed.
 
-**2026-06-18 fix pass:** all the items below are now CODED (uncommitted). (g)/(d)/(h) are deployed to all 3 fleet
-controllers and **live-validated**; the daemon `JarCache` fix + Geyser descriptor are built but their live
-re-validation is pending a daemon redeploy (it disconnects active players).
+**2026-06-18 fix pass:** the items below were deployed to all 3 fleet controllers and live-validated, then
+**committed** (`c5cbfe2` "Live-run fixes…"; CLI batch still parked). The "uncommitted" notes below are HISTORICAL —
+everything functional here is on `main`. The session-2 HA-divergence fixes (G1/G2/G3) committed in `311e3e3`, the
+runningInstances count fix in `0113c44`. Only the Geyser/Bedrock edition-routing live-validation remains (needs
+Floodgate, user-in-loop).
 
 ---
 
@@ -51,11 +53,17 @@ re-validation is pending a daemon redeploy (it disconnects active players).
   (`Scheduler.evaluate`) so a controller converges its instance view before planning placements.
 - **Validation:** deployed to all 3 controllers; **live-confirmed all three now agree** `survival-lobby
   runningInstances:1` + see edge/hub/lobby (previously the two non-owning controllers showed 0).
-- *Not yet covered:* state-convergence (peers keep a stale state for a known instance) and safe removal of
-  genuinely-gone instances — both need the owner-write-back hazard handled; lower priority since add-if-missing
-  removes the duplicate-placement path.
+- *Not yet covered:* ~~state-convergence (peers keep a stale state for a known instance) and safe removal of
+  genuinely-gone instances~~ → **CLOSED by session-2 G2** (`reconcileInstancesFromRedis` now converges state via the
+  transition validator + prunes after a 2-tick grace; the owner-write-back hazard is handled by the validator and a
+  Redis-safe local-only prune). See the 2026-06-18 (session 2) section below.
 
-### 3b. (g) SECOND FACET — `INSTANCE_ALREADY_RUNNING` ack leaves the instance stuck `SCHEDULED` — **OPEN**
+### 3b. (g) SECOND FACET — `INSTANCE_ALREADY_RUNNING` ack leaves the instance stuck `SCHEDULED` — **LIKELY MITIGATED by session-2 G3 (confirm)**
+- **Update:** session-2 G3 makes the node-owner *adopt* the instance from Redis on the daemon's periodic status and
+  drive it to RUNNING, so the stuck-`SCHEDULED` symptom should now clear even though `DaemonCommandAckHandler` still
+  swallows the `INSTANCE_ALREADY_RUNNING` ack. Needs a targeted confirm (re-run a storm); the pure root fix (candidate
+  (b): daemon re-emits current status on a duplicate start) is small but state-machine-risky — defer unless the
+  confirm shows the symptom persists.
 - **Confirmed live 2026-06-18** by a simultaneous both-daemon restart (a reschedule storm): the daemon *was*
   running the instances, but each StartInstance redispatch got `ProcessManager: "already exists, ignoring start"`
   and `DaemonCommandAckHandler.handleStartInstanceAck` treats `INSTANCE_ALREADY_RUNNING` as an idempotent replay —
@@ -178,6 +186,43 @@ placer == owner and there were no pending placements.
 - Rolling **controller** restarts (one at a time) are safe and are currently the only reliable reconverge for G1/G2
   — quorum holds with the other two. (Distinct from the **daemon** rule: never restart both daemons at once.)
 - A residual phantom (ctrl-3 `running=2` vs real 1) can survive a single restart; harmless while `min` is satisfied.
+
+---
+
+## 2026-06-18 (session 3) — Part 4 platform breadth: Paper 1.20.4 + a 4th divergence facet (G4) — **OPEN**
+
+Drove Part 4 (provision each platform to RUNNING). First target Paper 1.20.4 (catalog build 499) surfaced:
+
+### Paper 1.20.4 platform itself — **WORKS**
+- The daemon downloaded the jar (PaperMC build 499), warmed the bootstrap cache, and launched. **Confirmed by a
+  manual run on the node** (`/opt/prexorcloud/jre/bin/java -jar cache/jars/PAPER/1.20.4/server.jar` with
+  `eula=true` + the bundled `PrexorCloudPaperPlugin.jar` in `plugins/`): server reaches **`Done (11.8s)!`**, the
+  cloud plugin **loads and enables** ("Loading server plugin PrexorCloud v1.0.0" → "Enabling"). Java 25 (Temurin) runs
+  MC 1.20.4 fine — not a Java-version problem. So the platform/download/boot path is good.
+
+### G4. Plugin/workload token rejected by the owner controller under *placer ≠ node-owner* — **OPEN (the real blocker)**
+- **Symptom:** the managed instance never leaves `STARTING` on the control plane (server is RUNNING on the daemon).
+  The plugin log shows **HTTP 401 on every controller call** — `Plugin token refresh failed: HTTP 401`, then
+  `/api/plugin/networks|groups|instances|metrics|ready` all 401, SSE ticket 401.
+- **Root:** same placer≠owner split as G1–G3. The instance was placed by ctrl-3 (held the `paper120` group lease) but
+  the daemon injects `CLOUD_CONTROLLER_URL=http://10.0.0.3:8080` = **ctrl-1** (the node-owner), so the plugin talks to
+  ctrl-1. The plugin/workload token's lifecycle (issue + sequence/refresh) is tied to the **placer (ctrl-3)**; ctrl-1
+  rejects it → 401 → the plugin can never call `/api/plugin/ready`, which is the authoritative `STARTING → RUNNING`
+  trigger. (`PluginRoutes.reportPluginReady` also no-ops `updateInstanceState` if the receiving controller doesn't
+  know the instance — a second, smaller gap beyond G3's daemon-status adopt; but the 401 short-circuits before that.)
+- **Fix direction:** the workload-token path must be cross-controller correct — validate/refresh tokens against the
+  shared store (Redis) regardless of which controller issued them, OR co-locate placement with node-ownership so the
+  plugin always talks to the controller that owns its lifecycle. The latter (placer == node-owner) is the durable
+  architectural fix and would also retire G1/G2/G3's reliance on per-tick reconcile.
+- **Note:** this only manifests under a placer≠owner split, which today's heavy controller-restart churn keeps
+  re-creating. When placer == owner (the normal healthy state, e.g. the successful G1/G2/G3 validations and all the
+  earlier 2D/3B client tests) tokens and ready both work. A rolling restart reconverges the fleet (ctrl-1 reacquires
+  the leases it owns the daemons for).
+
+### Part 4 status
+Platform-boot is validatable per-platform via the manual-run technique (bypasses the control-plane). Full
+control-plane RUNNING for managed instances is **blocked by G4** whenever the fleet is in a placer≠owner split.
+Remaining platforms (Folia, Spigot, BungeeCord, Fabric, NeoForge) not yet attempted.
 
 ---
 
