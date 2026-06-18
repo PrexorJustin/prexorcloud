@@ -47,6 +47,15 @@ public final class BaseTemplateGenerator {
             "geyser",
             "PrexorCloudGeyserExtension.jar");
 
+    // Some platforms share a parent's config format but need their OWN integration
+    // plugin. Folia uses the "paper" config format (server.properties, paper-global.yml,
+    // spark, bootstrap cache all key on "paper"), but the Paper plugin is rejected at
+    // load ("not marked as supporting Folia!") because Folia forbids the Bukkit
+    // scheduler the Paper plugin uses. Plugin selection is therefore keyed on PLATFORM
+    // first, falling back to the config FORMAT for the common case.
+    private static final Map<String, String> BUNDLED_PLUGINS_BY_PLATFORM = Map.of(
+            "folia", "PrexorCloudFoliaPlugin.jar");
+
     // Where each format's bundled jar is installed inside the instance. Geyser loads its integration
     // as an Extension from extensions/; the Bukkit/proxy families load from plugins/ (the default).
     private static final Map<String, String> BUNDLED_PLUGIN_DIRS = Map.of("geyser", "extensions");
@@ -117,7 +126,7 @@ public final class BaseTemplateGenerator {
                 disableSparkBackgroundProfiler(templateName);
             }
 
-            String pluginJar = BUNDLED_PLUGINS.get(format);
+            String pluginJar = BUNDLED_PLUGINS_BY_PLATFORM.getOrDefault(lowerPlatform, BUNDLED_PLUGINS.get(format));
             if (pluginJar != null) {
                 installBundledPlugin(templateName, pluginJar, BUNDLED_PLUGIN_DIRS.getOrDefault(format, "plugins"));
             }
