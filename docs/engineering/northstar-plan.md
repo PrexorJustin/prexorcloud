@@ -611,8 +611,8 @@ registration + metrics. Reference: Concepts → Plugins, Guides → Modded serve
 - [ ] **Spigot** — same.
 - [x] **Velocity proxy** — **PASSED 2026-06-18.** `edge-1` registers as a proxy instance (VELOCITY 3.4.0) and routed `PrexorDev` cross-host to `survival-lobby-1` (`Registered backend server: survival-lobby-1 -> 10.0.0.5:30000`, then `Routing PrexorDev to survival-lobby-1`). proxy `playerCount` tracked by controller.
 - [ ] **BungeeCord proxy** — same.
-- [ ] **Fabric 1.21.1 server mod** — build `:cloud-plugins:server:fabric:remapJar`, drop the ~4.2 MB jar in `mods/`, start → **Pass:** registers, reports player join/leave + a metrics snapshot every ~10 s (200 ticks); **no slf4j/logback binding hijack** in the server log.
-- [ ] **NeoForge 21.1.233 server mod** — build `:cloud-plugins:server:neoforge:shadowJar`, drop `PrexorCloudNeoForge.jar` in `mods/`, start → **Pass:** same as Fabric; clean logging (this jar already excludes logback).
+- [~] **Fabric 1.21.1 server mod** — **BUILD-VERIFIED 2026-06-18; runtime leg pending.** `:cloud-plugins:server:fabric:remapJar` builds clean (JDK 25) → `build/libs/fabric.jar`; artifact inspected: **no slf4j/logback binding** to hijack (the F.2 leak follow-up is closed — see Part 0C). Remaining: drop the jar in a real Fabric server's `mods/`, start, connect a client → confirm registers + join/leave + ~10 s (200-tick) metrics snapshot + clean server log. *(Runtime needs a live Fabric server + client — user-in-the-loop.)*
+- [~] **NeoForge 21.1.233 server mod** — **BUILD-VERIFIED 2026-06-18; runtime leg pending.** `:cloud-plugins:server:neoforge:shadowJar` builds clean (JDK 25) → `build/libs/PrexorCloudNeoForge.jar`; artifact inspected clean (no logback/slf4j leak). Remaining: drop in `mods/`, start, connect a client → same Pass criteria as Fabric. *(Runtime needs a live NeoForge server + client — user-in-the-loop.)*
 
 ### 4B. Bedrock (Geyser) — both topologies
 
@@ -915,7 +915,7 @@ Part 0B — it's a setup task, not just a decision.)*
 - [ ] **Lighthouse-A11y ≥ 95 hard gate** — needs a CI test-login backend (the 0-serious/critical axe gate already satisfies the ≥90 bar). **Call:** defer / do.
 - [ ] **Perf-trend over 60 days** — ops review, not a release gate. **Call:** defer.
 - [ ] **F.1(b) reactive Geyser re-resolution** — v1 resolves at provision time. **Call:** descope / schedule.
-- [ ] **Fabric logback `SLF4JServiceProvider` exclude** — one-line build exclude mirroring NeoForge, then re-run the Fabric test (Part 4). **Call:** do.
+- [x] **Fabric logback `SLF4JServiceProvider` exclude** — **DONE.** The `shadowJar` exclude (slf4j-api + logback-classic + logback-core) is in `cloud-plugins/server/fabric/build.gradle.kts` (committed `dc9c78f`) and **verified on the built artifact 2026-06-18**: `remapJar` → `fabric.jar` carries **no** logback classes, **no** `META-INF/services/org.slf4j.spi.SLF4JServiceProvider`, and no shaded slf4j-api (loader provides it); prexor code is shaded in. NeoForge `PrexorCloudNeoForge.jar` re-verified clean too (294 prexor entries, no logback/slf4j leak).
 - [ ] **C.2 stage-3 hard module isolation** (separate JVM) — optional; default stays in-process. **Call:** descope.
 - [ ] **D.1 gRPC auto-instrumentation** — out of scope (trace context already rides the payload). **Call:** note.
 
