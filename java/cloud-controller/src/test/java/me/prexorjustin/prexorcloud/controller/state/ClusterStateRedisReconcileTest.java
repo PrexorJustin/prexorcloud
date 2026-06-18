@@ -8,16 +8,15 @@ import java.lang.reflect.Proxy;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.lettuce.core.KeyScanCursor;
-import io.lettuce.core.api.sync.RedisCommands;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.lettuce.core.KeyScanCursor;
+import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -157,9 +156,7 @@ class ClusterStateRedisReconcileTest {
     @SuppressWarnings("unchecked")
     private static RedisCommands<String, String> inMemoryCommands(Map<String, String> map) {
         return (RedisCommands<String, String>) Proxy.newProxyInstance(
-                RedisCommands.class.getClassLoader(),
-                new Class<?>[] {RedisCommands.class},
-                (proxy, method, args) -> {
+                RedisCommands.class.getClassLoader(), new Class<?>[] {RedisCommands.class}, (proxy, method, args) -> {
                     switch (method.getName()) {
                         case "set":
                             map.put((String) args[0], (String) args[1]);

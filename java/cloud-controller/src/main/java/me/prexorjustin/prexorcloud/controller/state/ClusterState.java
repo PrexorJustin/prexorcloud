@@ -306,7 +306,8 @@ public final class ClusterState {
     private void publishGroupAggregatesIfChanged(String group) {
         if (group == null || group.isEmpty()) return;
         var instances = instanceRegistry.getByGroup(group);
-        int running = (int) instances.stream().filter(ClusterState::countsAsRunning).count();
+        int running =
+                (int) instances.stream().filter(ClusterState::countsAsRunning).count();
         int totalPlayers =
                 instances.stream().mapToInt(InstanceInfo::playerCount).sum();
         long packed = ((long) running << 32) | (totalPlayers & 0xFFFF_FFFFL);
