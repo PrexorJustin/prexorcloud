@@ -132,6 +132,15 @@ Files (4 + 5): `controller/grpc/DaemonConnectionLifecycle.java`, `controller/sch
   each controller's on-disk `templates/base-folia/files/` + each daemon's `cache/templates/base-folia`), then
   re-provision a FOLIA group. Catalog entry `FOLIA 1.21.8` is already added. The crash-looping `folia-test` group was
   deleted to stop churn.
+- **Also observed — possible second bug (HA template distribution):** `ctrl-1`'s `base-folia` is **complete**
+  (`eula.txt`, `server.properties`, `forwarding.secret`, `plugins/PrexorCloudFoliaPlugin.jar`, spark config — verified
+  on disk), yet the folia instance on node-frankenstein-1 received an **empty** template (no plugin jar, no
+  `eula.txt` → Folia wrote `eula=false` itself → "You need to agree to the EULA" → crash-loop). The `base-folia`
+  **Mongo doc is shared**, so a peer controller with the doc but **missing local files** skips regeneration
+  (`templateManager.exists()` is Mongo-gated) and serves an incomplete template. By contrast `base-bungeecord` *did*
+  propagate (BungeeCord booted on node-fra-2 with the ctrl-1 config fix), so replication is **inconsistent/partial**.
+  Worth a dedicated look: base-template file distribution should not depend on which controller first generated it.
+  (Hard to fully diagnose this session — 2 of 3 controllers unreachable.)
 
 ---
 
