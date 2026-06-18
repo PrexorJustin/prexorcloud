@@ -113,6 +113,14 @@ public final class ClusterControlService implements AutoCloseable {
         return config.raft().host() + ":" + config.raft().port();
     }
 
+    private String selfRestAddress() {
+        return config.http().host() + ":" + config.http().port();
+    }
+
+    private String selfGrpcAddress() {
+        return config.grpc().host() + ":" + config.grpc().port();
+    }
+
     private RaftGroupId raftGroupId() {
         return RaftGroupId.valueOf(GROUP_ID);
     }
@@ -469,7 +477,8 @@ public final class ClusterControlService implements AutoCloseable {
             return;
         }
         try {
-            Member self = new Member(nodeId, want, "", "", nodeId, Instant.now(clock), Instant.now(clock));
+            Member self = new Member(
+                    nodeId, want, selfRestAddress(), selfGrpcAddress(), nodeId, Instant.now(clock), Instant.now(clock));
             controlPlane.addMember(self);
             logger.info("Stamped Day-0 self member {} at {}", nodeId, want);
         } catch (IOException e) {
