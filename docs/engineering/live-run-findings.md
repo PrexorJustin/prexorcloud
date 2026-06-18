@@ -102,6 +102,85 @@ Files (4 + 5): `controller/grpc/DaemonConnectionLifecycle.java`, `controller/sch
 
 ---
 
+## 2026-06-18 (session 2) — three HA-divergence findings from the 3C scale-up test — **FIXED + LIVE-VALIDATED**
+
+> **▶ ALL THREE FIXED (CODED, uncommitted) + DEPLOYED to all 3 controllers + LIVE-VALIDATED 2026-06-18.**
+> Re-ran the exact scale-up that deadlocked: **G1** — `PATCH min=2` on ctrl-1 propagated to all 3 controllers
+> within seconds (was stale before); **G3** — the 2nd instance reached `RUNNING` (was stuck `SCHEDULED` forever);
+> **G2** — all 3 controllers converged to `running=2`, then on scale-down ctrl-2 logged
+> `Pruned instance survival-lobby-2 (gone from shared projection for 2 ticks)` and converged to `running=1`.
+> Files: `state/ClusterState.java` (adoptInstanceFromRedis + converge/prune reconcile),
+> `state/RedisRuntimeStore.java` (loadInstance), `grpc/DaemonServiceImpl.java` (adopt-on-unknown in
+> verifyNodeOwnership), `rest/route/GroupRoutes.java` (publish Group{Created,Updated,Deleted}Event).
+> Unit test: `state/ClusterStateRedisReconcileTest` (8 tests, adopt + add/converge/no-clobber/prune). Commit pending.
+
+Found while driving an autonomous orchestration test (`survival-lobby` min 1→2 across zones) on the 3-controller
+fleet. The PATCH succeeded (Mongo + the receiving controller) but the group never scaled. Root-causing it surfaced
+three distinct, real, code-level HA bugs. None are hacks-fixable live; all need product changes. The fleet was
+recovered to a clean baseline (min=1, `survival-lobby-2` + `edge-1` RUNNING) by a rolling restart of all three
+controllers — restart is the only thing that reliably reconverges them today (see G1/G2).
+
+**Context that triggers them:** today's restart churn left the cluster with the group-scheduling lease holder
+(*placer*) on a **different** controller than the one owning the daemon gRPC streams (*node-owner*). Both daemons
+(`node-fra-2`, `node-frankenstein-1`) are owned by ctrl-1 (`338e744b`); the `survival-lobby` Redis group lease was
+held by ctrl-2 (`79a0c054`). The fleet looked "healthy" only because its existing instances were placed back when
+placer == owner and there were no pending placements.
+
+### G1. Cross-controller `GroupConfig` cache divergence — **FIXED + LIVE-VALIDATED**
+- A `PATCH /api/v1/groups/{name}` updates Mongo **and the receiving controller's in-memory `GroupManager` cache only**.
+  Peer controllers keep serving their stale cached config indefinitely — no broadcast / cache invalidation.
+- **Observed live:** after `PATCH {minInstances:2}` on ctrl-1, `GET groups/survival-lobby` returned `min=2` on
+  ctrl-1 but `min=0,max=1,spread=""` on ctrl-3 and (after a later revert to `min=1`) `min=1` on ctrl-1 vs `min=2`
+  on **both** ctrl-2 and ctrl-3. Mongo always held the latest. Because the scheduling decision runs on the
+  **group-lease holder**, a stale peer holding the lease scales to the wrong target (or not at all).
+- **Root:** `Group{Created,Updated,Deleted}Event` were **never published** by the controller — only a test emitted
+  one. `RedisEventBridge` already subscribes and forwards them over `CHANNEL_GROUP` (peers `reloadGroup` /
+  `removeGroupFromCache` on receipt); the send side was simply never wired.
+- **Fix:** `GroupRoutes` now publishes the corresponding event after each `groupStore` write (after the Mongo write,
+  so peers' `reloadGroup` reads the new value). Bridge skips the publisher's own echo (controllerId check), so no
+  local reload-loop. **Live-validated** — a PATCH on ctrl-1 reached ctrl-2 + ctrl-3 within seconds.
+
+### G2. `ClusterState` phantom-instance accumulation across controllers — **FIXED + LIVE-VALIDATED**
+- In-memory `ClusterState` accretes instances that are STOPPED / long gone; `runningInstances` diverged wildly
+  across controllers (live: **1 / 3 / 4** for the same group whose real running count was 1–2). The (g) add-if-missing
+  reconcile from Redis (#3 above) **never removes**, so dead entries persist until restart.
+- Consequence: the lease-holder's scale math (`evaluateScaleUp`: `currentCount < minInstances`) uses an inflated
+  `currentCount` and declines to scale (or, with a deflated count elsewhere, over-places).
+- **Fix:** `reconcileInstancesFromRedis` now, beyond add-if-missing, (a) **converges** a known instance's state
+  toward Redis via the existing transition validator — a stale read can't move a fresher local state backward, so the
+  owner is never clobbered — and (b) **prunes** a local mirror absent from the shared projection for 2 consecutive
+  ticks (grace against a transient scan miss), via a Redis-safe local-only removal (never re-deletes the key — avoids
+  clobbering a value the owner re-created in a scan race). **Live-validated** — non-owners converged to `running=2`
+  then `running=1`; ctrl-2 logged the 2-tick prune.
+
+### G3. Placement deadlock when *placer* ≠ *node-owner* — **FIXED + LIVE-VALIDATED**
+- When the group-lease holder (which decides + dispatches `StartInstance`) is a **different** controller than the one
+  owning the target node's daemon gRPC stream, a freshly placed instance **deadlocks at `SCHEDULED` forever** even
+  though the server process spawns and runs fine:
+  - The **placer** has the instance record (SCHEDULED) but never receives status — the daemon streams
+    status/console to the **node-owner**, not the placer.
+  - The **node-owner** receives the status but has **no record** → logs `handleConsoleOutput: unknown instance …`
+    and drops it; the duplicate `StartInstance` redispatch gets `ProcessManager: already exists` →
+    `INSTANCE_ALREADY_RUNNING` → controller treats it as idempotent replay (the 3b swallow) → never reconciles.
+  - SCHEDULED placements *are* written to Redis (`addInstance` write-through) — corrected from the first analysis —
+    but the owner only learns peer-placed instances via `reconcileInstancesFromRedis` on a **scheduler tick**, which
+    can stall/wedge; meanwhile the status handler drops the unknown instance outright with no Redis fallback.
+- **Observed live:** ctrl-2 (placer) placed `survival-lobby-1` then `-3` then `-4` on ctrl-1-owned nodes; each spawned
+  a real Paper process (listening on its port) but stuck `SCHEDULED uptime 0s`; 30 s redispatch loop spawned orphans.
+- **Fix (shipped):** the node-owning controller's daemon status/console handler (`verifyNodeOwnership`) now, on an
+  unknown instance, **adopts it from the shared Redis projection** (`ClusterState.adoptInstanceFromRedis`, guarded so
+  it only adopts a record assigned to the reporting node) before dropping — deterministic, no dependence on the
+  wedge-prone reconcile tick. Combined with G2's state-convergence, the placer also converges its view to RUNNING and
+  stops the redispatch loop. **Live-validated** — the re-run scale-up reached RUNNING instead of deadlocking; the
+  cross-controller adopt path is covered by `ClusterStateRedisReconcileTest`.
+
+### Operational note (session 2)
+- Rolling **controller** restarts (one at a time) are safe and are currently the only reliable reconverge for G1/G2
+  — quorum holds with the other two. (Distinct from the **daemon** rule: never restart both daemons at once.)
+- A residual phantom (ctrl-3 `running=2` vs real 1) can survive a single restart; harmless while `min` is satisfied.
+
+---
+
 ## Sweep-before-teardown checklist
 
 `northstar-plan.md` still holds **many earlier-session findings** that are either deployed-but-uncommitted code or

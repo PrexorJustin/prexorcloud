@@ -137,35 +137,96 @@ public final class ClusterState {
         publishGroupAggregatesIfChanged(instance.group());
     }
 
+    /** Per-instance count of consecutive reconciles in which the instance was absent from Redis. */
+    private final ConcurrentHashMap<String, Integer> redisAbsenceStreak = new ConcurrentHashMap<>();
+
+    /** Prune a local instance mirror only after it has been gone from Redis this many ticks. */
+    private static final int PRUNE_AFTER_ABSENT_TICKS = 2;
+
     /**
-     * Conservatively converge this controller's in-memory instance view toward the shared
-     * Redis projection by adding instances present in Redis but missing locally. Fixes
-     * cross-controller divergence: a daemon's instance-status updates only reach the
-     * node-owning controller's {@link ClusterState}, so a peer that wins a group
-     * lease/leadership is otherwise blind to those instances and re-places a duplicate on a
-     * port it cannot see is already in use.
+     * Converge this controller's in-memory instance view toward the shared Redis projection,
+     * which the node-owning controller keeps current via write-through. Fixes cross-controller
+     * divergence: a daemon's instance-status updates only reach the node-owning controller's
+     * {@link ClusterState}, so a peer that wins a group lease/leadership would otherwise be
+     * blind to those instances (re-placing duplicates) or retain phantoms (inflating its scale
+     * math). Three passes:
      *
-     * <p>Add-if-missing only by design: it never reverts a fresher local state (avoiding a
-     * race with the owner's synchronous write-through) and never removes (removeInstance
-     * writes to the shared Redis projection); staleness self-heals on the next real update.
-     * No event is published -- the scheduler only needs to see the instance exists at tick
-     * time to avoid a duplicate placement.
+     * <ul>
+     *   <li><b>Add-if-missing</b> — learn instances present in Redis but unknown locally.
+     *   <li><b>Converge state</b> — when a known instance's local state differs from Redis,
+     *       apply the Redis state <em>through the transition validator</em>, so a stale read
+     *       can never move a fresher local state backward (no owner-write-back clobber).
+     *   <li><b>Prune</b> — drop local mirrors absent from the shared projection for
+     *       {@link #PRUNE_AFTER_ABSENT_TICKS} consecutive ticks (the owner deletes the Redis
+     *       key on {@code removeInstance}; the grace tick guards against a transient scan miss).
+     * </ul>
      *
      * @return the number of previously-unknown instances learned this pass
      */
     public int reconcileInstancesFromRedis() {
         if (runtimeStore == null) return 0;
         int learned = 0;
-        for (var entry : runtimeStore.loadInstances().entrySet()) {
-            if (instanceRegistry.get(entry.getKey()).isEmpty()) {
+        Map<String, InstanceInfo> redis = runtimeStore.loadInstances();
+
+        for (var entry : redis.entrySet()) {
+            redisAbsenceStreak.remove(entry.getKey());
+            Optional<InstanceInfo> local = instanceRegistry.get(entry.getKey());
+            if (local.isEmpty()) {
                 instanceRegistry.add(entry.getValue());
                 learned++;
+            } else if (local.get().state() != entry.getValue().state()) {
+                // Mirror the owner's authoritative state; the validator rejects a stale
+                // backward transition, so this never overwrites a fresher local state.
+                updateInstanceState(entry.getKey(), entry.getValue().state());
             }
         }
+
+        List<String> toPrune = new java.util.ArrayList<>();
+        for (InstanceInfo local : instanceRegistry.getAll()) {
+            if (redis.containsKey(local.id())) continue;
+            int streak = redisAbsenceStreak.merge(local.id(), 1, Integer::sum);
+            if (streak >= PRUNE_AFTER_ABSENT_TICKS) toPrune.add(local.id());
+        }
+        for (String id : toPrune) {
+            redisAbsenceStreak.remove(id);
+            removeInstanceLocalMirror(id);
+            logger.info("Pruned instance {} (gone from shared projection for {} ticks)", id, PRUNE_AFTER_ABSENT_TICKS);
+        }
+
         if (learned > 0) {
             logger.debug("Reconciled {} previously-unknown instance(s) from Redis", learned);
         }
         return learned;
+    }
+
+    /**
+     * On-demand adopt of a single peer-placed instance from the shared Redis projection.
+     * Called by the node-owning controller's daemon status/console handlers when a daemon
+     * reports for an instance this controller has not yet learned: a peer (the group-lease
+     * holder) places the instance and writes it to Redis at {@code SCHEDULED} time, but
+     * status flows only to the node-owner, which would otherwise drop it as "unknown
+     * instance" until the next periodic {@link #reconcileInstancesFromRedis} tick — and that
+     * tick rides the scheduler loop, which can stall. Adopting here breaks that deadlock
+     * deterministically.
+     *
+     * <p>Guarded: only adopts when the Redis record exists <em>and</em> is assigned to
+     * {@code reportingNodeId} — the daemon is authoritative for instances physically on its
+     * own node, so a mismatch (or absence) is not adopted.
+     *
+     * @return {@code true} if the instance is now present locally (adopted or already known)
+     */
+    public boolean adoptInstanceFromRedis(String instanceId, String reportingNodeId) {
+        if (instanceRegistry.get(instanceId).isPresent()) return true;
+        if (runtimeStore == null) return false;
+        InstanceInfo fromRedis = runtimeStore.loadInstance(instanceId).orElse(null);
+        if (fromRedis == null || !reportingNodeId.equals(fromRedis.nodeId())) return false;
+        instanceRegistry.add(fromRedis);
+        logger.info(
+                "Adopted peer-placed instance {} on node {} from Redis (state={})",
+                instanceId,
+                reportingNodeId,
+                fromRedis.state());
+        return true;
     }
 
     public void updateInstanceState(String instanceId, InstanceState newState) {
@@ -201,6 +262,21 @@ public final class ClusterState {
         // playerCount may have shifted even when state didn't — re-evaluate aggregates.
         if (existing != null) publishGroupAggregatesIfChanged(existing.group());
         if (updated != null && runtimeStore != null) runtimeStore.saveInstance(instanceId, updated);
+    }
+
+    /**
+     * Drop a stale local instance mirror <em>without</em> touching the shared Redis
+     * projection — used by {@link #reconcileInstancesFromRedis} pruning, where the instance
+     * is already gone from Redis (the node-owner deleted it). Deliberately does not call
+     * {@code runtimeStore.remove*}: re-deleting could clobber a Redis entry the owner has
+     * since re-created in a narrow scan race. Cleans only in-memory mirrors (instance +
+     * player sessions) and refreshes group aggregates.
+     */
+    private void removeInstanceLocalMirror(String instanceId) {
+        String group = instanceRegistry.get(instanceId).map(InstanceInfo::group).orElse(null);
+        playerSessionRegistry.removeByInstance(instanceId);
+        instanceRegistry.remove(instanceId);
+        if (group != null) publishGroupAggregatesIfChanged(group);
     }
 
     public void removeInstance(String instanceId) {

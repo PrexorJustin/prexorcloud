@@ -250,6 +250,15 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
             private boolean verifyNodeOwnership(String instanceId, String handlerName) {
                 var instance = clusterState.getInstance(instanceId);
                 if (instance.isEmpty()) {
+                    // A peer (the group-lease holder) may have placed this instance on our
+                    // node and written it to Redis; status flows only here (the node-owner).
+                    // Adopt it from the shared projection rather than dropping the update,
+                    // which would otherwise leave the instance wedged until a reconcile tick.
+                    if (clusterState.adoptInstanceFromRedis(instanceId, nodeId)) {
+                        instance = clusterState.getInstance(instanceId);
+                    }
+                }
+                if (instance.isEmpty()) {
                     logger.warn("{}: unknown instance {}", handlerName, instanceId);
                     return false;
                 }

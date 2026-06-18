@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
@@ -63,6 +64,23 @@ public final class RedisRuntimeStore implements WorkloadIdentityRegistry.Sequenc
 
     public void saveInstance(String instanceId, InstanceInfo info) {
         set(RedisKeys.instance(instanceId), info);
+    }
+
+    /**
+     * Load a single instance from the shared projection. Used by the node-owning
+     * controller to adopt a peer-placed instance on demand when a daemon reports
+     * status for it before the periodic reconcile has learned it (see
+     * {@link ClusterState#adoptInstanceFromRedis}).
+     */
+    public Optional<InstanceInfo> loadInstance(String instanceId) {
+        String json = commands.get(RedisKeys.instance(instanceId));
+        if (json == null) return Optional.empty();
+        try {
+            return Optional.of(mapper.readValue(json, InstanceInfo.class));
+        } catch (JsonProcessingException e) {
+            logger.warn("Failed to deserialize instance {}: {}", instanceId, e.getMessage());
+            return Optional.empty();
+        }
     }
 
     public void removeInstance(String instanceId) {

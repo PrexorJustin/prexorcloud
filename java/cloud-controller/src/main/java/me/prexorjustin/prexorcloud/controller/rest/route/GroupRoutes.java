@@ -7,6 +7,9 @@ import static me.prexorjustin.prexorcloud.controller.rest.RestServer.requireFoun
 import java.time.Instant;
 import java.util.Map;
 
+import me.prexorjustin.prexorcloud.api.event.events.GroupCreatedEvent;
+import me.prexorjustin.prexorcloud.api.event.events.GroupDeletedEvent;
+import me.prexorjustin.prexorcloud.api.event.events.GroupUpdatedEvent;
 import me.prexorjustin.prexorcloud.common.util.InputValidator;
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
@@ -109,6 +112,9 @@ public final class GroupRoutes {
         InputValidator.requireSafeName(config.name(), "Group name");
         controller.groupManager().create(config);
         controller.groupStore().save(config);
+        // Notify peers (their GroupManager caches are otherwise blind to this write) -- the
+        // RedisEventBridge forwards this over CHANNEL_GROUP and peers reload from the store.
+        controller.eventBus().publish(new GroupCreatedEvent(config.name()));
         auditDiff(ctx, controller.stateStore(), "group.create", "group", config.name(), null, config);
         ctx.status(201);
         ctx.json(GroupDtoMapper.toDto(config, controller.clusterState(), controller.catalogStore()));
@@ -192,6 +198,8 @@ public final class GroupRoutes {
 
         var merged = controller.groupManager().patch(name, update, sent);
         controller.groupStore().save(merged);
+        // Propagate to peers AFTER the store write so their reload reads the new config.
+        controller.eventBus().publish(new GroupUpdatedEvent(name));
         auditDiff(ctx, controller.stateStore(), "group.update", "group", name, before, merged);
         ctx.json(GroupDtoMapper.toDto(merged, controller.clusterState(), controller.catalogStore()));
     }
@@ -217,6 +225,8 @@ public final class GroupRoutes {
         var before = requireFound(controller.groupManager().get(name), "Group", name);
         controller.groupManager().delete(name);
         controller.groupStore().delete(name);
+        // Peers drop the group from their caches on this event (CHANNEL_GROUP).
+        controller.eventBus().publish(new GroupDeletedEvent(name));
         // Reap the auto-created group-template (named after the group) so it doesn't orphan --
         // but only when no remaining group still layers it or inherits it as a parent.
         var templateManager = controller.templateManager();
