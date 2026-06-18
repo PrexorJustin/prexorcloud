@@ -306,7 +306,7 @@ public final class ClusterState {
     private void publishGroupAggregatesIfChanged(String group) {
         if (group == null || group.isEmpty()) return;
         var instances = instanceRegistry.getByGroup(group);
-        int running = instances.size();
+        int running = (int) instances.stream().filter(ClusterState::countsAsRunning).count();
         int totalPlayers =
                 instances.stream().mapToInt(InstanceInfo::playerCount).sum();
         long packed = ((long) running << 32) | (totalPlayers & 0xFFFF_FFFFL);
@@ -505,6 +505,23 @@ public final class ClusterState {
 
     public List<InstanceInfo> getInstancesByNode(String nodeId) {
         return instanceRegistry.getByNode(nodeId);
+    }
+
+    /**
+     * Whether an instance counts toward a group's user-facing "running" aggregate. A
+     * terminal record (STOPPED/CRASHED) lingers in state until the cleanup delay reaps it;
+     * counting it would inflate {@code runningInstances} (e.g. a node-disconnect-CRASHED
+     * instance showing up as still running).
+     */
+    private static boolean countsAsRunning(InstanceInfo instance) {
+        return instance.state() != InstanceState.STOPPED && instance.state() != InstanceState.CRASHED;
+    }
+
+    /** Count of a group's instances that are not in a terminal state (STOPPED/CRASHED). */
+    public int runningInstanceCount(String group) {
+        return (int) instanceRegistry.getByGroup(group).stream()
+                .filter(ClusterState::countsAsRunning)
+                .count();
     }
 
     // --- Players ---

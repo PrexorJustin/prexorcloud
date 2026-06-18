@@ -139,6 +139,16 @@ class ClusterStateRedisReconcileTest {
         assertTrue(state.getInstance("lobby-1").isPresent(), "streak reset on reappearance");
     }
 
+    @Test
+    @DisplayName("runningInstanceCount excludes terminal (CRASHED/STOPPED) instances")
+    void runningCountExcludesTerminal() {
+        state.addInstance(instance("lobby-1", "lobby", "node-a", InstanceState.RUNNING));
+        state.addInstance(instance("lobby-2", "lobby", "node-a", InstanceState.CRASHED));
+        state.addInstance(instance("lobby-3", "lobby", "node-a", InstanceState.STOPPED));
+        state.addInstance(instance("lobby-4", "lobby", "node-a", InstanceState.STARTING));
+        assertEquals(2, state.runningInstanceCount("lobby")); // RUNNING + STARTING; CRASHED/STOPPED excluded
+    }
+
     private static InstanceInfo instance(String id, String group, String nodeId, InstanceState st) {
         return new InstanceInfo(id, group, nodeId, st, 30000, 0, 0, Instant.now());
     }
