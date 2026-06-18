@@ -11,7 +11,15 @@ listeners:
       - lobby
 online_mode: false
 ip_forward: true
-servers: {}
+# BungeeCord refuses to start with an empty servers map ("No servers defined"),
+# unlike Velocity. Ship a default placeholder backend (referenced by the listener
+# priorities above) so the proxy boots; PrexorCloud's plugin registers and routes
+# real backends dynamically at runtime.
+servers:
+  lobby:
+    address: 127.0.0.1:25565
+    motd: "&bPrexorCloud"
+    restricted: false
 permissions:
   default: []
   admin:
