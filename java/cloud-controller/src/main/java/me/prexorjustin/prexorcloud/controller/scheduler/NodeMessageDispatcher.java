@@ -38,6 +38,15 @@ public final class NodeMessageDispatcher {
         this.metricsCollector = metricsCollector;
     }
 
+    /**
+     * Whether this controller owns {@code nodeId}'s daemon gRPC stream. True on exactly one
+     * controller per connected node (single-writer), so it is the authority for placing,
+     * dispatching, and tracking instances on that node — see the placer==node-owner invariant.
+     */
+    public boolean ownsNode(String nodeId) {
+        return sessionManager.getByNodeId(nodeId).isPresent();
+    }
+
     public boolean dispatch(String nodeId, ControllerMessage message) {
         Optional<NodeSession> session = sessionManager.getByNodeId(nodeId);
         boolean delivered;

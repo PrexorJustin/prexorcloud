@@ -148,6 +148,31 @@ class ClusterStateRedisReconcileTest {
         assertEquals(2, state.runningInstanceCount("lobby")); // RUNNING + STARTING; CRASHED/STOPPED excluded
     }
 
+    // --- token read-through (placer issues, owner validates) ---
+
+    @Test
+    @DisplayName("validatePluginToken hydrates a peer-issued token from Redis instead of rejecting/deleting it")
+    void validateHydratesPeerToken() {
+        state.addInstance(instance("lobby-1", "lobby", "node-a", InstanceState.RUNNING));
+        // A peer controller issued this token: present in Redis, absent from THIS controller's registry.
+        String token = "ptk_peer_issued";
+        store.savePluginToken(
+                token,
+                new WorkloadIdentityRegistry.PluginTokenEntry(
+                        "tok-id-1", "lobby-1", Instant.now(), Instant.now().plusSeconds(900)));
+
+        var result = state.validatePluginToken(token);
+        assertTrue(result.isPresent(), "peer-issued token should validate via Redis read-through");
+        assertEquals("lobby-1", result.get());
+        assertTrue(store.loadPluginToken(token).isPresent(), "read-through must NOT delete the token");
+    }
+
+    @Test
+    @DisplayName("validatePluginToken returns empty for a token absent everywhere")
+    void validateRejectsUnknownToken() {
+        assertTrue(state.validatePluginToken("ptk_nowhere").isEmpty());
+    }
+
     private static InstanceInfo instance(String id, String group, String nodeId, InstanceState st) {
         return new InstanceInfo(id, group, nodeId, st, 30000, 0, 0, Instant.now());
     }
@@ -160,6 +185,9 @@ class ClusterStateRedisReconcileTest {
                     switch (method.getName()) {
                         case "set":
                             map.put((String) args[0], (String) args[1]);
+                            return "OK";
+                        case "setex":
+                            map.put((String) args[0], (String) args[2]);
                             return "OK";
                         case "get":
                             return map.get((String) args[0]);

@@ -370,6 +370,9 @@ public final class ClusterState {
         if (validated.isEmpty()
                 && runtimeStore != null
                 && workloadIdentityRegistry.getPluginToken(token).isEmpty()) {
+            if (hydratePluginTokenFromRedis(token)) {
+                return workloadIdentityRegistry.validatePluginToken(token, this::getInstance);
+            }
             runtimeStore.removePluginToken(token);
         }
         return validated;
@@ -380,9 +383,29 @@ public final class ClusterState {
         if (validated.isEmpty()
                 && runtimeStore != null
                 && workloadIdentityRegistry.getPluginToken(token).isEmpty()) {
+            if (hydratePluginTokenFromRedis(token)) {
+                return workloadIdentityRegistry.validatePluginToken(token, sequence, this::getInstance);
+            }
             runtimeStore.removePluginToken(token);
         }
         return validated;
+    }
+
+    /**
+     * Hydrate a plugin token from the shared Redis projection into the in-process registry.
+     * A token is issued on whichever controller placed the instance, but the plugin connects
+     * to the controller that owns its node's daemon stream — which may be a different
+     * controller. Without this read-through, that controller's in-process map misses the token
+     * and the old code would reject the call AND delete the still-valid token from Redis.
+     *
+     * @return true if a (non-expired) token was found in Redis and adopted locally
+     */
+    private boolean hydratePluginTokenFromRedis(String token) {
+        if (runtimeStore == null) return false;
+        var entry = runtimeStore.loadPluginToken(token).orElse(null);
+        if (entry == null) return false;
+        workloadIdentityRegistry.adopt(token, entry);
+        return workloadIdentityRegistry.getPluginToken(token).isPresent();
     }
 
     /**

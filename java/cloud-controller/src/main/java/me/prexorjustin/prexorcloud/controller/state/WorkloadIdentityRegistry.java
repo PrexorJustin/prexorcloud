@@ -233,6 +233,19 @@ public final class WorkloadIdentityRegistry {
         return Optional.ofNullable(pluginTokens.get(token));
     }
 
+    /**
+     * Insert a token entry learned from the shared projection (issued by a peer controller),
+     * preserving its original id/expiry. Skips expired entries; does not clobber a
+     * concurrently-issued local entry. Used by the cross-controller read-through in
+     * {@link ClusterState#validatePluginToken} so the controller a plugin connects to can
+     * accept a token a peer minted instead of rejecting (and deleting) it.
+     */
+    public void adopt(String token, PluginTokenEntry entry) {
+        if (clock.instant().isBefore(entry.expiresAt())) {
+            pluginTokens.putIfAbsent(token, entry);
+        }
+    }
+
     public Duration tokenTtl() {
         return tokenTtl;
     }

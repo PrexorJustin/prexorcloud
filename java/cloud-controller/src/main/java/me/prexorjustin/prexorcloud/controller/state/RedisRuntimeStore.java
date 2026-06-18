@@ -120,6 +120,23 @@ public final class RedisRuntimeStore implements WorkloadIdentityRegistry.Sequenc
         commands.del(RedisKeys.pluginToken(token));
     }
 
+    /**
+     * Load a single plugin token from the shared projection. Used by a controller that did not
+     * issue the token (e.g. the node-owner a plugin connects to, when a peer placed the
+     * instance) to hydrate it on demand rather than reject — see
+     * {@link ClusterState#validatePluginToken}.
+     */
+    public Optional<WorkloadIdentityRegistry.PluginTokenEntry> loadPluginToken(String token) {
+        String json = commands.get(RedisKeys.pluginToken(token));
+        if (json == null) return Optional.empty();
+        try {
+            return Optional.of(mapper.readValue(json, WorkloadIdentityRegistry.PluginTokenEntry.class));
+        } catch (JsonProcessingException e) {
+            logger.warn("Failed to deserialize plugin token: {}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
     // --- Workload callback replay windows ---
 
     @Override

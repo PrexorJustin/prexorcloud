@@ -113,7 +113,13 @@ public final class RecoveryOrchestrator {
         if (workflowStateStore.getStartRetry(instance.id()).isPresent()) {
             return;
         }
-        if (!leaseGate.ownsGroupLease(instance.group())) {
+        // placer == node-owner: only the controller holding this node's daemon stream redispatches
+        // and mints the token (so the plugin, which connects to the owner, can validate it locally).
+        // ownsNode is true on exactly one controller per node, so this is the single-writer guard --
+        // no group lease needed, and the daemon-side start is idempotent regardless. When a peer
+        // placed the instance on a node we own, this is the handoff: its durable SCHEDULED record +
+        // composition plan are picked up here and dispatched locally.
+        if (!placementCoordinator.ownsNode(instance.nodeId())) {
             return;
         }
         Instant retryAfter = pendingStartRecoveryBackoffUntil.get(instance.id());
@@ -132,16 +138,8 @@ public final class RecoveryOrchestrator {
         }
 
         var resolved = groupManager.resolveGroup(group.name());
-        DistributedLeaseManager.Lease lease = leaseGate.acquireGroupLease(instance.group());
-        if (leaseManager != null && lease == null) {
-            return;
-        }
         var startMsg = placementCoordinator.buildStartMessage(
                 resolved, instance, compositionPlan, clusterState.issuePluginToken(instance.id()));
-        if (!leaseGate.ensureLeaseCurrent(
-                lease, instance.group(), "recover start dispatch for instance " + instance.id())) {
-            return;
-        }
         if (!placementCoordinator.dispatchStartMessage(instance.nodeId(), instance.id(), startMsg)) {
             return;
         }

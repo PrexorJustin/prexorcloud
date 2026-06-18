@@ -200,7 +200,30 @@ Drove Part 4 (provision each platform to RUNNING). First target Paper 1.20.4 (ca
   cloud plugin **loads and enables** ("Loading server plugin PrexorCloud v1.0.0" → "Enabling"). Java 25 (Temurin) runs
   MC 1.20.4 fine — not a Java-version problem. So the platform/download/boot path is good.
 
-### G4. Plugin/workload token rejected by the owner controller under *placer ≠ node-owner* — **OPEN (the real blocker)**
+### G4. Plugin/workload token rejected by the owner controller under *placer ≠ node-owner* — **FIXED + LIVE-VALIDATED**
+
+> **▶ FIXED via the durable "placer == node-owner" refactor + a token read-through (2026-06-18 session 3).** Re-ran
+> Paper 1.20.4 under a real placer≠owner split (placer ctrl-2, node-owner ctrl-1): the instance reached **RUNNING in
+> 15s** (was stuck `STARTING` forever), all 3 controllers converged `running=1`, and the plugin log shows **no 401**
+> (only a benign 404 for `/api/plugin/networks` — paper120 isn't in a Network). Two changes:
+> 1. **Token read-through** (`ClusterState.validatePluginToken` → `RedisRuntimeStore.loadPluginToken` +
+>    `WorkloadIdentityRegistry.adopt`): on an in-process miss, hydrate the token from the shared Redis projection
+>    before failing — and crucially **stop deleting** a token just because this controller hasn't learned it (the old
+>    code did `runtimeStore.removePluginToken` on miss, destroying a peer-issued token). Any controller can now
+>    validate any controller's token.
+> 2. **placer == node-owner execution** (`NodeMessageDispatcher.ownsNode` + gates in
+>    `InstancePlacementCoordinator.doPlaceResolvedInstance` and `RecoveryOrchestrator.reconcileOne`): the placer
+>    persists the SCHEDULED record + composition plan but only issues the token + dispatches when it owns the node;
+>    otherwise the **node-owner's** `RecoveryOrchestrator` (now gated on `ownsNode`, not the group lease) mints the
+>    token and dispatches locally. The plugin connects to the owner, which issued the token → no 401, and the
+>    instance lifecycle/status all live on one controller. Unit tests in `ClusterStateRedisReconcileTest`; the group
+>    lease still guards the *scaling decision* (how many) — only *execution* moved to the owner.
+> **Follow-up (not done):** `StartRetryOrchestrator` still gates execution on the group lease (the token read-through
+> covers its 401 correctness; full co-location is a smaller follow-up). And a **pre-existing** gap surfaced: deleting
+> a group does NOT stop its running instances (they linger until manually stopped) — separate from this work.
+
+**(original analysis below)**
+### G4. Plugin/workload token rejected by the owner controller under *placer ≠ node-owner* — was OPEN
 - **Symptom:** the managed instance never leaves `STARTING` on the control plane (server is RUNNING on the daemon).
   The plugin log shows **HTTP 401 on every controller call** — `Plugin token refresh failed: HTTP 401`, then
   `/api/plugin/networks|groups|instances|metrics|ready` all 401, SSE ticket 401.
@@ -223,6 +246,25 @@ Drove Part 4 (provision each platform to RUNNING). First target Paper 1.20.4 (ca
 Platform-boot is validatable per-platform via the manual-run technique (bypasses the control-plane). Full
 control-plane RUNNING for managed instances is **blocked by G4** whenever the fleet is in a placer≠owner split.
 Remaining platforms (Folia, Spigot, BungeeCord, Fabric, NeoForge) not yet attempted.
+
+---
+
+## 2026-06-18 — cluster members advertise empty `restAddr`/`gRPCAddr` (cosmetic) — **FIXED (CODED, uncommitted)**
+
+Surfaced from `prexorctl cluster members`: all three controllers show blank `REST ADDR` / `GRPC ADDR`
+(and `LABEL` == node id). **Harmless** — `raftAddr` (populated) is the only address the control plane uses;
+the only consumer of `restAddr`/`gRPCAddr` is the `/api/v1/cluster/members` serializer (`ClusterMembersRoutes`),
+i.e. that very CLI table. Raft, leader election, and replication are unaffected.
+- **Cause:** `ClusterControlService.ensureSelfMember()` self-stamped `new Member(nodeId, raftAddr, "", "", nodeId, …)`
+  — it only had `selfRaftAddress()` in scope. The Day-0 leader always self-stamps; joiners re-stamped blank during
+  the Day-0 rebuild + #22 restart dance (their join-populated record was absent from local state at the time). The
+  `RequestJoin` handler already sets these correctly; only the self path was blank.
+- **Fix:** added `selfRestAddress()`/`selfGrpcAddress()` (off `config.http()`/`config.grpc()`, mirroring
+  `selfRaftAddress()`) and `ensureSelfMember` now stamps them. File: `controller/cluster/ClusterControlService.java`.
+- **Not yet redeployed/validated.** The three **live** members won't backfill from this — the `existing.isPresent()`
+  branch deliberately preserves stored values; only a fresh join or a member wipe+rejoin repopulates them. New
+  clusters/joins will show populated addresses. `LABEL == node id` is **by design** (every `new Member` passes the
+  node id as the label) and is left as-is.
 
 ---
 

@@ -234,6 +234,20 @@ public final class InstancePlacementCoordinator {
                         .planHash()
                         .substring(0, Math.min(8, compositionPlan.planHash().length())));
 
+        // placer == node-owner invariant: only the controller that owns this node's daemon
+        // stream issues the token (so the plugin -- which connects to the owner -- can validate
+        // it) and dispatches. When the placer does not own the node, leave the SCHEDULED record
+        // + composition plan durably persisted; the owner's RecoveryOrchestrator (gated on
+        // ownsNode) mints the token and dispatches on its next tick. Avoids the cross-controller
+        // token-401 / status-divergence class entirely.
+        if (!nodeMessageDispatcher.ownsNode(node.nodeId())) {
+            logger.info(
+                    "Placed {} on {} owned by another controller; its owner will issue the token and dispatch",
+                    instanceId,
+                    node.nodeId());
+            return true;
+        }
+
         String pluginToken = clusterState.issuePluginToken(instanceId);
         var startMessage = buildStartMessage(resolved, instance, compositionPlan, pluginToken);
         if (!dispatchStartMessage(node.nodeId(), instanceId, startMessage)) {
@@ -255,6 +269,11 @@ public final class InstancePlacementCoordinator {
                         .map(InstanceCompositionPlan.ResolvedTemplate::name)
                         .toList());
         return true;
+    }
+
+    /** Whether this controller owns the node's daemon stream (placer==node-owner execute gate). */
+    public boolean ownsNode(String nodeId) {
+        return nodeMessageDispatcher.ownsNode(nodeId);
     }
 
     public boolean dispatchStartMessage(String nodeId, String instanceId, ControllerMessage startMessage) {
