@@ -293,8 +293,7 @@ public final class PrexorDaemon {
         try {
             io.grpc.LoadBalancerRegistry.getDefaultRegistry()
                     .register(new io.grpc.internal.PickFirstLoadBalancerProvider());
-            io.grpc.NameResolverRegistry.getDefaultRegistry()
-                    .register(new io.grpc.internal.DnsNameResolverProvider());
+            io.grpc.NameResolverRegistry.getDefaultRegistry().register(new io.grpc.internal.DnsNameResolverProvider());
         } catch (RuntimeException | LinkageError e) {
             logger.warn("Could not pre-register gRPC providers: {}", e.toString());
         }

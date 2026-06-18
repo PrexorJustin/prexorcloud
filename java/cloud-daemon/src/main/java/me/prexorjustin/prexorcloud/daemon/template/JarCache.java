@@ -109,13 +109,21 @@ public final class JarCache {
             logger.info("Downloading {} for {}/{} from {}", jarFile, platform, platformVersion, downloadUrl);
             try (var client = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(30))
+                    // Java's HttpClient defaults to Redirect.NEVER: without this a 30x redirect
+                    // (e.g. geysermc's .../versions/latest/builds/latest/... alias) writes the empty
+                    // redirect body as a 0-byte jar -> "Invalid or corrupt jarfile" crash-loop.
+                    .followRedirects(HttpClient.Redirect.NORMAL)
                     .build()) {
                 var req = HttpRequest.newBuilder()
                         .uri(URI.create(downloadUrl))
                         .timeout(Duration.ofMinutes(10))
                         .GET()
                         .build();
-                client.send(req, HttpResponse.BodyHandlers.ofFile(tempJar));
+                var response = client.send(req, HttpResponse.BodyHandlers.ofFile(tempJar));
+                if (response.statusCode() / 100 != 2) {
+                    Files.deleteIfExists(tempJar);
+                    throw new IOException("Download of " + downloadUrl + " returned HTTP " + response.statusCode());
+                }
             }
 
             String sha256 = sha256(tempJar);

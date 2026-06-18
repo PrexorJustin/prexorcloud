@@ -187,7 +187,8 @@ class ClusterControlServiceJoinTest {
     }
 
     @Test
-    @DisplayName("self CA reconcile: a stale on-disk CA (single-survivor-reset split) is realigned to the Raft-state CA")
+    @DisplayName(
+            "self CA reconcile: a stale on-disk CA (single-survivor-reset split) is realigned to the Raft-state CA")
     void selfCaReconcileRealignsStaleOnDiskCa(@TempDir Path tmp) throws Exception {
         int raftPort = freePort();
         Path raftDir = tmp.resolve("raft");
@@ -219,7 +220,9 @@ class ClusterControlServiceJoinTest {
         var rogueLeaf = rogue.issueClusterPeerCertificate(
                 "controller-1", List.of("controller-1", "127.0.0.1", "localhost"), 365);
         materials.persist(
-                rogue.certificate(), rogueLeaf.certificate(), rogueLeaf.keyPair().getPrivate());
+                rogue.certificate(),
+                rogueLeaf.certificate(),
+                rogueLeaf.keyPair().getPrivate());
         assertFalse(
                 java.util.Arrays.equals(raftCaDer, materials.load().caCert().getEncoded()),
                 "precondition: on-disk CA now differs from the Raft-state CA");

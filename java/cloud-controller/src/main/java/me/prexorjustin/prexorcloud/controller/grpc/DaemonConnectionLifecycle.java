@@ -313,13 +313,34 @@ final class DaemonConnectionLifecycle {
     private void reconcileInstances(String reconnectedNodeId, Handshake handshake) {
         var daemonInstanceIds = new HashSet<String>();
         for (var running : handshake.getRunningInstancesList()) {
-            if (!InputValidator.isSafeName(running.getInstanceId())) {
+            String instanceId = running.getInstanceId();
+            if (!InputValidator.isSafeName(instanceId)) {
                 logger.warn("reconcileInstances: skipping invalid instanceId from node {}", reconnectedNodeId);
                 continue;
             }
-            if (!verifyNodeOwnership(running.getInstanceId(), reconnectedNodeId)) continue;
-            daemonInstanceIds.add(running.getInstanceId());
-            clusterState.updateInstanceStatus(running.getInstanceId(), running.getState(), 0, 0);
+            var known = clusterState.getInstance(instanceId);
+            if (known.isEmpty()) {
+                // Orphan: the daemon is running an instance the controller has no record of
+                // (e.g. its StopInstance was lost across a scale-down + reconnect). At handshake
+                // the controller's state is fully hydrated, so an unknown running instance is a
+                // genuine orphan -- reap it so it stops holding its port and resources.
+                logger.warn(
+                        "reconcileInstances: node {} reports unknown instance {} -- stopping orphan",
+                        reconnectedNodeId,
+                        instanceId);
+                scheduler.get().stopOrphanInstanceOnNode(reconnectedNodeId, instanceId);
+                continue;
+            }
+            if (!known.get().nodeId().equals(reconnectedNodeId)) {
+                logger.warn(
+                        "reconcileInstances: instance {} belongs to node {}, not {}",
+                        instanceId,
+                        known.get().nodeId(),
+                        reconnectedNodeId);
+                continue;
+            }
+            daemonInstanceIds.add(instanceId);
+            clusterState.updateInstanceStatus(instanceId, running.getState(), 0, 0);
         }
 
         var controllerInstances = clusterState.getInstancesByNode(reconnectedNodeId);
@@ -335,23 +356,6 @@ final class DaemonConnectionLifecycle {
                 clusterState.updateInstanceState(instance.id(), InstanceState.CRASHED);
             }
         }
-    }
-
-    private boolean verifyNodeOwnership(String instanceId, String nodeId) {
-        var instance = clusterState.getInstance(instanceId);
-        if (instance.isEmpty()) {
-            logger.warn("reconcileInstances: unknown instance {}", instanceId);
-            return false;
-        }
-        if (!instance.get().nodeId().equals(nodeId)) {
-            logger.warn(
-                    "reconcileInstances: instance {} belongs to node {}, not {}",
-                    instanceId,
-                    instance.get().nodeId(),
-                    nodeId);
-            return false;
-        }
-        return true;
     }
 
     private void sendPreWarmCache(StreamObserver<ControllerMessage> response) {

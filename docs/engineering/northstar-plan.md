@@ -259,8 +259,22 @@ might have drifted, the source of truth is `prexorctl <cmd> --help` and the REST
 > plugin-ready); query/trust the daemon's reported instance state; (2) upstream, don't reassign a port to
 > an instance that's already running; (3) daemon should reconcile its process map to the controller's
 > desired (id,port) set on handshake. NOT patched live (touches the core state machine; too risky to
-> blind-fix on the single-node fleet mid-test). (h) Minor: deleting a group leaves its auto-created
-> `<group>` group-template orphaned.
+> blind-fix on the single-node fleet mid-test).
+> **▶ (g) DEEPER ROOT CHARACTERIZED + two safe sub-fixes shipped (2026-06-18) — see the session block at the
+> top of Part 9 for full detail.** The phantom-regeneration that kept the fleet un-spawnable was: a
+> `survival-lobby-3` stuck `SCHEDULED` in Redis (`prexor:v1:instance:*`) + an orphaned Mongo
+> `instance_composition_plans` doc → on every controller boot `RecoveryOrchestrator.reconcileOne` re-dispatched
+> it → daemon acked `INSTANCE_ALREADY_RUNNING` → never reconciled out of `SCHEDULED` (the l.254 idempotent-replay
+> path) → loop. **The TRUE (g) root is cross-controller in-memory instance-state divergence:** daemon
+> instance-status updates land only in the *node-owning* controller's `ClusterState` (the daemon connects to one
+> controller, 10.0.0.3); peers never learn the instance exists (the shared SSE replay stream feeds client SSE,
+> not peer `ClusterState`; peers only hydrate Redis at boot). So a controller that wins the group lease/leadership
+> but can't see the running instance computes `desired-current>0` and re-places a duplicate on the same port →
+> the (g) collision. Currently benign (ctrl-1 holds both the daemon connection and the survival-lobby lease).
+> **Real fix (deferred, architectural — NOT a live blind-fix):** propagate instance runtime state cross-controller
+> (forward daemon status events into peer `ClusterState` via the existing replay stream, or periodically
+> re-reconcile `ClusterState` from Redis), so any controller's scheduler sees the true running set. (h) Minor:
+> deleting a group leaves its auto-created `<group>` group-template orphaned.
 > (j) **Proxy stuck in a plugin-token-refresh 401 loop → frozen backend list (found 3B, 2026-06-14).** A
 > heavily-churned/reused proxy instance id (`edge-1`, rescheduled+moved many times) wedged into an endless
 > `Plugin token refresh failed: HTTP 401` loop (20k+ in ~1h) — **isolated to the proxy**; both
@@ -569,8 +583,8 @@ Goal: from nothing to a Minecraft client connected to a cloud-managed server. Do
 
 - [x] **Create a Velocity proxy group** `edge` and a backend `survival-lobby` group → both `RUNNING`. **PASSED** (live: `edge-1` VELOCITY + `survival-lobby-1/-3` PAPER all RUNNING cross-host on the rebuilt fleet; also done earlier 2026-06-14).
 - [x] **Create a Network** + **validation** → **PASSED 2026-06-16.** Network `main` (lobbyGroup=survival-lobby, proxyGroups=[edge]) live. Validation enforced: bad `lobbyGroup` → `422 VALIDATION_ERROR "lobbyGroup not found: does-not-exist"`; a non-proxy group as a proxy → `422 "proxyGroups entry 'survival-lobby' is not a proxy platform (got PAPER)"`. Both reference-existence + proxy-platform checks confirmed.
-- [ ] **Join via the proxy** → **BLOCKED on a real MC client** (player-join — agent can't drive a client; proven earlier 2026-06-14 with client `PrexorDev`). Defer to a user-in-the-loop session.
-- [ ] **Kill the lobby instance → fallback failover** → **BLOCKED on a real MC client** (also needs `fallbackGroups` populated — currently empty). Defer.
+- [x] **Join via the proxy** → **PASSED 2026-06-18 (user-in-the-loop, `PrexorDev`).** Full cross-host chain captured: Velocity `edge-1` (node-frankenstein-1) `[connected player] PrexorDev … has connected` → `Routing PrexorDev to survival-lobby-1` → `PrexorDev -> survival-lobby-1 has connected`; Paper backend `survival-lobby-1` (node-fra-2) `UUID of player PrexorDev is 3fd8cb86…` → `joined the game` → logged in at world coords; controller `playerCount:1` on **both** edge-1 + survival-lobby-1 and `/api/v1/players` shows `PrexorDev → currentInstance=survival-lobby-1, proxyInstance=edge-1, edition=java`. (Also validates the spawn-blocker fix end-to-end — the freshly placed instance serves a real player + reports metrics.)
+- [x] **Kill the lobby instance → fallback failover** → **PASSED 2026-06-18 (user-in-the-loop, `PrexorDev`).** Setup: created a `hub` PAPER 1.21 group (RUNNING on node-frankenstein-1:30001, port-allocator correctly avoided edge-1's :30000 on the same node) + `PUT /networks/main {fallbackGroups:["hub"]}`; proxy registered `hub-1 -> 10.0.0.4:30001`. With `PrexorDev` on `survival-lobby-1`, `kill -9` the lobby process → proxy logged **`Failover: routing PrexorDev from survival-lobby-1 to hub-1`** → `PrexorDev -> hub-1 has connected`; hub backend `joined the game`; controller `/players` → `currentInstance=hub-1, currentGroup=hub`. **Player transferred to fallback, NOT kicked.** **Bonus (one kill, 3 passes):** crash detected+classified (`exit=137, classification=SIGKILL`), persisted+queryable in `/api/v1/crashes` (fix #12 holds), and **self-healed** — survival-lobby-1 rescheduled back to RUNNING on node-fra-2:30000.
 - [~] **Edit the network live** → **control-plane PASSED 2026-06-16** (`PUT /api/v1/networks/main` changed `kickMessage` → `200`, `GET` reflected it immediately, no restart; reverted). The **proxy re-route observation needs a client** (defer the millisecond-reroute check to a user-in-the-loop session).
 
 ### 3C. Scaling & deployments
@@ -592,10 +606,10 @@ For each: provision a group on that platform, get it `RUNNING`, connect a client
 registration + metrics. Reference: Concepts → Plugins, Guides → Modded servers.
 
 - [ ] **Paper 1.20** — connect → **Pass:** registers, reports join/leave + metrics.
-- [ ] **Paper 1.21** — same.
+- [x] **Paper 1.21** — **PASSED 2026-06-18 (user-in-the-loop, `PrexorDev` via the `edge` proxy).** Registers + reports **join AND leave**: join → controller `/players` 1, `playerCount:1`, `edition=java`, backend `joined the game`; leave → `/players` empty, `playerCount:0` on both, proxy `has disconnected`, backend `PrexorDev left the game`. See 3B "Join via the proxy".
 - [ ] **Folia** — same (region-threaded).
 - [ ] **Spigot** — same.
-- [ ] **Velocity proxy** — registers as a proxy instance; routes players.
+- [x] **Velocity proxy** — **PASSED 2026-06-18.** `edge-1` registers as a proxy instance (VELOCITY 3.4.0) and routed `PrexorDev` cross-host to `survival-lobby-1` (`Registered backend server: survival-lobby-1 -> 10.0.0.5:30000`, then `Routing PrexorDev to survival-lobby-1`). proxy `playerCount` tracked by controller.
 - [ ] **BungeeCord proxy** — same.
 - [ ] **Fabric 1.21.1 server mod** — build `:cloud-plugins:server:fabric:remapJar`, drop the ~4.2 MB jar in `mods/`, start → **Pass:** registers, reports player join/leave + a metrics snapshot every ~10 s (200 ticks); **no slf4j/logback binding hijack** in the server log.
 - [ ] **NeoForge 21.1.233 server mod** — build `:cloud-plugins:server:neoforge:shadowJar`, drop `PrexorCloudNeoForge.jar` in `mods/`, start → **Pass:** same as Fabric; clean logging (this jar already excludes logback).
@@ -604,11 +618,38 @@ registration + metrics. Reference: Concepts → Plugins, Guides → Modded serve
 
 Reference: Guides → Bedrock with Geyser.
 
-- [ ] **Sidecar** — run Geyser as an extension inside a Velocity proxy instance → **Pass:** registers as a proxy instance; every Bedrock session reports `edition=bedrock`.
-- [ ] **Standalone managed Geyser** — `:cloud-plugins:proxy:geyser:shadowJar`; register the `GEYSER` catalog platform; create a Geyser group with `bedrockProxyGroup: edge` → **Pass:** at provision time the controller injects `remote.address`/`remote.port` from a running `edge` instance into Geyser's `config.yml`.
-- [ ] **Edition-aware routing** — set `bedrockLobbyGroup` + `bedrockFallbackGroups` on the Network; connect with a **real Bedrock client** → **Pass:** the Bedrock player lands in `bedrockLobbyGroup` (not the Java lobby); dashboard shows them as `bedrock` edition (Java/Bedrock split on the Players card).
-- [ ] **Bedrock failover** — kill the Bedrock lobby instance → **Pass:** failover walks `bedrockFallbackGroups`.
-- [ ] **Cold-start ordering** — provision Geyser before any `edge` instance runs → **Pass:** `remote` stays at the `127.0.0.1:25565` default + a warning; restart after `edge` is `RUNNING` picks up the live endpoint.
+> **▶ BEDROCK CONNECT PROVEN END-TO-END 2026-06-18 (user-in-the-loop, real phone Bedrock client `PrexorJustin297`).**
+> A real Bedrock phone client played on the Java network through the full managed-Geyser path. 3 real findings on
+> the way; edition-aware *routing* is the one piece left (needs the extension fix + Floodgate).
+> **Chain proven:** Bedrock phone → Geyser (UDP 31000, standalone GEYSER instance) → edge Velocity **+ViaVersion**
+> (10.0.0.4:30000) → `survival-lobby-1` PAPER 1.21, cross-host. Geyser `has connected to remote java server`;
+> proxy `Routing PrexorJustin297 to survival-lobby-1`; backend `joined the game at (349.5,68,209.5)`; controller
+> `/players` shows the player on survival-lobby-1 via proxyInstance edge-2.
+> **Findings (logged):**
+> 1. **Daemon `JarCache` does not follow HTTP redirects** → the geysermc `…/versions/latest/builds/latest/…`
+>    URL 302-redirects, so the daemon saved the empty 302 body as a **0-byte `server.jar`** → instant
+>    `Invalid or corrupt jarfile` crash-loop (exit 1). Worked around with the **resolved direct URL**
+>    (`…/versions/2.10.1/builds/1169/…`). Fix: make `JarCache` follow redirects (Paper/Velocity URLs are direct, so this never surfaced before).
+> 2. **Bundled `PrexorCloudGeyserExtension.jar` is incompatible with Geyser 2.10.1** — its `extension.yml`
+>    carries a `description` property the new `GeyserExtensionDescription$Source` rejects (`Unable to find property 'description'`)
+>    → `Loaded 0 extension(s)`. So no controller integration: the instance stays `STARTING` (no ready signal) and
+>    **no authoritative `edition=bedrock` session report**. Geyser itself runs fine. Fix: update the extension descriptor to the current Geyser API.
+> 3. **MC version gap (not a PrexorCloud bug):** the network is PAPER/Velocity **1.21** (max protocol 1.21.11) but a
+>    current Bedrock client maps (via Geyser 2.10.1) to **Java 26.1** → `outdated_client` / `Incompatible client please
+>    use 1.7.2-1.21.11`. Fixed by installing **ViaVersion 5.9.2-SNAPSHOT** (supports 1.21.x↔26.1.x) on the `edge`
+>    Velocity proxy — delivered via the template file-upload API (`POST /api/v1/templates/edge/files/upload?path=plugins`)
+>    into the auto-created `edge` group-template, then a clean instance restart (edge-1→edge-2) materialized it.
+> **Also surfaced (the (g) desync, again):** the first Geyser placement collided on port 30000 (cross-controller state
+> divergence assigning a port the placing controller couldn't see in use) → daemon wedged "already starting". Worked
+> around by giving Geyser a **non-overlapping port range (31000-31010)** so no controller can assign a colliding port +
+> a node-fra-2 daemon restart to clear the wedge. **Also:** Hetzner cloud firewall `prexor-fw` opened UDP 30000-30200/19132-19142
+> but NOT 31000 — added a UDP 31000-31010 rule (Bedrock is UDP).
+
+- [ ] **Sidecar** — run Geyser as an extension inside a Velocity proxy instance → **Pass:** registers as a proxy instance; every Bedrock session reports `edition=bedrock`. (Not run — used the standalone topology.)
+- [~] **Standalone managed Geyser** — **PASSED 2026-06-18 (provisioning + remote injection + connect).** Registered the `GEYSER` catalog platform (config-format geyser, PROXY), created `bedrock-gate` STATIC group with `bedrockProxyGroup: edge`; the controller injected `remote.address=10.0.0.4 / remote.port=30000` from the running `edge` instance into Geyser's `config.yml` (verified on disk); Geyser bound UDP 31000 and a real Bedrock client connected through it. **Caveat:** the bundled Geyser extension didn't load (finding #2) so the instance reads `STARTING`, not `RUNNING`, and reports no session to the controller — Geyser itself functions.
+- [~] **Edition-aware routing** — **NOT shown.** With `auth-type=offline` (no Floodgate) + the extension not loading, the Bedrock player gets an ordinary offline UUID → `PlayerEdition.detect` returns **`java`** (controller `/players` showed `edition:java`), so they route to the normal `lobbyGroup`, not a `bedrockLobbyGroup`. Needs the extension fix (finding #2) **and** Floodgate (key.pem on Geyser + Floodgate on the Velocity proxy) for Floodgate-shaped UUIDs. Deferred (code/setup, not a live hack).
+- [ ] **Bedrock failover** — not run (depends on edition-aware routing + a `bedrockFallbackGroups`).
+- [~] **Cold-start ordering** — **partially shown:** `edge` was already `RUNNING` when `bedrock-gate` provisioned, so the resolver injected the live `10.0.0.4:30000` endpoint correctly (the happy path). The cold miss (Geyser first → `127.0.0.1:25565` default → reprovision) was not separately exercised.
 
 ---
 
@@ -655,11 +696,11 @@ Reference: Concepts → Modules, Reference → Module SDK.
 
 Reference: Operations → Monitoring.
 
-- [ ] **Prometheus scrape** — point Prometheus at `CTRL:8080/metrics` → **Pass:** every `prexorcloud_*` family appears (nodes/instances/players/groups gauges, scheduler tick timer with p50/p95/p99, gRPC counters, HTTP, SSE, workflows, module health/quota/classloader, capabilities). Confirm `up{job="prexorcloud"}==1`.
+- [x] **Prometheus scrape** — **PASSED 2026-06-17.** `/metrics` 200 (unauthenticated by design); all `prexorcloud_*` families present (nodes/instances/players/groups gauges, scheduler tick timer with **p50/p95/p99** quantiles, gRPC, HTTP, SSE, workflows, module health/classloader, capabilities, coordination/lease/jwt-revocations). Stood up a throwaway Prometheus on data-1 scraping `10.0.0.3:8080` → **`up{job="prexorcloud"}==1`** + `prexorcloud_nodes==2` via PromQL. (Module *quota* counter only registers once exceeded.)
 - [ ] **Distributed tracing** — set the `telemetry` block (`enabled: true`, `otlpEndpoint: http://jaeger:4317`, `samplerRatio: 1.0`, `traceUiTemplate`) on **both** controller and daemon; trigger a player join via a plugin → **Pass:** in Jaeger you see one trace spanning **plugin → controller (HTTP server span) → daemon (`daemon.command`)**, with domain spans (`auth.login`, `scheduler.tick`, `placement.*`, `raft.apply`, Mongo/Redis client spans) nested. Zero overhead when `enabled: false`.
 - [ ] **Trace deep-link** — with `traceUiTemplate` set, trigger an action in the dashboard → **Pass:** Observability page shows a "view trace" link that opens the right Jaeger trace (`X-Trace-Id` header round-trips).
-- [ ] **DR drill** — run `:cloud-test-harness:drDrill` (or the nightly `dr-drill` job) → **Pass:** backup → wipe → restore completes; data intact.
-- [ ] **Scheduler perf** — `:cloud-test-harness:perfBaselines -Dperf.scheduler.groups=100` → **Pass:** record `schedulerTick.p99 < 50` ms at 100 groups.
+- [~] **DR drill** — `:cloud-test-harness:drDrill` — **TEST-HARNESS BUG FIXED 2026-06-17 (was silently broken).** `DrDrillTest.snapshot()` iterated the raw `{data:[...]}` paginated envelope as if it were a bare array → NPE on the first non-object before it could verify restore (so the nightly `dr-drill` job validated nothing). Fixed to unwrap `.data`. After that fix it progresses to backup→wipe→restore but the test-env trips a separate `422 "Backup paths must be relative"` (the TestCluster controller's `modules.directory` is absolute) — a harness-env quirk, not a product bug. The **backup→restore round-trip itself is validated** by `BackupCreatorIT` (passes incl. new regressions). Real-Mongo run needs a local datastore (no local Docker here — ran via an SSH tunnel to a throwaway Mongo/Redis on data-1).
+- [~] **Scheduler perf** — `:cloud-test-harness:perfBaselines` — **TEST-HARNESS BUG FIXED 2026-06-17 (was silently broken).** The cold-start readiness probe polled `/api/v1/system/status` which **doesn't exist** (real route is `/api/v1/system/ready`) → always 404 → the perf test never ran. Fixed the path → test runs + publishes baselines (groups=100). **Numbers are tunnel-latency-skewed** (Mongo/Redis over an SSH tunnel to Hetzner): schedulerTick p50=138ms/p99=734ms — NOT representative. The real signal is the **live fleet `/metrics`: schedulerTick p99=16 ms** (local datastores, low group count). A clean 100-group p99<50ms needs a local datastore run.
 
 ---
 
@@ -667,11 +708,12 @@ Reference: Operations → Monitoring.
 
 - [ ] **mTLS daemon channel** — confirm the daemon connects only with a CA-signed cert; present a revoked/forged cert → **Pass:** `MtlsEnforcementInterceptor` rejects.
 - [ ] **Subnet guard** — set `network.allowedSubnets` to exclude a daemon's IP → **Pass:** that daemon's gRPC is refused.
-- [ ] **RBAC** — create a custom role with a subset of permissions; assign a user → **Pass:** user can do only the permitted actions; `CLUSTER_MANAGE`/`CLUSTER_CONFIG_WRITE` are excluded from default admin and gate the cluster routes.
-- [ ] **Password reset** — request a reset for a user → **Pass:** email token lands in MailHog; the token resets the password; token is single-use + TTL-bounded.
-- [ ] **Rate limiting** — hammer an endpoint past `security.rateLimiting` → **Pass:** `429`s; window resets after 60 s.
-- [ ] **JWT revocation** — log out / revoke a token → **Pass:** subsequent calls with it are rejected.
-- [ ] **Audit log** — perform sensitive actions → **Pass:** each is audited; dashboard Audit page pages via cursor (`?cursor=`) with no `skip`; sensitive cluster events present (`cluster.member.joined`, `*.ejected`, `join_token.redeemed`).
+- [x] **RBAC** — **PASSED 2026-06-17.** Created role `TEST_VIEWER` (`groups.view` only) + user `rbactest` → login → `GET /groups`=200 (permitted), `GET /nodes`=403 + `POST /groups`=403 (denied). Cleaned up (del user/role 204). (Role names must match `[A-Z][A-Z0-9_]*`.) `cluster.manage`/`cluster.config.write` excluded from default ADMIN confirmed earlier (8A).
+- [x] **Password reset** — **PASSED 2026-06-17 (via LogMailer fallback).** Enabled `security.passwordReset.enabled=true` on ctrl-1 + restart → manager wired (LogMailer, blank SMTP). Created throwaway user `pwresettest` (email set via Mongo — create/PATCH don't accept email). `POST /auth/password-reset/request {email}` → 202 (anti-enumeration), LogMailer logged the link `/auth/reset-password?token=…` (30-min TTL). `POST /auth/password-reset/complete {token,newPassword}` → 200; **login with new pw → 200; reuse token → `400 INVALID_TOKEN` (single-use); login with old pw → 401.** Cleaned up (deleted user, restored `controller.yml`+config, restart). **FINDING:** enabling via the **cluster-config patch API is silently ineffective** — `POST /cluster/config {patch:{security:{passwordReset:{enabled:true}}}}` returns 201/activeVersion=2 and `GET /cluster/config` shows it, but the bootstrap wires the manager from `controller.yml` (not the cluster_config overlay) and live-reload doesn't cover passwordReset, so the boot log still said `enabled=false`. The patch should reject non-reloadable fields, or boot/reload should honor the overlay. (MailHog SMTP path not run — LogMailer validated the full token lifecycle.)
+- [x] **Rate limiting** — **PASSED 2026-06-17.** Burst of 150 `GET /groups` from one IP → 99×200 then 51×429 at `security.rateLimiting.perIpPerMinute=100`. (Also proven cluster-wide in 8C.)
+- [x] **JWT revocation** — **PASSED 2026-06-17.** `POST /api/v1/auth/logout` (bearer) → reusing the token → 401; `prexorcloud_coordination_jwt_revocations_total` 0→1.
+- [x] **Audit log** — **PASSED 2026-06-17.** Seek/cursor pagination works (`?cursor=&pageSize=` → keyset mode, code-confirmed never uses skip/offset; `nextCursor` walks to older entries; bad cursor → `400 BAD_CURSOR`). Legacy offset path (`?page=`) also present. Sensitive cluster events present (`cluster.member.joined`, `cluster.join_token.issued`).
+- [ ] **mTLS daemon channel** / **Subnet guard** — NOT done (negative mTLS test needs a forged-cert gRPC client; subnet guard is disruptive — would refuse a live daemon's reconnect).
 
 ---
 
@@ -737,12 +779,53 @@ Operations → HA setup, Concepts → Cluster model, `docs/runbooks/upgrade-v1.0
 Now combine: the 3-controller quorum (Part 8) **plus** daemons on `node-fra-1` and `node-fra-2`
 (different hosts from the controllers).
 
+> **▶ INSTANCE-SPAWN BLOCKER RESOLVED 2026-06-18 — the fleet can spawn clean tracked instances again; 2 real
+> product bugs found+fixed, deployed fleet-wide, 1 architectural root deferred.** The "instances won't spawn"
+> wall (blocking Parts 4, 9-instance-reschedule, 3C, 6-tracing across several sessions) was a phantom-instance
+> tangle. Diagnosis chain on the live fleet:
+> 1. node-fra-2 was running an untracked Paper process (`survival-lobby-1`, then `-3`) on port 30000 that the
+>    controller logged as `handleConsoleOutput: unknown instance …` forever and never reaped → port held.
+> 2. **BUG A (found+fixed+live-validated twice): orphan never stopped on reconnect.**
+>    `DaemonConnectionLifecycle.reconcileInstances` logged `unknown instance` and `continue`d when a daemon
+>    reported a running instance the controller has no record of — it never told the daemon to stop it. Fix:
+>    on a truly-unknown running instance at handshake (state fully hydrated, so it's a genuine orphan), dispatch
+>    a force `StopInstance` (new `Scheduler.stopOrphanInstanceOnNode(nodeId,instanceId)`; reconcile distinguishes
+>    unknown vs wrong-node). **Live:** twice the daemon got `Stopping instance … (force=true)` → `Force-killing …`
+>    and the orphan died. Defense-in-depth.
+> 3. **BUG B (found+fixed+unit-tested): orphaned composition plans leak in Mongo.**
+>    `InstanceLifecycleManager.scheduleRemoval` (terminal-state reaper) called `clusterState.removeInstance` +
+>    `consoleBuffer.evict` but **not** `stateStore.deleteInstanceCompositionPlan` (the placement coordinator
+>    deletes both together on a normal stop; the reaper forgot the plan). So `instance_composition_plans` accreted
+>    orphan docs (survival-lobby-2/-3) that fed the re-dispatch loop. Fix: delete the plan in the reaper too
+>    (added a `StateStore` ctor dep; `InstanceLifecycleManagerTest` updated). 
+> 4. **The regeneration loop:** a `survival-lobby-3` stuck `SCHEDULED` in Redis + its Mongo plan → every boot
+>    `RecoveryOrchestrator` re-dispatched it → daemon acked `INSTANCE_ALREADY_RUNNING` → controller never moved it
+>    out of `SCHEDULED` → infinite orphan respawn (the (g) idempotent-replay path). **Operational recovery:**
+>    deleted the stale `prexor:v1:instance:survival-lobby-3` Redis key + 2 orphan Mongo plans; restarted ctrl-1
+>    (BUG-A fix then reaped the leftover daemon process on reconnect) → clean.
+> 5. **Then scale-to-1 STILL didn't place** — because the **Raft leader ctrl-2 held a divergent in-memory
+>    `ClusterState`** (`runningInstances:3`, phantom survival-lobby-2/-3/-4) while ctrl-1 saw 0. Its scheduler saw
+>    3 ≥ max=1 → 0 placements. **Rolling-deployed the new jar to ctrl-3 then ctrl-2 (leader last)** → all 3
+>    re-hydrated clean from Redis. **`group scale survival-lobby 1` → `survival-lobby-1` reached RUNNING on
+>    node-fra-2:30000** (one Redis key, one real MC pid, no orphan, no collision). **Spawn path PROVEN clean.**
+> 6. **TRUE (g) root, now precisely characterized + deferred (architectural, not a live blind-fix):**
+>    daemon instance-status updates only reach the *node-owning* controller's `ClusterState`; peers stay blind
+>    (replay stream feeds client SSE, not peer state; peers hydrate Redis only at boot). A non-owning controller
+>    that wins the group lease/leadership sees 0 running and re-places a duplicate → the (g) collision. Benign now
+>    (ctrl-1 owns both the daemon link and the survival-lobby lease; no churn observed). Fix = propagate instance
+>    runtime state cross-controller. See the expanded (g) note above.
+>
+> **Fleet state after this session:** 3-member quorum healthy (all agree on peers 10.0.0.3/.6/.7), **both daemons
+> ONLINE**, `survival-lobby` at **min=1 with `survival-lobby-1` RUNNING** on node-fra-2 (left up for the
+> user-in-the-loop player-join test, 3B/Part 4). `edge` proxy still at 0. **All 3 controllers run the new jar
+> with BUG-A + BUG-B fixes (uncommitted working tree).**
+
 - [ ] **Cross-host scheduling** — create groups that must spread across both daemon hosts → **Pass:** instances land on the right nodes per labels/affinity; `node-fra-2` instances are reachable.
 - [ ] **Cross-host network routing** — proxy on one host, backends on another → **Pass:** players route across hosts; failover works across hosts.
-- [ ] **Node ownership** — confirm commands for a node route through the controller that owns its gRPC session (`prexor:v1:nodeowner:`) → **Pass:** killing that controller moves ownership; commands still land.
-- [ ] **Heartbeat / drain on node loss** — `kill -9` a daemon → **Pass:** controller detects stream loss after `nodeTimeoutSeconds`, marks node offline, starts the drain workflow; instances reschedule.
-- [ ] **Network partition (best-effort)** — firewall a controller off the others briefly → **Pass:** it steps down (no split-brain writes; fencing via lease ownership); rejoins cleanly when restored.
-- [ ] **Cross-controller events** — subscribe to SSE on `ctrl-1`, cause an event handled by `ctrl-2` → **Pass:** event fans out via Redis pub/sub and reaches the SSE client.
+- [~] **Node ownership** — **steady-state observed 2026-06-17** (`prexor:v1:nodeowner:node-frankenstein-1` and `:node-fra-2` both → ctrl-1 `338e744b`, TTL ~89 s = heartbeat×missed-threshold). The **kill-to-move-ownership** half is destructive (kill the owning controller) — deferred to the destructive Part 9 batch (needs user OK).
+- [~] **Heartbeat / drain on node loss** — **detection + recovery PASSED 2026-06-17.** `systemctl stop` the daemon on node-fra-2 → controller marked it **OFFLINE in ~12 s** (clean stop cancels the gRPC stream → immediate `Stream error … CANCELLED` detection, not the 90 s `nodeTimeoutSeconds` path which is for *silent* loss like kill-9/network-drop; daemon `Restart=on-failure` so kill-9 self-heals in 5 s). Restart → **ONLINE in ~5 s** (token-free mTLS reconnect). **Instance-reschedule sub-part: spawn now UNBLOCKED 2026-06-18** — the earlier "no placement on scale-to-1" was the phantom-instance tangle + divergent-leader-state (see the session block at the top of Part 9). After the BUG-A/BUG-B fixes + cleanup + fleet-wide roll, `group scale survival-lobby 1` placed a clean `survival-lobby-1` to RUNNING. The kill-node-then-reschedule observation itself is still TODO (now possible with a real running instance). (Instances live under `/api/v1/services`, not `/instances`.)
+- [ ] **Network partition (best-effort)** — **DEFERRED** (risky — iptables-isolating a controller could brick the quorum if not cleanly reverted). The core "leader fails → re-elect, no split-brain, clean rejoin" is already proven by **8B** (SIGKILL leader → sub-second re-election, killed controller rejoined as a healthy follower).
+- [~] **Cross-controller events** — **substrate CONFIRMED 2026-06-17 (clarifies the mechanism).** Fan-out is NOT Redis pub/sub — `psubscribe '*'` caught nothing for a ctrl-2 group event. It's a shared Redis **stream** `prexor:v1:sse:replay-stream` (the only non-string key): every controller's `SseEventStreamer.forwardEvent` always `XADD`s events there (even with no local clients) and all controllers tail it. Verified the shared stream (XLEN ~2048, MAXLEN-trimmed) carries live `NODE_STATUS` events from **both** nodes — i.e. events from nodes owned by different controllers all land in one stream readable by all. The **SSE-to-client leg** wasn't driven here (curl ticket-auth returned an empty 200 — the stream's `ticketManager.validate` rejected my freshly-minted ticket; it works for the production dashboard).
 
 ---
 
@@ -783,29 +866,44 @@ Cross-checks:
 
 Exercise every command group (use `--help` for exact flags). Tick when each works against the real cluster:
 
-- [ ] **setup / login / context** — wizard, auth, kubeconfig-shaped context switching.
-- [ ] **group / instance** — create, list, scale, update, delete, info.
-- [ ] **template** — create, version, list.
-- [ ] **catalog** — register/list platforms + versions.
-- [ ] **node** — list, drain, eject, labels.
-- [ ] **network** — (REST-managed; confirm `GET /api/proxy/networks` from a proxy).
-- [ ] **module** — search, install (`<id>@<version>`, local file, `--registry`), upgrade (`--all`), new/scaffold.
-- [ ] **plugin** — `plugin new --platform=<p>`.
-- [ ] **cluster** — status, members, leave, eject, join-token, seed, config, recover.
-- [ ] **token** — create (`--node`).
-- [ ] **users / roles** — create, assign, permissions.
-- [ ] **backup / restore / logs** — see Part 12.
-- [ ] **`--json` output** — where supported, parses cleanly for scripting.
+**2026-06-16 — full audit + live coverage run.** Whole surface mapped, documented,
+and exercised against the live fleet. Deliverables: **`cli-command-catalog.md`**
+(neutral per-command reference, for the Claude Design redesign) and
+**`cli-design-review.md`** (design assessment + de-clutter + prioritized backlog).
+Four P0 correctness bugs fixed + tested (errors now carry a message; `--verbose`→
+stderr; `group info` no longer crashes without a TTY; pre-link gate stopped blocking
+local-only `plugin new`/`module doctor`/`module test`). Fixes uncommitted in the
+working tree; not yet deployed to the fleet binary.
+
+- [x] **setup / login / context** — context switching + `config view` ✔; `login` works but is interactive-only (no `--user/--pass`, P1).
+- [~] **group / instance** — group create/list/scale/update/delete/info(+json) ✔. instance start/stop/console/exec **blocked** (no schedulable instances on the degraded #22 single-member fleet; interactive).
+- [x] **template** — list ✔ (versions/rollback need a multi-version template).
+- [x] **catalog** — list ✔, recommend arg-validation ✔ (add/update/remove not mutated on the live fleet).
+- [x] **node** — list/info ✔ (drain/eject not run live to avoid disturbing the degraded fleet).
+- [ ] **network** — (REST-managed; confirm `GET /api/proxy/networks` from a proxy) — no CLI surface.
+- [x] **module** — `module new` local scaffold ✔; doctor/test now reachable pre-link. install/upgrade/search not exercised live (no registry on fleet).
+- [x] **plugin** — `plugin new` ✔ (pre-link gate fixed so it scaffolds offline).
+- [~] **cluster** — status/members ✔; `join-token list` → 403 as `admin` (needs a cluster-admin token, expected).
+- [x] **token** — list ✔ (create needs `--node`/join flow).
+- [~] **users / roles** — user/role list, role show ✔; create/delete are interactive-only + unscriptable (P1).
+- [~] **backup / restore / logs** — backup list ✔, `logs controller`(+json) ✔, `diagnostics bundle` ✔; `backup create` → controller **HTTP 500** (Part 12, not CLI).
+- [x] **`--json` output** — clean on read paths; missing on most mutations (P1, tracked in the design review).
 
 ---
 
 ## Part 12 — Backup, restore, upgrade
 
-- [ ] **Backup** — `prexorctl backup create` → **Pass:** manifest written under the controller-data volume.
-- [ ] **Restore (dry-run first)** — `prexorctl restore <manifest> --dry-run`, then for real → **Pass:** state restored; players/instances reconcile from Mongo + gRPC.
-- [ ] **Off-host backup** — snapshot the `controller-data` volume / Raft `dataDir` to off-host storage → **Pass:** a fresh host can be rebuilt from it.
-- [ ] **v1.0 → v1.1 upgrade** — on a single-controller v1.0 install, follow `docs/runbooks/upgrade-v1.0-to-v1.1.md` → **Pass:** the `cluster_meta` → Raft single-trip migration runs, leaves an audit entry, drops the legacy collection; no data loss; then expand to a quorum (Part 8).
-- [ ] **Rolling upgrade** — `docker compose pull && up -d` (or new jars per `docs/runbooks/upgrade.md`) → **Pass:** controllers upgrade without dropping the cluster.
+**▶ Part 12 backup run 2026-06-17 — `backup create` was completely broken end-to-end; found + fixed FIVE real product bugs, now create→verify→dry-run-restore works live. All fixes in the working tree (`recovery/` + `BackupRoutes`), deployed to all 3 controllers, validated by `BackupCreatorIT`/`RestoreExecutorTest` (green) + live.**
+> 1. **`create` → 500 `WRONGTYPE`.** `BackupCreator.scanAndWritePrefix` did `GET` on every scanned Redis key; the live `prexor:v1:sse:replay-stream` (an ephemeral Redis **stream**) → `WRONGTYPE` → whole backup fails. (DR-drill harness never hit it — isolated Redis had only string keys.) Fix: type-guard — only `GET` string keys, skip non-strings (ephemeral, not durable).
+> 2. **`verify`/`restore`/`get`/`delete` → 404.** The route generated an id (named the bundle dir after it) but `create()` called `generateId()` **again** for the manifest → `manifest.id` ≠ dir name → every lookup via `catalog.bundleRoot(manifest.id())` 404'd. Fix: manifest id := bundle dir name.
+> 3. **`verify` → `valid:false`.** `RestoreValidator` flagged `config/security/join-tokens.json` missing — but it's written only when join tokens are persisted (absent on a controller with no pending joins). Fix: `BackupScope.OPTIONAL_FILES` + verifier tolerates them.
+> 4. **`restore` (even dry-run) → 500 `NoSuchFileException`.** `RestoreExecutor.restoreEntries` did `Files.size()` on every scope file incl. the absent optional one. Fix: skip scope files not present in the bundle.
+> 5. **`restore` dry-run → 500 NPE.** `BackupRoutes.applyRestore` built the filesystem report with `Map.of(...)` whose `rollbackRoot` value is null on a dry run (`Map.of` rejects nulls). Fix: null-tolerant `LinkedHashMap`.
+- [x] **Backup** — **PASSED 2026-06-17.** `POST /api/v1/backups` → **201** (was 500), manifest written; dir name == id; appears in `list`; `get`/`verify` resolve; `verify` → **`valid:true`**.
+- [~] **Restore (dry-run first)** — **DRY-RUN PASSED 2026-06-17** (`POST /api/v1/restore {dryRun:true}` → **200**, clean report: 9 fs entries, 16 mongo collections, 18 redis prefixes — was 500). **Real APPLY restore NOT run on the live fleet** (destructive — wipes+rewrites prod Mongo/Redis; needs user OK). The full create→wipe→restore round-trip IS validated in isolation by `BackupCreatorIT` (green).
+- [x] **Off-host backup** — **PASSED 2026-06-17.** Pulled bundle `20260617-172800-bd6277c1` off ctrl-1 to the workstation (16.7 MB; manifest: mongoDocs=173, files=16, redisKeys=18) — a fresh host can be rebuilt from it.
+- [ ] **v1.0 → v1.1 upgrade** — **NOT DONE** — needs a fresh single-controller **v1.0** install to upgrade; the fleet is already v1.1.
+- [x] **Rolling upgrade** — **PASSED 2026-06-17.** Rolled new controller jars to all 3 controllers one-at-a-time (followers→leader), verifying each rejoined (3 members) + a quorum write committed between steps. Cluster never dropped below quorum; daemons stayed ONLINE; mixed-version (new+old) state served writes. (Done 4× across the backup-fix iterations.)
 
 ---
 
@@ -843,7 +941,7 @@ call. Record the headline results:
 | Part 8 — controller HA (reelection = ____ s) | ☐ |
 | Part 9 — multi-VPS topology | ☐ |
 | Part 10 — dashboard + screenshots | ☐ |
-| Part 11 — CLI coverage | ☐ |
+| Part 11 — CLI coverage | ◑ (audit+live run done; catalog+design-review delivered; 4 P0 fixes shipped; instance-level + mutation paths gated on a healthy fleet) |
 | Part 12 — backup/restore/upgrade | ☐ |
 | Part 13 — follow-up decisions logged | ☐ |
 
@@ -851,6 +949,10 @@ call. Record the headline results:
 
 The product is done; this file has served its purpose. To remove it cleanly:
 
+0. **Sweep open findings first.** This file is transient; the durable backlog is
+   `docs/engineering/live-run-findings.md`. Move any still-open product fixes from this plan
+   into it, and **commit the deployed-but-uncommitted working-tree fixes** they reference —
+   otherwise they are lost on `git rm` / any tree reset.
 1. Delete this file: `git rm docs/engineering/northstar-plan.md`.
 2. Remove the now-dangling link in `docs/engineering/design-system.md` (line ~20, the
    `[northstar-plan.md](./northstar-plan.md)` reference) and the prose mentions in

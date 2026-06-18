@@ -680,7 +680,8 @@ public final class ClusterControlService implements AutoCloseable {
                     + " Raft-state CA. Re-issuing the local leaf from the Raft-state CA and restarting Raft so"
                     + " peers can complete mTLS (leftover of a single-survivor reset — see"
                     + " docs/engineering/issue-22-join-lifecycle.md).");
-            CertificateAuthority ca = CertificateAuthority.loadFromDer(raftCaDer, raftCaKey.get().bytes());
+            CertificateAuthority ca =
+                    CertificateAuthority.loadFromDer(raftCaDer, raftCaKey.get().bytes());
             List<String> sans = Stream.of(nodeId, config.raft().host(), "127.0.0.1", "localhost")
                     .distinct()
                     .toList();
@@ -688,11 +689,16 @@ public final class ClusterControlService implements AutoCloseable {
             materials.persist(
                     ca.certificate(), leaf.certificate(), leaf.keyPair().getPrivate());
             restartRaftWithCurrentMaterials(materials);
-            logger.info("Cluster CA realigned to the Raft-state CA (fingerprint={}); Raft restarted with consistent"
-                    + " material — peers can now mTLS.", ca.fingerprint());
+            logger.info(
+                    "Cluster CA realigned to the Raft-state CA (fingerprint={}); Raft restarted with consistent"
+                            + " material — peers can now mTLS.",
+                    ca.fingerprint());
         } catch (Exception e) {
-            logger.warn("Self cluster-TLS reconcile failed ({}) — continuing on the existing on-disk material;"
-                    + " peer mTLS may fail until the CA is realigned.", e.getMessage(), e);
+            logger.warn(
+                    "Self cluster-TLS reconcile failed ({}) — continuing on the existing on-disk material;"
+                            + " peer mTLS may fail until the CA is realigned.",
+                    e.getMessage(),
+                    e);
         }
     }
 
@@ -702,8 +708,7 @@ public final class ClusterControlService implements AutoCloseable {
      * (a single-member survivor re-elects itself within the election timeout). The membership
      * reconciler is intentionally NOT (re)started here — the caller's bring-up tail does that.
      */
-    private void restartRaftWithCurrentMaterials(LocalClusterMaterials materials)
-            throws IOException, TimeoutException {
+    private void restartRaftWithCurrentMaterials(LocalClusterMaterials materials) throws IOException, TimeoutException {
         raft.close();
         stateMachine = new ClusterControlStateMachine();
         raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);

@@ -1,0 +1,29 @@
+# PrexorCloud-managed Geyser standalone config. The Bedrock listener port is substituted from the
+# instance port (%PORT%); remote.address / remote.port are injected at provision time by the
+# controller, pointing at a live Java proxy instance of the group's bedrockProxyGroup. If no proxy is
+# running yet they keep the conservative fallback below until the instance is restarted.
+bedrock:
+  address: 0.0.0.0
+  port: %PORT%
+  clone-remote-port: false
+  motd1: "PrexorCloud"
+  motd2: "Bedrock"
+  server-name: "PrexorCloud"
+  compression-level: 6
+  enable-proxy-protocol: false
+remote:
+  address: 127.0.0.1
+  port: 25565
+  auth-type: floodgate
+  allow-password-authentication: true
+  use-proxy-protocol: false
+  forward-hostname: false
+floodgate-key-file: key.pem
+command-suggestions: true
+passthrough-motd: false
+passthrough-player-counts: false
+legacy-ping-passthrough: false
+ping-passthrough-interval: 3
+forward-player-ping: false
+max-players: %MAX_PLAYERS%
+debug-mode: false

@@ -60,10 +60,10 @@ public final class BootstrapManager {
         var sslContext = ClientTlsCredentials.buildInsecure();
         // Direct InetSocketAddress: skip the NameResolver registry (shaded jar only registers the
         // unix-socket resolver, which would mangle host:port into a unix path). See DaemonGrpcClient.
-        ManagedChannel channel =
-                NettyChannelBuilder.forAddress(new java.net.InetSocketAddress(controllerHost, controllerPort))
-                        .sslContext(sslContext)
-                        .build();
+        ManagedChannel channel = NettyChannelBuilder.forAddress(
+                        new java.net.InetSocketAddress(controllerHost, controllerPort))
+                .sslContext(sslContext)
+                .build();
 
         try {
             var stub = BootstrapServiceGrpc.newBlockingStub(channel).withDeadlineAfter(30, TimeUnit.SECONDS);

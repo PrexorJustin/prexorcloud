@@ -90,10 +90,9 @@ public final class SystemRoutes {
             methods = {HttpMethod.POST},
             operationId = "shutdownController",
             summary = "Shut down this controller",
-            description =
-                    "Gracefully stops the controller process this request is served by. Responds 202 first,"
-                            + " then exits shortly after so the response can flush. In an HA cluster this stops only"
-                            + " the targeted controller; the remaining peers re-elect a leader. ADMIN-only.",
+            description = "Gracefully stops the controller process this request is served by. Responds 202 first,"
+                    + " then exits shortly after so the response can flush. In an HA cluster this stops only"
+                    + " the targeted controller; the remaining peers re-elect a leader. ADMIN-only.",
             tags = {"System"},
             security = {@OpenApiSecurity(name = "bearerAuth")},
             responses = {@OpenApiResponse(status = "202", description = "Shutdown initiated")})

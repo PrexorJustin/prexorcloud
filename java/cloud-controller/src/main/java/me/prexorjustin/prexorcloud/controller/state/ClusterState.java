@@ -137,6 +137,37 @@ public final class ClusterState {
         publishGroupAggregatesIfChanged(instance.group());
     }
 
+    /**
+     * Conservatively converge this controller's in-memory instance view toward the shared
+     * Redis projection by adding instances present in Redis but missing locally. Fixes
+     * cross-controller divergence: a daemon's instance-status updates only reach the
+     * node-owning controller's {@link ClusterState}, so a peer that wins a group
+     * lease/leadership is otherwise blind to those instances and re-places a duplicate on a
+     * port it cannot see is already in use.
+     *
+     * <p>Add-if-missing only by design: it never reverts a fresher local state (avoiding a
+     * race with the owner's synchronous write-through) and never removes (removeInstance
+     * writes to the shared Redis projection); staleness self-heals on the next real update.
+     * No event is published -- the scheduler only needs to see the instance exists at tick
+     * time to avoid a duplicate placement.
+     *
+     * @return the number of previously-unknown instances learned this pass
+     */
+    public int reconcileInstancesFromRedis() {
+        if (runtimeStore == null) return 0;
+        int learned = 0;
+        for (var entry : runtimeStore.loadInstances().entrySet()) {
+            if (instanceRegistry.get(entry.getKey()).isEmpty()) {
+                instanceRegistry.add(entry.getValue());
+                learned++;
+            }
+        }
+        if (learned > 0) {
+            logger.debug("Reconciled {} previously-unknown instance(s) from Redis", learned);
+        }
+        return learned;
+    }
+
     public void updateInstanceState(String instanceId, InstanceState newState) {
         InstanceInfo existing = instanceRegistry.get(instanceId).orElse(null);
         if (!canApplyInstanceTransition(instanceId, existing, newState)) return;
@@ -514,10 +545,7 @@ public final class ClusterState {
         var instance = instanceRegistry.get(metrics.instanceId()).orElse(null);
         if (instance != null) {
             updateInstanceStatus(
-                    metrics.instanceId(),
-                    instance.state(),
-                    metrics.totalNetworkPlayers(),
-                    metrics.proxyUptimeMs());
+                    metrics.instanceId(), instance.state(), metrics.totalNetworkPlayers(), metrics.proxyUptimeMs());
         }
     }
 

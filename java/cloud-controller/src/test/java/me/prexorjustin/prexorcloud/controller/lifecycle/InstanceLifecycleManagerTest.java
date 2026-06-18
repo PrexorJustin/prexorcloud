@@ -24,6 +24,7 @@ import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.HealingActionIntent;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
+import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.controller.state.WorkflowStateStore;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
@@ -43,6 +44,7 @@ class InstanceLifecycleManagerTest {
     private GroupManager groupManager;
     private Scheduler scheduler;
     private ConsoleBuffer consoleBuffer;
+    private StateStore stateStore;
     private InstanceLifecycleManager lifecycleManager;
 
     @BeforeEach
@@ -53,7 +55,9 @@ class InstanceLifecycleManagerTest {
         groupManager = mock(GroupManager.class);
         scheduler = mock(Scheduler.class);
         consoleBuffer = new ConsoleBuffer();
-        lifecycleManager = new InstanceLifecycleManager(clusterState, eventBus, groupManager, consoleBuffer);
+        stateStore = mock(StateStore.class);
+        lifecycleManager =
+                new InstanceLifecycleManager(clusterState, eventBus, groupManager, consoleBuffer, stateStore);
         lifecycleManager.attachHealingWorkflow(workflowStateStore, scheduler);
 
         clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
@@ -121,7 +125,8 @@ class InstanceLifecycleManagerTest {
         assertTrue(controllerALeaseManager.tryAcquireLease("healing:lobby-2").isPresent());
 
         var otherScheduler = mock(Scheduler.class);
-        var otherLifecycleManager = new InstanceLifecycleManager(clusterState, eventBus, groupManager, consoleBuffer);
+        var otherLifecycleManager =
+                new InstanceLifecycleManager(clusterState, eventBus, groupManager, consoleBuffer, stateStore);
         otherLifecycleManager.attachHealingWorkflow(workflowStateStore, otherScheduler, controllerBLeaseManager);
         try {
             otherLifecycleManager.reconcilePersistedHealingActions();
@@ -149,7 +154,8 @@ class InstanceLifecycleManagerTest {
         assertTrue(controllerALeaseManager.tryAcquireLease("healing:lobby-2").isPresent());
 
         var otherScheduler = mock(Scheduler.class);
-        var otherLifecycleManager = new InstanceLifecycleManager(clusterState, eventBus, groupManager, consoleBuffer);
+        var otherLifecycleManager =
+                new InstanceLifecycleManager(clusterState, eventBus, groupManager, consoleBuffer, stateStore);
         otherLifecycleManager.attachHealingWorkflow(workflowStateStore, otherScheduler, controllerBLeaseManager);
         try {
             controllerALeaseManager.release("healing:lobby-2");

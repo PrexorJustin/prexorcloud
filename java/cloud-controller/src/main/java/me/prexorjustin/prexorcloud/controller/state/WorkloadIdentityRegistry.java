@@ -294,8 +294,7 @@ public final class WorkloadIdentityRegistry {
      * the live states; reject pre-launch (SCHEDULED/PREPARING) and terminal
      * (STOPPING/STOPPED/CRASHED).
      */
-    private boolean instanceLive(
-            PluginTokenEntry entry, Function<String, Optional<InstanceInfo>> instanceLookup) {
+    private boolean instanceLive(PluginTokenEntry entry, Function<String, Optional<InstanceInfo>> instanceLookup) {
         var instance = instanceLookup.apply(entry.instanceId());
         if (instance.isEmpty()) {
             return false;
@@ -305,9 +304,7 @@ public final class WorkloadIdentityRegistry {
             return false;
         }
         InstanceState state = resolvedInstance.state();
-        return state == InstanceState.STARTING
-                || state == InstanceState.RUNNING
-                || state == InstanceState.DRAINING;
+        return state == InstanceState.STARTING || state == InstanceState.RUNNING || state == InstanceState.DRAINING;
     }
 
     private boolean validateSequence(String instanceId, long sequence) {

@@ -3,6 +3,3 @@ name: PrexorCloud
 main: me.prexorjustin.prexorcloud.proxy.geyser.PrexorCloudGeyser
 version: 1.0.0
 api: 1.0.0
-authors:
-  - PrexorJustin
-description: PrexorCloud Geyser sidecar — registers the Geyser process as a proxy and reports Bedrock sessions to the controller.

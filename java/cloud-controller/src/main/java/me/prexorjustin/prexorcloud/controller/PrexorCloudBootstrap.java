@@ -1022,7 +1022,8 @@ public final class PrexorCloudBootstrap {
                 controller.clusterState(),
                 controller.eventBus(),
                 controller.groupManager(),
-                controller.consoleBuffer());
+                controller.consoleBuffer(),
+                controller.stateStore());
     }
 
     private void initGrpc(PrexorController controller, char[] caPassword) throws Exception {

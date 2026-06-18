@@ -280,7 +280,10 @@ public final class BackupRoutes {
                 filesystemReport.put("applied", report.applied());
                 filesystemReport.put("entryCount", report.entries().size());
                 filesystemReport.put(
-                        "rollbackRoot", report.rollbackRoot() == null ? null : report.rollbackRoot().toString());
+                        "rollbackRoot",
+                        report.rollbackRoot() == null
+                                ? null
+                                : report.rollbackRoot().toString());
                 response.put("filesystem", filesystemReport);
             }
             if (datastores) {

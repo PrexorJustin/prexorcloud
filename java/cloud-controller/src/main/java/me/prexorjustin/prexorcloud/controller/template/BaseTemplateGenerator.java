@@ -205,13 +205,14 @@ public final class BaseTemplateGenerator {
      * it by default keeps provisioned servers stable.
      */
     private void disableSparkBackgroundProfiler(String templateName) throws IOException {
-        Path sparkDir = templateManager.getTemplateFilesDir(templateName).resolve("plugins").resolve("spark");
+        Path sparkDir = templateManager
+                .getTemplateFilesDir(templateName)
+                .resolve("plugins")
+                .resolve("spark");
         Files.createDirectories(sparkDir);
         Path configFile = sparkDir.resolve("config.json");
         if (Files.exists(configFile)) return;
-        Files.writeString(
-                configFile,
-                """
+        Files.writeString(configFile, """
                 {
                   "_header": "Managed by PrexorCloud. backgroundProfiler disabled -- the bundled \
                 async-profiler native lib crashes on hardened/modern kernels.",

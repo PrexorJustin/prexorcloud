@@ -399,6 +399,15 @@ public final class RestServer {
                 ctx.json(errorResponse("PASTE_UPSTREAM_ERROR", e.getMessage(), 502));
             });
 
+            // Malformed / unknown-field / type-mismatch request bodies are a client error, not a 500.
+            // JsonProcessingException is the parent of JsonParseException + JsonMappingException
+            // (which MismatchedInputException extends), so this covers all body-parse failures.
+            config.routes.exception(JsonProcessingException.class, (e, ctx) -> {
+                logger.debug("Malformed request body on {} {}: {}", ctx.method(), ctx.path(), e.getMessage());
+                ctx.status(400);
+                ctx.json(errorResponse("BAD_REQUEST", "Malformed or invalid JSON request body", 400));
+            });
+
             config.routes.exception(Exception.class, (e, ctx) -> {
                 logger.error("Unhandled exception on {} {}: {}", ctx.method(), ctx.path(), e.getMessage(), e);
                 ctx.status(500);

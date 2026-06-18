@@ -96,7 +96,8 @@ class WorkloadIdentityRegistryTest {
         String stale = registry.issuePluginToken("instance-2");
         clock.advance(Duration.ofMinutes(31));
         assertTrue(
-                registry.refreshPluginToken(stale, id -> Optional.of(runningInstance("instance-2", InstanceState.RUNNING)))
+                registry.refreshPluginToken(
+                                stale, id -> Optional.of(runningInstance("instance-2", InstanceState.RUNNING)))
                         .isEmpty(),
                 "a token past the grace window must not refresh");
     }

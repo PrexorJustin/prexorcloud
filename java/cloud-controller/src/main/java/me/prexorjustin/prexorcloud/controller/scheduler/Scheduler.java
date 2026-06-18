@@ -249,6 +249,10 @@ public final class Scheduler implements LeaseGate {
                 if (eventChoreographer != null) {
                     eventChoreographer.refresh(Instant.now());
                 }
+                // Converge our instance view from the shared Redis projection BEFORE planning,
+                // so a controller that does not own a node's daemon connection still sees that
+                // node's instances and never re-places a duplicate on a port it cannot see in use.
+                clusterState.reconcileInstancesFromRedis();
                 reconcileRecoverableStarts();
                 reconcilePersistedStartRetries();
                 reconcilePersistedDeployments();
@@ -544,6 +548,26 @@ public final class Scheduler implements LeaseGate {
         }
         clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
         logger.debug("Stop command sent for instance {} (force={})", instanceId, force);
+        return true;
+    }
+
+    /**
+     * Stop an orphan instance the controller has no record of, addressed directly by the
+     * node reporting it. Unlike {@link #stopInstance}, this does not require a
+     * {@link ClusterState} entry -- it exists for reconcile-on-reconnect, where a daemon
+     * reports running an instance whose {@code StopInstance} was lost (e.g. across a
+     * scale-down + reconnect) so it keeps holding its port and resources.
+     */
+    public boolean stopOrphanInstanceOnNode(String nodeId, String instanceId) {
+        var stopMsg = ControllerMessage.newBuilder()
+                .setStopInstance(
+                        StopInstance.newBuilder().setInstanceId(instanceId).setForce(true))
+                .build();
+        if (!nodeMessageDispatcher.dispatch(nodeId, stopMsg)) {
+            logger.warn("Cannot stop orphan instance {}: node {} has no active session", instanceId, nodeId);
+            return false;
+        }
+        logger.warn("Sent StopInstance for orphan instance {} on node {} (no controller record)", instanceId, nodeId);
         return true;
     }
 

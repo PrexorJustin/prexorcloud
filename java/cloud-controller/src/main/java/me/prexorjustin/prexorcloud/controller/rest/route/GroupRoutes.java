@@ -30,8 +30,12 @@ import io.javalin.openapi.OpenApiParam;
 import io.javalin.openapi.OpenApiRequestBody;
 import io.javalin.openapi.OpenApiResponse;
 import io.javalin.openapi.OpenApiSecurity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class GroupRoutes {
+
+    private static final Logger logger = LoggerFactory.getLogger(GroupRoutes.class);
 
     private static final ObjectMapper SHARED_MAPPER = new ObjectMapper();
     private final PrexorController controller;
@@ -213,6 +217,21 @@ public final class GroupRoutes {
         var before = requireFound(controller.groupManager().get(name), "Group", name);
         controller.groupManager().delete(name);
         controller.groupStore().delete(name);
+        // Reap the auto-created group-template (named after the group) so it doesn't orphan --
+        // but only when no remaining group still layers it or inherits it as a parent.
+        var templateManager = controller.templateManager();
+        if (templateManager.exists(name)) {
+            boolean stillReferenced = controller.groupManager().getAll().stream()
+                    .anyMatch(g -> name.equals(g.parent())
+                            || (g.templates() != null && g.templates().contains(name)));
+            if (!stillReferenced) {
+                try {
+                    templateManager.delete(name);
+                } catch (Exception e) {
+                    logger.warn("Failed to delete auto-created template for group {}: {}", name, e.getMessage());
+                }
+            }
+        }
         auditDiff(ctx, controller.stateStore(), "group.delete", "group", name, before, null);
         ctx.status(204);
     }

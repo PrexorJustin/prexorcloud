@@ -16,6 +16,7 @@ import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
+import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.controller.state.WorkflowStateStore;
 
 import org.slf4j.Logger;
@@ -40,15 +41,21 @@ public final class InstanceLifecycleManager {
     private final ClusterState clusterState;
     private final GroupManager groupManager;
     private final ConsoleBuffer consoleBuffer;
+    private final StateStore stateStore;
     private final ScheduledExecutorService cleanupExecutor;
     private final HealingReconciler healingReconciler;
     private volatile ScheduledFuture<?> healingReconcileTask;
 
     public InstanceLifecycleManager(
-            ClusterState clusterState, EventBus eventBus, GroupManager groupManager, ConsoleBuffer consoleBuffer) {
+            ClusterState clusterState,
+            EventBus eventBus,
+            GroupManager groupManager,
+            ConsoleBuffer consoleBuffer,
+            StateStore stateStore) {
         this.clusterState = clusterState;
         this.groupManager = groupManager;
         this.consoleBuffer = consoleBuffer;
+        this.stateStore = stateStore;
         this.healingReconciler = new HealingReconciler(clusterState);
         this.cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "instance-lifecycle");
@@ -160,6 +167,15 @@ public final class InstanceLifecycleManager {
                                             == me.prexorjustin.prexorcloud.protocol.InstanceState.CRASHED)) {
                         clusterState.removeInstance(instanceId);
                         consoleBuffer.evict(instanceId);
+                        // The composition plan outlives the InstanceInfo otherwise: the placement
+                        // coordinator deletes both together on a normal stop, but the terminal-state
+                        // reaper only removed the instance -- leaving an orphaned plan in Mongo that
+                        // accumulates on every crash/scale-down. Delete it alongside the instance.
+                        try {
+                            stateStore.deleteInstanceCompositionPlan(instanceId);
+                        } catch (RuntimeException e) {
+                            logger.warn("Failed to delete composition plan for {}: {}", instanceId, e.getMessage());
+                        }
                         logger.debug("Removed instance {} from cluster state", instanceId);
                     }
                 },

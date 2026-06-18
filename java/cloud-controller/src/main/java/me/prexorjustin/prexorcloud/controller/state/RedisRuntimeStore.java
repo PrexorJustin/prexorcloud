@@ -161,6 +161,17 @@ public final class RedisRuntimeStore implements WorkloadIdentityRegistry.Sequenc
         return new RedisSnapshot(nodes, instances, players, pluginTokens);
     }
 
+    /**
+     * Load just the instance projection from Redis (no nodes/players/tokens). Used by the
+     * periodic cross-controller reconcile so peers learn about instances on nodes they do
+     * not own — far lighter than a full {@link #loadAll()} each scheduler tick.
+     */
+    public Map<String, InstanceInfo> loadInstances() {
+        Map<String, InstanceInfo> instances = new HashMap<>();
+        scanLoad(INSTANCE_PREFIX, InstanceInfo.class, instances);
+        return instances;
+    }
+
     private <V> void scanLoad(String prefix, Class<V> type, Map<String, V> target) {
         var scanArgs = ScanArgs.Builder.matches(prefix + "*").limit(500);
         KeyScanCursor<String> cursor = commands.scan(scanArgs);

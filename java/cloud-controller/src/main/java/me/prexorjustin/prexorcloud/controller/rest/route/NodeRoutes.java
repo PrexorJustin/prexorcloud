@@ -237,10 +237,9 @@ public final class NodeRoutes {
             methods = {HttpMethod.POST},
             operationId = "shutdownNode",
             summary = "Immediately stop a node's daemon",
-            description =
-                    "Sends a ShutdownNode command straight to the daemon — no drain. The daemon stops its"
-                            + " running instances and exits; the scheduler reschedules them onto other nodes if"
-                            + " capacity allows. Use `node drain` instead for a graceful, instance-preserving stop.",
+            description = "Sends a ShutdownNode command straight to the daemon — no drain. The daemon stops its"
+                    + " running instances and exits; the scheduler reschedules them onto other nodes if"
+                    + " capacity allows. Use `node drain` instead for a graceful, instance-preserving stop.",
             tags = {"Nodes"},
             security = {@OpenApiSecurity(name = "bearerAuth")},
             pathParams = {@OpenApiParam(name = "id", required = true)},
