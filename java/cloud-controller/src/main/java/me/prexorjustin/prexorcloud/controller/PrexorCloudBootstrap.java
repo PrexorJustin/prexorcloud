@@ -140,6 +140,9 @@ public final class PrexorCloudBootstrap {
     private RuntimeServices runtime;
     private RedisEventBridge eventBridge;
     private MongoDatabase mongoDatabase;
+    // Phase-4 dual-write opt-in: the Mongo cluster store the shadow mirrors into. Non-null only when
+    // clusterStore != RAFT, in which case it is also backfilled from Raft once the control plane starts.
+    private me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore mongoClusterStore;
     private GrpcServer grpcServer;
     private RestServer restServer;
     private me.prexorjustin.prexorcloud.modules.runtime.ModuleRouteRegistry moduleRouteRegistry;
@@ -177,6 +180,7 @@ public final class PrexorCloudBootstrap {
         clusterControlService = new ClusterControlService(config, config.uuid());
         maybeAttachClusterShadow();
         startClusterControlPlane();
+        maybeBackfillClusterStore();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
         if (clusterControlService.unsafeResetDetected()) {
@@ -289,15 +293,30 @@ public final class PrexorCloudBootstrap {
                     mode);
             return;
         }
-        var store = new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore(mongoDatabase);
+        mongoClusterStore = new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore(mongoDatabase);
         clusterControlService.attachClusterShadow(
-                new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow(store));
+                new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow(mongoClusterStore));
         logger.info(
                 "Cluster dual-write shadow ENABLED (clusterStore={}): committed Raft entries mirror into Mongo", mode);
         if (mode.readsFromMongo()) {
             logger.warn("clusterStore=MONGO selected, but the Mongo read cutover is not implemented yet — reads"
                     + " still serve from Raft (behaving as DUAL).");
         }
+    }
+
+    /**
+     * Backfill the Mongo cluster store from the authoritative Raft state once the control plane is up
+     * (Phase-4 dual-write). Runs after {@code startClusterControlPlane} so the Day-0 writes that commit
+     * before the shadow registers (meta, CA, founder member, config v1) are captured. No-op unless the
+     * shadow was attached ({@code clusterStore != RAFT}). Idempotent — safe on every boot.
+     */
+    private void maybeBackfillClusterStore() {
+        if (mongoClusterStore == null) {
+            return;
+        }
+        me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterBackfill.seed(
+                clusterControlService.controlPlane(), mongoClusterStore);
+        logger.info("Backfilled the Mongo cluster store from Raft (clusterStore={})", config.clusterStore());
     }
 
     /**

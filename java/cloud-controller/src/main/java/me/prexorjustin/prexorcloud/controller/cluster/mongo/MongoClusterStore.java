@@ -220,6 +220,14 @@ public final class MongoClusterStore {
         return Optional.ofNullable(files.find(Filters.eq("_id", key)).first()).map(MongoClusterStore::toClusterFile);
     }
 
+    public List<ClusterFile> listClusterFiles() {
+        List<ClusterFile> out = new ArrayList<>();
+        for (Document doc : files.find().sort(Sorts.ascending("_id"))) {
+            out.add(toClusterFile(doc));
+        }
+        return out;
+    }
+
     public void putClusterFile(ClusterFile file) {
         files.replaceOne(Filters.eq("_id", file.key()), fileDoc(file), UPSERT);
     }
@@ -316,6 +324,31 @@ public final class MongoClusterStore {
     public List<ClusterConfigVersion> listConfigVersions() {
         Document d = config.find(Filters.eq("_id", CONFIG_ID)).first();
         return d == null ? List.of() : configVersionsOf(d);
+    }
+
+    /**
+     * Seed the whole config aggregate at once from an authoritative source (the Phase-4 backfill from
+     * Raft). Unlike {@link #writeConfigVersion} this bypasses the per-version optimistic-concurrency
+     * guard — a real history can include a rebase (a version whose {@code parentVersion} is neither
+     * {@code 0} nor {@code version-1}), which an in-order replay through the guard cannot reproduce.
+     * Last-write-wins on the singleton doc, so re-seeding on each boot is idempotent. No-op for an
+     * empty history (leaves the aggregate absent → active 0).
+     */
+    public void seedConfigVersions(List<ClusterConfigVersion> versions, int activeVersion) {
+        if (versions.isEmpty()) {
+            return;
+        }
+        List<Document> docs = new ArrayList<>(versions.size());
+        int maxVersion = 0;
+        for (ClusterConfigVersion v : versions) {
+            docs.add(configVersionDoc(v));
+            maxVersion = Math.max(maxVersion, v.version());
+        }
+        Document aggregate = new Document("_id", CONFIG_ID)
+                .append("maxVersion", maxVersion)
+                .append("activeVersion", activeVersion)
+                .append("versions", docs);
+        config.replaceOne(Filters.eq("_id", CONFIG_ID), aggregate, UPSERT);
     }
 
     // --- BSON codecs (static + package-private so they're unit-testable without Mongo) -----------
