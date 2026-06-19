@@ -210,6 +210,10 @@ public final class MongoClusterStore {
         files.replaceOne(Filters.eq("_id", file.key()), fileDoc(file), UPSERT);
     }
 
+    public boolean removeClusterFile(String key) {
+        return files.deleteOne(Filters.eq("_id", key)).getDeletedCount() > 0;
+    }
+
     // --- BSON codecs (static + package-private so they're unit-testable without Mongo) -----------
 
     static Document clusterMetaDoc(ClusterMeta m) {
