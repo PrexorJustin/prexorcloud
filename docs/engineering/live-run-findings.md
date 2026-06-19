@@ -330,17 +330,22 @@ crash-looped — the daemon could not provision the server jar because the clean
 `prexorctl catalog add` before placing anything.**) The crash-loop exposed two real controller-side defects that
 bite under *any* sustained provisioning failure, not just a wiped catalog. See [[project_rewrite_live_validation]].
 
-### 9. `disposition=PERMANENT` start-failure is re-dispatched in a tight loop — **DIAGNOSED**
+### 9. `disposition=PERMANENT` start-failure is re-dispatched in a tight loop — **FIXED (committed)**
 - **Symptom:** the daemon rejects `StartInstance` with `RUNTIME_PROVISION_FAILED disposition=PERMANENT`, yet the
   controller re-dispatches the same (and gap-filled new) instances dozens of times per second.
-- **Cause:** the PERMANENT disposition is not honored as a stop-retry signal — placement/recovery re-fires
-  immediately (`DaemonCommandAckHandler` logs the PERMANENT reject, then the instance is re-placed). The
-  crash-loop detector (threshold 3) doesn't arrest it because these are prepare/provision-stage failures, not
-  process crashes.
-- **Fix candidate:** treat `disposition=PERMANENT` as a hard stop — quarantine the instance/group and surface the
-  error instead of re-dispatching until something external changes (e.g. the catalog is repaired).
+- **Cause:** the terminal rejection sets the instance `CRASHED` but **never fed the crash-loop detector** — the
+  only `recordCrash` caller was `DaemonCrashEventReceiver` (daemon process-crash reports), and a provision-stage
+  failure never reaches the process. So the group stayed below `min`, the desired-state planner gap-filled a new
+  instance every tick, and it hit the same PERMANENT failure forever. The crash-loop detector (threshold 3) never
+  saw it.
+- **Fix:** `DaemonCommandAckHandler` now `recordCrash`es the instance's group on every terminal start failure
+  (PERMANENT disposition, or a TRANSIENT one that exhausted its retry budget). Both placement paths
+  (`SchedulerDesiredStatePlanner.planGroup`, `Scheduler.scheduleReplacement`) already gate on `isCrashLoopPaused`,
+  so after the threshold the group pauses and backs off (60s → exponential, 1h cap, `GroupCrashLoopEvent` emitted),
+  arresting the loop until the cooldown/auto-unpause probe — and a truly permanent failure just re-pauses with
+  growing backoff. Covered by `DaemonCommandAckHandlerTest` (4 cases).
 
-### 10. Concurrent `StartInstance` dispatch to one daemon corrupts the gRPC frame — **DIAGNOSED**
+### 10. Concurrent `StartInstance` dispatch to one daemon corrupts the gRPC frame — **FIXED (committed)**
 - **Symptom:** under the burst re-dispatch above the controller throws
   `io.grpc.StatusRuntimeException: INTERNAL: Failed to frame message` /
   `IndexOutOfBoundsException … PooledUnsafeDirectByteBuf(freed)` → `ServerCallImpl … Cancelling the stream`, and
@@ -348,10 +353,12 @@ bite under *any* sustained provisioning failure, not just a wiped catalog. See [
 - **Cause:** concurrent `StreamObserver.onNext(...)` on one daemon's `ServerCallStreamObserver` — `NodeSession.send`
   is called from multiple threads (parallel placement / virtual threads) with no per-stream serialization. gRPC
   stream observers are **not** thread-safe for concurrent `onNext`.
-- **Fix candidate:** serialize writes per daemon stream (a per-`NodeSession` lock or a single-consumer outbound
-  queue around `responseStream.onNext`).
+- **Fix:** `NodeSession.send` (the single outbound chokepoint) now serializes `onNext` on a per-stream monitor
+  (`synchronized (responseStream)`), so concurrent sends to one daemon can't interleave. The traceparent stamping
+  stays outside the lock (it reads the calling thread's context).
 - **Note:** the send path is pre-existing (not introduced by the rewrite), but the single-writer's burst dispatch
-  makes it easier to hit. Not seen in steady state — only under the failure-driven re-dispatch storm.
+  makes it easier to hit. Fix #9 also removes the storm that surfaced it. Not seen in steady state — only under the
+  failure-driven re-dispatch storm.
 
 ---
 

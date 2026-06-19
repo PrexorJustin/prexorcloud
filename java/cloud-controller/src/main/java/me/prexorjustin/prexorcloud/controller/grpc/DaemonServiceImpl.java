@@ -119,7 +119,8 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
         this.catalogStore = deps.catalogStore();
         this.redisCommands = deps.redisCommands();
         this.controllerId = deps.controllerId();
-        this.commandAckHandler = new DaemonCommandAckHandler(this.clusterState, () -> this.scheduler);
+        this.commandAckHandler =
+                new DaemonCommandAckHandler(this.clusterState, this.crashLoopDetector, () -> this.scheduler);
         this.crashEventReceiver = new DaemonCrashEventReceiver(
                 this.clusterState, this.crashStore, this.crashLoopDetector, this.eventBus, this.stateStore);
         this.cacheStatusReceiver = new DaemonCacheStatusReceiver(this.clusterState);

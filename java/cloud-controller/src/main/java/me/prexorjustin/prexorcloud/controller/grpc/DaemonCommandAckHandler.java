@@ -3,8 +3,10 @@ package me.prexorjustin.prexorcloud.controller.grpc;
 import java.util.function.Supplier;
 
 import me.prexorjustin.prexorcloud.common.util.InputValidator;
+import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
+import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 import me.prexorjustin.prexorcloud.protocol.ShutdownNodeAck;
 import me.prexorjustin.prexorcloud.protocol.StartFailureDisposition;
@@ -27,10 +29,13 @@ final class DaemonCommandAckHandler {
     private static final Logger logger = LoggerFactory.getLogger(DaemonCommandAckHandler.class);
 
     private final ClusterState clusterState;
+    private final CrashLoopDetector crashLoopDetector;
     private final Supplier<Scheduler> scheduler;
 
-    DaemonCommandAckHandler(ClusterState clusterState, Supplier<Scheduler> scheduler) {
+    DaemonCommandAckHandler(
+            ClusterState clusterState, CrashLoopDetector crashLoopDetector, Supplier<Scheduler> scheduler) {
         this.clusterState = clusterState;
+        this.crashLoopDetector = crashLoopDetector;
         this.scheduler = scheduler;
     }
 
@@ -99,6 +104,16 @@ final class DaemonCommandAckHandler {
                 sched.clearStartRetryBudget(ack.getInstanceId());
             }
             clusterState.updateInstanceState(ack.getInstanceId(), InstanceState.CRASHED);
+            // A terminal start failure (PERMANENT disposition, or a TRANSIENT one that exhausted its
+            // retry budget) will never start as-placed. Feed the crash-loop detector so repeated
+            // provision-stage failures pause the group's auto-placement instead of re-dispatching in a
+            // tight loop — the prepare/provision stage never reaches the process, so the daemon's own
+            // crash report (the only other recordCrash source) never fires. Both placement paths gate
+            // on isCrashLoopPaused, so the pause arrests the loop until the cooldown/backoff elapses.
+            clusterState
+                    .getInstance(ack.getInstanceId())
+                    .map(InstanceInfo::group)
+                    .ifPresent(crashLoopDetector::recordCrash);
             logger.warn(
                     "Node {} rejected StartInstance for {} at stage {} [{}] disposition={} planHash={}: {}",
                     nodeId,

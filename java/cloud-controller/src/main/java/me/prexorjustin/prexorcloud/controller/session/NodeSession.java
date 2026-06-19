@@ -21,6 +21,13 @@ public record NodeSession(
         if (!traceparent.isEmpty() && message.getTraceparent().isEmpty()) {
             message = message.toBuilder().setTraceparent(traceparent).build();
         }
-        responseStream.onNext(message);
+        // gRPC StreamObserver is not thread-safe: concurrent onNext on one stream interleaves and
+        // corrupts the outbound frame ("Failed to frame message" / freed ByteBuf). Placement and
+        // recovery dispatch sends from multiple threads (parallel placement, virtual threads), so
+        // serialize per stream. This send() is the single outbound chokepoint, so one monitor per
+        // session covers every write.
+        synchronized (responseStream) {
+            responseStream.onNext(message);
+        }
     }
 }
