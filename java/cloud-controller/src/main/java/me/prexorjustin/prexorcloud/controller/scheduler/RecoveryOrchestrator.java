@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
 import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
@@ -49,6 +50,9 @@ public final class RecoveryOrchestrator {
     private final LeaseGate leaseGate;
     private final DistributedLeaseManager leaseManager; // nullable
     private final long evaluationIntervalSeconds;
+    // Single-writer authority: only the leader recovers/redispatches. Defaults to always-leader so
+    // tests behave unchanged; the scheduler injects the real elector via setLeadership.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
 
     /**
      * In-memory backoff timestamps, keyed by instance id. Bounded by
@@ -74,6 +78,11 @@ public final class RecoveryOrchestrator {
         this.leaseGate = leaseGate;
         this.leaseManager = leaseManager;
         this.evaluationIntervalSeconds = evaluationIntervalSeconds;
+    }
+
+    /** Inject single-writer leadership (the scheduler propagates its own). Tests run as always-leader. */
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -113,13 +122,12 @@ public final class RecoveryOrchestrator {
         if (workflowStateStore.getStartRetry(instance.id()).isPresent()) {
             return;
         }
-        // placer == node-owner: only the controller holding this node's daemon stream redispatches
-        // and mints the token (so the plugin, which connects to the owner, can validate it locally).
-        // ownsNode is true on exactly one controller per node, so this is the single-writer guard --
-        // no group lease needed, and the daemon-side start is idempotent regardless. When a peer
-        // placed the instance on a node we own, this is the handoff: its durable SCHEDULED record +
-        // composition plan are picked up here and dispatched locally.
-        if (!placementCoordinator.ownsNode(instance.nodeId())) {
+        // ownership = leadership: only the leader redispatches and mints the token. It is the single
+        // writer, so no group lease is needed and the daemon-side start is idempotent regardless.
+        // This is the handoff path: an instance left durably SCHEDULED (placed but not yet dispatched,
+        // e.g. across a leadership change) is picked up here and dispatched. Delivery may relay through
+        // the controller holding the daemon stream until Phase 3 consolidates streams on the leader.
+        if (!leadership.isLeader()) {
             return;
         }
         Instant retryAfter = pendingStartRecoveryBackoffUntil.get(instance.id());

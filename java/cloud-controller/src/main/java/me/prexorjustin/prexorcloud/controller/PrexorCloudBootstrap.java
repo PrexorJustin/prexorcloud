@@ -152,6 +152,7 @@ public final class PrexorCloudBootstrap {
     private InstanceLifecycleManager lifecycleManager;
     private NodeDrainManager drainManager;
     private ShutdownManager shutdownManager;
+    private me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector leaderElector;
     private ClusterControlService clusterControlService;
     private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
@@ -830,6 +831,11 @@ public final class PrexorCloudBootstrap {
             if (restServer != null) restServer.stop();
         });
         shutdownManager.register("scheduler", controller.scheduler()::stop);
+        // After the scheduler stops ticking, release the leadership lease so a peer can take over
+        // immediately rather than waiting a full ttl.
+        shutdownManager.register("leadership", () -> {
+            if (leaderElector != null) leaderElector.close();
+        });
         shutdownManager.register("heartbeat", () -> ShutdownManager.awaitExecutor(heartbeatScheduler, "heartbeat"));
         shutdownManager.register(
                 "audit rotation", () -> ShutdownManager.awaitExecutor(auditRotationExecutor, "audit-rotation"));
@@ -1183,12 +1189,47 @@ public final class PrexorCloudBootstrap {
 
     private Scheduler initScheduler(PrexorController controller, ModuleRegistry modules) {
         var scheduler = buildScheduler(controller, modules);
-        // Cluster-singleton gate for the deployment reconciliation loop. Without
-        // this, every controller iterated IN_PROGRESS deployments on every tick
-        // and raced on Mongo.
-        scheduler.setClusterLeaseManager(new me.prexorjustin.prexorcloud.controller.cluster.ClusterLeaseManager(
-                clusterControlService.controlPlane(), config.uuid()));
+
+        // --- Single-writer leadership (Phase 2): ownership = leadership ---
+        // Exactly one controller (the lease holder) ticks, places, recovers, and reconciles
+        // deployments; followers do nothing. This collapses the cross-controller divergence bug
+        // class — authority no longer flaps when a daemon reconnects to a different controller.
+        // The convergence gate defers scale-reconcile right after a leadership change until the
+        // daemons have reported their inventory (or a grace window expires), so a fresh leader can
+        // never spawn duplicates of instances it has not observed yet.
+        var convergenceGate = new me.prexorjustin.prexorcloud.controller.cluster.ConvergenceGate(
+                () -> controller.stateStore().getAllRegisteredNodes().stream()
+                        .map(me.prexorjustin.prexorcloud.controller.state.StateStore.RegisteredNode::nodeId)
+                        .collect(java.util.stream.Collectors.toSet()),
+                java.time.Duration.ofSeconds(15));
+        leaderElector = new me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector(
+                mongoDatabase,
+                config.uuid(),
+                me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector.LeaseSettings.defaults(),
+                new me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector.LeadershipListener() {
+                    @Override
+                    public void onAcquired(long epoch) {
+                        convergenceGate.beginObservation();
+                    }
+
+                    @Override
+                    public void onLost() {
+                        convergenceGate.reset();
+                    }
+                },
+                System::nanoTime);
+        // Feed the convergence gate: a daemon's status report means it has reconnected and reported
+        // its inventory. (NodeStatusUpdatedEvent is published by DaemonServiceImpl.handleNodeStatus.)
+        controller
+                .eventBus()
+                .subscribe(
+                        me.prexorjustin.prexorcloud.api.event.events.NodeStatusUpdatedEvent.class,
+                        event -> convergenceGate.nodeReported(event.nodeId()));
+        scheduler.setLeadership(leaderElector);
+        scheduler.setConvergenceGate(convergenceGate);
+        scheduler.placementCoordinator().setLeadership(leaderElector);
         scheduler.start();
+        leaderElector.start();
 
         int retentionDays = config.scheduler().auditRetentionDays();
         auditRotationExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
@@ -1196,18 +1237,14 @@ public final class PrexorCloudBootstrap {
             t.setDaemon(true);
             return t;
         });
-        // Cluster-singleton: only one controller in the cluster runs the prune per tick.
-        // Pre-Phase-8 every controller ran it in parallel, duplicating the work and
-        // racing on Mongo. The lease is named so future operators can inspect it via
-        // /api/v1/cluster/leases.
-        var auditPrunerLease = new me.prexorjustin.prexorcloud.controller.cluster.ClusterLeaseManager(
-                clusterControlService.controlPlane(), config.uuid());
-        java.time.Duration auditPrunerTtl = java.time.Duration.ofHours(1);
+        // Single-writer: only the leader prunes the audit log (replaces the Raft "audit-pruner"
+        // lease — under one writer there is no cross-controller race to guard).
         auditRotationExecutor.scheduleAtFixedRate(
-                () -> auditPrunerLease.runUnderLease(
-                        "audit-pruner",
-                        auditPrunerTtl,
-                        () -> controller.stateStore().pruneAuditLog(retentionDays)),
+                () -> {
+                    if (leaderElector.isLeader()) {
+                        controller.stateStore().pruneAuditLog(retentionDays);
+                    }
+                },
                 1,
                 24,
                 TimeUnit.HOURS);

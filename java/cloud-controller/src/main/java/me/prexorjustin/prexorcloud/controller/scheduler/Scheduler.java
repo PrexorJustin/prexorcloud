@@ -10,7 +10,8 @@ import java.util.stream.Collectors;
 
 import me.prexorjustin.prexorcloud.common.identity.InstanceIdGenerator;
 import me.prexorjustin.prexorcloud.common.logging.CorrelationContext;
-import me.prexorjustin.prexorcloud.controller.cluster.ClusterLeaseManager;
+import me.prexorjustin.prexorcloud.controller.cluster.ConvergenceGate;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentReconciler;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
@@ -61,11 +62,14 @@ public final class Scheduler implements LeaseGate {
     private final RecoveryOrchestrator recovery;
     private final Set<String> activeDeployments = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
-    // Cluster-singleton gate for reconcilePersistedDeployments. Null when no
-    // Raft control plane is available (tests, single-controller dev installs
-    // running without it) — body falls through to its pre-Phase-8 behaviour.
-    private volatile ClusterLeaseManager clusterLeaseManager;
-    private static final java.time.Duration DEPLOYMENT_RECONCILER_LEASE_TTL = java.time.Duration.ofMinutes(5);
+    // Single-writer authority (Phase 2): the leader is the sole controller that ticks, places,
+    // recovers, and reconciles deployments. Defaults to always-leader so single-controller installs
+    // and tests behave unchanged; bootstrap injects the real MongoLeaderElector.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
+    // Observation-phase gate: on leadership acquisition, defer scale-reconcile until daemons report
+    // (or grace expires) so a fresh leader can't spawn duplicates of instances it hasn't seen yet.
+    // Null in tests / single-controller installs that never change leadership — treated as open.
+    private volatile ConvergenceGate convergenceGate;
 
     private ScheduledExecutorService executor;
 
@@ -237,6 +241,11 @@ public final class Scheduler implements LeaseGate {
      * {@link StructuredTaskScope} (JEP 505), sorted by startupWeight.
      */
     private void evaluate() {
+        // Single-writer: only the leader runs the scheduler. Followers do nothing — this is the
+        // "ownership = leadership" gate that collapses the cross-controller divergence bug class.
+        if (!leadership.isLeader()) {
+            return;
+        }
         String schedulerRunId = CorrelationContext.newId();
         long startNanos = System.nanoTime();
         boolean success = false;
@@ -257,26 +266,37 @@ public final class Scheduler implements LeaseGate {
                 reconcilePersistedStartRetries();
                 reconcilePersistedDeployments();
                 startRetry.processDueWakeupsSafely();
-                var tiers = desiredStatePlanner.planEvaluationOrder(groupManager.getAll());
 
-                for (List<GroupConfig> tier : tiers) {
-                    try (var scope = StructuredTaskScope.open()) {
-                        for (GroupConfig group : tier) {
-                            groupsEvaluated++;
-                            scope.fork(() -> {
-                                try (var groupScope = CorrelationContext.open(
-                                        Map.of("schedulerRunId", schedulerRunId, "groupName", group.name()))) {
-                                    evaluateGroup(group);
-                                } catch (Exception e) {
-                                    logger.warn("Failed to evaluate group {}: {}", group.name(), e.getMessage(), e);
-                                }
-                                return null;
-                            });
+                // Convergence gate: right after a leadership change, don't scale-reconcile
+                // (spawn / scale-down / reschedule) until daemons have reported their inventory,
+                // or we'd spawn duplicates of instances we haven't observed yet. State-learning
+                // and idempotent recovery above are unaffected — only scaling is deferred.
+                ConvergenceGate gate = convergenceGate;
+                if (gate != null && !gate.canScaleReconcile()) {
+                    logger.info("Scheduler: in convergence observation phase — deferring scale-reconcile this tick");
+                    success = true;
+                } else {
+                    var tiers = desiredStatePlanner.planEvaluationOrder(groupManager.getAll());
+
+                    for (List<GroupConfig> tier : tiers) {
+                        try (var scope = StructuredTaskScope.open()) {
+                            for (GroupConfig group : tier) {
+                                groupsEvaluated++;
+                                scope.fork(() -> {
+                                    try (var groupScope = CorrelationContext.open(
+                                            Map.of("schedulerRunId", schedulerRunId, "groupName", group.name()))) {
+                                        evaluateGroup(group);
+                                    } catch (Exception e) {
+                                        logger.warn("Failed to evaluate group {}: {}", group.name(), e.getMessage(), e);
+                                    }
+                                    return null;
+                                });
+                            }
+                            scope.join();
                         }
-                        scope.join();
                     }
+                    success = true;
                 }
-                success = true;
             }
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
@@ -390,16 +410,14 @@ public final class Scheduler implements LeaseGate {
     }
 
     public void reconcilePersistedDeployments() {
-        ClusterLeaseManager mgr = clusterLeaseManager;
-        if (mgr == null) {
-            reconcilePersistedDeploymentsBody();
+        // Single-writer: only the leader reconciles deployments. Replaces the Raft "deployment-reconciler"
+        // lease — under one writer there is no cross-controller race to guard. Reached both from the
+        // leader's tick (already leader-gated) and from the startup durable-workflow reconcile, so the
+        // guard lives here.
+        if (!leadership.isLeader()) {
             return;
         }
-        // Cluster-singleton: pre-Phase-8 every controller iterated this list in
-        // parallel and raced on Mongo. Skipping when another controller holds
-        // the lease is the desired behaviour — next tick retries.
-        mgr.runUnderLease(
-                "deployment-reconciler", DEPLOYMENT_RECONCILER_LEASE_TTL, this::reconcilePersistedDeploymentsBody);
+        reconcilePersistedDeploymentsBody();
     }
 
     private void reconcilePersistedDeploymentsBody() {
@@ -409,12 +427,17 @@ public final class Scheduler implements LeaseGate {
     }
 
     /**
-     * Opt the scheduler into the Raft-backed deployment-reconciler lease. Bootstrap
-     * wires this after the cluster control plane is up; tests skip it and run the
-     * reconciler unguarded.
+     * Inject single-writer leadership (bootstrap, after the lease elector is up). Tests skip it and
+     * run as always-leader. Propagates to the recovery orchestrator so its gate matches the tick's.
      */
-    public void setClusterLeaseManager(ClusterLeaseManager clusterLeaseManager) {
-        this.clusterLeaseManager = clusterLeaseManager;
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
+        this.recovery.setLeadership(leadership);
+    }
+
+    /** Inject the convergence gate so ticks just after a leadership change defer scale-reconcile. */
+    public void setConvergenceGate(ConvergenceGate convergenceGate) {
+        this.convergenceGate = convergenceGate;
     }
 
     // Thin delegators — tests + DaemonServiceImpl + evaluate() call these

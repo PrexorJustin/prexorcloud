@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
@@ -117,6 +118,54 @@ class InstancePlacementCoordinatorTest {
         assertTrue(clusterState.getNode("node-1").orElseThrow().usedPorts().contains(30000));
         verify(stateStore).saveInstanceCompositionPlan(compositionPlan);
         verify(scalingEvaluator).recordScaleAction("lobby");
+    }
+
+    @Test
+    void defersWithoutDispatchingWhenNotLeader() {
+        // ownership = leadership: a non-leader must persist the SCHEDULED placement but NOT issue a
+        // token or dispatch — even though it holds the daemon session. The leader picks it up.
+        coordinator.setLeadership(new Leadership() {
+            @Override
+            public boolean isLeader() {
+                return false;
+            }
+
+            @Override
+            public long currentEpoch() {
+                return 0L;
+            }
+        });
+        var messages = new CopyOnWriteArrayList<ControllerMessage>();
+        sessionManager.register(new NodeSession(
+                "session-1",
+                "node-1",
+                new StreamObserver<>() {
+                    @Override
+                    public void onNext(ControllerMessage value) {
+                        messages.add(value);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {}
+
+                    @Override
+                    public void onCompleted() {}
+                },
+                Instant.now()));
+
+        var group = stubGroup("lobby");
+        var compositionPlan = compositionPlan("lobby-1");
+        when(compositionPlanner.plan(eq(group), eq("lobby-1"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
+                .thenReturn(compositionPlan);
+
+        boolean placed = coordinator.placeResolvedInstance(
+                group, "lobby-1", null, (lease, groupName, action) -> true, retry -> {});
+
+        assertTrue(placed, "placement returns true — the record is durably persisted for the leader");
+        assertTrue(clusterState.getInstance("lobby-1").isPresent());
+        verify(stateStore).saveInstanceCompositionPlan(compositionPlan);
+        assertTrue(messages.isEmpty(), "a non-leader must not dispatch the start command");
+        verify(scalingEvaluator, never()).recordScaleAction(any());
     }
 
     @Test

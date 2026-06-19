@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.grpc.DaemonServiceImpl;
@@ -54,6 +55,9 @@ public final class InstancePlacementCoordinator {
     private final InstanceCompositionPlanner compositionPlanner;
     private final NodeMessageDispatcher nodeMessageDispatcher;
     private final String controllerHttpUrl;
+    // Single-writer authority: the leader is the sole controller that issues tokens + dispatches.
+    // Defaults to always-leader so tests behave unchanged; bootstrap injects the real elector.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
     // Tracer for placement spans (Track D.2); no-op default, swapped in by bootstrap when on.
     private io.opentelemetry.api.trace.Tracer tracer =
             io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
@@ -234,15 +238,16 @@ public final class InstancePlacementCoordinator {
                         .planHash()
                         .substring(0, Math.min(8, compositionPlan.planHash().length())));
 
-        // placer == node-owner invariant: only the controller that owns this node's daemon
-        // stream issues the token (so the plugin -- which connects to the owner -- can validate
-        // it) and dispatches. When the placer does not own the node, leave the SCHEDULED record
-        // + composition plan durably persisted; the owner's RecoveryOrchestrator (gated on
-        // ownsNode) mints the token and dispatches on its next tick. Avoids the cross-controller
-        // token-401 / status-divergence class entirely.
-        if (!nodeMessageDispatcher.ownsNode(node.nodeId())) {
+        // ownership = leadership: only the leader issues the token and dispatches. (Delivery may
+        // still relay through whichever controller holds the daemon stream until Phase 3's redirect
+        // consolidates streams on the leader; authority no longer flaps on daemon reconnect.) If we
+        // are not the leader, leave the SCHEDULED record + composition plan durably persisted; the
+        // leader's RecoveryOrchestrator picks them up and dispatches on its next tick. This guard is
+        // belt-and-suspenders — the scheduler tick is already leader-gated — covering a leadership
+        // change mid-tick.
+        if (!leadership.isLeader()) {
             logger.info(
-                    "Placed {} on {} owned by another controller; its owner will issue the token and dispatch",
+                    "Placed {} on {} while not leader; the leader will issue the token and dispatch",
                     instanceId,
                     node.nodeId());
             return true;
@@ -271,9 +276,9 @@ public final class InstancePlacementCoordinator {
         return true;
     }
 
-    /** Whether this controller owns the node's daemon stream (placer==node-owner execute gate). */
-    public boolean ownsNode(String nodeId) {
-        return nodeMessageDispatcher.ownsNode(nodeId);
+    /** Inject single-writer leadership (bootstrap). Tests run as always-leader. */
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
     }
 
     public boolean dispatchStartMessage(String nodeId, String instanceId, ControllerMessage startMessage) {
