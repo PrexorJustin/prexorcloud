@@ -489,17 +489,57 @@ public final class PrexorCloudBootstrap {
     private StateStore initStorage() {
         // Register the OTel command listener at client-build time (Track D.1). It stays inert
         // until attachTracer() runs after the telemetry SDK is up — see start().
+        // Explicit majority read/write concern is the control-plane default: the single-writer
+        // leadership lease and durable lifecycle records must be majority-acked so they survive a
+        // Mongo primary failover. The lease ops layer linearizable read on top per-operation
+        // (see MongoLeaderElector). A connection-string concern still overrides this if set.
         var mongoSettings = com.mongodb.MongoClientSettings.builder()
                 .applyConnectionString(
                         new com.mongodb.ConnectionString(config.database().uri()))
                 .addCommandListener(mongoCommandTracer)
+                .readConcern(com.mongodb.ReadConcern.MAJORITY)
+                .writeConcern(com.mongodb.WriteConcern.MAJORITY)
                 .build();
         mongoClient = MongoClients.create(mongoSettings);
+        assertReplicaSetMode(mongoClient);
         mongoDatabase = mongoClient.getDatabase(config.database().database());
         var stateStore = new MongoStateStore(mongoClient, mongoDatabase);
         stateStore.initialize();
         migrateClusterIdentityFromMongoIfNeeded(stateStore);
         return stateStore;
+    }
+
+    /**
+     * Boot-time guard: the single-writer control plane requires MongoDB in <em>replica-set
+     * mode</em>. Change streams (the reactive reconcile), {@code majority}/{@code linearizable}
+     * read/write concern, and the fenced leadership lease all depend on it — and transactions in
+     * {@link MongoStateStore#runInTransaction} already do. The check is on <em>mode</em>, not member
+     * count: a single-member replica set passes (the recommended minimum; grow to 3 members for
+     * Mongo HA with zero code change). A bare standalone fails fast with a clear remedy rather than
+     * silently degrading (e.g. change streams would simply never fire).
+     */
+    private void assertReplicaSetMode(MongoClient client) {
+        org.bson.Document hello;
+        try {
+            hello = client.getDatabase("admin").runCommand(new org.bson.Document("hello", 1));
+        } catch (RuntimeException e) {
+            throw new IllegalStateException(
+                    "Could not query MongoDB topology via 'hello' at "
+                            + config.database().uri() + " — is MongoDB reachable? (" + e.getMessage() + ")",
+                    e);
+        }
+        // A replica-set member reports its set name; a standalone (and a mongos router) does not.
+        String setName = hello.getString("setName");
+        if (setName == null || setName.isBlank()) {
+            throw new IllegalStateException("MongoDB must run in replica-set mode — connected to a standalone at "
+                    + config.database().uri()
+                    + ". The control plane needs change streams, majority/linearizable reads, and the"
+                    + " leadership lease, none of which work on a standalone. A single-member replica set"
+                    + " is sufficient: start mongod with `--replSet rs0` then run"
+                    + " rs.initiate() once (same box, same data). See docs/engineering/decisions.md"
+                    + " (single-writer control plane ADR).");
+        }
+        logger.info("MongoDB replica-set mode confirmed (set: {})", setName);
     }
 
     /**

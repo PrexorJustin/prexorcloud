@@ -8,39 +8,30 @@ jobs:
   harness:
     name: Nightly Harness Scenarios
     runs-on: ubuntu-latest
-    services:
-      mongo:
-        image: mongo:8
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-java-gradle
-      - name: Wait for MongoDB
+      # The single-writer control plane requires replica-set mode (change streams + the fenced
+      # leadership lease). A service container can't take a `--replSet` command, so run mongod
+      # directly as a single-member replica set. See .github/workflows/nightly.yml history + the
+      # single-writer control plane ADR.
+      - name: Start MongoDB (single-node replica set)
         run: |
-          python - <<'PY'
-          import socket
-          import time
-          import sys
-
-          deadline = time.time() + 30
-          while time.time() < deadline:
-              try:
-                  with socket.create_connection(("127.0.0.1", 27017), timeout=1):
-                      sys.exit(0)
-              except OSError:
-                  time.sleep(1)
-          raise SystemExit("MongoDB on 127.0.0.1:27017 did not become reachable within 30 seconds")
-          PY
+          docker run -d --name mongo -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'print("replica-set ready, setName=" + db.hello().setName)'
       - run: ./gradlew :cloud-test-harness:nightlyScenariosTest
         working-directory: java
         env:
-          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
       - name: Upload harness reports
         uses: actions/upload-artifact@v4
         with:
@@ -52,15 +43,6 @@ jobs:
     name: Nightly DR Drill
     runs-on: ubuntu-latest
     services:
-      mongo:
-        image: mongo:8
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
       valkey:
         image: valkey/valkey:8-alpine
         ports:
@@ -73,37 +55,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-java-gradle
-      - name: Wait for Mongo + Valkey
+      # Single-writer control plane needs replica-set mode; a service container can't take a
+      # --replSet command, so run mongod directly as a single-member replica set.
+      - name: Start MongoDB (single-node replica set)
         run: |
-          python - <<'PY'
-          import socket
-          import time
-          import sys
-
-          targets = [("MongoDB", 27017), ("Valkey", 6379)]
-          deadline = time.time() + 60
-          remaining = list(targets)
-          while remaining and time.time() < deadline:
-              still_pending = []
-              for name, port in remaining:
-                  try:
-                      with socket.create_connection(("127.0.0.1", port), timeout=1):
-                          continue
-                  except OSError:
-                      still_pending.append((name, port))
-              remaining = still_pending
-              if remaining:
-                  time.sleep(1)
-          if remaining:
-              raise SystemExit(
-                  "DR drill dependencies not reachable: "
-                  + ", ".join(f"{name}:{port}" for name, port in remaining)
-              )
-          PY
+          docker run -d --name mongo -p 27017:27017 mongo:8 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'print("replica-set ready, setName=" + db.hello().setName)'
+      # Valkey stays a health-gated service container, so Actions already waits for it to be ready.
       - run: ./gradlew :cloud-test-harness:drDrill
         working-directory: java
         env:
-          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
           PREXOR_TEST_REDIS_URI: redis://127.0.0.1:6379
       - name: Upload DR drill reports
         if: always()
@@ -120,12 +91,6 @@ jobs:
     # adding a second cron entrypoint.
     runs-on: ubuntu-latest
     services:
-      mongo:
-        image: mongo:7
-        ports: [27017:27017]
-        options: >-
-          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 10s --health-timeout 5s --health-retries 5
       redis:
         image: valkey/valkey:8-alpine
         ports: [6379:6379]
@@ -135,9 +100,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-java-gradle
+      # Single-writer control plane needs replica-set mode; a service container can't take a
+      # --replSet command, so run mongod directly as a single-member replica set.
+      - name: Start MongoDB (single-node replica set)
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval 'db.adminCommand({ping:1}).ok' 2>/dev/null | grep -q 1 && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          for i in $(seq 1 60); do
+            docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary' 2>/dev/null | grep -q true && break
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'print("replica-set ready, setName=" + db.hello().setName)'
       - name: Run perf-baseline harness
         env:
-          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017
+          PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
           PREXOR_TEST_REDIS_URI: redis://127.0.0.1:6379
         run: ./gradlew :cloud-test-harness:perfBaselines --no-daemon
         working-directory: java
