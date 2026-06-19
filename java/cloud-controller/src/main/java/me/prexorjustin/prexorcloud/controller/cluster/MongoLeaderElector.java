@@ -56,7 +56,7 @@ import org.slf4j.LoggerFactory;
  * fence itself. {@link #isLeader()} folds this guard in — it returns {@code false} the instant the
  * guard trips, before the next poll runs.
  */
-public final class MongoLeaderElector implements AutoCloseable {
+public final class MongoLeaderElector implements Leadership, AutoCloseable {
 
     private static final Logger logger = LoggerFactory.getLogger(MongoLeaderElector.class);
 
