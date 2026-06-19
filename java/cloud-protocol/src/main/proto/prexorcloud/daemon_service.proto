@@ -57,6 +57,11 @@ message ControllerMessage {
   // tracing is off or no span is active. Additive scalar (not a payload variant), so old daemons
   // ignore it and no PROTOCOL_VERSION bump is needed.
   string traceparent = 17;
+  // Fencing token (single-writer control plane): the leadership epoch of the controller that issued
+  // this command. The daemon rejects any command carrying an epoch lower than the highest it has
+  // accepted, so a deposed leader's in-flight commands are fenced. 0 = unset (legacy / no leadership).
+  // Additive scalar, old daemons ignore it — no PROTOCOL_VERSION bump.
+  uint64 epoch = 18;
 }
 
 // === Daemon -> Controller messages ===
@@ -184,6 +189,13 @@ message HandshakeAck {
   int32 controller_api_port = 3;        // REST API port for JAR downloads
   int32 protocol_version = 4;           // Controller's protocol version
   bool protocol_compatible = 5;         // false = daemon should disconnect and upgrade
+  // Single-writer redirect: when the contacted controller is NOT the leader, it sets this to the
+  // leader's gRPC host:port; the daemon closes the stream and reconnects there. Empty when the
+  // contacted controller IS the leader (or the leader is unknown) — the daemon stays. Additive.
+  string leader_grpc_addr = 6;
+  // Leadership epoch of the controller that accepted this stream (0 when it redirected / is not the
+  // leader). The daemon records it as its baseline accepted epoch for fencing. Additive scalar.
+  uint64 epoch = 7;
 }
 
 message TemplateRef {
