@@ -197,6 +197,98 @@ class MetricsCollectorTest {
                 registry.find("prexorcloud.sse.replay.buffer_size").gauge().value());
     }
 
+    @Test
+    @DisplayName("registers leadership / convergence / change-stream probe gauges and counters")
+    void registersLeadershipProbeMetrics() {
+        MetricsCollector collector = new MetricsCollector(
+                new ClusterState(new EventBus(), null), new GroupManager(null), new CrashStore(10));
+        collector.registerLeadershipMetrics(new MetricsCollector.LeadershipMetricsProbe() {
+            @Override
+            public boolean isLeader() {
+                return true;
+            }
+
+            @Override
+            public long currentEpoch() {
+                return 7;
+            }
+
+            @Override
+            public long leadershipTransitions() {
+                return 3;
+            }
+
+            @Override
+            public long renewAgeMillis() {
+                return 1200;
+            }
+
+            @Override
+            public boolean isObserving() {
+                return true;
+            }
+
+            @Override
+            public long lastObservationDurationMillis() {
+                return 4500;
+            }
+
+            @Override
+            public boolean changeStreamRunning() {
+                return true;
+            }
+
+            @Override
+            public long changeStreamChangesObserved() {
+                return 11;
+            }
+
+            @Override
+            public long changeStreamFullResyncs() {
+                return 2;
+            }
+
+            @Override
+            public long changeStreamOpens() {
+                return 5;
+            }
+
+            @Override
+            public long changeStreamLastEventAgeMillis() {
+                return 800;
+            }
+        });
+
+        MeterRegistry registry = collector.registry();
+        assertGauge(registry, "prexorcloud.leadership.is_leader", 1.0);
+        assertGauge(registry, "prexorcloud.leadership.epoch", 7.0);
+        assertGauge(registry, "prexorcloud.leadership.renew_age.millis", 1200.0);
+        assertEquals(
+                3.0,
+                registry.find("prexorcloud.leadership.transitions")
+                        .functionCounter()
+                        .count());
+        assertGauge(registry, "prexorcloud.convergence.observing", 1.0);
+        assertGauge(registry, "prexorcloud.convergence.last_observation.millis", 4500.0);
+        assertGauge(registry, "prexorcloud.changestream.running", 1.0);
+        assertGauge(registry, "prexorcloud.changestream.last_event_age.millis", 800.0);
+        assertEquals(
+                11.0,
+                registry.find("prexorcloud.changestream.changes")
+                        .functionCounter()
+                        .count());
+        assertEquals(
+                2.0,
+                registry.find("prexorcloud.changestream.full_resyncs")
+                        .functionCounter()
+                        .count());
+        assertEquals(
+                5.0,
+                registry.find("prexorcloud.changestream.opens")
+                        .functionCounter()
+                        .count());
+    }
+
     private static void assertGauge(MeterRegistry registry, String name, double expected) {
         assertEquals(expected, registry.find(name).gauge().value());
     }

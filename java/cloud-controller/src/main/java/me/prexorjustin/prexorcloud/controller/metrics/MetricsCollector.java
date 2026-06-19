@@ -269,6 +269,54 @@ public final class MetricsCollector {
                 .register(registry);
     }
 
+    /**
+     * Register the single-writer control-plane observability gauges (Phases 1/2/5): leadership state
+     * + fencing epoch + renew age, the post-takeover convergence observation phase, and the reactive
+     * change-stream reconcile layer. These replace the Raft-role / lease / pub-sub debug signal the
+     * rewrite deletes — without them a failover or a stuck reconcile is invisible. Reads live state
+     * off a probe so the collector stays decoupled from the cluster package (mirrors
+     * {@link SseStreamerProbe}). Wired in bootstrap once the elector exists.
+     */
+    public void registerLeadershipMetrics(LeadershipMetricsProbe probe) {
+        if (probe == null) return;
+        Gauge.builder("prexorcloud.leadership.is_leader", probe, p -> p.isLeader() ? 1d : 0d)
+                .description("1 if this controller currently holds the leadership lease, else 0")
+                .register(registry);
+        Gauge.builder("prexorcloud.leadership.epoch", probe, p -> p.currentEpoch())
+                .description("Fencing epoch of the leadership this controller holds (0 if never acquired)")
+                .register(registry);
+        Gauge.builder("prexorcloud.leadership.renew_age.millis", probe, p -> p.renewAgeMillis())
+                .description(
+                        "Milliseconds since the last confirmed lease renew (-1 if not leader) — proximity to step-down")
+                .register(registry);
+        FunctionCounter.builder("prexorcloud.leadership.transitions", probe, p -> p.leadershipTransitions())
+                .description("Times this controller transitioned follower→leader")
+                .register(registry);
+
+        Gauge.builder("prexorcloud.convergence.observing", probe, p -> p.isObserving() ? 1d : 0d)
+                .description("1 while the leader is in the post-takeover observation phase (scale-reconcile deferred)")
+                .register(registry);
+        Gauge.builder("prexorcloud.convergence.last_observation.millis", probe, p -> p.lastObservationDurationMillis())
+                .description("Duration of the most recent convergence observation phase in ms (-1 if none completed)")
+                .register(registry);
+
+        Gauge.builder("prexorcloud.changestream.running", probe, p -> p.changeStreamRunning() ? 1d : 0d)
+                .description("1 while the reactive change-stream reconcile watcher is running (leader only)")
+                .register(registry);
+        Gauge.builder("prexorcloud.changestream.last_event_age.millis", probe, p -> p.changeStreamLastEventAgeMillis())
+                .description("Milliseconds since the last observed change-stream event (-1 if none) — stream lag proxy")
+                .register(registry);
+        FunctionCounter.builder("prexorcloud.changestream.changes", probe, p -> p.changeStreamChangesObserved())
+                .description("Change-stream events observed (each triggers a reconcile)")
+                .register(registry);
+        FunctionCounter.builder("prexorcloud.changestream.full_resyncs", probe, p -> p.changeStreamFullResyncs())
+                .description("Full resyncs forced by a non-resumable change stream (stale token / rolled oplog)")
+                .register(registry);
+        FunctionCounter.builder("prexorcloud.changestream.opens", probe, p -> p.changeStreamOpens())
+                .description("Times the change-stream cursor was (re)opened")
+                .register(registry);
+    }
+
     public void recordHttpRequest(String method, int status, Duration duration) {
         String statusClass = httpStatusClass(status);
         Tags tags = Tags.of("method", normalizeTag(method), "status_class", statusClass);
@@ -436,5 +484,37 @@ public final class MetricsCollector {
         long latestSequence();
 
         long earliestSequence();
+    }
+
+    /**
+     * Probe over the single-writer control-plane components (leader elector + convergence gate +
+     * change-stream reconciler) so {@link MetricsCollector} can read their live state without a
+     * compile-time dependency on the cluster package. Mirrors {@link SseStreamerProbe}.
+     */
+    public interface LeadershipMetricsProbe {
+        // leadership (MongoLeaderElector)
+        boolean isLeader();
+
+        long currentEpoch();
+
+        long leadershipTransitions();
+
+        long renewAgeMillis();
+
+        // convergence gate
+        boolean isObserving();
+
+        long lastObservationDurationMillis();
+
+        // change-stream reconcile layer
+        boolean changeStreamRunning();
+
+        long changeStreamChangesObserved();
+
+        long changeStreamFullResyncs();
+
+        long changeStreamOpens();
+
+        long changeStreamLastEventAgeMillis();
     }
 }

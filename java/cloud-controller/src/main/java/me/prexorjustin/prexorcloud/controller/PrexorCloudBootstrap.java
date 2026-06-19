@@ -1261,6 +1261,72 @@ public final class PrexorCloudBootstrap {
         scheduler.start();
         leaderElector.start();
 
+        // Single-writer observability (Phases 1/2/5): leadership/epoch/renew-age, convergence
+        // observation phase, and the change-stream reconcile layer — replaces the Raft-role / lease /
+        // pub-sub debug signal the rewrite deletes, so a failover or stuck reconcile stays visible.
+        if (controller.metricsCollector() != null) {
+            controller
+                    .metricsCollector()
+                    .registerLeadershipMetrics(
+                            new me.prexorjustin.prexorcloud.controller.metrics.MetricsCollector
+                                    .LeadershipMetricsProbe() {
+                                @Override
+                                public boolean isLeader() {
+                                    return leaderElector.isLeader();
+                                }
+
+                                @Override
+                                public long currentEpoch() {
+                                    return leaderElector.currentEpoch();
+                                }
+
+                                @Override
+                                public long leadershipTransitions() {
+                                    return leaderElector.leadershipTransitions();
+                                }
+
+                                @Override
+                                public long renewAgeMillis() {
+                                    return leaderElector.renewAgeMillis();
+                                }
+
+                                @Override
+                                public boolean isObserving() {
+                                    return convergenceGate.isObserving();
+                                }
+
+                                @Override
+                                public long lastObservationDurationMillis() {
+                                    return convergenceGate.lastObservationDurationMs();
+                                }
+
+                                @Override
+                                public boolean changeStreamRunning() {
+                                    return changeStreamReconciler.running();
+                                }
+
+                                @Override
+                                public long changeStreamChangesObserved() {
+                                    return changeStreamReconciler.changesObserved();
+                                }
+
+                                @Override
+                                public long changeStreamFullResyncs() {
+                                    return changeStreamReconciler.fullResyncs();
+                                }
+
+                                @Override
+                                public long changeStreamOpens() {
+                                    return changeStreamReconciler.streamOpens();
+                                }
+
+                                @Override
+                                public long changeStreamLastEventAgeMillis() {
+                                    return changeStreamReconciler.lastEventAgeMillis();
+                                }
+                            });
+        }
+
         int retentionDays = config.scheduler().auditRetentionDays();
         auditRotationExecutor = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "audit-rotation");
