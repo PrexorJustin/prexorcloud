@@ -64,6 +64,11 @@ public final class DaemonGrpcClient {
     private volatile String controllerApiUrl = "";
     private volatile int controllerApiPort = 0;
 
+    // Crash reports are buffered when undeliverable and replayed at-least-once on reconnect, so a
+    // crash during a disconnect / leader-redirect window is still recorded (#12 guarantee).
+    private static final int MAX_BUFFERED_CRASH_REPORTS = 64;
+    private final CrashReportBuffer crashBuffer = new CrashReportBuffer(MAX_BUFFERED_CRASH_REPORTS);
+
     private ReconnectManager reconnectManager;
     private IntSupplier instanceCountSupplier = () -> 0;
     private Supplier<List<Integer>> usedPortsSupplier = List::of;
@@ -193,18 +198,27 @@ public final class DaemonGrpcClient {
             reconnectManager.onConnected();
         }
         startStatusReporting();
+        replayBufferedCrashReports();
         logger.info("Connected to controller (handshake acknowledged)");
     }
 
     public void sendMessage(DaemonMessage message) {
+        trySend(message);
+    }
+
+    /** Send a message, returning whether it was actually written to the stream. */
+    private boolean trySend(DaemonMessage message) {
         var stream = requestStream;
-        if (stream != null && state == State.CONNECTED) {
-            try {
-                stream.onNext(message);
-            } catch (StatusRuntimeException e) {
-                logger.warn("Failed to send message ({}), marking disconnected", e.getStatus());
-                handleDisconnect();
-            }
+        if (stream == null || state != State.CONNECTED) {
+            return false;
+        }
+        try {
+            stream.onNext(message);
+            return true;
+        } catch (StatusRuntimeException e) {
+            logger.warn("Failed to send message ({}), marking disconnected", e.getStatus());
+            handleDisconnect();
+            return false;
         }
     }
 
@@ -228,7 +242,32 @@ public final class DaemonGrpcClient {
     }
 
     public void sendCrashReport(CrashReport report) {
-        sendMessage(DaemonMessage.newBuilder().setCrashReport(report).build());
+        if (trySend(DaemonMessage.newBuilder().setCrashReport(report).build())) {
+            return;
+        }
+        // Not connected (or the send failed) — buffer for at-least-once replay on reconnect so a
+        // crash during a disconnect / leader-redirect window is not lost (#12 guarantee).
+        crashBuffer.add(report);
+        logger.info("Buffered undeliverable crash report (will replay on reconnect; {} pending)", crashBuffer.size());
+    }
+
+    /** Replay any crash reports buffered while disconnected. Called once the handshake re-establishes. */
+    private void replayBufferedCrashReports() {
+        var pending = crashBuffer.drainAll();
+        if (pending.isEmpty()) {
+            return;
+        }
+        logger.info("Replaying {} buffered crash report(s) after reconnect", pending.size());
+        for (CrashReport report : pending) {
+            if (!trySend(DaemonMessage.newBuilder().setCrashReport(report).build())) {
+                crashBuffer.add(report); // stream dropped again mid-replay — keep for the next reconnect
+            }
+        }
+    }
+
+    /** Number of crash reports currently buffered for replay (observability / tests). */
+    public int bufferedCrashReportCount() {
+        return crashBuffer.size();
     }
 
     public void setProcessInfo(
