@@ -153,6 +153,7 @@ public final class PrexorCloudBootstrap {
     private NodeDrainManager drainManager;
     private ShutdownManager shutdownManager;
     private me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector leaderElector;
+    private me.prexorjustin.prexorcloud.controller.cluster.ChangeStreamReconciler changeStreamReconciler;
     private me.prexorjustin.prexorcloud.controller.scheduler.NodeMessageDispatcher nodeMessageDispatcher;
     private ClusterControlService clusterControlService;
     private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
@@ -832,6 +833,12 @@ public final class PrexorCloudBootstrap {
             if (restServer != null) restServer.stop();
         });
         shutdownManager.register("scheduler", controller.scheduler()::stop);
+        // Stop the reactive change-stream watcher before the leadership lease is released, so it
+        // never fires a reconcile into an already-stopped scheduler (idempotent — onLost also stops
+        // it when the lease is released below).
+        shutdownManager.register("change-stream", () -> {
+            if (changeStreamReconciler != null) changeStreamReconciler.stop();
+        });
         // After the scheduler stops ticking, release the leadership lease so a peer can take over
         // immediately rather than waiting a full ttl.
         shutdownManager.register("leadership", () -> {
@@ -1203,6 +1210,22 @@ public final class PrexorCloudBootstrap {
                         .map(me.prexorjustin.prexorcloud.controller.state.StateStore.RegisteredNode::nodeId)
                         .collect(java.util.stream.Collectors.toSet()),
                 java.time.Duration.ofSeconds(15));
+        // Phase 5: reactive reconcile via change streams, layered on top of the periodic floor (the
+        // leader-gated scheduler tick). A change to a desired-state / workflow-intent collection
+        // triggers an immediate reconcile instead of waiting for the next tick. Strictly additive —
+        // if the stream lags or errors the periodic tick still catches everything. Runs only while
+        // leader (started on acquire, stopped on loss, below).
+        changeStreamReconciler = new me.prexorjustin.prexorcloud.controller.cluster.ChangeStreamReconciler(
+                mongoDatabase,
+                java.util.Set.of(
+                        "groups",
+                        "deployments",
+                        "workflow_drains",
+                        "workflow_healing",
+                        "workflow_start_retries",
+                        "workflow_transfers"),
+                scheduler::requestReconcile);
+        var changeStreams = changeStreamReconciler;
         leaderElector = new me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector(
                 mongoDatabase,
                 config.uuid(),
@@ -1211,11 +1234,16 @@ public final class PrexorCloudBootstrap {
                     @Override
                     public void onAcquired(long epoch) {
                         convergenceGate.beginObservation();
+                        changeStreams.start();
+                        // Resync immediately on takeover rather than waiting a full periodic tick;
+                        // the convergence gate still defers scaling until daemons report.
+                        scheduler.requestReconcile();
                     }
 
                     @Override
                     public void onLost() {
                         convergenceGate.reset();
+                        changeStreams.stop();
                     }
                 },
                 System::nanoTime);

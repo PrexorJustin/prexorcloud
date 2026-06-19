@@ -73,6 +73,13 @@ public final class Scheduler implements LeaseGate {
 
     private ScheduledExecutorService executor;
 
+    // Phase 5: coalescing latch for the reactive change-stream layer. A burst of change events
+    // collapses into at most one queued out-of-band tick (the single scheduler thread serialises
+    // it with the periodic ticks anyway). Reset at the start of the queued task, so a change
+    // arriving while a reconcile runs still queues a follow-up.
+    private final java.util.concurrent.atomic.AtomicBoolean reconcileQueued =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+
     public Scheduler(
             GroupManager groupManager,
             ClusterState clusterState,
@@ -213,6 +220,31 @@ public final class Scheduler implements LeaseGate {
             executor.scheduleAtFixedRate(startRetry::processDueWakeupsSafely, 1, 1, TimeUnit.SECONDS);
         }
         logger.debug("Scheduler started (interval={}s)", evaluationIntervalSeconds);
+    }
+
+    /**
+     * Request an out-of-band reconcile tick (Phase 5 change-stream layer). Runs {@link #evaluate()}
+     * on the single scheduler thread, so it serialises with the periodic ticks and is never
+     * concurrent with one. Coalesces a burst of change events into at most one queued tick, and is a
+     * no-op before {@link #start()} / after {@link #stop()}. The periodic tick remains the
+     * correctness floor — this only reduces reaction latency, it can never be the sole driver.
+     */
+    public void requestReconcile() {
+        ScheduledExecutorService ex = executor;
+        if (ex == null) {
+            return;
+        }
+        if (!reconcileQueued.compareAndSet(false, true)) {
+            return; // a reconcile is already queued and not yet started
+        }
+        try {
+            ex.execute(() -> {
+                reconcileQueued.set(false);
+                evaluate();
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            reconcileQueued.set(false); // executor shutting down — periodic floor (if any) still covers it
+        }
     }
 
     public void stop() {
