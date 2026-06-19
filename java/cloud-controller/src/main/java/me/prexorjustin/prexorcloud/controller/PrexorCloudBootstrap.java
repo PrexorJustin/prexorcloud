@@ -175,6 +175,7 @@ public final class PrexorCloudBootstrap {
 
         var store = initStorage();
         clusterControlService = new ClusterControlService(config, config.uuid());
+        maybeAttachClusterShadow();
         startClusterControlPlane();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
@@ -269,6 +270,35 @@ public final class PrexorCloudBootstrap {
             .registerModule(new JavaTimeModule())
             .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+    /**
+     * Phase-4 dual-write opt-in. When {@code clusterStore != RAFT}, mirror every committed Raft
+     * cluster entry into the Mongo cluster store via {@link
+     * me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow}. Attached BEFORE the
+     * control plane starts so the shadow registers on the state machine as it comes up (and re-attaches
+     * across in-process SM rebuilds). Default {@code RAFT} is a no-op — zero behavior change.
+     */
+    private void maybeAttachClusterShadow() {
+        me.prexorjustin.prexorcloud.controller.config.ClusterStoreMode mode = config.clusterStore();
+        if (!mode.mirrorsToMongo()) {
+            return;
+        }
+        if (mongoDatabase == null) {
+            logger.warn(
+                    "clusterStore={} requested but the Mongo database handle is unavailable — dual-write shadow NOT attached",
+                    mode);
+            return;
+        }
+        var store = new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore(mongoDatabase);
+        clusterControlService.attachClusterShadow(
+                new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow(store));
+        logger.info(
+                "Cluster dual-write shadow ENABLED (clusterStore={}): committed Raft entries mirror into Mongo", mode);
+        if (mode.readsFromMongo()) {
+            logger.warn("clusterStore=MONGO selected, but the Mongo read cutover is not implemented yet — reads"
+                    + " still serve from Raft (behaving as DUAL).");
+        }
+    }
 
     /**
      * Pick the cluster control-plane entry branch:

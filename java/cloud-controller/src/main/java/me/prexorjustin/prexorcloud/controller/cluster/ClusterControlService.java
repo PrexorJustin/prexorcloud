@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import me.prexorjustin.prexorcloud.api.event.CloudEvent;
@@ -77,6 +78,10 @@ public final class ClusterControlService implements AutoCloseable {
     private ClusterControlStateMachine stateMachine;
     private ClusterControlPlane controlPlane;
     private MembershipReconciler reconciler;
+    // Phase-4 dual-write opt-in (clusterStore != RAFT): mirrors committed cluster entries into Mongo.
+    // Null by default = no mirror. Registered on the state machine in startMembershipReconciler() so it
+    // re-attaches after every in-process SM rebuild (promote-to-voting, TLS realign), like the reconciler.
+    private Consumer<ClusterEntry> clusterShadow;
     private String resolvedClusterId;
     // Set when this boot freshly stamped cluster identity (Day-0 branch) while controller.yml
     // already carried a cluster.id — i.e. the Raft state was wiped but the configured identity
@@ -489,6 +494,26 @@ public final class ClusterControlService implements AutoCloseable {
     private void startMembershipReconciler() {
         reconciler = new MembershipReconciler(raft, stateMachine);
         reconciler.start();
+        // Re-attach the Mongo dual-write shadow onto the freshly (re)built state machine so the mirror
+        // survives an in-process SM rebuild, exactly like the reconciler above. No-op when unset
+        // (clusterStore=raft, the default) — zero behavior change until the operator opts in.
+        if (clusterShadow != null) {
+            stateMachine.addCommitListener(clusterShadow);
+        }
+    }
+
+    /**
+     * Phase-4 opt-in (clusterStore != RAFT): register a consumer that mirrors every committed cluster
+     * entry into the Mongo cluster store. Idempotent registration is guaranteed exactly-once per state
+     * machine: attach before {@link #start} and {@link #startMembershipReconciler} wires it as the SM
+     * comes up; attach after start and it is wired onto the live SM here. Either way a later in-process
+     * SM rebuild re-wires it. Bootstrap passes a {@code MongoClusterShadow}; null is a no-op.
+     */
+    public void attachClusterShadow(Consumer<ClusterEntry> shadow) {
+        this.clusterShadow = shadow;
+        if (shadow != null && stateMachine != null) {
+            stateMachine.addCommitListener(shadow);
+        }
     }
 
     private static ControllerConfig withClusterId(ControllerConfig cfg, String clusterId) {

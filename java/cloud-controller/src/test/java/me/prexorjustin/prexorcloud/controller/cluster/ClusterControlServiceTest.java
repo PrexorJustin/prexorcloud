@@ -13,7 +13,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
@@ -82,6 +85,36 @@ class ClusterControlServiceTest {
                 .map(Member::raftAddr)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("no self member " + nodeId));
+    }
+
+    @Test
+    @DisplayName("an attached cluster shadow receives committed entries (dual-write wiring)")
+    void attachedClusterShadowReceivesCommittedEntries(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
+        List<ClusterEntry> mirrored = new CopyOnWriteArrayList<>();
+
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.attachClusterShadow(mirrored::add); // inject before start, as bootstrap does
+            svc.start();
+
+            // Parent on the live active version — start() seeds a v1 from controller.yml (the v1.0
+            // migration) before the shadow registers, so that committed patch is NOT in the collector.
+            int active = svc.controlPlane().getActiveConfigVersion();
+            svc.controlPlane().proposeConfigPatch(active, "alice", Map.of("k", "v1"), "first");
+
+            // The shadow is registered exactly once via startMembershipReconciler and fires
+            // synchronously on commit — so the committed patch is already mirrored.
+            assertTrue(
+                    mirrored.stream().anyMatch(e -> e instanceof ClusterEntry.WriteConfigVersion),
+                    "the committed config patch must reach the attached shadow exactly once");
+            assertEquals(
+                    1,
+                    mirrored.stream()
+                            .filter(e -> e instanceof ClusterEntry.WriteConfigVersion)
+                            .count(),
+                    "exactly-once: no double registration on a single state machine");
+        }
     }
 
     @Test
