@@ -321,6 +321,40 @@ i.e. that very CLI table. Raft, leader election, and replication are unaffected.
 
 ---
 
+## 2026-06-19 — surfaced during the single-writer rewrite live validation (DIAGNOSED, not yet fixed)
+
+Both surfaced on a clean fleet rebuilt on `rewrite/single-writer-control-plane`, when a group's instances
+crash-looped — the daemon could not provision the server jar because the clean Mongo wipe had emptied the
+`catalog` collection, so `runtimeDownloadUrl` resolved blank → `RUNTIME_PROVISION_FAILED disposition=PERMANENT`.
+(Operational lesson recorded separately: **a clean Mongo wipe loses the catalog; re-add platform versions with
+`prexorctl catalog add` before placing anything.**) The crash-loop exposed two real controller-side defects that
+bite under *any* sustained provisioning failure, not just a wiped catalog. See [[project_rewrite_live_validation]].
+
+### 9. `disposition=PERMANENT` start-failure is re-dispatched in a tight loop — **DIAGNOSED**
+- **Symptom:** the daemon rejects `StartInstance` with `RUNTIME_PROVISION_FAILED disposition=PERMANENT`, yet the
+  controller re-dispatches the same (and gap-filled new) instances dozens of times per second.
+- **Cause:** the PERMANENT disposition is not honored as a stop-retry signal — placement/recovery re-fires
+  immediately (`DaemonCommandAckHandler` logs the PERMANENT reject, then the instance is re-placed). The
+  crash-loop detector (threshold 3) doesn't arrest it because these are prepare/provision-stage failures, not
+  process crashes.
+- **Fix candidate:** treat `disposition=PERMANENT` as a hard stop — quarantine the instance/group and surface the
+  error instead of re-dispatching until something external changes (e.g. the catalog is repaired).
+
+### 10. Concurrent `StartInstance` dispatch to one daemon corrupts the gRPC frame — **DIAGNOSED**
+- **Symptom:** under the burst re-dispatch above the controller throws
+  `io.grpc.StatusRuntimeException: INTERNAL: Failed to frame message` /
+  `IndexOutOfBoundsException … PooledUnsafeDirectByteBuf(freed)` → `ServerCallImpl … Cancelling the stream`, and
+  the daemon reconnect-storms (a new session every few seconds).
+- **Cause:** concurrent `StreamObserver.onNext(...)` on one daemon's `ServerCallStreamObserver` — `NodeSession.send`
+  is called from multiple threads (parallel placement / virtual threads) with no per-stream serialization. gRPC
+  stream observers are **not** thread-safe for concurrent `onNext`.
+- **Fix candidate:** serialize writes per daemon stream (a per-`NodeSession` lock or a single-consumer outbound
+  queue around `responseStream.onNext`).
+- **Note:** the send path is pre-existing (not introduced by the rewrite), but the single-writer's burst dispatch
+  makes it easier to hit. Not seen in steady state — only under the failure-driven re-dispatch storm.
+
+---
+
 ## Sweep-before-teardown checklist
 
 `northstar-plan.md` still holds **many earlier-session findings** that are either deployed-but-uncommitted code or
