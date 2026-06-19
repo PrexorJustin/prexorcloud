@@ -23,8 +23,6 @@ import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
  *
  * <p>Deliberately NOT mirrored:
  * <ul>
- *   <li><b>config versions</b> ({@code WriteConfigVersion}/{@code SetActiveConfigVersion}) — a later
- *       slice; the store has no config-version collection yet;
  *   <li><b>leases</b> ({@code GrantLease}/{@code RenewLease}/{@code ReleaseLease}) — they fold into
  *       the Mongo leadership lease, not the membership store;
  *   <li><b>TouchMember</b> heartbeats — high-frequency; {@code AddMember} already establishes the
@@ -54,9 +52,9 @@ public final class MongoClusterShadow implements Consumer<ClusterEntry> {
             case ClusterEntry.RevokeJoinToken e -> store.revokeJoinToken(e.jti(), e.revokedBy(), e.revokedAt());
             case ClusterEntry.WriteClusterFile e -> store.putClusterFile(e.file());
             case ClusterEntry.DeleteClusterFile e -> store.removeClusterFile(e.key());
-            // Not mirrored (see class doc): config versions, leases, heartbeat touches.
-            case ClusterEntry.WriteConfigVersion ignored -> {}
-            case ClusterEntry.SetActiveConfigVersion ignored -> {}
+            case ClusterEntry.WriteConfigVersion e -> store.writeConfigVersion(e.version());
+            case ClusterEntry.SetActiveConfigVersion e -> store.setActiveConfigVersion(e.version());
+            // Not mirrored (see class doc): leases, heartbeat touches.
             case ClusterEntry.TouchMember ignored -> {}
             case ClusterEntry.GrantLease ignored -> {}
             case ClusterEntry.RenewLease ignored -> {}

@@ -9,8 +9,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.JoinToken;
@@ -72,7 +74,8 @@ final class MongoClusterStoreTest {
     @BeforeEach
     void freshStore() {
         // A fresh database per test isolates documents without cross-test cleanup.
-        MongoDatabase db = client.getDatabase("clusterstore_" + UUID.randomUUID().toString().replace("-", ""));
+        MongoDatabase db = client.getDatabase(
+                "clusterstore_" + UUID.randomUUID().toString().replace("-", ""));
         store = new MongoClusterStore(db);
     }
 
@@ -85,17 +88,22 @@ final class MongoClusterStoreTest {
     }
 
     private static ClusterMeta meta(String clusterId, String seed) {
-        return new ClusterMeta(clusterId, seed, Instant.ofEpochMilli(1_700_000_000_000L), ClusterMeta.CURRENT_SCHEMA_VERSION);
+        return new ClusterMeta(
+                clusterId, seed, Instant.ofEpochMilli(1_700_000_000_000L), ClusterMeta.CURRENT_SCHEMA_VERSION);
     }
 
     private static Member member(String nodeId, String grpcAddr) {
-        return new Member(
-                nodeId, nodeId + ":9190", nodeId + ":8080", grpcAddr, nodeId, Instant.now(), Instant.now());
+        return new Member(nodeId, nodeId + ":9190", nodeId + ":8080", grpcAddr, nodeId, Instant.now(), Instant.now());
     }
 
     private static JoinToken outstanding(String jti, Instant expiresAt) {
         return new JoinToken(
                 jti, "hmac", "edge", "admin", Instant.now(), expiresAt, null, null, null, false, null, null);
+    }
+
+    private static ClusterConfigVersion cv(int version, int parentVersion) {
+        return new ClusterConfigVersion(
+                version, parentVersion, "admin", Instant.ofEpochMilli(version), Map.of("v", version), "rev " + version);
     }
 
     // --- identity (anti-fork CAS) ---
@@ -183,11 +191,92 @@ final class MongoClusterStoreTest {
     void clusterFileIsLastWriteWins() {
         store.putClusterFile(new ClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, "sha-1", "cert-v1".getBytes()));
         assertEquals(
-                "sha-1", store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).orElseThrow().sha256());
+                "sha-1",
+                store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                        .orElseThrow()
+                        .sha256());
 
         store.putClusterFile(new ClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT, "sha-2", "cert-v2".getBytes()));
-        ClusterFile latest = store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).orElseThrow();
+        ClusterFile latest =
+                store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).orElseThrow();
         assertEquals("sha-2", latest.sha256());
         assertEquals("cert-v2", new String(latest.bytes()));
+    }
+
+    // --- config versions (optimistic concurrency on parentVersion + active pointer) ---
+
+    @Test
+    void configVersionsAppendInOrderAndAdvanceActive() {
+        assertEquals(0, store.getActiveConfigVersion());
+        assertTrue(store.getActiveConfigPatch().isEmpty());
+
+        assertTrue(store.writeConfigVersion(cv(1, 0)));
+        assertTrue(store.writeConfigVersion(cv(2, 1)));
+        assertTrue(store.writeConfigVersion(cv(3, 2)));
+
+        assertEquals(3, store.getActiveConfigVersion());
+        assertEquals(3, store.getActiveConfigPatch().orElseThrow().version());
+        assertEquals(
+                List.of(1, 2, 3),
+                store.listConfigVersions().stream()
+                        .map(ClusterConfigVersion::version)
+                        .toList());
+    }
+
+    @Test
+    void firstConfigVersionMustDeclareParentZero() {
+        assertFalse(store.writeConfigVersion(cv(1, 5)));
+        assertTrue(store.listConfigVersions().isEmpty());
+        assertEquals(0, store.getActiveConfigVersion());
+    }
+
+    @Test
+    void configVersionMustBeNextOrdinal() {
+        assertTrue(store.writeConfigVersion(cv(1, 0)));
+        // version 3 skips 2 — rejected, no append.
+        assertFalse(store.writeConfigVersion(cv(3, 1)));
+        assertEquals(
+                List.of(1),
+                store.listConfigVersions().stream()
+                        .map(ClusterConfigVersion::version)
+                        .toList());
+    }
+
+    @Test
+    void staleParentVersionIsRejected() {
+        assertTrue(store.writeConfigVersion(cv(1, 0)));
+        assertTrue(store.writeConfigVersion(cv(2, 1)));
+        // next ordinal is correct (3) but parentVersion=1 != active (2) — lost the race, rejected.
+        assertFalse(store.writeConfigVersion(cv(3, 1)));
+        assertEquals(2, store.getActiveConfigVersion());
+        assertEquals(2, store.listConfigVersions().size());
+    }
+
+    @Test
+    void writingTheSameConfigVersionTwiceIsANoOp() {
+        assertTrue(store.writeConfigVersion(cv(1, 0)));
+        assertFalse(store.writeConfigVersion(cv(1, 0))); // replay
+        assertEquals(1, store.listConfigVersions().size());
+    }
+
+    @Test
+    void setActiveRollsBackThenNewVersionRebasesOntoIt() {
+        store.writeConfigVersion(cv(1, 0));
+        store.writeConfigVersion(cv(2, 1));
+        store.writeConfigVersion(cv(3, 2));
+
+        assertFalse(store.setActiveConfigVersion(9)); // unknown version
+        assertTrue(store.setActiveConfigVersion(1)); // roll back the active pointer
+        assertEquals(1, store.getActiveConfigVersion());
+
+        // the new head is still ordinal 4, but it must declare parentVersion = active (1).
+        assertFalse(store.writeConfigVersion(cv(4, 2)));
+        assertTrue(store.writeConfigVersion(cv(4, 1)));
+        assertEquals(4, store.getActiveConfigVersion());
+        assertEquals(
+                List.of(1, 2, 3, 4),
+                store.listConfigVersions().stream()
+                        .map(ClusterConfigVersion::version)
+                        .toList());
     }
 }

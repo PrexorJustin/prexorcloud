@@ -25,8 +25,8 @@ import org.junit.jupiter.api.Test;
  */
 final class MongoClusterShadowTest {
 
-    private static final Member MEMBER =
-            new Member("ctrl-2", "10.0.0.6:9190", "10.0.0.6:8080", "10.0.0.6:50051", "ctrl-2", Instant.EPOCH, Instant.EPOCH);
+    private static final Member MEMBER = new Member(
+            "ctrl-2", "10.0.0.6:9190", "10.0.0.6:8080", "10.0.0.6:50051", "ctrl-2", Instant.EPOCH, Instant.EPOCH);
 
     @Test
     void mirrorsClusterMeta() {
@@ -59,8 +59,18 @@ final class MongoClusterShadowTest {
         MongoClusterStore store = mock(MongoClusterStore.class);
         MongoClusterShadow shadow = new MongoClusterShadow(store);
         JoinToken token = new JoinToken(
-                "jti-1", "hmac", "edge", "admin", Instant.EPOCH, Instant.EPOCH.plusSeconds(60), null, null, null,
-                false, null, null);
+                "jti-1",
+                "hmac",
+                "edge",
+                "admin",
+                Instant.EPOCH,
+                Instant.EPOCH.plusSeconds(60),
+                null,
+                null,
+                null,
+                false,
+                null,
+                null);
         shadow.accept(new ClusterEntry.WriteJoinToken(token));
         verify(store).putJoinToken(token);
         shadow.accept(new ClusterEntry.RedeemJoinToken("jti-1", Instant.EPOCH, "10.0.0.0/24", "ctrl-2"));
@@ -81,13 +91,21 @@ final class MongoClusterShadowTest {
     }
 
     @Test
-    void doesNotMirrorConfigVersionsLeasesOrHeartbeats() {
+    void mirrorsConfigVersionWriteAndActivePointer() {
+        MongoClusterStore store = mock(MongoClusterStore.class);
+        MongoClusterShadow shadow = new MongoClusterShadow(store);
+        ClusterConfigVersion version = new ClusterConfigVersion(1, 0, "admin", Instant.EPOCH, Map.of(), "init");
+        shadow.accept(new ClusterEntry.WriteConfigVersion(version));
+        verify(store).writeConfigVersion(version);
+        shadow.accept(new ClusterEntry.SetActiveConfigVersion(1, "admin", Instant.EPOCH));
+        verify(store).setActiveConfigVersion(1);
+    }
+
+    @Test
+    void doesNotMirrorLeasesOrHeartbeats() {
         MongoClusterStore store = mock(MongoClusterStore.class);
         MongoClusterShadow shadow = new MongoClusterShadow(store);
 
-        shadow.accept(new ClusterEntry.WriteConfigVersion(
-                new ClusterConfigVersion(1, 0, "admin", Instant.EPOCH, Map.of(), "init")));
-        shadow.accept(new ClusterEntry.SetActiveConfigVersion(1, "admin", Instant.EPOCH));
         shadow.accept(new ClusterEntry.TouchMember("ctrl-2", Instant.EPOCH));
         shadow.accept(new ClusterEntry.GrantLease("scheduler", "ctrl-1", Instant.EPOCH, 15_000));
         shadow.accept(new ClusterEntry.RenewLease("scheduler", "ctrl-1", Instant.EPOCH));

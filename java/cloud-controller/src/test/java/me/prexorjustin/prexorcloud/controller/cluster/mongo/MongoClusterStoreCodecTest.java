@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.time.Instant;
+import java.util.Map;
 
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.JoinToken;
@@ -22,7 +24,8 @@ final class MongoClusterStoreCodecTest {
 
     @Test
     void clusterMetaRoundTrips() {
-        ClusterMeta meta = new ClusterMeta("cluster-abc", "c2VlZHNlY3JldA==", Instant.ofEpochMilli(1_700_000_000_000L), 1);
+        ClusterMeta meta =
+                new ClusterMeta("cluster-abc", "c2VlZHNlY3JldA==", Instant.ofEpochMilli(1_700_000_000_000L), 1);
         assertEquals(meta, MongoClusterStore.toClusterMeta(MongoClusterStore.clusterMetaDoc(meta)));
     }
 
@@ -42,22 +45,70 @@ final class MongoClusterStoreCodecTest {
     @Test
     void outstandingJoinTokenRoundTrips() {
         JoinToken t = new JoinToken(
-                "jti-1", "hmac", "edge", "admin", Instant.ofEpochMilli(0L), Instant.ofEpochMilli(60_000L), null, null,
-                null, false, null, null);
+                "jti-1",
+                "hmac",
+                "edge",
+                "admin",
+                Instant.ofEpochMilli(0L),
+                Instant.ofEpochMilli(60_000L),
+                null,
+                null,
+                null,
+                false,
+                null,
+                null);
         assertEquals(t, MongoClusterStore.toJoinToken(MongoClusterStore.joinTokenDoc(t)));
     }
 
     @Test
     void redeemedAndRevokedJoinTokensRoundTrip() {
         JoinToken redeemed = new JoinToken(
-                "jti-2", "hmac", "edge", "admin", Instant.ofEpochMilli(0L), Instant.ofEpochMilli(60_000L),
-                Instant.ofEpochMilli(30_000L), "10.0.0.0/24", "ctrl-3", false, null, null);
+                "jti-2",
+                "hmac",
+                "edge",
+                "admin",
+                Instant.ofEpochMilli(0L),
+                Instant.ofEpochMilli(60_000L),
+                Instant.ofEpochMilli(30_000L),
+                "10.0.0.0/24",
+                "ctrl-3",
+                false,
+                null,
+                null);
         assertEquals(redeemed, MongoClusterStore.toJoinToken(MongoClusterStore.joinTokenDoc(redeemed)));
 
         JoinToken revoked = new JoinToken(
-                "jti-3", "hmac", "edge", "admin", Instant.ofEpochMilli(0L), Instant.ofEpochMilli(60_000L), null, null,
-                null, true, "admin", Instant.ofEpochMilli(10_000L));
+                "jti-3",
+                "hmac",
+                "edge",
+                "admin",
+                Instant.ofEpochMilli(0L),
+                Instant.ofEpochMilli(60_000L),
+                null,
+                null,
+                null,
+                true,
+                "admin",
+                Instant.ofEpochMilli(10_000L));
         assertEquals(revoked, MongoClusterStore.toJoinToken(MongoClusterStore.joinTokenDoc(revoked)));
+    }
+
+    @Test
+    void configVersionRoundTrips() {
+        ClusterConfigVersion v = new ClusterConfigVersion(
+                3,
+                2,
+                "admin",
+                Instant.ofEpochMilli(1_700_000_000_000L),
+                Map.of("motd", "welcome", "maxPlayers", 200),
+                "raise cap");
+        assertEquals(v, MongoClusterStore.toConfigVersion(MongoClusterStore.configVersionDoc(v)));
+    }
+
+    @Test
+    void emptyPatchConfigVersionRoundTrips() {
+        ClusterConfigVersion v = new ClusterConfigVersion(1, 0, "admin", Instant.ofEpochMilli(0L), Map.of(), "init");
+        assertEquals(v, MongoClusterStore.toConfigVersion(MongoClusterStore.configVersionDoc(v)));
     }
 
     @Test
