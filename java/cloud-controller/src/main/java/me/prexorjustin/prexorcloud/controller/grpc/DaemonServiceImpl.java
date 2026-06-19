@@ -87,6 +87,20 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
     private final DaemonConnectionLifecycle connectionLifecycle;
     private final PendingRequestRegistry pendingRequests;
 
+    /**
+     * Inject single-writer leadership (Phase 3): the leader stamps its fencing epoch on each
+     * {@code HandshakeAck}; a follower redirects the daemon to the leader via the resolver below.
+     * Wired in bootstrap once the elector exists; defaults to always-leader so tests are unchanged.
+     */
+    public void setLeadership(me.prexorjustin.prexorcloud.controller.cluster.Leadership leadership) {
+        connectionLifecycle.setLeadership(leadership);
+    }
+
+    /** Inject the resolver for the current leader's gRPC address (empty when leader/unknown). */
+    public void setLeaderGrpcAddressResolver(java.util.function.Supplier<String> resolver) {
+        connectionLifecycle.setLeaderGrpcAddressResolver(resolver);
+    }
+
     public DaemonServiceImpl(Deps deps, long heartbeatIntervalMs, int heartbeatMissedThreshold, int controllerApiPort) {
         this.sessionManager = deps.sessionManager();
         this.clusterState = deps.clusterState();

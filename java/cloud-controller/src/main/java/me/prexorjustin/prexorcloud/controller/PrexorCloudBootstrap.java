@@ -154,6 +154,7 @@ public final class PrexorCloudBootstrap {
     private ShutdownManager shutdownManager;
     private me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector leaderElector;
     private me.prexorjustin.prexorcloud.controller.cluster.ChangeStreamReconciler changeStreamReconciler;
+    private me.prexorjustin.prexorcloud.controller.grpc.DaemonServiceImpl daemonService;
     private me.prexorjustin.prexorcloud.controller.scheduler.NodeMessageDispatcher nodeMessageDispatcher;
     private ClusterControlService clusterControlService;
     private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
@@ -1107,7 +1108,7 @@ public final class PrexorCloudBootstrap {
                 config.uuid(),
                 pendingRequests,
                 eventBridge);
-        var daemonService = new DaemonServiceImpl(
+        daemonService = new DaemonServiceImpl(
                 daemonDeps,
                 heartbeatMs,
                 config.heartbeat().missedThreshold(),
@@ -1258,6 +1259,14 @@ public final class PrexorCloudBootstrap {
         scheduler.setConvergenceGate(convergenceGate);
         scheduler.placementCoordinator().setLeadership(leaderElector);
         nodeMessageDispatcher.setLeadership(leaderElector);
+        // Phase 3 redirect: on handshake the leader stamps its fencing epoch; a follower returns the
+        // current leader's gRPC address so the daemon redirects to it. The leader is the lease holder
+        // (== a cluster member's nodeId); resolve its gRPC address from the cluster member list (which
+        // Phase 4 will repoint from Raft to the Mongo `cluster_members` collection — same resolver).
+        if (daemonService != null) {
+            daemonService.setLeadership(leaderElector);
+            daemonService.setLeaderGrpcAddressResolver(() -> resolveLeaderGrpcAddress(leaderElector));
+        }
         scheduler.start();
         leaderElector.start();
 
@@ -1356,6 +1365,28 @@ public final class PrexorCloudBootstrap {
                 drainLeaseManager);
 
         return scheduler;
+    }
+
+    /**
+     * Resolve the current leader's gRPC address for daemon redirect (Phase 3). Empty when this
+     * controller is the leader, when there is no current holder, or when the holder has no resolvable
+     * member entry — the daemon then stays put (the Redis relay still carries commands until a leader
+     * resolves). The leader is the lease holder, whose UUID equals a cluster member's {@code nodeId}.
+     */
+    private String resolveLeaderGrpcAddress(me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector elector) {
+        var lease = elector.readLease().orElse(null);
+        if (lease == null || lease.holder() == null || lease.holder().equals(config.uuid())) {
+            return "";
+        }
+        if (clusterControlService == null) {
+            return "";
+        }
+        return clusterControlService.controlPlane().listMembers().stream()
+                .filter(member -> lease.holder().equals(member.nodeId()))
+                .map(me.prexorjustin.prexorcloud.controller.cluster.state.Member::gRPCAddr)
+                .filter(addr -> addr != null && !addr.isBlank())
+                .findFirst()
+                .orElse("");
     }
 
     private void reconcileDurableWorkflows(PrexorController controller) {

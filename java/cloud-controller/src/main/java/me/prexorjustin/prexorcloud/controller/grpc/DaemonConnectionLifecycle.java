@@ -17,6 +17,7 @@ import me.prexorjustin.prexorcloud.api.event.events.NodeDisconnectedEvent;
 import me.prexorjustin.prexorcloud.common.util.InputValidator;
 import me.prexorjustin.prexorcloud.controller.catalog.CatalogConfigLoader;
 import me.prexorjustin.prexorcloud.controller.catalog.CatalogStore;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
@@ -76,6 +77,13 @@ final class DaemonConnectionLifecycle {
     private final int heartbeatMissedThreshold;
     private final int controllerApiPort;
 
+    // Single-writer redirect (Phase 3): on handshake the leader stamps its fencing epoch on the ack;
+    // a follower instead returns the leader's gRPC address so the daemon can redirect to it. Default
+    // always-leader + empty resolver so single-controller installs and tests behave unchanged (no
+    // redirect, epoch 1); bootstrap injects the real elector + a leader-address resolver.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
+    private volatile Supplier<String> leaderGrpcAddressResolver = () -> "";
+
     DaemonConnectionLifecycle(
             NodeSessionManager sessionManager,
             HeartbeatTracker heartbeatTracker,
@@ -109,6 +117,42 @@ final class DaemonConnectionLifecycle {
         this.heartbeatIntervalMs = heartbeatIntervalMs;
         this.heartbeatMissedThreshold = heartbeatMissedThreshold;
         this.controllerApiPort = controllerApiPort;
+    }
+
+    /** Inject single-writer leadership (bootstrap, after the elector is up). Default = always-leader. */
+    void setLeadership(Leadership leadership) {
+        if (leadership != null) {
+            this.leadership = leadership;
+        }
+    }
+
+    /**
+     * Inject the resolver that returns the current leader's gRPC address (or empty when this
+     * controller is the leader / the leader is unknown). Used to redirect a daemon that handshakes
+     * onto a follower.
+     */
+    void setLeaderGrpcAddressResolver(Supplier<String> resolver) {
+        if (resolver != null) {
+            this.leaderGrpcAddressResolver = resolver;
+        }
+    }
+
+    /**
+     * Stamp the leadership fields onto a {@link HandshakeAck} (Phase 3 redirect/fencing). The leader
+     * sets its fencing {@code epoch} so the daemon floors on it; a follower instead sets
+     * {@code leader_grpc_addr} so the daemon redirects. An empty address leaves the daemon on this
+     * controller (no known leader yet — the Redis relay still carries commands until one resolves).
+     * Package-private + static so the decision is unit-tested without the full handshake harness.
+     */
+    static void applyLeadership(HandshakeAck.Builder ack, Leadership leadership, Supplier<String> leaderAddrResolver) {
+        if (leadership.isLeader()) {
+            ack.setEpoch(leadership.currentEpoch());
+            return;
+        }
+        String leaderAddr = leaderAddrResolver.get();
+        if (leaderAddr != null && !leaderAddr.isBlank()) {
+            ack.setLeaderGrpcAddr(leaderAddr);
+        }
     }
 
     /**
@@ -232,14 +276,14 @@ final class DaemonConnectionLifecycle {
 
         eventBus.publish(new NodeConnectedEvent(nodeId, sessionId, Instant.now()));
 
-        var ack = ControllerMessage.newBuilder()
-                .setHandshakeAck(HandshakeAck.newBuilder()
-                        .setSessionId(sessionId)
-                        .setHeartbeatIntervalMs(heartbeatIntervalMs)
-                        .setControllerApiPort(controllerApiPort)
-                        .setProtocolVersion(1)
-                        .setProtocolCompatible(daemonProtocolVersion >= 1))
-                .build();
+        var ackBuilder = HandshakeAck.newBuilder()
+                .setSessionId(sessionId)
+                .setHeartbeatIntervalMs(heartbeatIntervalMs)
+                .setControllerApiPort(controllerApiPort)
+                .setProtocolVersion(1)
+                .setProtocolCompatible(daemonProtocolVersion >= 1);
+        applyLeadership(ackBuilder, leadership, leaderGrpcAddressResolver);
+        var ack = ControllerMessage.newBuilder().setHandshakeAck(ackBuilder).build();
         response.onNext(ack);
 
         sendPreWarmCache(response);
