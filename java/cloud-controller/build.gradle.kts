@@ -69,6 +69,14 @@ dependencies {
     testImplementation(libs.grpc.testing)
     testImplementation(libs.grpc.inprocess)
     testImplementation(libs.opentelemetry.sdk.testing)
+
+    // Testcontainers — MongoLeaderElector + the single-writer lease need a real replica-set
+    // Mongo ($$NOW server time, atomic findOneAndUpdate, linearizable reads, change streams).
+    // MongoDBContainer brings up a single-node RS, exactly matching the deployed topology.
+    // These tests self-skip (Assumptions.assumeTrue) where Docker is absent.
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.mongodb)
 }
 
 // Exclude long-running Ratis spike tests from the default test task. Invoke them
