@@ -43,8 +43,11 @@ public final class DaemonGrpcClient {
         DISCONNECTED
     }
 
-    private final String host;
-    private final int port;
+    // host/port are mutable: a HandshakeAck from a follower redirects the daemon to the leader
+    // (Phase 3), swapping the dial target before the reconnect path re-dials. Volatile so the
+    // reconnect-scheduler thread sees the new target.
+    private volatile String host;
+    private volatile int port;
     private final String nodeId;
     private final String advertiseAddress;
     private final long totalMemoryMb;
@@ -253,9 +256,58 @@ public final class DaemonGrpcClient {
         return controllerApiUrl;
     }
 
-    /** Returns the controller host the daemon is connected to. */
+    /** Returns the controller host the daemon is connected to (or being redirected to). */
     public String controllerHost() {
         return host;
+    }
+
+    /** Returns the controller gRPC port the daemon is connected to (or being redirected to). */
+    public int controllerPort() {
+        return port;
+    }
+
+    /**
+     * Redirect this daemon to the leader at {@code addr} ("host:port"), as instructed by a follower's
+     * {@code HandshakeAck} (Phase 3). Swaps the dial target and forces a reconnect through the existing
+     * reconnect path — {@link #connect()} tears down the current (follower) channel and dials the new
+     * target. Returns {@code true} if a redirect was initiated, or {@code false} if the address is
+     * invalid or already the current target (the caller should then settle the handshake normally).
+     */
+    public boolean redirectToLeader(String addr) {
+        if (addr == null) {
+            return false;
+        }
+        int colon = addr.lastIndexOf(':');
+        if (colon <= 0 || colon == addr.length() - 1) {
+            logger.warn("Ignoring invalid leader redirect address: '{}'", addr);
+            return false;
+        }
+        String newHost = addr.substring(0, colon);
+        int newPort;
+        try {
+            newPort = Integer.parseInt(addr.substring(colon + 1));
+        } catch (NumberFormatException e) {
+            logger.warn("Ignoring leader redirect address with non-numeric port: '{}'", addr);
+            return false;
+        }
+        if (newPort <= 0 || newPort > 65535) {
+            logger.warn("Ignoring leader redirect address with out-of-range port: '{}'", addr);
+            return false;
+        }
+        if (newHost.equals(host) && newPort == port) {
+            return false; // already targeting this controller — settle normally
+        }
+        logger.info("Redirecting daemon from {}:{} to leader at {}:{}", host, port, newHost, newPort);
+        this.host = newHost;
+        this.port = newPort;
+        // Drop out of CONNECTING (set by the connect() that opened the follower stream) so the reconnect
+        // path's connect() proceeds rather than short-circuiting; it then dials the new target.
+        state = State.DISCONNECTED;
+        stopStatusReporting();
+        if (reconnectManager != null) {
+            reconnectManager.scheduleReconnect();
+        }
+        return true;
     }
 
     /** Returns the controller REST API port resolved from the handshake (0 if unknown). */

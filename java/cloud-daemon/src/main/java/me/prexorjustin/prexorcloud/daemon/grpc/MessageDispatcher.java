@@ -255,16 +255,23 @@ public final class MessageDispatcher {
                 ack.getSessionId(),
                 ack.getHeartbeatIntervalMs());
         // Establish/raise the fencing baseline: the accepting leader's epoch is the floor for
-        // subsequent commands. (Redirect handling for leader_grpc_addr lands with the seed-list work.)
+        // subsequent commands.
         if (ack.getEpoch() > latestAcceptedEpoch) {
             latestAcceptedEpoch = ack.getEpoch();
         }
-        if (client != null) {
-            if (ack.getControllerApiPort() > 0) {
-                client.setControllerApiPort(ack.getControllerApiPort());
-            }
-            client.onHandshakeAckReceived();
+        if (client == null) {
+            return;
         }
+        // A follower acks with the leader's gRPC address (Phase 3): redirect there instead of
+        // settling on this follower, which holds no scheduler and would issue no commands.
+        String leaderAddr = ack.getLeaderGrpcAddr();
+        if (!leaderAddr.isBlank() && client.redirectToLeader(leaderAddr)) {
+            return;
+        }
+        if (ack.getControllerApiPort() > 0) {
+            client.setControllerApiPort(ack.getControllerApiPort());
+        }
+        client.onHandshakeAckReceived();
     }
 
     private void handlePing(Ping ping) {
