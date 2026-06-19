@@ -58,6 +58,12 @@ public final class MessageDispatcher {
     private DaemonModuleManager daemonModuleManager;
     private DaemonEventBus daemonEventBus;
 
+    // Single-writer fencing: the highest leadership epoch this daemon has accepted (from a
+    // HandshakeAck or a command). A command carrying a lower epoch comes from a deposed leader and is
+    // rejected, so a zombie controller's in-flight commands can't take effect after a failover. 0 =
+    // no leadership epoch seen yet (legacy controller / unset) — accept and don't fence.
+    private volatile long latestAcceptedEpoch = 0L;
+
     /** Swap in the real OpenTelemetry tracer (Track D.3). Null restores the no-op default. */
     public void setTracer(Tracer tracer) {
         this.tracer = tracer != null ? tracer : OpenTelemetry.noop().getTracer("prexorcloud-daemon");
@@ -107,6 +113,9 @@ public final class MessageDispatcher {
      * downstream async work. Tracing that deeper work is a follow-up.
      */
     public void dispatch(ControllerMessage message) {
+        if (!acceptEpoch(message)) {
+            return; // STALE_EPOCH — command from a deposed leader, fenced
+        }
         String traceparent = message.getTraceparent();
         if (traceparent.isEmpty()) {
             dispatchPayload(message);
@@ -127,6 +136,41 @@ public final class MessageDispatcher {
         } finally {
             span.end();
         }
+    }
+
+    /**
+     * Fencing decision for an inbound controller message. A {@code HandshakeAck} (which establishes
+     * the epoch baseline) and an unset epoch (legacy controller) are always accepted. A command with
+     * an epoch below the highest accepted is rejected (a deposed leader). A higher epoch raises the
+     * fence — a newer leader has taken over. Package-private for direct unit testing.
+     */
+    boolean acceptEpoch(ControllerMessage message) {
+        if (message.getPayloadCase() == ControllerMessage.PayloadCase.HANDSHAKE_ACK) {
+            return true;
+        }
+        long epoch = message.getEpoch();
+        if (epoch == 0L) {
+            return true;
+        }
+        long floor = latestAcceptedEpoch;
+        if (epoch < floor) {
+            logger.warn(
+                    "STALE_EPOCH: rejecting {} from a deposed leader (epoch {} < accepted {})",
+                    message.getPayloadCase(),
+                    epoch,
+                    floor);
+            return false;
+        }
+        if (epoch > floor) {
+            latestAcceptedEpoch = epoch;
+            logger.info("Leadership epoch advanced to {} (was {})", epoch, floor);
+        }
+        return true;
+    }
+
+    /** The highest leadership epoch accepted so far (observability / tests). */
+    public long latestAcceptedEpoch() {
+        return latestAcceptedEpoch;
     }
 
     private void dispatchPayload(ControllerMessage message) {
@@ -210,6 +254,11 @@ public final class MessageDispatcher {
                 "Handshake acknowledged. Session: {}, heartbeat interval: {}ms",
                 ack.getSessionId(),
                 ack.getHeartbeatIntervalMs());
+        // Establish/raise the fencing baseline: the accepting leader's epoch is the floor for
+        // subsequent commands. (Redirect handling for leader_grpc_addr lands with the seed-list work.)
+        if (ack.getEpoch() > latestAcceptedEpoch) {
+            latestAcceptedEpoch = ack.getEpoch();
+        }
         if (client != null) {
             if (ack.getControllerApiPort() > 0) {
                 client.setControllerApiPort(ack.getControllerApiPort());

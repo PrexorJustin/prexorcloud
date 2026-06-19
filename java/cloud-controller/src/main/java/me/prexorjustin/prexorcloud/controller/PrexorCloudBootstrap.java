@@ -153,6 +153,7 @@ public final class PrexorCloudBootstrap {
     private NodeDrainManager drainManager;
     private ShutdownManager shutdownManager;
     private me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector leaderElector;
+    private me.prexorjustin.prexorcloud.controller.scheduler.NodeMessageDispatcher nodeMessageDispatcher;
     private ClusterControlService clusterControlService;
     private me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator clusterConfigReload;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
@@ -1228,6 +1229,7 @@ public final class PrexorCloudBootstrap {
         scheduler.setLeadership(leaderElector);
         scheduler.setConvergenceGate(convergenceGate);
         scheduler.placementCoordinator().setLeadership(leaderElector);
+        nodeMessageDispatcher.setLeadership(leaderElector);
         scheduler.start();
         leaderElector.start();
 
@@ -1287,7 +1289,7 @@ public final class PrexorCloudBootstrap {
                 controller.clusterState(), config.scheduler().scalingCooldownSeconds(), runtime);
         var leaseManager = runtime.newLeaseManager(config.scheduler().evaluationIntervalSeconds() * 2);
         var redisSync = runtime.coordinationEnabled() ? runtime.redisCommands() : null;
-        var nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager(), eventBridge, redisSync);
+        nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager(), eventBridge, redisSync);
         if (controller.metricsCollector() != null) {
             nodeMessageDispatcher.attachMetricsCollector(controller.metricsCollector());
         }

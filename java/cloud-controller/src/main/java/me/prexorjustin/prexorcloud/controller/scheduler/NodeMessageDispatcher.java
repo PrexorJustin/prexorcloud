@@ -2,6 +2,7 @@ package me.prexorjustin.prexorcloud.controller.scheduler;
 
 import java.util.Optional;
 
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.metrics.MetricsCollector;
 import me.prexorjustin.prexorcloud.controller.redis.RedisEventBridge;
 import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
@@ -24,6 +25,11 @@ public final class NodeMessageDispatcher {
     private final RedisEventBridge eventBridge;
     private final RedisCommands<String, String> redisCommands;
     private volatile MetricsCollector metricsCollector;
+    // Single-writer fencing: every outbound command is stamped with the leader's epoch here — before
+    // both the local send and the cross-controller relay — so a relayed command carries the issuing
+    // leader's epoch (not the relaying follower's). Daemons reject commands with a stale epoch.
+    // Defaults to always-leader (epoch 1) so single-controller installs + tests are unaffected.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
 
     public NodeMessageDispatcher(
             NodeSessionManager sessionManager,
@@ -38,6 +44,11 @@ public final class NodeMessageDispatcher {
         this.metricsCollector = metricsCollector;
     }
 
+    /** Inject single-writer leadership (bootstrap) so outbound commands carry the leader's epoch. */
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
+    }
+
     /**
      * Whether this controller owns {@code nodeId}'s daemon gRPC stream. True on exactly one
      * controller per connected node (single-writer), so it is the authority for placing,
@@ -48,6 +59,12 @@ public final class NodeMessageDispatcher {
     }
 
     public boolean dispatch(String nodeId, ControllerMessage message) {
+        // Stamp the issuing leader's fencing epoch before delivery (direct or relayed) so the daemon
+        // can reject a deposed leader's stale commands. Only overwrite an unset epoch — callers that
+        // pre-stamp (e.g. a relayed command already carrying the originator's epoch) keep theirs.
+        if (message.getEpoch() == 0L) {
+            message = message.toBuilder().setEpoch(leadership.currentEpoch()).build();
+        }
         Optional<NodeSession> session = sessionManager.getByNodeId(nodeId);
         boolean delivered;
         if (session.isPresent()) {
