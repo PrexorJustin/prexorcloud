@@ -444,14 +444,23 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
   `InstanceTransitionValidator`; `addInstance` overwrites). Policy extracted as tested static `decideReportedInstance`.
   **Proven live:** rolled the leader twice — game **PID survived continuously**, log shows `adopting running instance
   lobby-2`, no force-stop/CRASHED/reschedule.
-- **🐛 OPEN (daemon-side, low severity) — a re-adopted instance can stay STARTING forever in the daemon's view.**
-  After a daemon restart that re-adopts an already-running server, the daemon never marks it RUNNING (the readiness
-  signal — e.g. the Paper "Done" log line — already passed before the daemon re-attached its log tail). The daemon
-  reports STARTING, the leader faithfully adopts STARTING, and `RecoveryOrchestrator` harmlessly re-dispatches
-  `StartInstance` → `INSTANCE_ALREADY_RUNNING` every ~30s. Benign (game runs), but noisy and the controller's view is
-  wrong. **Fresh starts reach RUNNING fine** (relaunching the instance clears it). Fix candidate: on re-adoption,
-  detect readiness by probing the live process (port/healthcheck) instead of waiting for a log line that's already
-  gone. Surfaced only by back-to-back test restarts, not normal operation.
+- **DONE (committed `61632e6`) + PROVEN — adopt/resurrect re-derives RUNNING (stuck-STARTING loop fixed).**
+  Corrected diagnosis (the first "re-adoption readiness probe" guess was wrong): **the daemon never reports RUNNING.**
+  `ServerProcess` only tracks SCHEDULED→PREPARING→STARTING; readiness is the in-server plugin's **one-shot**
+  `POST /api/plugin/ready` to the *controller* (`PluginRoutes` → `clusterState.updateInstanceState(RUNNING)`), so
+  `RunningInstance.state` is always STARTING for a live instance. In clean ops fine (the controller holds RUNNING and
+  the daemon's STARTING is rejected by the RUNNING→STARTING transition guard). But the new adopt/resurrect path wrote
+  `running.getState()` = STARTING via `addInstance` (overwrites, bypassing the guard) → an adopted instance was pinned
+  STARTING forever (the one-shot /ready already fired) → `RecoveryOrchestrator` re-dispatched every ~30s
+  (`INSTANCE_ALREADY_RUNNING`). Fix: adopt/resurrect re-derives `InstanceState.RUNNING` (we only adopt an instance the
+  daemon reports alive whose record we lost — it's a running server). Proven live: a cold-elected leader logged
+  `adopting running instance lobby-1` then **zero** re-dispatch churn; game pid unchanged.
+- **🐛 OPEN (lower priority) — readiness is a one-shot signal with no re-derivation.** The adopt→RUNNING heuristic
+  covers failover/recovery, but the robust design is **renewable readiness**: the plugin re-asserts ready on
+  (re)connect / periodically, OR the daemon detects readiness (port probe / plugin→daemon) and reports RUNNING
+  continuously. Matters most post-Phase-6 (Redis gone → new leaders always cold → always adopt). Related pre-existing
+  gap: if the plugin never calls `/ready`, an alive instance stays STARTING and `RecoveryOrchestrator` loops —
+  candidate: don't re-dispatch a `StartInstance` for an instance the daemon currently reports alive.
 - **Fleet left clean:** ctrl-1 leader, ctrl-2/ctrl-3 followers, all controllers on the failover-fix jar, daemon
   node-frankenstein-1 on the seed-list jar with a 3-seed config + populated `known-controllers.json` + fresh
   `lobby-2` RUNNING.
