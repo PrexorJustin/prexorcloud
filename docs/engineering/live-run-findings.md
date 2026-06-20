@@ -391,15 +391,16 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
   - `dc1d83f` members advertised the `0.0.0.0` bind host; advertise the routable `raft.host` so a redirect target is dialable.
   - `4931a24` daemon-redirect leadership was wired in `initScheduler` (before `daemonService` exists) so it never ran;
     moved to `initGrpc`. The follower now correctly emits `Redirecting daemon … to leader at <routable>:9090`.
-- **OPEN — daemon-facing mTLS CA is NOT shared across controllers (blocks daemon FAILOVER, not join/election).**
-  After the redirect fires correctly, the daemon cannot complete TLS to the new leader: each controller has its own
-  daemon-facing server cert / CA (`SERVER_KEYSTORE` / `CA_PEM` via `ReloadableServerSslContext`), separate from the
-  shared *cluster* CA in Mongo. A daemon enrolled against ctrl-1 gets `UNAVAILABLE: io exception` (client SSL handler)
-  dialing ctrl-3. **Fix needed for HA daemon-failover:** issue the daemon-facing server cert from the shared cluster CA
-  (in `cluster_files`), or otherwise distribute one daemon-trust root to all controllers, so any daemon trusts any
-  controller. Also note the daemon has a single static controller address (no seed-list, Phase 3 item 4 deferred): after
-  a redirect to an unreachable leader it stays stuck rather than falling back. Until fixed, keep the daemon's controller
-  the leader (works as a warm-standby control plane; daemon cannot fail over).
+- **CODED (committed `0da4dba`), NOT yet live-deployed — daemon-facing mTLS CA now = the shared cluster CA.**
+  Root cause: each controller had its own daemon-facing CA (`config/security/ca.p12`, signing the `SERVER_KEYSTORE`
+  server cert + daemon client certs), separate from the shared *cluster* CA in Mongo — so after a redirect fires the
+  daemon got `UNAVAILABLE: io exception` (client SSL handler) dialing a different controller. Fix: `initSecurity` now
+  loads the daemon-facing CA from the shared cluster CA (`cluster_files`, `loadClusterCa()`) and re-issues the server
+  cert from it whenever the persisted one doesn't chain (`serverCertChainsTo`). **Deploy requires re-enrolling existing
+  daemons** (their client cert was signed by the old per-controller CA → untrusted by all controllers once they switch
+  to the cluster CA). Also still OPEN: the daemon has a single static controller address (no seed-list, Phase 3 item 4
+  deferred) → after a redirect to an unreachable leader it stays stuck rather than falling back. Until deployed +
+  re-enrolled, keep the daemon's controller the leader (warm-standby control plane; daemon cannot fail over).
 - **Fleet left:** 3-member cluster, **ctrl-1 leader** (the controller the daemon trusts), ctrl-2/ctrl-3 followers,
   node-frankenstein-1 ONLINE + managed, game running, gauges healthy. Admin pw on ctrl-1 at
   `cat /opt/prexorcloud/controller/config/.initial-admin-password`; cadmin/`Clstr-Admin-2026-xZ9q` for cluster.manage.
