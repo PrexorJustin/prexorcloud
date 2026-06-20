@@ -401,12 +401,14 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
   fresh `pxr_` token, re-bootstrap). Result: the daemon's trust root is now `CN=PrexorCloud Cluster CA` and it
   **completes mTLS handshake with a controller that is NOT its dial target** (handshaked with ctrl-3 after a redirect
   from ctrl-1) — the `io exception` is gone. Cross-controller mTLS works.
-- **🐛 NEW OPEN — daemon session FLAPS on a *redirected* leader (redirect/session stability, not CA).** Once mTLS
-  succeeded, a daemon that lands on a leader via redirect (dial target ≠ leader) churns ~1 connect+handshake+`Channel
-  shutdownNow`/sec. Stable when it dials the leader directly (1 connect, 0 shutdowns). So daemon *failover* isn't stable
-  yet even with the CA fixed: the redirect lands but the session won't hold. Likely a redirect re-trigger / duplicate-
-  session loop in the handshake path. Workaround in place: keep the daemon's configured controller (ctrl-1) the leader.
-  Repro: roll the leader so the daemon is forced onto a different controller via redirect.
+- **DONE (committed `a11967d`) + DEPLOYED + PROVEN — daemon redirect-flap fixed.** Once mTLS succeeded, a daemon that
+  landed on a leader via redirect churned ~1 connect+handshake+`Channel shutdownNow`/sec. Root cause: `redirectToLeader`
+  calls `scheduleReconnect()`; the resulting `connect()` `shutdownNow()`s the still-healthy old channel, whose `onError`
+  ("Channel shutdownNow invoked") ran `handleDisconnect → scheduleReconnect` again — a phantom reconnect that then kills
+  the freshly-connected leader channel, looping forever. Fix: stamp each `connect()` with a generation id and ignore
+  `onError`/`onCompleted` from a superseded channel (our own teardown). Deployed daemon jar `e72ca033` to
+  node-frankenstein-1 and **proven live**: rolled the leader → daemon redirected to the new leader (ctrl-3) and held a
+  STABLE session (1 connect, 0 shutdowns over 40s), ONLINE + managed. **Full HA daemon-failover now works end-to-end.**
 - **🐛 NEW OPEN (ops gotcha) — a node whose daemon can't reconnect stays "ONLINE" in clusterState forever**, blocking
   `DELETE /nodes/{id}` and `POST /admin/tokens` (both gate on `clusterState.getNode().isPresent()`) with 409. The
   heartbeat-miss never fires (no session to miss) and deleting the runtime key `prexor:v1:node:<id>` from Valkey isn't
