@@ -59,6 +59,11 @@ public final class DaemonGrpcClient {
     private final ReentrantLock connectLock = new ReentrantLock();
     private volatile State state = State.IDLE;
     private ManagedChannel channel;
+    // Monotonic per-connection id. Each connect() bumps it and stamps the new stream's observer; when a
+    // later connect() tears down a still-open channel, that stale observer's onError/onCompleted is
+    // ignored so our own teardown does not schedule a phantom reconnect (which otherwise kills the
+    // freshly-connected channel in a ~1/s loop after a leader redirect).
+    private volatile long connectGeneration;
     private volatile StreamObserver<DaemonMessage> requestStream;
     private ScheduledExecutorService statusScheduler;
     private volatile String controllerApiUrl = "";
@@ -107,6 +112,7 @@ public final class DaemonGrpcClient {
                 return;
             }
             state = State.CONNECTING;
+            final long gen = ++connectGeneration;
 
             // Shut down any existing channel to avoid leaking resources
             if (channel != null) {
@@ -148,12 +154,20 @@ public final class DaemonGrpcClient {
 
                 @Override
                 public void onError(Throwable t) {
+                    if (gen != connectGeneration) {
+                        // This channel was superseded by a newer connect() (e.g. a leader redirect) that
+                        // tore it down on purpose — don't treat our own teardown as a disconnect.
+                        return;
+                    }
                     logger.warn("Connection error: {}", t.getMessage());
                     handleDisconnect();
                 }
 
                 @Override
                 public void onCompleted() {
+                    if (gen != connectGeneration) {
+                        return;
+                    }
                     logger.info("Connection closed by controller");
                     handleDisconnect();
                 }
