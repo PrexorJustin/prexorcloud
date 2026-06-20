@@ -372,7 +372,13 @@ public final class PrexorCloudBootstrap {
                     raftAddr,
                     restAddr,
                     grpcAddr);
-            clusterControlService.startInJoinMode(token, materials, identity);
+            if (config.clusterStore().readsFromMongo()) {
+                // MONGO authority: register in Mongo (cluster_members + token redeem) and adopt the CA from
+                // Mongo — no Raft group join, no mTLS handshake to an existing controller.
+                clusterControlService.startInMongoJoinMode(token, materials, identity);
+            } else {
+                clusterControlService.startInJoinMode(token, materials, identity);
+            }
             // Persist the new cluster id mirror so the next boot's "yaml vs raft" guard fires.
             String joinedClusterId = clusterControlService.clusterId();
             if (joinedClusterId != null) {

@@ -412,6 +412,107 @@ public final class ClusterControlService implements AutoCloseable {
         }
     }
 
+    /**
+     * Phase-4 Day-N join via Mongo registration — {@code clusterStore=mongo}. No Raft group join, no
+     * gRPC handshake to an existing controller, so it sidesteps the mTLS bootstrap chicken-and-egg that
+     * blocked the Raft join. The joiner:
+     *
+     * <ol>
+     *   <li>validates + single-use-redeems the join token against the Mongo cluster store (same checks
+     *       {@link me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl} runs server
+     *       side: HMAC over the cluster seed, clusterId match, expiry, atomic redeem);</li>
+     *   <li>reads the cluster CA (cert + key) from Mongo and mints its own leaf cert, persisting the TLS
+     *       material locally for daemon-facing mTLS;</li>
+     *   <li>registers itself in {@code cluster_members};</li>
+     *   <li>brings up a local single-member Raft for process wiring only — it is vestigial under the
+     *       Mongo authority (never read/written for cluster state). Leadership is the Mongo lease; reads
+     *       and writes go through the Mongo {@link ClusterPlane}.</li>
+     * </ol>
+     *
+     * <p>Idempotency: the on-disk token is deleted by the caller only after this returns. A retry purges
+     * the local Raft dir + materials and re-runs; the single-use redeem makes a second pass fail fast
+     * with {@code TOKEN_NOT_REDEEMABLE}.
+     */
+    public void startInMongoJoinMode(String token, LocalClusterMaterials materials, JoinIdentity selfIdentity)
+            throws IOException, TimeoutException {
+        purgeJoinState(materials);
+
+        // 1. Validate the token against the Mongo cluster identity.
+        ClusterMeta meta = clusterPlane()
+                .getClusterMeta()
+                .orElseThrow(
+                        () -> new IOException("cluster identity not present in Mongo — cannot Mongo-register join"));
+        JoinTokenCodec.Parsed parsed;
+        try {
+            parsed = JoinTokenCodec.parse(token);
+        } catch (JoinTokenCodec.InvalidJoinToken e) {
+            throw new IOException("malformed join token: " + e.getMessage(), e);
+        }
+        if (!JoinTokenCodec.verifyHmac(parsed, JoinTokenCodec.decodeSeed(meta.seedSecretBase64()))) {
+            throw new IOException("join token HMAC does not match the cluster seed");
+        }
+        JoinTokenCodec.Payload payload = parsed.payload();
+        if (!meta.clusterId().equals(payload.clusterId())) {
+            throw new IOException(
+                    "join token is for clusterId=" + payload.clusterId() + " but this cluster is " + meta.clusterId());
+        }
+        Instant now = Instant.now(clock);
+        if (payload.expiresAt() != null && !payload.expiresAt().isAfter(now)) {
+            throw new IOException("join token expired at " + payload.expiresAt());
+        }
+
+        // 2. Atomic single-use redeem (throws ClusterWriteConflict on replay/revoked/expired).
+        clusterPlane().redeemJoinToken(payload.jti(), now, selfIdentity.raftAddr(), nodeId);
+
+        // 3. Adopt the cluster CA from Mongo + mint our own leaf cert; persist locally for daemon mTLS.
+        try {
+            ClusterFile caCert = clusterPlane()
+                    .getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow(() -> new IOException("cluster CA cert missing from the Mongo cluster store"));
+            ClusterFile caKey = clusterPlane()
+                    .getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY)
+                    .orElseThrow(() -> new IOException("cluster CA key missing from the Mongo cluster store"));
+            CertificateAuthority ca = CertificateAuthority.loadFromDer(caCert.bytes(), caKey.bytes());
+            List<String> sans = Stream.of(nodeId, config.raft().host(), "127.0.0.1", "localhost")
+                    .distinct()
+                    .toList();
+            var leaf = ca.issueClusterPeerCertificate(nodeId, sans, 365);
+            materials.persist(
+                    ca.certificate(), leaf.certificate(), leaf.keyPair().getPrivate());
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("failed to mint a leaf cert from the cluster CA", e);
+        }
+
+        // 4. Vestigial local Raft for process wiring (single-member; never used for cluster state).
+        stateMachine = new ClusterControlStateMachine();
+        raft = new RaftBootstrap(config.raft(), GROUP_ID, nodeId, stateMachine);
+        LocalClusterMaterials.Loaded loaded = materials.load();
+        raft.start(buildTls(loaded));
+        raft.awaitKnownLeader(15_000);
+        controlPlane = new ClusterControlPlane(raft, stateMachine);
+
+        // 5. Adopt the cluster identity locally + register self in cluster_members (Mongo).
+        resolvedClusterId = meta.clusterId();
+        effectiveConfig = withClusterId(effectiveConfig, meta.clusterId());
+        clusterPlane()
+                .addMember(new Member(
+                        nodeId,
+                        selfIdentity.raftAddr(),
+                        selfIdentity.restAddr(),
+                        selfIdentity.grpcAddr(),
+                        nodeId,
+                        now,
+                        now));
+
+        logger.info(
+                "Mongo-register joined cluster {} as {} — no Raft group join; cluster state lives in Mongo,"
+                        + " leadership via the Mongo lease",
+                meta.clusterId(),
+                nodeId);
+    }
+
     private CertificateAuthority day0InMemoryCa;
 
     private CertificateAuthority mintAndPersistDay0Materials(LocalClusterMaterials materials) throws IOException {

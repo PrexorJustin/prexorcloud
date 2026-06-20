@@ -44,18 +44,17 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class ClusterControlServiceTest {
 
-    private static int freePort() throws Exception {
+    static int freePort() throws Exception {
         try (ServerSocket s = new ServerSocket(0)) {
             return s.getLocalPort();
         }
     }
 
-    private static ControllerConfig sampleConfigWithRaft(Path tmp, int raftPort, String yamlClusterId)
-            throws Exception {
+    static ControllerConfig sampleConfigWithRaft(Path tmp, int raftPort, String yamlClusterId) throws Exception {
         return sampleConfigWithRaft(tmp, "127.0.0.1", raftPort, yamlClusterId);
     }
 
-    private static ControllerConfig sampleConfigWithRaft(Path tmp, String raftHost, int raftPort, String yamlClusterId)
+    static ControllerConfig sampleConfigWithRaft(Path tmp, String raftHost, int raftPort, String yamlClusterId)
             throws Exception {
         return new ControllerConfig(
                 "node-local-uuid",
