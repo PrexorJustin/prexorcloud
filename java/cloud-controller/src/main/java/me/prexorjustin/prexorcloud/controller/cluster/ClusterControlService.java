@@ -82,6 +82,10 @@ public final class ClusterControlService implements AutoCloseable {
     // Null by default = no mirror. Registered on the state machine in startMembershipReconciler() so it
     // re-attaches after every in-process SM rebuild (promote-to-voting, TLS realign), like the reconciler.
     private Consumer<ClusterEntry> clusterShadow;
+    // Phase-4 read cutover (clusterStore=mongo): when set, membership/identity reads served by
+    // clusterReadView() come from this Mongo store instead of the Raft projection. Null = read from
+    // Raft (the RAFT/DUAL default). Writes still flow through Raft until their own cutover slice.
+    private me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore mongoReadStore;
     private String resolvedClusterId;
     // Set when this boot freshly stamped cluster identity (Day-0 branch) while controller.yml
     // already carried a cluster.id — i.e. the Raft state was wiped but the configured identity
@@ -780,6 +784,31 @@ public final class ClusterControlService implements AutoCloseable {
 
     public ClusterControlPlane controlPlane() {
         return controlPlane;
+    }
+
+    /**
+     * Phase-4 read cutover (clusterStore=mongo): serve membership/identity reads from the Mongo
+     * cluster store instead of the Raft projection. Called by bootstrap after the dual-write shadow
+     * is attached, so Mongo already mirrors (and was backfilled with) the authoritative Raft state.
+     * Idempotent; a null store is ignored (stays on Raft).
+     */
+    public void enableMongoReads(me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore store) {
+        if (store != null) {
+            this.mongoReadStore = store;
+        }
+    }
+
+    /**
+     * The current cluster membership/identity read source: the Mongo store once the read cutover is
+     * enabled ({@link #enableMongoReads}), otherwise the Raft projection. Constructed per call so it
+     * always reflects the live {@code controlPlane} reference (which is rebuilt across in-process SM
+     * rebuilds) — the wrapper is a thin delegate, so this is cheap.
+     */
+    public ClusterReadView clusterReadView() {
+        if (mongoReadStore != null) {
+            return new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterReadView(mongoReadStore);
+        }
+        return new me.prexorjustin.prexorcloud.controller.cluster.raft.RaftClusterReadView(controlPlane);
     }
 
     /**

@@ -212,6 +212,7 @@ public final class PrexorCloudBootstrap {
 
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
         controller.setClusterControlPlane(clusterControlService.controlPlane());
+        controller.setClusterReadView(clusterControlService.clusterReadView());
         controller.setTelemetry(telemetry);
         if (controller.authManager() != null) {
             controller.authManager().setTracer(telemetry.tracer());
@@ -299,8 +300,10 @@ public final class PrexorCloudBootstrap {
         logger.info(
                 "Cluster dual-write shadow ENABLED (clusterStore={}): committed Raft entries mirror into Mongo", mode);
         if (mode.readsFromMongo()) {
-            logger.warn("clusterStore=MONGO selected, but the Mongo read cutover is not implemented yet — reads"
-                    + " still serve from Raft (behaving as DUAL).");
+            // Read cutover: membership/identity reads (leader resolution, the cluster REST surface) now
+            // serve from Mongo. Writes, lease reads, and the Raft peer-group reconciler still use Raft.
+            clusterControlService.enableMongoReads(mongoClusterStore);
+            logger.info("clusterStore=MONGO: cluster membership/identity reads now serve from the Mongo store");
         }
     }
 
@@ -1430,7 +1433,7 @@ public final class PrexorCloudBootstrap {
         if (clusterControlService == null) {
             return "";
         }
-        return clusterControlService.controlPlane().listMembers().stream()
+        return clusterControlService.clusterReadView().listMembers().stream()
                 .filter(member -> lease.holder().equals(member.nodeId()))
                 .map(me.prexorjustin.prexorcloud.controller.cluster.state.Member::gRPCAddr)
                 .filter(addr -> addr != null && !addr.isBlank())

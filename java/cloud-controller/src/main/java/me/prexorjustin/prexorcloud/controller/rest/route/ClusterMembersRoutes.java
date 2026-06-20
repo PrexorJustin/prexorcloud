@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import me.prexorjustin.prexorcloud.controller.PrexorCloudBootstrap;
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterReadView;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
@@ -58,23 +59,23 @@ public final class ClusterMembersRoutes {
 
     private void getStatus(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_VIEW);
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterReadView view = controller.clusterReadView();
         Map<String, Object> body = new LinkedHashMap<>();
-        plane.getClusterMeta().ifPresent(meta -> {
+        view.getClusterMeta().ifPresent(meta -> {
             body.put("clusterId", meta.clusterId());
             body.put("createdAt", meta.createdAt());
             body.put("schemaVersion", meta.schemaVersion());
         });
-        body.put("memberCount", plane.listMembers().size());
-        body.put("activeConfigVersion", plane.getActiveConfigVersion());
+        body.put("memberCount", view.listMembers().size());
+        body.put("activeConfigVersion", view.getActiveConfigVersion());
         ctx.status(200);
         ctx.json(body);
     }
 
     private void listMembers(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_VIEW);
-        ClusterControlPlane plane = controller.clusterControlPlane();
-        List<Map<String, Object>> members = plane.listMembers().stream()
+        ClusterReadView view = controller.clusterReadView();
+        List<Map<String, Object>> members = view.listMembers().stream()
                 .map(ClusterMembersRoutes::memberJson)
                 .toList();
         Map<String, Object> body = new LinkedHashMap<>();
@@ -103,7 +104,8 @@ public final class ClusterMembersRoutes {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
         String nodeId = ctx.pathParam("nodeId");
         ClusterControlPlane plane = controller.clusterControlPlane();
-        if (plane.listMembers().stream().noneMatch(m -> m.nodeId().equals(nodeId))) {
+        if (controller.clusterReadView().listMembers().stream()
+                .noneMatch(m -> m.nodeId().equals(nodeId))) {
             ctx.status(404);
             ctx.json(errorResponse("MEMBER_NOT_FOUND", "no cluster member with nodeId=" + nodeId, 404));
             return;
@@ -141,8 +143,9 @@ public final class ClusterMembersRoutes {
     private void leave(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
         ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterReadView view = controller.clusterReadView();
         String selfNodeId = controller.config().uuid();
-        LeaveDecision decision = decideLeavability(plane.listMembers(), selfNodeId);
+        LeaveDecision decision = decideLeavability(view.listMembers(), selfNodeId);
         if (!decision.ok()) {
             ctx.status(409);
             ctx.json(errorResponse(decision.refusalCode(), decision.refusalMessage(), 409));
@@ -163,7 +166,7 @@ public final class ClusterMembersRoutes {
         // Best-effort: the leave already committed; a missing marker only loses the restart guard.
         try {
             String leftClusterId =
-                    plane.getClusterMeta().map(meta -> meta.clusterId()).orElse("(unknown)");
+                    view.getClusterMeta().map(meta -> meta.clusterId()).orElse("(unknown)");
             Files.writeString(
                     PrexorCloudBootstrap.LEFT_MARKER_FILE,
                     "clusterId=" + leftClusterId + " leftAt=" + Instant.now() + " by="
@@ -182,8 +185,7 @@ public final class ClusterMembersRoutes {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put(
-                "clusterId",
-                plane.getClusterMeta().map(meta -> meta.clusterId()).orElse(null));
+                "clusterId", view.getClusterMeta().map(meta -> meta.clusterId()).orElse(null));
         body.put("nodeId", selfNodeId);
         body.put("status", "leaving");
         ctx.status(202);

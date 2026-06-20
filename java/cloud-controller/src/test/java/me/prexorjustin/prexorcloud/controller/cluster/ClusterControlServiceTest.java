@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.net.ServerSocket;
 import java.nio.file.Path;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
@@ -114,6 +117,57 @@ class ClusterControlServiceTest {
                             .filter(e -> e instanceof ClusterEntry.WriteConfigVersion)
                             .count(),
                     "exactly-once: no double registration on a single state machine");
+        }
+    }
+
+    @Test
+    @DisplayName("clusterReadView defaults to the Raft projection and surfaces committed members + identity")
+    void clusterReadViewDefaultsToRaft(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
+
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.start();
+
+            ClusterReadView view = svc.clusterReadView();
+            assertTrue(
+                    view.listMembers().stream().anyMatch(m -> "controller-1".equals(m.nodeId())),
+                    "default read view must surface the Raft self member");
+            assertEquals(
+                    svc.controlPlane().getActiveConfigVersion(),
+                    view.getActiveConfigVersion(),
+                    "default read view must match the Raft active config version");
+            assertTrue(view.getClusterMeta().isPresent(), "cluster identity must be readable through the view");
+        }
+    }
+
+    @Test
+    @DisplayName("enableMongoReads cuts the read view over to the Mongo store (Phase-4 read cutover)")
+    void enableMongoReadsSwitchesSource(@TempDir Path tmp) throws Exception {
+        int port = freePort();
+        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
+        Member mongoOnly = new Member(
+                "mongo-only",
+                "10.9.9.9:9190",
+                "10.9.9.9:8080",
+                "10.9.9.9:50051",
+                "mongo",
+                Instant.EPOCH,
+                Instant.EPOCH);
+
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+            svc.start();
+            // Before cutover the Raft self member is visible and the Mongo sentinel is not.
+            assertTrue(svc.clusterReadView().listMembers().stream().noneMatch(m -> "mongo-only".equals(m.nodeId())));
+
+            MongoClusterStore store = mock(MongoClusterStore.class);
+            when(store.listMembers()).thenReturn(List.of(mongoOnly));
+            when(store.getActiveConfigVersion()).thenReturn(99);
+            svc.enableMongoReads(store);
+
+            ClusterReadView view = svc.clusterReadView();
+            assertEquals(List.of(mongoOnly), view.listMembers(), "reads must come from the Mongo store after cutover");
+            assertEquals(99, view.getActiveConfigVersion(), "active config version must come from Mongo after cutover");
         }
     }
 
