@@ -464,7 +464,13 @@ final class DaemonConnectionLifecycle {
                             instanceId,
                             running.getGroup(),
                             reconnectedNodeId,
-                            running.getState(),
+                            // The daemon never reports RUNNING — it only tracks SCHEDULED/PREPARING/STARTING;
+                            // readiness is the in-server plugin's one-shot POST /api/plugin/ready to the
+                            // controller. So adopting the daemon's reported state would pin an already-serving
+                            // instance at STARTING forever (that one-shot /ready already fired, won't repeat),
+                            // and the scheduler would keep re-dispatching it. Re-derive RUNNING: we only adopt
+                            // an instance the daemon reports alive whose record we lost — it's a running server.
+                            InstanceState.RUNNING,
                             running.getPort(),
                             0,
                             0,
