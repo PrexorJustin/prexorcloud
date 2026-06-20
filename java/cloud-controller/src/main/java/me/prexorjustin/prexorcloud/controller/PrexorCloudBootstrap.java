@@ -1070,6 +1070,15 @@ public final class PrexorCloudBootstrap {
             controller.metricsCollector().registerDaemonSessionMetrics(controller.sessionManager());
         }
 
+        // Daemon redirect/fencing: when the leader, the HandshakeAck carries this controller's fencing
+        // epoch; when a follower, it carries the current leader's routable gRPC address so the daemon
+        // redirects there. Wired HERE (not in initScheduler) because daemonService is created in this
+        // method — initScheduler runs first and builds + starts the elector, so the field is ready.
+        if (leaderElector != null) {
+            daemonService.setLeadership(leaderElector);
+            daemonService.setLeaderGrpcAddressResolver(() -> resolveLeaderGrpcAddress(leaderElector));
+        }
+
         // Layer 7: wire daemon-host platform-module distribution and the controller→daemon
         // event bridge. Distributor fans out install/upgrade/uninstall to connected daemons
         // and re-syncs each daemon on handshake; forwarder bridges controller-bus events
@@ -1206,13 +1215,8 @@ public final class PrexorCloudBootstrap {
         scheduler.setConvergenceGate(convergenceGate);
         scheduler.placementCoordinator().setLeadership(leaderElector);
         nodeMessageDispatcher.setLeadership(leaderElector);
-        // Daemon redirect: on handshake the leader stamps its fencing epoch; a follower returns the
-        // current leader's gRPC address so the daemon redirects to it. The leader is the lease holder
-        // (== a cluster member's nodeId); resolve its gRPC address from the Mongo `cluster_members` list.
-        if (daemonService != null) {
-            daemonService.setLeadership(leaderElector);
-            daemonService.setLeaderGrpcAddressResolver(() -> resolveLeaderGrpcAddress(leaderElector));
-        }
+        // NOTE: daemonService leadership (HandshakeAck epoch + leader-redirect) is wired in initGrpc,
+        // where daemonService is created. initScheduler runs first, so leaderElector is ready by then.
         scheduler.start();
         leaderElector.start();
 
