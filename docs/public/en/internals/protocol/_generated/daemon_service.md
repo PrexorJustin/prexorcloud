@@ -190,6 +190,7 @@ Envelope: controller -&gt; daemon
 | walk_instance_files | [WalkInstanceFiles](#me-prexorjustin-prexorcloud-protocol-WalkInstanceFiles) |  | Request a structure-only filetree of an instance dir |
 | read_instance_file | [ReadInstanceFile](#me-prexorjustin-prexorcloud-protocol-ReadInstanceFile) |  | Request the bytes of a single file under an instance dir |
 | traceparent | [string](#string) |  | W3C traceparent of the controller span that produced this message (Track D.3). Empty when tracing is off or no span is active. Additive scalar (not a payload variant), so old daemons ignore it and no PROTOCOL_VERSION bump is needed. |
+| epoch | [uint64](#uint64) |  | Fencing token (single-writer control plane): the leadership epoch of the controller that issued this command. The daemon rejects any command carrying an epoch lower than the highest it has accepted, so a deposed leader&#39;s in-flight commands are fenced. 0 = unset (legacy / no leadership). Additive scalar, old daemons ignore it — no PROTOCOL_VERSION bump. |
 
 
 
@@ -438,6 +439,9 @@ REQUIRED fields: node_id, version, protocol_version
 | controller_api_port | [int32](#int32) |  | REST API port for JAR downloads |
 | protocol_version | [int32](#int32) |  | Controller&#39;s protocol version |
 | protocol_compatible | [bool](#bool) |  | false = daemon should disconnect and upgrade |
+| leader_grpc_addr | [string](#string) |  | Single-writer redirect: when the contacted controller is NOT the leader, it sets this to the leader&#39;s gRPC host:port; the daemon closes the stream and reconnects there. Empty when the contacted controller IS the leader (or the leader is unknown) — the daemon stays. Additive. |
+| epoch | [uint64](#uint64) |  | Leadership epoch of the controller that accepted this stream (0 when it redirected / is not the leader). The daemon records it as its baseline accepted epoch for fencing. Additive scalar. |
+| controller_grpc_addrs | [string](#string) | repeated | The cluster&#39;s currently-known controller gRPC addresses (&#34;host:port&#34;), advertised so the daemon&#39;s seed list self-heals as controllers are added / replaced. The daemon merges these into its dial candidates. May be empty (e.g. single-controller deployments). Additive repeated. |
 
 
 

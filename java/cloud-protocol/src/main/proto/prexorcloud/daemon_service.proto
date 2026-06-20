@@ -196,6 +196,10 @@ message HandshakeAck {
   // Leadership epoch of the controller that accepted this stream (0 when it redirected / is not the
   // leader). The daemon records it as its baseline accepted epoch for fencing. Additive scalar.
   uint64 epoch = 7;
+  // The cluster's currently-known controller gRPC addresses ("host:port"), advertised so the daemon's
+  // seed list self-heals as controllers are added / replaced. The daemon merges these into its dial
+  // candidates. May be empty (e.g. single-controller deployments). Additive repeated.
+  repeated string controller_grpc_addrs = 8;
 }
 
 message TemplateRef {

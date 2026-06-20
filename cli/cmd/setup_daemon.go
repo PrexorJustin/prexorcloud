@@ -94,15 +94,16 @@ func runDaemonSetup(installMode string) error {
 	// notices the cert files exist and skips its own bootstrap.
 	printSetupSection("Cluster Enrolment")
 	httpPort := stringOrDefault(setupDaemonControllerHTTP, "8080")
-	controllerHTTPURL := fmt.Sprintf("http://%s:%s", cfg.ControllerHost, httpPort)
-	exchange, err := setup.ExchangeJoinToken(controllerHTTPURL, cfg.JoinToken, cfg.NodeID, installDir, 30*time.Second)
+	controllerHTTPURLs := setup.ControllerHTTPURLs(cfg.ControllerHost, cfg.Endpoints, httpPort)
+	exchange, err := setup.ExchangeJoinToken(controllerHTTPURLs, cfg.JoinToken, cfg.NodeID, installDir, 30*time.Second)
 	if err != nil {
 		fmt.Printf("  %s Bootstrap via REST failed (%v) — daemon will retry via gRPC on first start.\n",
 			styleSetupWarn.Render("!"), err)
 	} else {
 		fmt.Printf("  %s\n", styleSetupOK.Render("✓ Join token redeemed; certificate installed"))
 		if exchange.CliToken != "" {
-			if msg, err := saveDaemonHostContext(controllerHTTPURL, cfg.NodeID, exchange.CliToken); err != nil {
+			// The CLI context points at the primary controller's REST URL (first in the list).
+			if msg, err := saveDaemonHostContext(controllerHTTPURLs[0], cfg.NodeID, exchange.CliToken); err != nil {
 				fmt.Printf("  %s CLI context save failed: %v\n", styleSetupWarn.Render("!"), err)
 			} else {
 				fmt.Printf("  %s\n", styleSetupOK.Render(msg))
@@ -221,6 +222,7 @@ func promptDaemonConfig() (setup.DaemonConfig, error) {
 		NodeID:         stringOrDefault(setupDaemonNodeID, hostname),
 		ControllerHost: strings.TrimSpace(setupDaemonControllerHost),
 		GRPCPort:       stringOrDefault(setupDaemonControllerGRPC, fmt.Sprintf("%d", setup.DefaultDaemonControllerGRPCPort)),
+		Endpoints:      splitCSV(setupDaemonControllerEndpoints),
 		JoinToken:      strings.TrimSpace(setupDaemonJoinToken),
 	}
 
@@ -238,6 +240,7 @@ func promptDaemonConfig() (setup.DaemonConfig, error) {
 			return setup.DaemonConfig{}, errors.New("daemon join token is required in non-interactive mode")
 		}
 	} else {
+		endpointsInput := strings.Join(cfg.Endpoints, ", ")
 		err := huh.NewForm(huh.NewGroup(
 			huh.NewInput().
 				Title("Node ID").
@@ -268,6 +271,11 @@ func promptDaemonConfig() (setup.DaemonConfig, error) {
 				Validate(validatePort),
 
 			huh.NewInput().
+				Title("Additional controller endpoints for HA (comma-separated host:port, optional)").
+				Placeholder("controller-2:9090, controller-3:9090").
+				Value(&endpointsInput),
+
+			huh.NewInput().
 				Title("Join token  (generate one with: prexorctl token create)").
 				Placeholder("pxt_...").
 				Value(&cfg.JoinToken).
@@ -281,6 +289,7 @@ func promptDaemonConfig() (setup.DaemonConfig, error) {
 		if err != nil {
 			return setup.DaemonConfig{}, err
 		}
+		cfg.Endpoints = splitCSV(endpointsInput)
 	}
 
 	// Best-effort reachability check — non-fatal.

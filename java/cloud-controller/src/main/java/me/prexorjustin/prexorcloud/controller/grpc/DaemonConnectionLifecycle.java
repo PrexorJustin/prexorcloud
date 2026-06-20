@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -28,6 +29,7 @@ import me.prexorjustin.prexorcloud.controller.session.HeartbeatTracker;
 import me.prexorjustin.prexorcloud.controller.session.NodeSession;
 import me.prexorjustin.prexorcloud.controller.session.NodeSessionManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
+import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 import me.prexorjustin.prexorcloud.controller.state.NodeHostInfo;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.protocol.ControllerMessage;
@@ -83,6 +85,10 @@ final class DaemonConnectionLifecycle {
     // redirect, epoch 1); bootstrap injects the real elector + a leader-address resolver.
     private volatile Leadership leadership = Leadership.alwaysLeader();
     private volatile Supplier<String> leaderGrpcAddressResolver = () -> "";
+    // The cluster's live controller gRPC addresses, advertised on every HandshakeAck so the daemon's
+    // seed list self-heals as membership changes. Default empty so single-controller installs and tests
+    // behave unchanged; bootstrap injects the real member enumeration.
+    private volatile Supplier<List<String>> controllerAddrsResolver = List::of;
 
     DaemonConnectionLifecycle(
             NodeSessionManager sessionManager,
@@ -138,6 +144,16 @@ final class DaemonConnectionLifecycle {
     }
 
     /**
+     * Inject the resolver that enumerates the cluster's live controller gRPC addresses, advertised to
+     * daemons so their seed list self-heals as controllers are added / replaced.
+     */
+    void setControllerAddrsResolver(Supplier<List<String>> resolver) {
+        if (resolver != null) {
+            this.controllerAddrsResolver = resolver;
+        }
+    }
+
+    /**
      * Stamp the leadership fields onto a {@link HandshakeAck} (Phase 3 redirect/fencing). The leader
      * sets its fencing {@code epoch} so the daemon floors on it; a follower instead sets
      * {@code leader_grpc_addr} so the daemon redirects. An empty address leaves the daemon on this
@@ -152,6 +168,23 @@ final class DaemonConnectionLifecycle {
         String leaderAddr = leaderAddrResolver.get();
         if (leaderAddr != null && !leaderAddr.isBlank()) {
             ack.setLeaderGrpcAddr(leaderAddr);
+        }
+    }
+
+    /**
+     * Stamp the cluster's live controller gRPC addresses onto a {@link HandshakeAck} so the daemon's
+     * seed list self-heals. Applied for leader and follower alike. Package-private + static so it's
+     * unit-tested without the full handshake harness.
+     */
+    static void applyControllerAddrs(HandshakeAck.Builder ack, Supplier<List<String>> resolver) {
+        List<String> addrs = resolver.get();
+        if (addrs == null) {
+            return;
+        }
+        for (String addr : addrs) {
+            if (addr != null && !addr.isBlank()) {
+                ack.addControllerGrpcAddrs(addr);
+            }
         }
     }
 
@@ -268,10 +301,16 @@ final class DaemonConnectionLifecycle {
                 redactSensitiveKeys(labels),
                 handshake.getRunningInstancesCount());
 
-        reconcileInstances(nodeId, handshake);
-        Scheduler sched = scheduler.get();
-        if (sched != null) {
-            sched.reconcileRecoverableStartsForNode(nodeId);
+        // Instance reconciliation is the LEADER's job only. A follower has no authority and an
+        // unhydrated instance view; if it reconciled it would force-stop a running instance it simply
+        // doesn't know about (and it's about to redirect the daemon to the leader anyway). Gating here
+        // is what keeps a leadership change transparent to players.
+        if (leadership.isLeader()) {
+            reconcileInstances(nodeId, handshake);
+            Scheduler sched = scheduler.get();
+            if (sched != null) {
+                sched.reconcileRecoverableStartsForNode(nodeId);
+            }
         }
 
         eventBus.publish(new NodeConnectedEvent(nodeId, sessionId, Instant.now()));
@@ -283,6 +322,10 @@ final class DaemonConnectionLifecycle {
                 .setProtocolVersion(1)
                 .setProtocolCompatible(daemonProtocolVersion >= 1);
         applyLeadership(ackBuilder, leadership, leaderGrpcAddressResolver);
+        // Advertise the cluster's live controllers regardless of leadership — the leader is every
+        // healthy daemon's steady-state target, so it must send the list too (applyLeadership returns
+        // early for the leader, hence a separate stamping step here).
+        applyControllerAddrs(ackBuilder, controllerAddrsResolver);
         var ack = ControllerMessage.newBuilder().setHandshakeAck(ackBuilder).build();
         response.onNext(ack);
 
@@ -354,6 +397,48 @@ final class DaemonConnectionLifecycle {
         }
     }
 
+    /** What to do with an instance a daemon reports running, given our current knowledge of it. */
+    enum ReportedInstanceAction {
+        /** Unknown to us but its group exists — adopt the live server (never kill a wanted instance). */
+        ADOPT,
+        /** Unknown to us and its group is gone — a genuine orphan; reap it. */
+        REAP,
+        /** Known, but our record places it on a different node — leave it (don't double-own). */
+        SKIP_WRONG_NODE,
+        /** Known and on this node — refresh its status from the daemon report. */
+        UPDATE
+    }
+
+    /**
+     * Pure adopt-vs-reap policy for a daemon-reported running instance. The daemon is the ground truth
+     * that the instance is <em>running</em>; the only question is whether it is <em>wanted</em>. A
+     * running instance whose group still exists is adopted, never killed — only an instance whose group
+     * is gone is a genuine orphan. If our record exists but has gone terminal (CRASHED/STOPPED) while
+     * the daemon still runs it, we re-adopt (resurrect) the daemon's ground truth rather than leave a
+     * live server stuck "dead" in our view. Package-private + static so the policy is unit-tested
+     * without the full handshake harness (mirrors {@link #applyLeadership}).
+     */
+    static ReportedInstanceAction decideReportedInstance(
+            Optional<InstanceInfo> known, String reconnectedNodeId, boolean groupExists) {
+        if (known.isEmpty()) {
+            return groupExists ? ReportedInstanceAction.ADOPT : ReportedInstanceAction.REAP;
+        }
+        if (!known.get().nodeId().equals(reconnectedNodeId)) {
+            return ReportedInstanceAction.SKIP_WRONG_NODE;
+        }
+        if (isTerminal(known.get().state())) {
+            // Our record went terminal (e.g. a transient disconnect marked it CRASHED) but the daemon
+            // is actually running it. Re-adopt its ground truth — a plain status update would be
+            // rejected by the terminal-state transition guard, leaving the live server stuck "dead".
+            return groupExists ? ReportedInstanceAction.ADOPT : ReportedInstanceAction.REAP;
+        }
+        return ReportedInstanceAction.UPDATE;
+    }
+
+    private static boolean isTerminal(InstanceState state) {
+        return state == InstanceState.STOPPED || state == InstanceState.CRASHED;
+    }
+
     private void reconcileInstances(String reconnectedNodeId, Handshake handshake) {
         var daemonInstanceIds = new HashSet<String>();
         for (var running : handshake.getRunningInstancesList()) {
@@ -363,28 +448,50 @@ final class DaemonConnectionLifecycle {
                 continue;
             }
             var known = clusterState.getInstance(instanceId);
-            if (known.isEmpty()) {
-                // Orphan: the daemon is running an instance the controller has no record of
-                // (e.g. its StopInstance was lost across a scale-down + reconnect). At handshake
-                // the controller's state is fully hydrated, so an unknown running instance is a
-                // genuine orphan -- reap it so it stops holding its port and resources.
-                logger.warn(
-                        "reconcileInstances: node {} reports unknown instance {} -- stopping orphan",
-                        reconnectedNodeId,
-                        instanceId);
-                scheduler.get().stopOrphanInstanceOnNode(reconnectedNodeId, instanceId);
-                continue;
+            switch (decideReportedInstance(known, reconnectedNodeId, groupManager.exists(running.getGroup()))) {
+                case ADOPT -> {
+                    // The daemon is authoritatively running this instance and its group still exists,
+                    // but we have no record of it (e.g. our state was lost across a leadership change /
+                    // Redis gap). Adopt the live server instead of killing it — keeping the leader
+                    // change transparent to players. Desired-state enforcement (excess scale-down) is
+                    // the convergence-gated scheduler's job, not a reflexive handshake kill.
+                    logger.info(
+                            "reconcileInstances: adopting running instance {} (group={}) reported by node {}",
+                            instanceId,
+                            running.getGroup(),
+                            reconnectedNodeId);
+                    clusterState.addInstance(new InstanceInfo(
+                            instanceId,
+                            running.getGroup(),
+                            reconnectedNodeId,
+                            running.getState(),
+                            running.getPort(),
+                            0,
+                            0,
+                            Instant.now()));
+                    daemonInstanceIds.add(instanceId);
+                }
+                case REAP -> {
+                    // Genuine orphan: no group wants this instance (its group was deleted). Reap it so
+                    // it stops holding its port and resources. Reaches here only on the leader.
+                    logger.warn(
+                            "reconcileInstances: node {} reports instance {} for unknown group {} -- stopping orphan",
+                            reconnectedNodeId,
+                            instanceId,
+                            running.getGroup());
+                    scheduler.get().stopOrphanInstanceOnNode(reconnectedNodeId, instanceId);
+                }
+                case SKIP_WRONG_NODE ->
+                    logger.warn(
+                            "reconcileInstances: instance {} belongs to node {}, not {}",
+                            instanceId,
+                            known.get().nodeId(),
+                            reconnectedNodeId);
+                case UPDATE -> {
+                    daemonInstanceIds.add(instanceId);
+                    clusterState.updateInstanceStatus(instanceId, running.getState(), 0, 0);
+                }
             }
-            if (!known.get().nodeId().equals(reconnectedNodeId)) {
-                logger.warn(
-                        "reconcileInstances: instance {} belongs to node {}, not {}",
-                        instanceId,
-                        known.get().nodeId(),
-                        reconnectedNodeId);
-                continue;
-            }
-            daemonInstanceIds.add(instanceId);
-            clusterState.updateInstanceStatus(instanceId, running.getState(), 0, 0);
         }
 
         var controllerInstances = clusterState.getInstancesByNode(reconnectedNodeId);

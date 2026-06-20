@@ -9,7 +9,9 @@ import me.prexorjustin.prexorcloud.common.logging.LoggingSetup;
 import me.prexorjustin.prexorcloud.common.util.ClassWarmup;
 import me.prexorjustin.prexorcloud.common.util.VersionInfo;
 import me.prexorjustin.prexorcloud.daemon.bootstrap.BootstrapManager;
+import me.prexorjustin.prexorcloud.daemon.config.ControllerEndpoint;
 import me.prexorjustin.prexorcloud.daemon.config.DaemonConfig;
+import me.prexorjustin.prexorcloud.daemon.config.LearnedControllersStore;
 import me.prexorjustin.prexorcloud.daemon.config.ModuleSigningDaemonConfig;
 import me.prexorjustin.prexorcloud.daemon.event.DaemonEventBus;
 import me.prexorjustin.prexorcloud.daemon.grpc.DaemonGrpcClient;
@@ -43,6 +45,9 @@ public final class PrexorDaemon {
     private static final Logger logger = LoggerFactory.getLogger(PrexorDaemon.class);
     private static final Path CONFIG_PATH = Path.of("config", "daemon.yml");
     private static final String DEFAULT_CONFIG = "defaults/daemon.yml";
+    // Runtime-learned controller endpoints (advertised by the cluster), cached so the daemon recovers
+    // even if every configured seed was decommissioned before a restart. Not under the 0700 cert dir.
+    private static final Path LEARNED_CONTROLLERS_PATH = Path.of("config", "known-controllers.json");
 
     private final DaemonConfig config;
     private final CountDownLatch shutdownLatch = new CountDownLatch(1);
@@ -77,10 +82,15 @@ public final class PrexorDaemon {
                 config.telemetry(), config.nodeId());
 
         // --- Bootstrap ---
+        // The controller seed list: a single host, or several for an HA cluster. The daemon bootstraps
+        // against, and rotates its live connection through, all of these (then a leader redirect pins it
+        // to the current leader). Configured seeds come first, then any controllers learned + cached
+        // from earlier runs — so a daemon recovers even if every configured seed was decommissioned.
+        var learnedControllersStore = new LearnedControllersStore(LEARNED_CONTROLLERS_PATH);
+        var controllerEndpoints =
+                unionEndpoints(config.controller().resolvedEndpoints(), learnedControllersStore.load());
         var bootstrapManager = new BootstrapManager(
-                config.controller().host(),
-                config.controller().grpcPort(),
-                Path.of(config.security().certificateDir()));
+                controllerEndpoints, Path.of(config.security().certificateDir()));
 
         if (!bootstrapManager.isBootstrapped()) {
             String joinToken = config.security().joinToken();
@@ -117,8 +127,7 @@ public final class PrexorDaemon {
         dispatcher.setTracer(telemetry.tracer()); // continues the controller's trace (Track D.3)
 
         grpcClient = new DaemonGrpcClient(
-                config.controller().host(),
-                config.controller().grpcPort(),
+                controllerEndpoints,
                 config.nodeId(),
                 config.advertiseAddress(),
                 maxMemory,
@@ -127,6 +136,9 @@ public final class PrexorDaemon {
                 resourceMonitor,
                 dispatcher);
         dispatcher.setClient(grpcClient);
+        // Persist controllers the cluster advertises at runtime, so the next restart can recover even if
+        // every configured seed is gone.
+        grpcClient.setLearnedControllersListener(learnedControllersStore::save);
         DaemonLogPublisher.get().bind(grpcClient);
         DaemonGrpcLogAppender.attachToRoot();
         processManager = new ProcessManager(
@@ -182,8 +194,8 @@ public final class PrexorDaemon {
             healthServer = new HealthServer(
                     config.health(),
                     config.nodeId(),
-                    config.controller().host(),
-                    config.controller().grpcPort(),
+                    controllerEndpoints.getFirst().host(),
+                    controllerEndpoints.getFirst().port(),
                     () -> grpcClient != null && grpcClient.isConnected(),
                     () -> processManager != null ? processManager.instanceCount() : 0);
             healthServer.start();
@@ -197,11 +209,15 @@ public final class PrexorDaemon {
                         },
                         "shutdown-hook"));
 
-        logger.info(
-                "Daemon ready - controller {}:{} | max memory {} MB",
-                config.controller().host(),
-                config.controller().grpcPort(),
-                maxMemory);
+        logger.info("Daemon ready - controllers {} | max memory {} MB", controllerEndpoints, maxMemory);
+    }
+
+    /** Configured seeds first, then learned controllers, de-duplicated. */
+    private static java.util.List<ControllerEndpoint> unionEndpoints(
+            java.util.List<ControllerEndpoint> seeds, java.util.List<ControllerEndpoint> learned) {
+        var all = new java.util.LinkedHashSet<>(seeds);
+        all.addAll(learned);
+        return java.util.List.copyOf(all);
     }
 
     private static PlatformModuleSignatureVerifier buildDaemonSignatureVerifier(ModuleSigningDaemonConfig signing) {

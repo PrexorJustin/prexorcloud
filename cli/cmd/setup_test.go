@@ -156,19 +156,19 @@ func TestValidateSetupModeCompatibilityRejectsSystemdFlagsForCompose(t *testing.
 // would otherwise be true.
 func TestBrowserSetupRequested(t *testing.T) {
 	cases := []struct {
-		name                                                         string
-		browser, nonInteractive, public, sshTunnel, headless, inSSH  bool
-		want                                                         bool
+		name                                                        string
+		browser, nonInteractive, public, sshTunnel, headless, inSSH bool
+		want                                                        bool
 	}{
 		{"--ssh-tunnel overrides headless (SSH VPS path, recommended)", true, false, false, true, true, true, true},
-		{"--public overrides headless (SSH VPS path, fallback)",        true, false, true, false, true, true, true},
-		{"SSH'd headless box without flags auto-picks browser path",    true, false, false, false, true, true, true},
-		{"loopback blocked when headless and not SSH'd",                true, false, false, false, true, false, false},
-		{"loopback works on a desktop host",                            true, false, false, false, false, false, true},
-		{"public works on a desktop host too",                          true, false, true, false, false, false, true},
-		{"ssh-tunnel works on a desktop host too",                      true, false, false, true, false, false, true},
-		{"--no-browser always blocks",                                  false, false, true, true, false, false, false},
-		{"--non-interactive always blocks",                             true, true, true, true, false, false, false},
+		{"--public overrides headless (SSH VPS path, fallback)", true, false, true, false, true, true, true},
+		{"SSH'd headless box without flags auto-picks browser path", true, false, false, false, true, true, true},
+		{"loopback blocked when headless and not SSH'd", true, false, false, false, true, false, false},
+		{"loopback works on a desktop host", true, false, false, false, false, false, true},
+		{"public works on a desktop host too", true, false, true, false, false, false, true},
+		{"ssh-tunnel works on a desktop host too", true, false, false, true, false, false, true},
+		{"--no-browser always blocks", false, false, true, true, false, false, false},
+		{"--non-interactive always blocks", true, true, true, true, false, false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -412,6 +412,26 @@ func TestPromptDaemonConfigNonInteractiveUsesFlags(t *testing.T) {
 	}
 }
 
+func TestPromptDaemonConfigNonInteractiveParsesEndpoints(t *testing.T) {
+	restore := saveSetupState()
+	defer restore()
+
+	setupNonInteractive = true
+	setupDaemonNodeID = "node-a"
+	setupDaemonControllerHost = "127.0.0.1"
+	setupDaemonControllerGRPC = "9090"
+	setupDaemonControllerEndpoints = "ctrl-2:9090, ctrl-3:9090"
+	setupDaemonJoinToken = "pxt_test"
+
+	cfg, err := promptDaemonConfig()
+	if err != nil {
+		t.Fatalf("promptDaemonConfig() error = %v", err)
+	}
+	if len(cfg.Endpoints) != 2 || cfg.Endpoints[0] != "ctrl-2:9090" || cfg.Endpoints[1] != "ctrl-3:9090" {
+		t.Fatalf("Endpoints = %#v, want [ctrl-2:9090 ctrl-3:9090]", cfg.Endpoints)
+	}
+}
+
 func saveSetupState() func() {
 	nonInteractive := setupNonInteractive
 	component := setupComponent
@@ -433,6 +453,7 @@ func saveSetupState() func() {
 	daemonNodeID := setupDaemonNodeID
 	daemonControllerHost := setupDaemonControllerHost
 	daemonControllerGRPC := setupDaemonControllerGRPC
+	daemonControllerEndpoints := setupDaemonControllerEndpoints
 	daemonJoinToken := setupDaemonJoinToken
 
 	return func() {
@@ -456,6 +477,7 @@ func saveSetupState() func() {
 		setupDaemonNodeID = daemonNodeID
 		setupDaemonControllerHost = daemonControllerHost
 		setupDaemonControllerGRPC = daemonControllerGRPC
+		setupDaemonControllerEndpoints = daemonControllerEndpoints
 		setupDaemonJoinToken = daemonJoinToken
 	}
 }

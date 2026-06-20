@@ -262,6 +262,9 @@ public final class MessageDispatcher {
         if (client == null) {
             return;
         }
+        // Self-heal the seed list from the cluster's advertised live members (captured even if we
+        // redirect below — the leader's ack carries the list too).
+        client.mergeAdvertisedControllers(ack.getControllerGrpcAddrsList());
         // A follower acks with the leader's gRPC address (Phase 3): redirect there instead of
         // settling on this follower, which holds no scheduler and would issue no commands.
         String leaderAddr = ack.getLeaderGrpcAddr();

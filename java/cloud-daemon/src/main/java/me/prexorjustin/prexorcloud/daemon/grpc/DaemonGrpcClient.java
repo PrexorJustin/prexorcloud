@@ -1,5 +1,8 @@
 package me.prexorjustin.prexorcloud.daemon.grpc;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -10,6 +13,7 @@ import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import me.prexorjustin.prexorcloud.common.util.VersionInfo;
+import me.prexorjustin.prexorcloud.daemon.config.ControllerEndpoint;
 import me.prexorjustin.prexorcloud.daemon.resource.HostInfoCollector;
 import me.prexorjustin.prexorcloud.daemon.resource.ResourceMonitor;
 import me.prexorjustin.prexorcloud.protocol.*;
@@ -43,11 +47,21 @@ public final class DaemonGrpcClient {
         DISCONNECTED
     }
 
-    // host/port are mutable: a HandshakeAck from a follower redirects the daemon to the leader
-    // (Phase 3), swapping the dial target before the reconnect path re-dials. Volatile so the
-    // reconnect-scheduler thread sees the new target.
-    private volatile String host;
-    private volatile int port;
+    // The seed list of controllers, shuffled once at construction so a fleet restart doesn't herd
+    // onto candidates[0] before the leader redirect kicks in. Never empty. Volatile + mutated only
+    // under connectLock: the controller advertises its live members on every handshake, which the
+    // daemon merges in (mergeAdvertisedControllers) so the list self-heals as membership changes.
+    private volatile List<ControllerEndpoint> candidates;
+    // The current dial target. A single immutable value (not a separate host+port pair) so connect()
+    // reads one atomic snapshot — no torn read of a host from one candidate with a port from another.
+    // Mutated by candidate rotation (inside connect(), under connectLock) and by a leader redirect.
+    private volatile ControllerEndpoint target;
+    // Position in {@code candidates}; guarded by connectLock (only read/written inside connect()).
+    private int candidateIndex;
+    // Set by handleDisconnect() when an attempt never reached a HandshakeAck; read+cleared by the next
+    // connect() under connectLock, where it advances to the next seed. Volatile to cross the
+    // gRPC-executor → reconnect-scheduler thread hop.
+    private volatile boolean advanceOnNextConnect;
     private final String nodeId;
     private final String advertiseAddress;
     private final long totalMemoryMb;
@@ -74,11 +88,18 @@ public final class DaemonGrpcClient {
     private static final int MAX_BUFFERED_CRASH_REPORTS = 64;
     private final CrashReportBuffer crashBuffer = new CrashReportBuffer(MAX_BUFFERED_CRASH_REPORTS);
 
+    // The controller's last-advertised live member set (guarded by connectLock). When it changes the
+    // learnedControllersListener is fired so the set can be persisted — a fresh, bounded view, not the
+    // monotonic in-memory union below.
+    private java.util.Set<ControllerEndpoint> lastAdvertised = java.util.Set.of();
+    private volatile java.util.function.Consumer<List<ControllerEndpoint>> learnedControllersListener;
+
     private ReconnectManager reconnectManager;
     private IntSupplier instanceCountSupplier = () -> 0;
     private Supplier<List<Integer>> usedPortsSupplier = List::of;
     private Supplier<List<RunningInstance>> runningInstancesSupplier = List::of;
 
+    /** Single-endpoint convenience constructor (back-compat with pre-seed-list callers and tests). */
     public DaemonGrpcClient(
             String host,
             int port,
@@ -89,8 +110,60 @@ public final class DaemonGrpcClient {
             SslContext sslContext,
             ResourceMonitor resourceMonitor,
             MessageDispatcher dispatcher) {
-        this.host = host;
-        this.port = port;
+        this(
+                List.of(new ControllerEndpoint(host, port)),
+                nodeId,
+                advertiseAddress,
+                totalMemoryMb,
+                labels,
+                sslContext,
+                resourceMonitor,
+                dispatcher);
+    }
+
+    public DaemonGrpcClient(
+            List<ControllerEndpoint> candidates,
+            String nodeId,
+            String advertiseAddress,
+            long totalMemoryMb,
+            Map<String, String> labels,
+            SslContext sslContext,
+            ResourceMonitor resourceMonitor,
+            MessageDispatcher dispatcher) {
+        this(
+                true,
+                candidates,
+                nodeId,
+                advertiseAddress,
+                totalMemoryMb,
+                labels,
+                sslContext,
+                resourceMonitor,
+                dispatcher);
+    }
+
+    DaemonGrpcClient(
+            boolean shuffle,
+            List<ControllerEndpoint> candidates,
+            String nodeId,
+            String advertiseAddress,
+            long totalMemoryMb,
+            Map<String, String> labels,
+            SslContext sslContext,
+            ResourceMonitor resourceMonitor,
+            MessageDispatcher dispatcher) {
+        if (candidates == null || candidates.isEmpty()) {
+            throw new IllegalArgumentException("at least one controller endpoint is required");
+        }
+        if (shuffle) {
+            var shuffled = new ArrayList<>(candidates);
+            Collections.shuffle(shuffled);
+            this.candidates = List.copyOf(shuffled);
+        } else {
+            this.candidates = List.copyOf(candidates);
+        }
+        this.candidateIndex = 0;
+        this.target = this.candidates.get(0);
         this.nodeId = nodeId;
         this.advertiseAddress = advertiseAddress != null ? advertiseAddress : "";
         this.totalMemoryMb = totalMemoryMb;
@@ -104,6 +177,15 @@ public final class DaemonGrpcClient {
         this.reconnectManager = reconnectManager;
     }
 
+    /**
+     * Register a listener fired with the cluster's advertised controller set whenever it changes, so it
+     * can be persisted for restart resilience. Receives the fresh advertised view (bounded), not the
+     * in-memory union of every controller ever seen.
+     */
+    public void setLearnedControllersListener(java.util.function.Consumer<List<ControllerEndpoint>> listener) {
+        this.learnedControllersListener = listener;
+    }
+
     public void connect() {
         connectLock.lock();
         try {
@@ -112,6 +194,7 @@ public final class DaemonGrpcClient {
                 return;
             }
             state = State.CONNECTING;
+            final ControllerEndpoint dial = selectTarget();
             final long gen = ++connectGeneration;
 
             // Shut down any existing channel to avoid leaking resources
@@ -124,14 +207,14 @@ public final class DaemonGrpcClient {
                 }
             }
 
-            logger.info("Connecting to controller at {}:{}", host, port);
+            logger.info("Connecting to controller at {}", dial);
 
             // Connect via an explicit InetSocketAddress so gRPC uses its direct-address path and
             // never consults the NameResolver registry. In the shaded jar the only registered
             // NameResolverProvider is the unix-domain-socket one, so the default scheme resolves
             // to "unix:///host:port" and Netty's TCP transport rejects it. A direct address skips
             // name resolution entirely. Authority stays "host:port", identical to forAddress(host, port).
-            var builder = NettyChannelBuilder.forAddress(new java.net.InetSocketAddress(host, port))
+            var builder = NettyChannelBuilder.forAddress(new java.net.InetSocketAddress(dial.host(), dial.port()))
                     .maxInboundMessageSize(ProtocolConstants.MAX_MESSAGE_SIZE)
                     .keepAliveTime(30, TimeUnit.SECONDS)
                     .keepAliveTimeout(10, TimeUnit.SECONDS)
@@ -149,6 +232,12 @@ public final class DaemonGrpcClient {
 
                 @Override
                 public void onNext(ControllerMessage message) {
+                    if (gen != connectGeneration) {
+                        // Superseded channel (e.g. after a leader redirect / rotation): drop any late
+                        // message — including a stale HandshakeAck that would otherwise mark the new
+                        // attempt CONNECTED and suppress candidate rotation, pinning a dead target.
+                        return;
+                    }
                     dispatcher.dispatch(message);
                 }
 
@@ -193,7 +282,79 @@ public final class DaemonGrpcClient {
         }
     }
 
+    /**
+     * Pick the target for the next dial: advance to the next seed if the previous attempt never reached
+     * a HandshakeAck. A leader redirect sets an explicit target and clears the advance flag, so a
+     * redirect never rotates past the leader. Must be called holding {@link #connectLock} (connect()
+     * does); rotation mutates {@code candidateIndex}/{@code target} from this single place.
+     */
+    ControllerEndpoint selectTarget() {
+        if (advanceOnNextConnect) {
+            advanceOnNextConnect = false;
+            if (candidates.size() > 1) {
+                candidateIndex = (candidateIndex + 1) % candidates.size();
+                target = candidates.get(candidateIndex);
+            }
+        }
+        return target;
+    }
+
+    /**
+     * Merge controller addresses the cluster advertised in a HandshakeAck into the dial candidate list
+     * so the seed list self-heals as membership changes. Existing candidates (config seeds + already
+     * merged) keep their order; new, routable, non-duplicate addresses are appended. The list is never
+     * re-shuffled; {@code candidateIndex} is re-anchored on the current target so rotation continues
+     * from where it is. The current dial {@code target} is untouched.
+     */
+    void mergeAdvertisedControllers(List<String> addrs) {
+        if (addrs == null || addrs.isEmpty()) {
+            return;
+        }
+        var advertised = new LinkedHashSet<ControllerEndpoint>();
+        for (String addr : addrs) {
+            ControllerEndpoint ep = ControllerEndpoint.parse(addr, target.port());
+            if (ep != null && !ep.isLoopbackOrWildcard()) {
+                advertised.add(ep);
+            }
+        }
+        if (advertised.isEmpty()) {
+            return;
+        }
+
+        List<ControllerEndpoint> toPersist = null;
+        connectLock.lock();
+        try {
+            // Union into the rotation candidates (existing order first), for this process's lifetime.
+            var merged = new LinkedHashSet<>(candidates);
+            if (merged.addAll(advertised)) {
+                var updated = List.copyOf(merged);
+                int idx = updated.indexOf(target);
+                candidates = updated;
+                candidateIndex = idx >= 0 ? idx : 0;
+                logger.debug("Merged advertised controllers; seed list now {}", updated);
+            }
+            // Persist the controller's current live view (fresh + bounded) only when it changes.
+            if (!advertised.equals(lastAdvertised)) {
+                lastAdvertised = advertised;
+                toPersist = List.copyOf(advertised);
+            }
+        } finally {
+            connectLock.unlock();
+        }
+        // Notify outside the lock — the listener does disk I/O and must not block connect()/rotation.
+        if (toPersist != null && learnedControllersListener != null) {
+            learnedControllersListener.accept(toPersist);
+        }
+    }
+
     private void handleDisconnect() {
+        // If this attempt never reached CONNECTED (no HandshakeAck) the target is unreachable or isn't
+        // a controller — advance to the next seed on the next connect(). Read state BEFORE clearing it.
+        // A connection that WAS established and then dropped keeps the same target for one retry (it may
+        // be a transient blip / the leader); if that retry also fails to ack, this fires and rotates.
+        if (state != State.CONNECTED) {
+            advanceOnNextConnect = true;
+        }
         requestStream = null;
         state = State.DISCONNECTED;
         stopStatusReporting();
@@ -300,7 +461,7 @@ public final class DaemonGrpcClient {
     /** Called by the dispatcher when the HandshakeAck arrives with the API port. */
     public void setControllerApiPort(int apiPort) {
         this.controllerApiPort = apiPort;
-        this.controllerApiUrl = "http://" + host + ":" + apiPort;
+        this.controllerApiUrl = "http://" + target.host() + ":" + apiPort;
         logger.debug("Controller API URL resolved: {}", controllerApiUrl);
     }
 
@@ -311,12 +472,12 @@ public final class DaemonGrpcClient {
 
     /** Returns the controller host the daemon is connected to (or being redirected to). */
     public String controllerHost() {
-        return host;
+        return target.host();
     }
 
     /** Returns the controller gRPC port the daemon is connected to (or being redirected to). */
     public int controllerPort() {
-        return port;
+        return target.port();
     }
 
     /**
@@ -347,12 +508,15 @@ public final class DaemonGrpcClient {
             logger.warn("Ignoring leader redirect address with out-of-range port: '{}'", addr);
             return false;
         }
-        if (newHost.equals(host) && newPort == port) {
+        ControllerEndpoint current = target;
+        if (newHost.equals(current.host()) && newPort == current.port()) {
             return false; // already targeting this controller — settle normally
         }
-        logger.info("Redirecting daemon from {}:{} to leader at {}:{}", host, port, newHost, newPort);
-        this.host = newHost;
-        this.port = newPort;
+        logger.info("Redirecting daemon from {} to leader at {}:{}", current, newHost, newPort);
+        this.target = new ControllerEndpoint(newHost, newPort);
+        // An explicit redirect target must not be rotated past on the next connect(): clear any pending
+        // rotation the prior disconnect may have set.
+        this.advanceOnNextConnect = false;
         // Drop out of CONNECTING (set by the connect() that opened the follower stream) so the reconnect
         // path's connect() proceeds rather than short-circuiting; it then dials the new target.
         state = State.DISCONNECTED;
@@ -406,5 +570,26 @@ public final class DaemonGrpcClient {
             statusScheduler.shutdownNow();
             statusScheduler = null;
         }
+    }
+
+    // --- Test seams (package-private): exercise the rotation policy without real sockets ---
+
+    /** Build a client over {@code candidates} in deterministic (un-shuffled) order for assertions. */
+    static DaemonGrpcClient unshuffledForTest(List<ControllerEndpoint> candidates) {
+        return new DaemonGrpcClient(false, candidates, "node-test", "", 1024, Map.of(), null, null, null);
+    }
+
+    /** Run the disconnect bookkeeping (no reconnect manager → no reschedule) as a stream drop would. */
+    void simulateDisconnectForTest() {
+        handleDisconnect();
+    }
+
+    /** Simulate a successful handshake's effect on the rotation decision (CONNECTED), without I/O. */
+    void markConnectedForTest() {
+        state = State.CONNECTED;
+    }
+
+    boolean advancePendingForTest() {
+        return advanceOnNextConnect;
     }
 }

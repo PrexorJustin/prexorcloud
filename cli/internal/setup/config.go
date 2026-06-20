@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -26,7 +27,10 @@ type DaemonConfig struct {
 	NodeID         string
 	ControllerHost string
 	GRPCPort       string
-	JoinToken      string
+	// Endpoints are additional controller gRPC endpoints ("host:port") for an HA cluster, so the
+	// daemon can reach the cluster through any of them and survive one controller being down.
+	Endpoints []string
+	JoinToken string
 }
 
 // WriteControllerConfig merges the wizard values into controller.yml and writes it
@@ -123,12 +127,17 @@ func WriteControllerConfig(installDir string, cfg ControllerConfig) error {
 func WriteDaemonConfig(installDir string, cfg DaemonConfig) error {
 	outPath := filepath.Join(installDir, "config", "daemon.yml")
 
+	controller := map[string]any{
+		"host":     cfg.ControllerHost,
+		"grpcPort": mustInt(cfg.GRPCPort, DefaultDaemonControllerGRPCPort),
+	}
+	if len(cfg.Endpoints) > 0 {
+		controller["endpoints"] = cfg.Endpoints
+	}
+
 	doc := map[string]any{
-		"nodeId": cfg.NodeID,
-		"controller": map[string]any{
-			"host":     cfg.ControllerHost,
-			"grpcPort": mustInt(cfg.GRPCPort, DefaultDaemonControllerGRPCPort),
-		},
+		"nodeId":     cfg.NodeID,
+		"controller": controller,
 		"security": map[string]any{
 			"certificateDir": "config/security",
 			"joinToken":      cfg.JoinToken,
@@ -155,6 +164,45 @@ func WriteDaemonConfig(installDir string, cfg DaemonConfig) error {
 	}
 
 	return writeYAML(outPath, doc)
+}
+
+// ControllerHTTPURLs builds the de-duplicated, ordered list of controller REST base URLs to try for
+// join-token redemption: the primary host first, then the HA endpoints. Endpoints are gRPC
+// "host:port"; the gRPC port is dropped and httpPort substituted, since every controller exposes the
+// same REST port. Blank hosts are skipped.
+func ControllerHTTPURLs(primaryHost string, endpoints []string, httpPort string) []string {
+	hosts := append([]string{primaryHost}, endpointHosts(endpoints)...)
+	seen := map[string]bool{}
+	var urls []string
+	for _, h := range hosts {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		u := fmt.Sprintf("http://%s:%s", h, httpPort)
+		if !seen[u] {
+			seen[u] = true
+			urls = append(urls, u)
+		}
+	}
+	return urls
+}
+
+// endpointHosts strips the (optional) ":port" from each "host:port" endpoint, skipping blanks.
+func endpointHosts(endpoints []string) []string {
+	var hosts []string
+	for _, ep := range endpoints {
+		ep = strings.TrimSpace(ep)
+		if ep == "" {
+			continue
+		}
+		host := ep
+		if i := strings.LastIndex(ep, ":"); i > 0 {
+			host = ep[:i]
+		}
+		hosts = append(hosts, host)
+	}
+	return hosts
 }
 
 // DialTCP attempts a TCP connection to addr to verify reachability.

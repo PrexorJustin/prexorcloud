@@ -45,6 +45,12 @@ public final class InteractiveSetup {
                 prompt(scanner, "Advertise address (IP/hostname reachable by proxies, empty = auto-detect)", "");
         String host = prompt(scanner, "Controller host", "127.0.0.1");
         int grpcPort = promptInt(scanner, "Controller gRPC port", 9090);
+        String extra =
+                prompt(scanner, "Additional controller endpoints for HA (comma-separated host:port, empty = none)", "");
+        var endpoints = java.util.Arrays.stream(extra.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
         String joinToken = promptRequired(scanner, "Join token (from dashboard)");
 
         System.out.println();
@@ -53,13 +59,16 @@ public final class InteractiveSetup {
         System.out.println(
                 "    Advertise address:" + (advertiseAddress.isEmpty() ? " (auto-detect)" : " " + advertiseAddress));
         System.out.println("    Controller:       " + host + ":" + grpcPort);
+        if (!endpoints.isEmpty()) {
+            System.out.println("    Extra endpoints:  " + String.join(", ", endpoints));
+        }
         System.out.println("    Join token:       " + joinToken.substring(0, Math.min(8, joinToken.length())) + "...");
         System.out.println();
 
         var config = new DaemonConfig(
                 nodeId,
                 advertiseAddress,
-                new ControllerConnectionConfig(host, grpcPort),
+                new ControllerConnectionConfig(host, grpcPort, endpoints),
                 new HealthConfig(),
                 new SecurityDaemonConfig("config/security", joinToken),
                 new InstancesConfig(),

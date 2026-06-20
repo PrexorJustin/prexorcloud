@@ -10,6 +10,12 @@ nodeId: "node-compose"
 controller:
   host: "controller"
   grpcPort: 9090
+  # For an HA cluster, list every controller so the daemon survives one being down and is
+  # redirected to the current leader (port optional → grpcPort):
+  #  endpoints:
+  #    - "controller-1:9090"
+  #    - "controller-2:9090"
+  #    - "controller-3:9090"
 
 health:
   enabled: true

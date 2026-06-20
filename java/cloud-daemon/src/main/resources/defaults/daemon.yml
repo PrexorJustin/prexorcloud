@@ -3,10 +3,18 @@
 # Unique node identifier — must be unique across the cluster
 nodeId: "node-1"
 
-# Controller connection
+# Controller connection.
+# For a single controller, set host + grpcPort. For an HA cluster, list every controller in
+# `endpoints` ("host:port", port optional → grpcPort) so the daemon can reach the cluster through any
+# of them and survive one controller being down; it is then redirected to the current leader. The
+# cluster also advertises its live members at runtime, so this list is just the bootstrap seed.
 controller:
   host: "127.0.0.1"
   grpcPort: 9090
+#  endpoints:
+#    - "controller-1:9090"
+#    - "controller-2:9090"
+#    - "controller-3:9090"
 
 # Local health endpoint for daemon liveness/readiness checks
 health:

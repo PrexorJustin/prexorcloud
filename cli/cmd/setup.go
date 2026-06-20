@@ -75,38 +75,39 @@ var (
 	styleSetupCode = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6fd6e0"))
 
-	setupNonInteractive        bool
-	setupComponent             string
-	setupInstallMode           string
-	setupServiceMode           string
-	setupStartupValidationMode string
-	setupBootMode              string
-	setupStartMode             string
-	setupControllerInstallDir  string
-	setupControllerMongoMode   string
-	setupControllerMongoURI    string
-	setupControllerRedisMode   string
-	setupControllerRedisURI    string
-	setupControllerHTTPPort    string
-	setupControllerGRPCPort    string
-	setupControllerCORSOrigin  string
-	setupDaemonInstallDir      string
-	setupDaemonNodeID          string
-	setupDaemonControllerHost  string
-	setupDaemonControllerGRPC  string
-	setupDaemonControllerHTTP  string
-	setupDaemonJoinToken       string
+	setupNonInteractive            bool
+	setupComponent                 string
+	setupInstallMode               string
+	setupServiceMode               string
+	setupStartupValidationMode     string
+	setupBootMode                  string
+	setupStartMode                 string
+	setupControllerInstallDir      string
+	setupControllerMongoMode       string
+	setupControllerMongoURI        string
+	setupControllerRedisMode       string
+	setupControllerRedisURI        string
+	setupControllerHTTPPort        string
+	setupControllerGRPCPort        string
+	setupControllerCORSOrigin      string
+	setupDaemonInstallDir          string
+	setupDaemonNodeID              string
+	setupDaemonControllerHost      string
+	setupDaemonControllerGRPC      string
+	setupDaemonControllerHTTP      string
+	setupDaemonControllerEndpoints string
+	setupDaemonJoinToken           string
 
-	setupDashboardInstallDir       string
-	setupDashboardPublicURL        string
-	setupDashboardServeMode        string
-	setupDashboardTLSMode          string
-	setupDashboardTLSEmail         string
-	setupDashboardControllerURL    string
-	setupDashboardAdminUser        string
-	setupDashboardAdminPassword    string
-	setupDashboardListenPort       string
-	setupRuntimeGOOS           = runtime.GOOS
+	setupDashboardInstallDir    string
+	setupDashboardPublicURL     string
+	setupDashboardServeMode     string
+	setupDashboardTLSMode       string
+	setupDashboardTLSEmail      string
+	setupDashboardControllerURL string
+	setupDashboardAdminUser     string
+	setupDashboardAdminPassword string
+	setupDashboardListenPort    string
+	setupRuntimeGOOS            = runtime.GOOS
 )
 
 // ── Command ───────────────────────────────────────────────────────────────────
@@ -305,6 +306,7 @@ func init() {
 	setupCmd.Flags().StringVar(&setupDaemonControllerHost, "daemon-controller-host", "", "Daemon controller host in non-interactive mode")
 	setupCmd.Flags().StringVar(&setupDaemonControllerGRPC, "daemon-controller-grpc-port", "", "Daemon controller gRPC port in non-interactive mode")
 	setupCmd.Flags().StringVar(&setupDaemonControllerHTTP, "daemon-controller-http-port", "", "Daemon controller HTTP port (for join-token redemption) in non-interactive mode; default 8080")
+	setupCmd.Flags().StringVar(&setupDaemonControllerEndpoints, "daemon-controller-endpoints", "", "Additional controller endpoints for HA (comma-separated host:port) in non-interactive mode")
 	setupCmd.Flags().StringVar(&setupDaemonJoinToken, "daemon-join-token", "", "Daemon join token in non-interactive mode")
 
 	setupCmd.Flags().StringVar(&setupDashboardInstallDir, "dashboard-install-dir", "/opt/prexorcloud/dashboard", "Dashboard install directory")

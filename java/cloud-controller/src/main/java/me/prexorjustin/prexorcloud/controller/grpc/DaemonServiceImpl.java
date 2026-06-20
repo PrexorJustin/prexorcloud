@@ -101,6 +101,11 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
         connectionLifecycle.setLeaderGrpcAddressResolver(resolver);
     }
 
+    /** Inject the resolver that enumerates the cluster's live controller gRPC addresses for daemons. */
+    public void setControllerAddrsResolver(java.util.function.Supplier<java.util.List<String>> resolver) {
+        connectionLifecycle.setControllerAddrsResolver(resolver);
+    }
+
     public DaemonServiceImpl(Deps deps, long heartbeatIntervalMs, int heartbeatMissedThreshold, int controllerApiPort) {
         this.sessionManager = deps.sessionManager();
         this.clusterState = deps.clusterState();

@@ -1120,6 +1120,9 @@ public final class PrexorCloudBootstrap {
             daemonService.setLeadership(leaderElector);
             daemonService.setLeaderGrpcAddressResolver(() -> resolveLeaderGrpcAddress(leaderElector));
         }
+        // Advertise the cluster's live controllers to every daemon so its seed list self-heals as
+        // controllers are added / replaced. Independent of leadership — both leader and followers send it.
+        daemonService.setControllerAddrsResolver(this::resolveControllerGrpcAddresses);
 
         // Layer 7: wire daemon-host platform-module distribution and the controller→daemon
         // event bridge. Distributor fans out install/upgrade/uninstall to connected daemons
@@ -1379,6 +1382,44 @@ public final class PrexorCloudBootstrap {
                 .filter(addr -> addr != null && !addr.isBlank())
                 .findFirst()
                 .orElse("");
+    }
+
+    /** Cap on advertised controller addresses — a sanity bound, far above any real cluster size. */
+    private static final int MAX_ADVERTISED_CONTROLLERS = 16;
+
+    /**
+     * Enumerate the cluster's live controller gRPC addresses to advertise to daemons (Phase: seed-list
+     * self-sync). Blank and loopback/wildcard addresses are dropped (never routable for a daemon), the
+     * freshest-seen members come first, and the list is capped. Empty when membership is unknown.
+     */
+    private java.util.List<String> resolveControllerGrpcAddresses() {
+        if (clusterControlService == null) {
+            return java.util.List.of();
+        }
+        return clusterControlService.clusterReadView().listMembers().stream()
+                .filter(member -> isRoutableGrpcAddr(member.gRPCAddr()))
+                .sorted(java.util.Comparator.comparing(
+                                me.prexorjustin.prexorcloud.controller.cluster.state.Member::lastSeen,
+                                java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()))
+                        .reversed())
+                .map(me.prexorjustin.prexorcloud.controller.cluster.state.Member::gRPCAddr)
+                .distinct()
+                .limit(MAX_ADVERTISED_CONTROLLERS)
+                .toList();
+    }
+
+    /** A controller gRPC "host:port" a daemon could actually dial — non-blank, non-loopback/wildcard. */
+    private static boolean isRoutableGrpcAddr(String addr) {
+        if (addr == null || addr.isBlank()) {
+            return false;
+        }
+        int colon = addr.lastIndexOf(':');
+        String host = (colon > 0 ? addr.substring(0, colon) : addr).toLowerCase();
+        return !(host.equals("localhost")
+                || host.equals("0.0.0.0")
+                || host.equals("::")
+                || host.equals("::1")
+                || host.startsWith("127."));
     }
 
     private void reconcileDurableWorkflows(PrexorController controller) {
