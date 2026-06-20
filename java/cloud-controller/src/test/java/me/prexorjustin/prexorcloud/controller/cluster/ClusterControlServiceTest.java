@@ -2,6 +2,7 @@ package me.prexorjustin.prexorcloud.controller.cluster;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -137,6 +138,9 @@ final class ClusterControlServiceTest {
             assertTrue(store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY).isPresent(), "CA key stamped");
             assertEquals(1, store.listMembers().size(), "Day-0 self member registered");
             assertEquals("controller-1", store.listMembers().get(0).nodeId());
+            assertFalse(
+                    store.listMembers().get(0).gRPCAddr().startsWith("0.0.0.0"),
+                    "advertised gRPC address must be routable, not the 0.0.0.0 bind host");
             if (!ClusterJoinTemplate.buildSharedMap(cfg).isEmpty()) {
                 assertTrue(store.getActiveConfigVersion() > 0, "initial cluster_config seeded from controller.yml");
             }

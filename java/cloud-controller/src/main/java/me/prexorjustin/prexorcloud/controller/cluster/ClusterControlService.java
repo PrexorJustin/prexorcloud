@@ -78,17 +78,30 @@ public final class ClusterControlService implements AutoCloseable {
         this.effectiveConfig = config;
     }
 
+    /**
+     * The routable host this controller advertises to peers + daemons. A service binds to {@code 0.0.0.0}
+     * (all interfaces), but a member document must carry an address other nodes can actually dial — most
+     * importantly the gRPC address a daemon redirects to on failover. When a bind host is the wildcard we
+     * fall back to the configured cluster coordinate host ({@code raft.host}, the operator's routable IP).
+     */
+    private String routableHost(String bindHost) {
+        if (bindHost == null || bindHost.isBlank() || "0.0.0.0".equals(bindHost) || "::".equals(bindHost)) {
+            return config.raft().host();
+        }
+        return bindHost;
+    }
+
     /** Address advertised as this member's primary bind coordinate in the cluster member list. */
     private String selfPrimaryAddress() {
         return config.raft().host() + ":" + config.raft().port();
     }
 
     private String selfRestAddress() {
-        return config.http().host() + ":" + config.http().port();
+        return routableHost(config.http().host()) + ":" + config.http().port();
     }
 
     private String selfGrpcAddress() {
-        return config.grpc().host() + ":" + config.grpc().port();
+        return routableHost(config.grpc().host()) + ":" + config.grpc().port();
     }
 
     /**
@@ -177,11 +190,12 @@ public final class ClusterControlService implements AutoCloseable {
             throw new IOException("failed to mint a leaf cert from the cluster CA", e);
         }
 
-        // 4. Adopt the cluster identity locally + register self in cluster_members.
+        // 4. Adopt the cluster identity locally + register self in cluster_members. Advertise routable
+        // REST + gRPC addresses (not the 0.0.0.0 bind host) so a daemon can redirect here on failover.
         resolvedClusterId = meta.clusterId();
         effectiveConfig = withClusterId(effectiveConfig, meta.clusterId());
-        plane.addMember(new Member(
-                nodeId, selfIdentity.raftAddr(), selfIdentity.restAddr(), selfIdentity.grpcAddr(), nodeId, now, now));
+        plane.addMember(
+                new Member(nodeId, selfIdentity.raftAddr(), selfRestAddress(), selfGrpcAddress(), nodeId, now, now));
 
         logger.info(
                 "Joined cluster {} as {} via Mongo registration — cluster state lives in Mongo, leadership via the"
@@ -215,41 +229,52 @@ public final class ClusterControlService implements AutoCloseable {
     }
 
     /**
-     * Ensure this node's {@link Member} record carries its current advertised address. Day-0 stamps a
-     * fresh self member; a restart with an unchanged address is a no-op; a restart whose address changed
-     * (operator moved the controller to a routable bind host) self-heals the record.
+     * Ensure this node's {@link Member} record carries its current advertised addresses. Day-0 stamps a
+     * fresh self member; a restart with unchanged addresses is a no-op; a restart whose primary, REST, or
+     * advertised gRPC address changed (operator moved the bind host, or an older record still carries a
+     * non-routable {@code 0.0.0.0} gRPC address) self-heals the record. The gRPC address matters most: it
+     * is the target a daemon redirects to when this controller is the leader.
      */
     private void ensureSelfMember() {
         Optional<Member> existing = plane.listMembers().stream()
                 .filter(m -> nodeId.equals(m.nodeId()))
                 .findFirst();
-        String want = selfPrimaryAddress();
+        String wantPrimary = selfPrimaryAddress();
+        String wantRest = selfRestAddress();
+        String wantGrpc = selfGrpcAddress();
         if (existing.isPresent()) {
             Member current = existing.get();
-            if (want.equals(current.raftAddr())) {
-                return; // address unchanged — nothing to reconcile
+            if (wantPrimary.equals(current.raftAddr())
+                    && wantRest.equals(current.restAddr())
+                    && wantGrpc.equals(current.gRPCAddr())) {
+                return; // addresses unchanged — nothing to reconcile
             }
             try {
                 Member healed = new Member(
                         current.nodeId(),
-                        want,
-                        current.restAddr(),
-                        current.gRPCAddr(),
+                        wantPrimary,
+                        wantRest,
+                        wantGrpc,
                         current.label(),
                         current.joinedAt(),
                         Instant.now(clock));
                 plane.addMember(healed);
-                logger.info("Self-healed member {} address {} -> {}", nodeId, current.raftAddr(), want);
+                logger.info(
+                        "Self-healed member {} addresses (primary={}, rest={}, grpc={})",
+                        nodeId,
+                        wantPrimary,
+                        wantRest,
+                        wantGrpc);
             } catch (IOException e) {
-                logger.warn("could not reconcile self member address: {}", e.getMessage());
+                logger.warn("could not reconcile self member addresses: {}", e.getMessage());
             }
             return;
         }
         try {
-            Member self = new Member(
-                    nodeId, want, selfRestAddress(), selfGrpcAddress(), nodeId, Instant.now(clock), Instant.now(clock));
+            Member self =
+                    new Member(nodeId, wantPrimary, wantRest, wantGrpc, nodeId, Instant.now(clock), Instant.now(clock));
             plane.addMember(self);
-            logger.info("Stamped Day-0 self member {} at {}", nodeId, want);
+            logger.info("Stamped Day-0 self member {} at {}", nodeId, wantPrimary);
         } catch (IOException e) {
             logger.warn("could not add self to cluster members: {}", e.getMessage());
         }
