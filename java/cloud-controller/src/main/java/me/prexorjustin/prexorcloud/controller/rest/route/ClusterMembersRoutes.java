@@ -17,8 +17,8 @@ import java.util.concurrent.TimeUnit;
 import me.prexorjustin.prexorcloud.controller.PrexorCloudBootstrap;
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.ClusterReadView;
-import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
@@ -91,7 +91,7 @@ public final class ClusterMembersRoutes {
      */
     private void listLeases(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_VIEW);
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         List<Map<String, Object>> leases =
                 plane.getLeases().stream().map(ClusterMembersRoutes::leaseJson).toList();
         Map<String, Object> body = new LinkedHashMap<>();
@@ -103,7 +103,7 @@ public final class ClusterMembersRoutes {
     private void ejectMember(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
         String nodeId = ctx.pathParam("nodeId");
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         if (controller.clusterReadView().listMembers().stream()
                 .noneMatch(m -> m.nodeId().equals(nodeId))) {
             ctx.status(404);
@@ -142,7 +142,7 @@ public final class ClusterMembersRoutes {
      */
     private void leave(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         ClusterReadView view = controller.clusterReadView();
         String selfNodeId = controller.config().uuid();
         LeaveDecision decision = decideLeavability(view.listMembers(), selfNodeId);

@@ -213,6 +213,7 @@ public final class PrexorCloudBootstrap {
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
         controller.setClusterControlPlane(clusterControlService.controlPlane());
         controller.setClusterReadView(clusterControlService.clusterReadView());
+        controller.setClusterPlane(clusterControlService.clusterPlane());
         controller.setTelemetry(telemetry);
         if (controller.authManager() != null) {
             controller.authManager().setTracer(telemetry.tracer());
@@ -295,15 +296,18 @@ public final class PrexorCloudBootstrap {
             return;
         }
         mongoClusterStore = new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore(mongoDatabase);
-        clusterControlService.attachClusterShadow(
-                new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow(mongoClusterStore));
-        logger.info(
-                "Cluster dual-write shadow ENABLED (clusterStore={}): committed Raft entries mirror into Mongo", mode);
         if (mode.readsFromMongo()) {
-            // Read cutover: membership/identity reads (leader resolution, the cluster REST surface) now
-            // serve from Mongo. Writes, lease reads, and the Raft peer-group reconciler still use Raft.
+            // MONGO authority: cluster state reads AND writes go straight to Mongo; Raft is bypassed for
+            // cluster state (no dual-write shadow, no backfill — Mongo is the source of truth, not a mirror).
             clusterControlService.enableMongoReads(mongoClusterStore);
-            logger.info("clusterStore=MONGO: cluster membership/identity reads now serve from the Mongo store");
+            logger.info(
+                    "clusterStore=MONGO: cluster state reads + writes now serve from the Mongo store (Raft bypassed)");
+        } else {
+            // DUAL: Raft stays authoritative; mirror every committed entry into Mongo for the soak.
+            clusterControlService.attachClusterShadow(
+                    new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow(mongoClusterStore));
+            logger.info(
+                    "Cluster dual-write shadow ENABLED (clusterStore=DUAL): committed Raft entries mirror into Mongo");
         }
     }
 
@@ -314,7 +318,9 @@ public final class PrexorCloudBootstrap {
      * shadow was attached ({@code clusterStore != RAFT}). Idempotent — safe on every boot.
      */
     private void maybeBackfillClusterStore() {
-        if (mongoClusterStore == null) {
+        if (mongoClusterStore == null || config.clusterStore().readsFromMongo()) {
+            // No store, or MONGO authority — backfilling from the now-vestigial Raft state would clobber
+            // the Mongo store that is itself the source of truth. Backfill is a DUAL-soak concern only.
             return;
         }
         me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterBackfill.seed(

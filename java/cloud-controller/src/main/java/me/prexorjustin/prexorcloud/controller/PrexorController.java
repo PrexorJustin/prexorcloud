@@ -134,6 +134,7 @@ public final class PrexorController {
     private me.prexorjustin.prexorcloud.controller.share.ShareService shareService;
     private me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane;
     private me.prexorjustin.prexorcloud.controller.cluster.ClusterReadView clusterReadView;
+    private me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane clusterPlane;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleQuotaEnforcer moduleQuotaEnforcer;
     private me.prexorjustin.prexorcloud.controller.module.health.ModuleHealthMonitor moduleHealthMonitor;
@@ -428,6 +429,21 @@ public final class PrexorController {
     public me.prexorjustin.prexorcloud.controller.cluster.ClusterReadView clusterReadView() {
         if (clusterReadView == null) throw new IllegalStateException("ClusterReadView not initialized");
         return clusterReadView;
+    }
+
+    /**
+     * Full cluster control-plane store (reads + writes), Phase-4. Writes land in Raft under
+     * {@code clusterStore=raft|dual} and straight in Mongo under {@code mongo}. The cluster REST surface
+     * uses this for every cluster-state read and write so the backing store is transparent.
+     */
+    public void setClusterPlane(me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane plane) {
+        this.clusterPlane = Objects.requireNonNull(plane);
+    }
+
+    /** Never null after bootstrap completes. */
+    public me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane clusterPlane() {
+        if (clusterPlane == null) throw new IllegalStateException("ClusterPlane not initialized");
+        return clusterPlane;
     }
 
     /** Per-module resource tracker. Wired in bootstrap alongside the module context factory; may be null in tests. */

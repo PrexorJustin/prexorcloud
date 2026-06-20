@@ -460,7 +460,7 @@ public final class ClusterControlService implements AutoCloseable {
      * </ul>
      */
     private void ensureSelfMember() {
-        Optional<Member> existing = controlPlane.listMembers().stream()
+        Optional<Member> existing = clusterPlane().listMembers().stream()
                 .filter(m -> nodeId.equals(m.nodeId()))
                 .findFirst();
         String want = selfRaftAddress();
@@ -478,7 +478,7 @@ public final class ClusterControlService implements AutoCloseable {
                         current.label(),
                         current.joinedAt(),
                         Instant.now(clock));
-                controlPlane.addMember(healed);
+                clusterPlane().addMember(healed);
                 logger.info("Self-healed member {} raftAddr {} -> {}", nodeId, current.raftAddr(), want);
             } catch (IOException e) {
                 logger.warn("could not reconcile self member address: {}", e.getMessage());
@@ -488,14 +488,24 @@ public final class ClusterControlService implements AutoCloseable {
         try {
             Member self = new Member(
                     nodeId, want, selfRestAddress(), selfGrpcAddress(), nodeId, Instant.now(clock), Instant.now(clock));
-            controlPlane.addMember(self);
+            clusterPlane().addMember(self);
             logger.info("Stamped Day-0 self member {} at {}", nodeId, want);
         } catch (IOException e) {
             logger.warn("could not add self to cluster members: {}", e.getMessage());
         }
     }
 
+    /** True when cluster state is Mongo-authoritative ({@code clusterStore=mongo}) and Raft is bypassed. */
+    private boolean clusterStateInMongo() {
+        return config.clusterStore().readsFromMongo();
+    }
+
     private void startMembershipReconciler() {
+        if (clusterStateInMongo()) {
+            // MONGO authority: cluster state lives in Mongo, not the (vestigial) local Raft group. The Ratis
+            // membership reconciler and the Raft->Mongo dual-write shadow are both irrelevant here.
+            return;
+        }
         reconciler = new MembershipReconciler(raft, stateMachine);
         reconciler.start();
         // Re-attach the Mongo dual-write shadow onto the freshly (re)built state machine so the mirror
@@ -565,7 +575,7 @@ public final class ClusterControlService implements AutoCloseable {
      * of Mongo.
      */
     private void reconcileClusterIdentity(boolean day0Bootstrap) throws IOException {
-        Optional<ClusterMeta> existing = controlPlane.getClusterMeta();
+        Optional<ClusterMeta> existing = clusterPlane().getClusterMeta();
         String yamlClusterId =
                 config.cluster() == null ? null : config.cluster().id();
 
@@ -609,7 +619,7 @@ public final class ClusterControlService implements AutoCloseable {
         String seedB64 = Base64.getEncoder().encodeToString(seed);
         ClusterMeta seeded =
                 new ClusterMeta(clusterId, seedB64, Instant.now(clock), ClusterMeta.CURRENT_SCHEMA_VERSION);
-        controlPlane.setClusterMeta(seeded);
+        clusterPlane().setClusterMeta(seeded);
         resolvedClusterId = clusterId;
         logger.info(
                 "Stamped fresh cluster.id={} into Raft state (yamlSource={})",
@@ -634,7 +644,7 @@ public final class ClusterControlService implements AutoCloseable {
     /** Poll the local SM projection until the cluster meta replicates in from the leader, or timeout. */
     private Optional<ClusterMeta> awaitClusterMeta(java.time.Duration timeout) {
         long deadlineNanos = System.nanoTime() + timeout.toNanos();
-        Optional<ClusterMeta> meta = controlPlane.getClusterMeta();
+        Optional<ClusterMeta> meta = clusterPlane().getClusterMeta();
         while (meta.isEmpty() && System.nanoTime() < deadlineNanos) {
             try {
                 Thread.sleep(500);
@@ -642,7 +652,7 @@ public final class ClusterControlService implements AutoCloseable {
                 Thread.currentThread().interrupt();
                 break;
             }
-            meta = controlPlane.getClusterMeta();
+            meta = clusterPlane().getClusterMeta();
         }
         return meta;
     }
@@ -665,7 +675,7 @@ public final class ClusterControlService implements AutoCloseable {
      * this and we just log the fingerprint for visibility.
      */
     private void ensureClusterCa() throws IOException {
-        if (controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).isPresent()) {
+        if (clusterPlane().getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).isPresent()) {
             return;
         }
         try {
@@ -675,10 +685,13 @@ public final class ClusterControlService implements AutoCloseable {
             CertificateAuthority ca = day0InMemoryCa != null
                     ? day0InMemoryCa
                     : CertificateAuthority.createInMemory("PrexorCloud Cluster CA", 3650);
-            controlPlane.writeClusterFile(
-                    ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
-            controlPlane.writeClusterFile(
-                    ClusterFile.KEY_CLUSTER_CA_KEY, ca.keyPair().getPrivate().getEncoded());
+            clusterPlane()
+                    .writeClusterFile(
+                            ClusterFile.KEY_CLUSTER_CA_CERT, ca.certificate().getEncoded());
+            clusterPlane()
+                    .writeClusterFile(
+                            ClusterFile.KEY_CLUSTER_CA_KEY,
+                            ca.keyPair().getPrivate().getEncoded());
             logger.info("Stamped cluster CA (fingerprint={}) into Raft state", ca.fingerprint());
         } catch (IOException e) {
             throw e;
@@ -704,8 +717,8 @@ public final class ClusterControlService implements AutoCloseable {
             return; // no on-disk material to realign (no-TLS test path / Day-0 mints consistent material)
         }
         try {
-            Optional<ClusterFile> raftCaCert = controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT);
-            Optional<ClusterFile> raftCaKey = controlPlane.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY);
+            Optional<ClusterFile> raftCaCert = clusterPlane().getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT);
+            Optional<ClusterFile> raftCaKey = clusterPlane().getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY);
             if (raftCaCert.isEmpty() || raftCaKey.isEmpty()) {
                 return; // no authoritative CA in Raft state to realign against
             }
@@ -765,7 +778,7 @@ public final class ClusterControlService implements AutoCloseable {
      * does nothing.
      */
     private void runV10MigrationIfNeeded() throws IOException {
-        if (controlPlane.getActiveConfigVersion() > 0) {
+        if (clusterPlane().getActiveConfigVersion() > 0) {
             return;
         }
         Map<String, Object> initial = ClusterJoinTemplate.buildSharedMap(config);
@@ -774,8 +787,8 @@ public final class ClusterControlService implements AutoCloseable {
                     + " the wizard or first PATCH writes one.");
             return;
         }
-        int newVersion = controlPlane.proposeConfigPatch(
-                0, "v1.0-migration", initial, "Seeded from controller.yml on first v1.1 boot");
+        int newVersion = clusterPlane()
+                .proposeConfigPatch(0, "v1.0-migration", initial, "Seeded from controller.yml on first v1.1 boot");
         logger.info(
                 "Migrated cluster-shared config from controller.yml into Raft as version {} ({} top-level keys)",
                 newVersion,

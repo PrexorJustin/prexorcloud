@@ -14,7 +14,8 @@ import java.util.Map;
 
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
-import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane;
+import me.prexorjustin.prexorcloud.controller.cluster.IssuedJoinToken;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterWriteConflict;
 import me.prexorjustin.prexorcloud.controller.cluster.state.JoinToken;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
@@ -90,10 +91,9 @@ public final class ClusterJoinTokenRoutes {
         }
         List<String> joinAddrs = (List<String>) joinAddrsRaw;
         String mutator = ctx.attribute("username");
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         try {
-            ClusterControlPlane.IssuedJoinToken issued =
-                    plane.issueJoinToken(joinAddrs, Duration.ofSeconds(ttlSeconds), label, mutator);
+            IssuedJoinToken issued = plane.issueJoinToken(joinAddrs, Duration.ofSeconds(ttlSeconds), label, mutator);
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("jti", issued.jti());
             resp.put("token", issued.token());
@@ -121,7 +121,7 @@ public final class ClusterJoinTokenRoutes {
     private void list(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
         Instant now = Instant.now();
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         List<Map<String, Object>> tokens =
                 plane.listJoinTokens().stream().map(t -> tokenJson(t, now)).toList();
         Map<String, Object> body = new LinkedHashMap<>();
@@ -134,7 +134,7 @@ public final class ClusterJoinTokenRoutes {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
         String jti = ctx.pathParam("jti");
         String mutator = ctx.attribute("username");
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         if (plane.getJoinToken(jti).isEmpty()) {
             ctx.status(404);
             ctx.json(errorResponse("TOKEN_NOT_FOUND", "no join token with jti=" + jti, 404));

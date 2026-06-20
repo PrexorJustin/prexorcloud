@@ -12,7 +12,7 @@ import java.util.Set;
 
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
-import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane;
 import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterWriteConflict;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
@@ -78,7 +78,7 @@ public final class ClusterConfigRoutes {
 
     private void getActiveConfig(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_VIEW);
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         boolean reveal = revealRequested(ctx);
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("activeVersion", plane.getActiveConfigVersion());
@@ -92,7 +92,7 @@ public final class ClusterConfigRoutes {
 
     private void listVersions(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_VIEW);
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         int active = plane.getActiveConfigVersion();
         List<Map<String, Object>> versions = plane.listConfigVersions().stream()
                 .map(v -> versionMetadata(v, v.version() == active))
@@ -114,7 +114,7 @@ public final class ClusterConfigRoutes {
             ctx.json(errorResponse("BAD_VERSION", "version must be an integer", 400));
             return;
         }
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         boolean reveal = revealRequested(ctx);
         ClusterConfigVersion match = plane.listConfigVersions().stream()
                 .filter(v -> v.version() == requested)
@@ -157,7 +157,7 @@ public final class ClusterConfigRoutes {
         int parentVersion = parentNum.intValue();
         String reason = body.get("reason") instanceof String s ? s : null;
         String mutator = ctx.attribute("username");
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         try {
             int newVersion = plane.proposeConfigPatch(parentVersion, mutator, (Map<String, Object>) patchMap, reason);
             Map<String, Object> resp = new LinkedHashMap<>();
@@ -206,7 +206,7 @@ public final class ClusterConfigRoutes {
         }
         int targetVersion = targetNum.intValue();
         String mutator = ctx.attribute("username");
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         boolean targetExists = plane.listConfigVersions().stream().anyMatch(v -> v.version() == targetVersion);
         if (!targetExists) {
             ctx.status(404);

@@ -12,7 +12,7 @@ import java.util.Map;
 
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
-import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
 
@@ -55,7 +55,7 @@ public final class ClusterSeedRoutes {
 
     private void rotate(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.CLUSTER_MANAGE);
-        ClusterControlPlane plane = controller.clusterControlPlane();
+        ClusterPlane plane = controller.clusterPlane();
         if (plane.getClusterMeta().isEmpty()) {
             ctx.status(409);
             ctx.json(errorResponse(
