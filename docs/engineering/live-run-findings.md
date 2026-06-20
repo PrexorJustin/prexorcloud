@@ -418,3 +418,40 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
 - **Fleet left:** 3-member cluster, **ctrl-1 leader** (the controller the daemon trusts), ctrl-2/ctrl-3 followers,
   node-frankenstein-1 ONLINE + managed, game running, gauges healthy. Admin pw on ctrl-1 at
   `cat /opt/prexorcloud/controller/config/.initial-admin-password`; cadmin/`Clstr-Admin-2026-xZ9q` for cluster.manage.
+
+---
+
+## 2026-06-20 (later) — daemon controller seed list + transparent failover (committed `b770ab7`)
+
+- **DONE (committed `b770ab7`) + PROVEN — daemon controller seed list.** A daemon had one static `controller.host`;
+  if that controller was down it could neither bootstrap (`System.exit(1)`) nor reconnect (it re-dialed the one dead
+  address forever — the redirect only helps once *some* controller answers). Now: `controller.endpoints` in
+  daemon.yml, the cluster advertises its live members in `HandshakeAck.controller_grpc_addrs`, and the daemon caches
+  them to `config/known-controllers.json`. The daemon rotates off a dead target to a live seed → redirect → leader.
+  Race-safe (single `volatile ControllerEndpoint target`, gen-guarded `onNext`). The Go CLI (`prexorctl setup`, the
+  primary install path) writes the seed list and sweeps controller REST URLs for join-token redemption. **Proven
+  live:** stopped the leader → daemon rotated to a survivor → redirected to the new leader → stable; fresh-bootstrap
+  via cache when the only configured seed was a dead address.
+- **DONE (committed `b770ab7`) + PROVEN — a leader change no longer restarts running servers.** The now-working
+  failover exposed this: `DaemonConnectionLifecycle.handleHandshake` ran `reconcileInstances` UNCONDITIONALLY (no
+  leadership/convergence gate) before the redirect decision, and `stopOrphanInstanceOnNode` force-killed any reported
+  instance the controller's (cold) in-memory state didn't know. So a daemon transiently handshaking a FOLLOWER during
+  rotation had its game killed; the new leader then saw it missing → marked CRASHED → rescheduled (lobby-2/lobby-3
+  port churn). Fix (right invariant: daemon is ground truth; controller adopts, never reflexively kills): (1)
+  instance reconciliation is **leader-only**; (2) an unknown reported-running instance whose group exists is
+  **adopted**, not killed — only a gone-group instance is reaped; (3) a known instance whose record went terminal
+  (CRASHED/STOPPED) while the daemon still runs it is **resurrected** (the normal status update is rejected by
+  `InstanceTransitionValidator`; `addInstance` overwrites). Policy extracted as tested static `decideReportedInstance`.
+  **Proven live:** rolled the leader twice — game **PID survived continuously**, log shows `adopting running instance
+  lobby-2`, no force-stop/CRASHED/reschedule.
+- **🐛 OPEN (daemon-side, low severity) — a re-adopted instance can stay STARTING forever in the daemon's view.**
+  After a daemon restart that re-adopts an already-running server, the daemon never marks it RUNNING (the readiness
+  signal — e.g. the Paper "Done" log line — already passed before the daemon re-attached its log tail). The daemon
+  reports STARTING, the leader faithfully adopts STARTING, and `RecoveryOrchestrator` harmlessly re-dispatches
+  `StartInstance` → `INSTANCE_ALREADY_RUNNING` every ~30s. Benign (game runs), but noisy and the controller's view is
+  wrong. **Fresh starts reach RUNNING fine** (relaunching the instance clears it). Fix candidate: on re-adoption,
+  detect readiness by probing the live process (port/healthcheck) instead of waiting for a log line that's already
+  gone. Surfaced only by back-to-back test restarts, not normal operation.
+- **Fleet left clean:** ctrl-1 leader, ctrl-2/ctrl-3 followers, all controllers on the failover-fix jar, daemon
+  node-frankenstein-1 on the seed-list jar with a 3-seed config + populated `known-controllers.json` + fresh
+  `lobby-2` RUNNING.
