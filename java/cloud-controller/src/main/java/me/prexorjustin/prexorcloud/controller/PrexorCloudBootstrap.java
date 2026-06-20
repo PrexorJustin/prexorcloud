@@ -107,7 +107,6 @@ public final class PrexorCloudBootstrap {
     private static final String DEFAULT_CONFIG = "defaults/controller.yml";
 
     private static final Path SECURITY_DIR = Path.of("config", "security");
-    private static final Path CA_KEYSTORE = SECURITY_DIR.resolve("ca.p12");
     private static final Path CA_PEM = SECURITY_DIR.resolve("ca.pem");
     private static final Path CA_PASSWORD_FILE = SECURITY_DIR.resolve(".ca-password");
     private static final Path SERVER_KEYSTORE = SECURITY_DIR.resolve("server.p12");
@@ -416,13 +415,22 @@ public final class PrexorCloudBootstrap {
             FilePermissions.setOwnerReadWrite(CA_PASSWORD_FILE);
         }
 
-        var ca = CertificateAuthority.loadOrCreate(CA_KEYSTORE, caPassword, "PrexorCloud CA", 3650);
+        // The daemon-facing CA is the SHARED cluster CA (Mongo cluster_files), not a per-controller CA.
+        // Every controller then presents a daemon-facing server cert AND trusts daemon client certs under
+        // ONE root, so a daemon can complete mTLS to whichever controller is leader after a failover
+        // redirect. The cluster CA is minted Day-0 / adopted on join by ClusterControlService, which runs
+        // (startClusterControlPlane) before initSecurity — so it is already in Mongo here.
+        var ca = loadClusterCa();
         ca.exportCaPem(CA_PEM);
 
-        if (!Files.exists(SERVER_KEYSTORE)) {
+        // (Re)issue the daemon-facing server cert from the cluster CA whenever the persisted keystore is
+        // missing or its cert no longer chains to that CA — e.g. first boot, or upgrading off the old
+        // per-controller CA — so the presented cert always matches the exported trust anchor.
+        if (!Files.exists(SERVER_KEYSTORE) || !serverCertChainsTo(ca, caPassword)) {
             List<String> sans = serverCertSans();
             var serverCert = ca.issueServerCertificate("prexorcloud-controller", sans, 825);
             serverCert.savePkcs12(SERVER_KEYSTORE, caPassword);
+            logger.info("Issued daemon-facing server cert from the shared cluster CA");
         }
 
         String jwtSecret = config.security().jwtSecret();
@@ -485,6 +493,40 @@ public final class PrexorCloudBootstrap {
         }
 
         return new PrexorController.SecurityServices(ca, jwtManager, joinTokenStore, caPassword);
+    }
+
+    /** Load the shared cluster CA (cert + key) from the Mongo cluster store as the daemon-facing CA. */
+    private CertificateAuthority loadClusterCa() throws java.io.IOException {
+        var plane = clusterControlService.clusterPlane();
+        var caCert = plane.getClusterFile(
+                        me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
+                .orElseThrow(() -> new java.io.IOException("cluster CA cert missing from the Mongo cluster store"));
+        var caKey = plane.getClusterFile(
+                        me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
+                .orElseThrow(() -> new java.io.IOException("cluster CA key missing from the Mongo cluster store"));
+        try {
+            return CertificateAuthority.loadFromDer(caCert.bytes(), caKey.bytes());
+        } catch (java.io.IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new java.io.IOException("failed to load the shared cluster CA from Mongo", e);
+        }
+    }
+
+    /** True when the persisted daemon-facing server cert was issued by the given CA. */
+    private boolean serverCertChainsTo(CertificateAuthority ca, char[] keystorePassword) {
+        try {
+            var ks = java.security.KeyStore.getInstance("PKCS12");
+            try (var in = Files.newInputStream(SERVER_KEYSTORE)) {
+                ks.load(in, keystorePassword);
+            }
+            String alias = ks.aliases().nextElement();
+            var cert = (java.security.cert.X509Certificate) ks.getCertificate(alias);
+            cert.verify(ca.certificate().getPublicKey());
+            return true;
+        } catch (Exception e) {
+            return false; // missing, unreadable, or signed by a different CA → re-issue
+        }
     }
 
     private StateStore initStorage() {
