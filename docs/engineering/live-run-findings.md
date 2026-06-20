@@ -391,16 +391,28 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
   - `dc1d83f` members advertised the `0.0.0.0` bind host; advertise the routable `raft.host` so a redirect target is dialable.
   - `4931a24` daemon-redirect leadership was wired in `initScheduler` (before `daemonService` exists) so it never ran;
     moved to `initGrpc`. The follower now correctly emits `Redirecting daemon … to leader at <routable>:9090`.
-- **CODED (committed `0da4dba`), NOT yet live-deployed — daemon-facing mTLS CA now = the shared cluster CA.**
+- **DONE (committed `0da4dba`) + DEPLOYED + PROVEN — daemon-facing mTLS CA now = the shared cluster CA.**
   Root cause: each controller had its own daemon-facing CA (`config/security/ca.p12`, signing the `SERVER_KEYSTORE`
   server cert + daemon client certs), separate from the shared *cluster* CA in Mongo — so after a redirect fires the
   daemon got `UNAVAILABLE: io exception` (client SSL handler) dialing a different controller. Fix: `initSecurity` now
   loads the daemon-facing CA from the shared cluster CA (`cluster_files`, `loadClusterCa()`) and re-issues the server
-  cert from it whenever the persisted one doesn't chain (`serverCertChainsTo`). **Deploy requires re-enrolling existing
-  daemons** (their client cert was signed by the old per-controller CA → untrusted by all controllers once they switch
-  to the cluster CA). Also still OPEN: the daemon has a single static controller address (no seed-list, Phase 3 item 4
-  deferred) → after a redirect to an unreachable leader it stays stuck rather than falling back. Until deployed +
-  re-enrolled, keep the daemon's controller the leader (warm-standby control plane; daemon cannot fail over).
+  cert from it whenever the persisted one doesn't chain (`serverCertChainsTo`). **Deployed jar `4a9bbe8e` to all 3
+  controllers + re-enrolled node-frankenstein-1** (its old per-controller cert was untrusted; cleared `node.p12`/`ca.pem`,
+  fresh `pxr_` token, re-bootstrap). Result: the daemon's trust root is now `CN=PrexorCloud Cluster CA` and it
+  **completes mTLS handshake with a controller that is NOT its dial target** (handshaked with ctrl-3 after a redirect
+  from ctrl-1) — the `io exception` is gone. Cross-controller mTLS works.
+- **🐛 NEW OPEN — daemon session FLAPS on a *redirected* leader (redirect/session stability, not CA).** Once mTLS
+  succeeded, a daemon that lands on a leader via redirect (dial target ≠ leader) churns ~1 connect+handshake+`Channel
+  shutdownNow`/sec. Stable when it dials the leader directly (1 connect, 0 shutdowns). So daemon *failover* isn't stable
+  yet even with the CA fixed: the redirect lands but the session won't hold. Likely a redirect re-trigger / duplicate-
+  session loop in the handshake path. Workaround in place: keep the daemon's configured controller (ctrl-1) the leader.
+  Repro: roll the leader so the daemon is forced onto a different controller via redirect.
+- **🐛 NEW OPEN (ops gotcha) — a node whose daemon can't reconnect stays "ONLINE" in clusterState forever**, blocking
+  `DELETE /nodes/{id}` and `POST /admin/tokens` (both gate on `clusterState.getNode().isPresent()`) with 409. The
+  heartbeat-miss never fires (no session to miss) and deleting the runtime key `prexor:v1:node:<id>` from Valkey isn't
+  enough — the controller only rebuilds clusterState from the store on restart. To re-enroll a daemon after a CA change
+  we had to: delete the Valkey key **and** restart the controller, then deregister + mint. Consider evicting stale
+  no-session nodes from clusterState on heartbeat-miss.
 - **Fleet left:** 3-member cluster, **ctrl-1 leader** (the controller the daemon trusts), ctrl-2/ctrl-3 followers,
   node-frankenstein-1 ONLINE + managed, game running, gauges healthy. Admin pw on ctrl-1 at
   `cat /opt/prexorcloud/controller/config/.initial-admin-password`; cadmin/`Clstr-Admin-2026-xZ9q` for cluster.manage.
