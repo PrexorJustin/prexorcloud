@@ -799,16 +799,22 @@ public final class ClusterControlService implements AutoCloseable {
     }
 
     /**
-     * The current cluster membership/identity read source: the Mongo store once the read cutover is
-     * enabled ({@link #enableMongoReads}), otherwise the Raft projection. Constructed per call so it
-     * always reflects the live {@code controlPlane} reference (which is rebuilt across in-process SM
-     * rebuilds) — the wrapper is a thin delegate, so this is cheap.
+     * The current cluster control-plane store (reads + writes): the Mongo store once the cutover is
+     * enabled ({@link #enableMongoReads}), otherwise the Raft control plane. Constructed per call so it
+     * always reflects the live {@code controlPlane} reference (rebuilt across in-process SM rebuilds) —
+     * the wrapper is a thin delegate, so this is cheap. In {@code clusterStore=mongo} the writes land in
+     * Mongo and Raft is bypassed for cluster state.
      */
-    public ClusterReadView clusterReadView() {
+    public ClusterPlane clusterPlane() {
         if (mongoReadStore != null) {
-            return new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterReadView(mongoReadStore);
+            return new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterPlane(mongoReadStore);
         }
-        return new me.prexorjustin.prexorcloud.controller.cluster.raft.RaftClusterReadView(controlPlane);
+        return new me.prexorjustin.prexorcloud.controller.cluster.raft.RaftClusterPlane(controlPlane);
+    }
+
+    /** The read-only projection of {@link #clusterPlane()} — for leader resolution + the cluster REST reads. */
+    public ClusterReadView clusterReadView() {
+        return clusterPlane();
     }
 
     /**

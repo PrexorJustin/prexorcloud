@@ -11,11 +11,13 @@ import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
  * single-writer rewrite's Phase-4 migration is reading from ({@code clusterStore}):
  *
  * <ul>
- *   <li>{@code RAFT}/{@code DUAL} → {@link me.prexorjustin.prexorcloud.controller.cluster.raft.RaftClusterReadView}
+ *   <li>{@code RAFT}/{@code DUAL} → {@link me.prexorjustin.prexorcloud.controller.cluster.raft.RaftClusterPlane}
  *       reads the Raft state-machine projection (authoritative).</li>
- *   <li>{@code MONGO} → {@link me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterReadView}
+ *   <li>{@code MONGO} → {@link me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterPlane}
  *       reads the Mongo cluster store (the read cutover).</li>
  * </ul>
+ *
+ * <p>The read-only narrow seam; {@link ClusterPlane} extends it with the writes.
  *
  * <p>This seam covers only the state that the dual-write shadow mirrors into Mongo and that the
  * consumer-facing surface needs: the member list, cluster identity, and the active config version.
