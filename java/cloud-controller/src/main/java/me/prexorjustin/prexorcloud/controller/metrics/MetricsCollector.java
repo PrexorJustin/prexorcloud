@@ -42,6 +42,11 @@ public final class MetricsCollector {
     private final Counter jwtRevocations;
     private final DistributionSummary shareBytes;
 
+    // Micrometer registers gauges/function-counters with a WEAK reference to their state object, so a
+    // probe whose only other reference is a local in the caller gets GC'd and the gauge then reads NaN.
+    // Retain a strong reference to every probe we register here for the collector's lifetime.
+    private final java.util.List<Object> retainedGaugeProbes = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     public MetricsCollector(ClusterState clusterState, GroupManager groupManager, CrashStore crashStore) {
         this(clusterState, groupManager, crashStore, null, null);
     }
@@ -257,6 +262,7 @@ public final class MetricsCollector {
      */
     public void registerSseStreamerMetrics(SseStreamerProbe probe) {
         if (probe == null) return;
+        retainedGaugeProbes.add(probe);
         Gauge.builder("prexorcloud.sse.clients.connected", probe, SseStreamerProbe::clientCount)
                 .description("SSE clients currently connected to /api/v1/events/stream")
                 .register(registry);
@@ -279,6 +285,7 @@ public final class MetricsCollector {
      */
     public void registerLeadershipMetrics(LeadershipMetricsProbe probe) {
         if (probe == null) return;
+        retainedGaugeProbes.add(probe);
         Gauge.builder("prexorcloud.leadership.is_leader", probe, p -> p.isLeader() ? 1d : 0d)
                 .description("1 if this controller currently holds the leadership lease, else 0")
                 .register(registry);
