@@ -246,6 +246,44 @@ public final class ClusterState {
         if (updated != null && runtimeStore != null) runtimeStore.saveInstance(instanceId, updated);
     }
 
+    /**
+     * Renewable readiness assertion from a live in-instance workload (server plugin / proxy).
+     *
+     * <p>Unlike the original one-shot {@code /ready}, the workload re-asserts readiness on every
+     * heartbeat. That makes run-state self-healing: a lost one-shot readiness POST (a network blip
+     * during boot) or a cold-leader rebuild after a failover no longer pins a live instance at
+     * {@code STARTING} — the next heartbeat re-derives {@code RUNNING} from the authoritative source
+     * (the workload itself) instead of the controller guessing. This is the renewable counterpart to
+     * the daemon-reconnect adopt heuristic in {@code DaemonConnectionLifecycle}: existence/placement
+     * is the daemon's authority, readiness is the workload's.
+     *
+     * <p>Promotes only from the pre-ready states ({@code SCHEDULED}/{@code PREPARING}/{@code STARTING}).
+     * It is deliberately a no-op for every other state:
+     * <ul>
+     *   <li>{@code RUNNING} — already ready (the overwhelmingly common repeat case);</li>
+     *   <li>{@code DRAINING}/{@code STOPPING} — a deliberate shutdown the operator or scheduler
+     *       initiated. A repeating readiness ping must never un-drain a server, and the transition
+     *       validator <em>does</em> permit {@code DRAINING -> RUNNING} (for legitimate un-drains), so
+     *       routing this through {@link #updateInstanceState} unconditionally would be a footgun;</li>
+     *   <li>{@code STOPPED}/{@code CRASHED} — terminal. Resurrecting a falsely-terminal record stays
+     *       the daemon-reconnect adopt path's job: it holds the node/port needed to rebuild it.</li>
+     * </ul>
+     *
+     * <p>When no record exists yet (e.g. a cold leader before the daemon handshake re-adopts the
+     * instance) this is a no-op — there is nothing to promote and readiness alone cannot rebuild a
+     * record (it carries no placement). The adopt path recreates the record; this keeps it RUNNING.
+     */
+    public void renewInstanceReadiness(String instanceId) {
+        InstanceInfo existing = instanceRegistry.get(instanceId).orElse(null);
+        if (existing == null) return;
+        switch (existing.state()) {
+            case SCHEDULED, PREPARING, STARTING -> updateInstanceState(instanceId, InstanceState.RUNNING);
+            default -> {
+                // RUNNING: already ready. DRAINING/STOPPING/STOPPED/CRASHED: respect the intent.
+            }
+        }
+    }
+
     public void updateInstanceStatus(String instanceId, InstanceState state, int playerCount, long uptimeMs) {
         InstanceInfo existing = instanceRegistry.get(instanceId).orElse(null);
         if (!canApplyInstanceTransition(instanceId, existing, state)) return;

@@ -123,9 +123,10 @@ public final class ProxyRoutes {
     private void reportProxyReady(Context ctx) {
         String instanceId = WorkloadRouteAuth.validateSequencedPluginToken(ctx, controller);
         if (instanceId == null) return;
-        controller
-                .clusterState()
-                .updateInstanceState(instanceId, me.prexorjustin.prexorcloud.protocol.InstanceState.RUNNING);
+        // Renewable readiness: the proxy re-asserts this on every heartbeat, so a lost one-shot
+        // call or a cold-leader rebuild self-heals to RUNNING. Gated so a repeat ping never
+        // un-drains or resurrects — see ClusterState#renewInstanceReadiness.
+        controller.clusterState().renewInstanceReadiness(instanceId);
         ctx.json(WorkloadDtoMapper.statusResponse("ok"));
     }
 

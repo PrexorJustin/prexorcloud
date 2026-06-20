@@ -172,7 +172,10 @@ public final class PluginRoutes {
     private void reportPluginReady(Context ctx) {
         String instanceId = WorkloadRouteAuth.validateSequencedPluginToken(ctx, controller);
         if (instanceId == null) return;
-        controller.clusterState().updateInstanceState(instanceId, InstanceState.RUNNING);
+        // Renewable readiness: the plugin re-asserts this on every heartbeat, so a lost one-shot
+        // call or a cold-leader rebuild self-heals to RUNNING. Gated so a repeat ping never
+        // un-drains or resurrects — see ClusterState#renewInstanceReadiness.
+        controller.clusterState().renewInstanceReadiness(instanceId);
         ctx.json(WorkloadDtoMapper.statusResponse("ok"));
     }
 

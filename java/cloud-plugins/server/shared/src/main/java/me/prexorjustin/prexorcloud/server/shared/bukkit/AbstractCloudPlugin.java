@@ -58,7 +58,14 @@ public abstract class AbstractCloudPlugin extends JavaPlugin {
 
         client.reportReady();
 
-        scheduleMetricsReporting(metricsCollector, client::reportMetrics);
+        // Renewable readiness: re-assert readiness on every metrics heartbeat (not just once at
+        // startup) so a lost one-shot /ready or a cold-leader rebuild self-heals to RUNNING instead
+        // of pinning this instance at STARTING. Wrapping the reporter keeps this platform-agnostic —
+        // Folia's scheduleMetricsReporting override invokes the same reporter.
+        scheduleMetricsReporting(metricsCollector, payload -> {
+            client.reportMetrics(payload);
+            client.reportReady();
+        });
 
         getLogger()
                 .info("PrexorCloud connected (instanceId=" + PluginEnv.instanceId() + ", group=" + PluginEnv.group()

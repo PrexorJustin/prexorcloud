@@ -134,6 +134,11 @@ public abstract class AbstractProxyCloudPlugin {
     private void reportProxyMetrics() {
         if (controllerClient == null) return;
         try {
+            // Renewable readiness: re-assert on every metrics heartbeat (not just once in
+            // initialize()) so a lost one-shot /ready or a cold-leader rebuild self-heals to RUNNING
+            // instead of pinning this proxy at STARTING. First, so a metrics-collection error can't
+            // skip it.
+            controllerClient.reportReady();
             controllerClient.reportProxyMetrics(currentPlayerCount(), collectPings());
         } catch (Exception e) {
             warn("Proxy metrics report failed: " + e.getMessage());

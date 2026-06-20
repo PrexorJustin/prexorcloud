@@ -455,12 +455,23 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
   (`INSTANCE_ALREADY_RUNNING`). Fix: adopt/resurrect re-derives `InstanceState.RUNNING` (we only adopt an instance the
   daemon reports alive whose record we lost — it's a running server). Proven live: a cold-elected leader logged
   `adopting running instance lobby-1` then **zero** re-dispatch churn; game pid unchanged.
-- **🐛 OPEN (lower priority) — readiness is a one-shot signal with no re-derivation.** The adopt→RUNNING heuristic
-  covers failover/recovery, but the robust design is **renewable readiness**: the plugin re-asserts ready on
-  (re)connect / periodically, OR the daemon detects readiness (port probe / plugin→daemon) and reports RUNNING
-  continuously. Matters most post-Phase-6 (Redis gone → new leaders always cold → always adopt). Related pre-existing
-  gap: if the plugin never calls `/ready`, an alive instance stays STARTING and `RecoveryOrchestrator` loops —
-  candidate: don't re-dispatch a `StartInstance` for an instance the daemon currently reports alive.
+- **DONE — renewable readiness (the one-shot `/ready` is now re-asserted every heartbeat).** Picked the
+  plugin-re-asserts design over daemon-detects: the daemon structurally *cannot* know readiness (it only sees
+  process-alive — `ServerProcess` never emits RUNNING), so the in-server workload is the only authoritative source.
+  Clean separation: **existence/placement is the daemon's authority** (renewed via handshake `running_instances` →
+  adopt), **readiness is the workload's** (renewed via `/ready`). No new timer or persistent connection needed — both
+  plugins already heartbeat metrics on a scheduler, so they now re-call `reportReady()` on that same cadence
+  (`AbstractCloudPlugin` server = 10s; `AbstractProxyCloudPlugin` proxy = 30s). Controller side: both `/api/plugin/ready`
+  and `/api/proxy/ready` now route through `ClusterState#renewInstanceReadiness`, which promotes **only** from the
+  pre-ready states (`SCHEDULED`/`PREPARING`/`STARTING → RUNNING`) and is a deliberate no-op for `RUNNING` (already
+  ready), `DRAINING`/`STOPPING` (must never un-drain — and the validator *does* allow `DRAINING→RUNNING`, so a repeating
+  ping through the raw setter would be a footgun), and terminal `STOPPED`/`CRASHED` (resurrection stays the adopt path's
+  job — it holds the node/port to rebuild the record). The adopt→RUNNING heuristic is kept as the immediate fast-path on
+  failover; renewable readiness is the authoritative backstop that continuously *validates* the guess and self-heals two
+  failure classes the heuristic didn't: (1) a **lost one-shot `/ready`** (network blip at boot) no longer pins an
+  instance at STARTING — the next heartbeat promotes it; (2) post-Phase-6 cold leaders self-correct from truth instead
+  of relying on the guess being right. Covered by `ClusterStateReadinessTest` (7 cases incl. the DRAINING/STOPPING/
+  terminal no-ops). Not yet validated live.
 - **Fleet left clean:** ctrl-1 leader, ctrl-2/ctrl-3 followers, all controllers on the failover-fix jar, daemon
   node-frankenstein-1 on the seed-list jar with a 3-seed config + populated `known-controllers.json` + fresh
   `lobby-2` RUNNING.
