@@ -372,3 +372,34 @@ JSON**. Before `git rm docs/engineering/northstar-plan.md` (Part 14):
 1. Move any still-open findings from the plan into this file.
 2. Commit the working-tree fixes (today's #4/#5 above, plus the broader uncommitted batch the plan references).
 3. Then delete the plan.
+
+---
+
+## 2026-06-20 — single-writer control-plane rewrite, Phase 7 live validation (branch `rewrite/single-writer-control-plane`)
+
+Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet and validated:
+
+- **DONE — Mongo-register join.** ctrl-2 + ctrl-3 joined the live cluster by registering directly in Mongo (token
+  redeem + member upsert), with **no** gRPC handshake and **no** mTLS bootstrap. This retires the
+  `TLSV1_ALERT_CERTIFICATE_REQUIRED` blocker that defeated every prior multi-controller attempt. 3-member cluster
+  formed cleanly.
+- **DONE — single-writer election + epoch fencing.** Rolling controllers triggered clean failovers (one leader at a
+  time, `epoch` advanced monotonically 4→5→…→8, no split-brain). Running game survived every controller roll
+  (Gate E baseline).
+- **DONE (committed) — three fixes found + landed live:**
+  - `b261099` NaN leadership/SSE Prometheus gauges (Micrometer weak-ref GC — retain a strong ref).
+  - `dc1d83f` members advertised the `0.0.0.0` bind host; advertise the routable `raft.host` so a redirect target is dialable.
+  - `4931a24` daemon-redirect leadership was wired in `initScheduler` (before `daemonService` exists) so it never ran;
+    moved to `initGrpc`. The follower now correctly emits `Redirecting daemon … to leader at <routable>:9090`.
+- **OPEN — daemon-facing mTLS CA is NOT shared across controllers (blocks daemon FAILOVER, not join/election).**
+  After the redirect fires correctly, the daemon cannot complete TLS to the new leader: each controller has its own
+  daemon-facing server cert / CA (`SERVER_KEYSTORE` / `CA_PEM` via `ReloadableServerSslContext`), separate from the
+  shared *cluster* CA in Mongo. A daemon enrolled against ctrl-1 gets `UNAVAILABLE: io exception` (client SSL handler)
+  dialing ctrl-3. **Fix needed for HA daemon-failover:** issue the daemon-facing server cert from the shared cluster CA
+  (in `cluster_files`), or otherwise distribute one daemon-trust root to all controllers, so any daemon trusts any
+  controller. Also note the daemon has a single static controller address (no seed-list, Phase 3 item 4 deferred): after
+  a redirect to an unreachable leader it stays stuck rather than falling back. Until fixed, keep the daemon's controller
+  the leader (works as a warm-standby control plane; daemon cannot fail over).
+- **Fleet left:** 3-member cluster, **ctrl-1 leader** (the controller the daemon trusts), ctrl-2/ctrl-3 followers,
+  node-frankenstein-1 ONLINE + managed, game running, gauges healthy. Admin pw on ctrl-1 at
+  `cat /opt/prexorcloud/controller/config/.initial-admin-password`; cadmin/`Clstr-Admin-2026-xZ9q` for cluster.manage.
