@@ -31,12 +31,10 @@ public record ControllerConfig(
         @JsonProperty("redis") RedisConfig redis,
         @JsonProperty("cluster") ClusterConfig cluster,
         @JsonProperty("raft") RaftConfig raft,
-        @JsonProperty("telemetry") TelemetryConfig telemetry,
-        @JsonProperty("clusterStore") ClusterStoreMode clusterStore) {
+        @JsonProperty("telemetry") TelemetryConfig telemetry) {
 
     public ControllerConfig {
         if (telemetry == null) telemetry = new TelemetryConfig();
-        if (clusterStore == null) clusterStore = ClusterStoreMode.RAFT;
         if (uuid == null || uuid.isBlank()) uuid = java.util.UUID.randomUUID().toString();
         if (cluster == null) cluster = new ClusterConfig();
         if (raft == null) raft = new RaftConfig();
@@ -104,8 +102,7 @@ public record ControllerConfig(
                 redis,
                 null,
                 null,
-                new TelemetryConfig(),
-                ClusterStoreMode.RAFT);
+                new TelemetryConfig());
     }
 
     /**
@@ -158,7 +155,6 @@ public record ControllerConfig(
                 redis,
                 cluster,
                 raft,
-                new TelemetryConfig(),
-                ClusterStoreMode.RAFT);
+                new TelemetryConfig());
     }
 }

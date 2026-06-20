@@ -48,21 +48,10 @@ dependencies {
     implementation(libs.jakarta.activation.api)
     runtimeOnly(libs.angus.mail)
 
-    // BouncyCastle is needed for cluster-side CSR generation and CA material
-    // handling (controller-to-controller join flow). cloud-security uses it
-    // internally but doesn't export it.
+    // BouncyCastle is needed for cluster CA material handling (minting + adopting the cluster CA
+    // that signs controller leaf certs). cloud-security uses it internally but doesn't export it.
     implementation(libs.bouncycastle.pkix)
     implementation(libs.bouncycastle.prov)
-
-    // Apache Ratis — embedded Raft for the cluster control plane.
-    // See docs/engineering/cluster-join-plan.md.
-    implementation(libs.ratis.server.api)
-    implementation(libs.ratis.client)
-    implementation(libs.ratis.common)
-    implementation(libs.ratis.proto)
-    implementation(libs.ratis.server)
-    implementation(libs.ratis.grpc)
-    runtimeOnly(libs.ratis.metrics.default)
 
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
@@ -79,23 +68,8 @@ dependencies {
     testImplementation(libs.testcontainers.mongodb)
 }
 
-// Exclude long-running Ratis spike tests from the default test task. Invoke them
-// explicitly via `./gradlew :cloud-controller:spikeTest`. See
-// docs/engineering/ratis-spike.md for context.
 tasks.test {
-    useJUnitPlatform {
-        excludeTags("spike")
-    }
-}
-
-tasks.register<Test>("spikeTest") {
-    description = "Runs Ratis multi-peer spike tests (slow, opt-in)."
-    group = "verification"
-    testClassesDirs = sourceSets["test"].output.classesDirs
-    classpath = sourceSets["test"].runtimeClasspath
-    useJUnitPlatform {
-        includeTags("spike")
-    }
+    useJUnitPlatform()
 }
 
 // --- Bundled plugin JARs (embedded as resources for base templates) ---

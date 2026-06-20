@@ -11,9 +11,9 @@ import java.util.Map;
 import java.util.Optional;
 
 import me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterWriteConflict;
 import me.prexorjustin.prexorcloud.controller.cluster.IssuedJoinToken;
 import me.prexorjustin.prexorcloud.controller.cluster.JoinTokenCodec;
-import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterWriteConflict;
 import me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigProjection;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
@@ -23,12 +23,11 @@ import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 
 /**
- * {@link ClusterPlane} backed by the Mongo cluster store — the authority under {@code clusterStore=mongo},
- * where Raft is bypassed for cluster state entirely. Reads delegate to {@link MongoClusterStore}; the three
- * logic-bearing writes (config-version proposal, join-token mint, seed rotation) are ported verbatim from
- * {@link me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane} so the admission rules are
- * identical. Conflict-checked writes throw the same {@link ClusterWriteConflict} the Raft plane does, so the
- * REST layer maps rejections without knowing the backing store.
+ * The cluster {@link ClusterPlane}, backed by the Mongo cluster store — the authority for all cluster
+ * control-plane state. Reads delegate to {@link MongoClusterStore}; the logic-bearing writes (config-version
+ * proposal with next-ordinal admission, join-token mint, seed rotation) enforce their invariants here.
+ * Conflict-checked writes throw {@link ClusterWriteConflict} with a stable {@code code} so the REST layer
+ * maps rejections deterministically.
  */
 public final class MongoClusterPlane implements ClusterPlane {
 
@@ -114,9 +113,9 @@ public final class MongoClusterPlane implements ClusterPlane {
     @Override
     public int proposeConfigPatch(int parentVersion, String mutator, Map<String, Object> patch, String reason)
             throws IOException {
-        // Optimistic next-ordinal assignment, mirroring ClusterControlPlane#proposeConfigPatch. The
-        // store's writeConfigVersion enforces is-next + parent-matches-active atomically; a lost race or
-        // stale parent fails the guard and we surface the same conflict the Raft plane does.
+        // Optimistic next-ordinal assignment. The store's writeConfigVersion enforces is-next +
+        // parent-matches-active atomically; a lost race or stale parent fails the guard and we surface
+        // a ClusterWriteConflict.
         List<ClusterConfigVersion> existing = store.listConfigVersions();
         int proposedVersion =
                 existing.isEmpty() ? 1 : existing.get(existing.size() - 1).version() + 1;
@@ -146,7 +145,7 @@ public final class MongoClusterPlane implements ClusterPlane {
 
     @Override
     public void removeMember(String nodeId, String reason) {
-        // The reason is a Raft-audit field; the Mongo store just drops the member document.
+        // The reason is an audit field; the Mongo store just drops the member document.
         store.removeMember(nodeId);
     }
 

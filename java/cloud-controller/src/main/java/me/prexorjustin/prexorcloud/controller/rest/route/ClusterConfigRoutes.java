@@ -10,10 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import me.prexorjustin.prexorcloud.api.event.events.ClusterConfigChangedEvent;
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
 import me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane;
-import me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterWriteConflict;
+import me.prexorjustin.prexorcloud.controller.cluster.ClusterWriteConflict;
 import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterConfigVersion;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
@@ -23,9 +24,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Versioned cluster_config surface (Phase 6 of cluster-join-plan.md). Reads
- * project the local Raft state-machine snapshot; writes propose entries through
- * Raft with optimistic {@code parentVersion}-based conflict detection.
+ * Versioned cluster_config surface. Reads project the Mongo cluster store; writes go through the Mongo
+ * {@link ClusterPlane} with optimistic {@code parentVersion}-based conflict detection. A successful write
+ * publishes a {@link ClusterConfigChangedEvent} on the local event bus so the serving leader's
+ * live-reload fan-out re-applies the new config without a restart.
  *
  * <p>Endpoints:
  * <ul>
@@ -172,6 +174,10 @@ public final class ClusterConfigRoutes {
                     "cluster_config",
                     String.valueOf(newVersion),
                     Map.of("parentVersion", parentVersion, "newVersion", newVersion, "reason", reason));
+            controller
+                    .eventBus()
+                    .publish(new ClusterConfigChangedEvent(
+                            newVersion, parentVersion, mutator, ClusterConfigChangedEvent.ACTION_PATCH));
             logger.info(
                     "cluster_config patched to version {} by {} (parent={}, reason={})",
                     newVersion,
@@ -182,9 +188,12 @@ public final class ClusterConfigRoutes {
             ctx.status(409);
             ctx.json(errorResponse(e.code(), e.getMessage(), 409));
         } catch (IOException e) {
-            logger.error("Raft submit failed for config patch: {}", e.getMessage(), e);
+            logger.error("Cluster store write failed for config patch: {}", e.getMessage(), e);
             ctx.status(503);
-            ctx.json(errorResponse("RAFT_UNAVAILABLE", "Could not propose patch to Raft: " + e.getMessage(), 503));
+            ctx.json(errorResponse(
+                    "CLUSTER_STORE_UNAVAILABLE",
+                    "Could not propose patch to the cluster store: " + e.getMessage(),
+                    503));
         }
     }
 
@@ -226,14 +235,21 @@ public final class ClusterConfigRoutes {
                     "cluster_config",
                     String.valueOf(targetVersion),
                     Map.of("targetVersion", targetVersion));
+            controller
+                    .eventBus()
+                    .publish(new ClusterConfigChangedEvent(
+                            targetVersion, -1, mutator, ClusterConfigChangedEvent.ACTION_ROLLBACK));
             logger.info("cluster_config rolled back to version {} by {}", targetVersion, mutator);
         } catch (ClusterWriteConflict e) {
             ctx.status(409);
             ctx.json(errorResponse(e.code(), e.getMessage(), 409));
         } catch (IOException e) {
-            logger.error("Raft submit failed for config rollback: {}", e.getMessage(), e);
+            logger.error("Cluster store write failed for config rollback: {}", e.getMessage(), e);
             ctx.status(503);
-            ctx.json(errorResponse("RAFT_UNAVAILABLE", "Could not commit rollback to Raft: " + e.getMessage(), 503));
+            ctx.json(errorResponse(
+                    "CLUSTER_STORE_UNAVAILABLE",
+                    "Could not commit rollback to the cluster store: " + e.getMessage(),
+                    503));
         }
     }
 

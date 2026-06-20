@@ -15,24 +15,16 @@ import me.prexorjustin.prexorcloud.controller.cluster.state.Lease;
 import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
 
 /**
- * Full read + write seam over cluster control-plane state, sourced from whichever backing store the
- * single-writer rewrite's Phase-4 migration is using ({@code clusterStore}):
- *
- * <ul>
- *   <li>{@code RAFT}/{@code DUAL} → {@link me.prexorjustin.prexorcloud.controller.cluster.raft.RaftClusterPlane}
- *       (reads + writes go through the Raft control plane; authoritative).</li>
- *   <li>{@code MONGO} → {@link me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterPlane}
- *       (reads + writes go straight to the Mongo cluster store; Raft is bypassed for cluster state).</li>
- * </ul>
+ * Full read + write seam over cluster control-plane state, backed by the Mongo cluster store
+ * ({@link me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterPlane}). Cluster state is
+ * Mongo-authoritative; only the leader (the controller holding the leadership lease) calls the writes.
  *
  * <p>Extends {@link ClusterReadView} so the read-only consumers (leader resolution, the cluster REST
- * surface) can keep depending on the narrow read seam. Conflict-checked writes throw
- * {@link me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterWriteConflict} (an {@link IOException})
- * with the same {@code code} regardless of backing store, so the REST layer maps rejections identically.
+ * surface) can depend on the narrow read seam. Conflict-checked writes throw {@link ClusterWriteConflict}
+ * (an {@link IOException}) with a stable {@code code} so the REST layer maps rejections deterministically.
  *
- * <p>Raft leases ({@code grantLease}/{@code renewLease}/{@code releaseLease}) are deliberately absent —
- * the cluster lease manager is dead code (leadership is the Mongo lease), so {@link #getLeases()} is the
- * only lease surface and the Mongo backing returns it empty.
+ * <p>Leases ({@code grantLease}/{@code renewLease}/{@code releaseLease}) are absent — leadership is the
+ * Mongo lease, so {@link #getLeases()} is the only lease surface and always returns empty.
  */
 public interface ClusterPlane extends ClusterReadView {
 
@@ -53,7 +45,7 @@ public interface ClusterPlane extends ClusterReadView {
 
     List<JoinToken> listJoinTokens();
 
-    /** Raft lease holders. Empty on the Mongo backing (the cluster lease manager is retired). */
+    /** Lease holders. Always empty — leadership is the Mongo lease, not a cluster-state lease. */
     List<Lease> getLeases();
 
     // --- writes (only the leader calls these) ---------------------------------------------------

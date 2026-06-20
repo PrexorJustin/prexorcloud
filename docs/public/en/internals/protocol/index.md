@@ -1,6 +1,6 @@
 ---
 title: gRPC protocol
-description: Internal gRPC cluster protocol — the four services (DaemonService, BootstrapService, AdminService, ClusterMembership), message overview, proto source location, and the generated reference. Defined in cloud-protocol/proto.
+description: Internal gRPC cluster protocol — the three services (BootstrapService, DaemonService, AdminService), message overview, proto source location, and the generated reference. Defined in cloud-protocol/proto.
 ---
 
 :::caution[Internal cluster protocol — not a public API]
@@ -18,7 +18,7 @@ escape hatch rather than a reverse-engineered one.
 
 ## What you'll learn
 
-- The four services that make up the protocol and what each is for.
+- The three services that make up the protocol and what each is for.
 - The message envelopes that carry the long-lived daemon stream, and the
   payload variants inside them.
 - Where the proto definitions live in the source tree, and which Java and
@@ -26,10 +26,10 @@ escape hatch rather than a reverse-engineered one.
 - The compatibility model: `protocol_version`, `ProtocolConstants`,
   additive `oneof` variants, and the contract hash that gates changes.
 
-## The four services
+## The three services
 
-The protocol is split across four `.proto` files, each declaring one
-service. All four share the proto3 package
+The protocol is split across three `.proto` files, each declaring one
+service. All three share the proto3 package
 `me.prexorjustin.prexorcloud.protocol`.
 
 | Service | Direction | Transport | Use |
@@ -37,12 +37,11 @@ service. All four share the proto3 package
 | [BootstrapService](/internals/protocol/bootstrap-service/) | Daemon → controller | TLS, no client cert | One unary RPC. Exchange a join token for an mTLS PKCS#12 keystore plus the controller's CA cert. Called once per daemon enrolment. |
 | [DaemonService](/internals/protocol/daemon-service/) | Daemon ↔ controller | mTLS, bidirectional stream | The long-lived control stream: handshake, instance lifecycle, console output, crash reports, cache management, module distribution, event forwarding, and instance file access. |
 | [AdminService](/internals/protocol/admin-service/) | `prexorctl` / dashboard → controller | mTLS or bearer token | Three unary RPCs for operator administration. Currently join-token CRUD. |
-| ClusterMembership | Controller → controller | mTLS | One unary RPC. A joining controller exchanges a cluster join token for a CA-signed leaf cert and the current Raft peer set. See the generated [`cluster_membership_service`](#generated-reference) reference and the [cluster model](../../concepts/cluster-model.md) concept page. |
 
-`ClusterMembership` is the newest of the four and exists only in
-multi-controller (HA) deployments. It has no hand-curated page yet; the
-generated reference under `_generated/` is the source of truth for its
-messages.
+A joining controller no longer uses a gRPC handshake: under the single-writer,
+Mongo-authoritative control plane it registers itself directly in the shared
+MongoDB (token redeem + member upsert), so there is no controller-to-controller
+RPC. See the [cluster model](../../concepts/cluster-model.md) concept page.
 
 ## The daemon stream envelopes
 
@@ -107,14 +106,13 @@ generated reference.
 
 ## Source location
 
-The canonical definitions are four `.proto` files:
+The canonical definitions are three `.proto` files:
 
 ```text
 java/cloud-protocol/src/main/proto/prexorcloud/
   bootstrap_service.proto
   daemon_service.proto
   admin_service.proto
-  cluster_membership_service.proto
 ```
 
 Shared constants live next to them in Java, not in proto:
@@ -140,7 +138,6 @@ docs/public/en/internals/protocol/_generated/
   daemon_service.md
   bootstrap_service.md
   admin_service.md
-  cluster_membership_service.md
 ```
 
 These files are not published — the Astro content collection excludes any

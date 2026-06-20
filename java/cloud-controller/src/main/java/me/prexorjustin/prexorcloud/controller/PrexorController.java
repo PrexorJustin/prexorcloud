@@ -132,7 +132,6 @@ public final class PrexorController {
     private volatile me.prexorjustin.prexorcloud.controller.rest.middleware.AllowedSubnetsList allowedSubnetsList;
     private me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetManager passwordResetManager;
     private me.prexorjustin.prexorcloud.controller.share.ShareService shareService;
-    private me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane;
     private me.prexorjustin.prexorcloud.controller.cluster.ClusterReadView clusterReadView;
     private me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane clusterPlane;
     private me.prexorjustin.prexorcloud.controller.module.resource.ModuleResourceTracker moduleResourceTracker;
@@ -405,21 +404,10 @@ public final class PrexorController {
         return shareService;
     }
 
-    /** Cluster control plane (Raft facade). Wired by bootstrap right after the service starts. */
-    public void setClusterControlPlane(me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane plane) {
-        this.clusterControlPlane = Objects.requireNonNull(plane);
-    }
-
-    /** Never null after bootstrap completes. */
-    public me.prexorjustin.prexorcloud.controller.cluster.raft.ClusterControlPlane clusterControlPlane() {
-        if (clusterControlPlane == null) throw new IllegalStateException("ClusterControlPlane not initialized");
-        return clusterControlPlane;
-    }
-
     /**
-     * Read-only membership/identity view (Phase-4). Serves from Mongo once {@code clusterStore=mongo}
-     * cuts reads over, otherwise from Raft. Wired by bootstrap alongside the control plane; use this
-     * for member/identity reads and {@link #clusterControlPlane()} for writes and lease reads.
+     * Read-only membership/identity view, served from the Mongo cluster store. Wired by bootstrap
+     * alongside the control plane; use this for member/identity reads and {@link #clusterPlane()} for
+     * writes.
      */
     public void setClusterReadView(me.prexorjustin.prexorcloud.controller.cluster.ClusterReadView view) {
         this.clusterReadView = Objects.requireNonNull(view);
@@ -432,9 +420,8 @@ public final class PrexorController {
     }
 
     /**
-     * Full cluster control-plane store (reads + writes), Phase-4. Writes land in Raft under
-     * {@code clusterStore=raft|dual} and straight in Mongo under {@code mongo}. The cluster REST surface
-     * uses this for every cluster-state read and write so the backing store is transparent.
+     * Full cluster control-plane store (reads + writes), backed by Mongo. The cluster REST surface uses
+     * this for every cluster-state read and write.
      */
     public void setClusterPlane(me.prexorjustin.prexorcloud.controller.cluster.ClusterPlane plane) {
         this.clusterPlane = Objects.requireNonNull(plane);

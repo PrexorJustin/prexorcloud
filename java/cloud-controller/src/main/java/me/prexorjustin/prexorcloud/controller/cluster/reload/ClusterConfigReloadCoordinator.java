@@ -13,19 +13,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Phase-7 live-reload fan-out (northstar-plan Track A.5). Bridges committed
- * {@code cluster_config} versions onto the in-process subsystems that hold a
- * mutable copy of cluster-shared settings — CORS allow-list, rate limiter, JWT
- * signing keys — so an operator's {@code PATCH /cluster/config} (or a rollback)
- * takes effect on every controller without a restart or a Redis round-trip.
+ * Cluster-config live-reload fan-out. Bridges {@code cluster_config} writes onto the in-process
+ * subsystems that hold a mutable copy of cluster-shared settings — CORS allow-list, rate limiter, JWT
+ * signing keys — so an operator's {@code POST /cluster/config} (or a rollback) takes effect on the
+ * serving leader without a restart.
  *
- * <p>Wiring: {@code ClusterControlService.attachEventBus} already translates Raft
- * commits into {@link ClusterConfigChangedEvent}s on the local bus. This
- * coordinator subscribes to that event, folds the active config (via the
- * supplied {@code effectiveConfig} reader, normally {@code
- * ClusterControlPlane::effectiveConfig}), and dispatches it to every registered
- * {@link ClusterConfigSubscriber}. A subscriber that throws is logged and
- * isolated — one bad reload must not stop the others, nor wedge the event bus.
+ * <p>Wiring: the cluster-config write path publishes a {@link ClusterConfigChangedEvent} on the local
+ * bus after a successful write. This coordinator subscribes to that event, folds the active config (via
+ * the supplied {@code effectiveConfig} reader, normally {@code MongoClusterPlane::effectiveConfig}), and
+ * dispatches it to every registered {@link ClusterConfigSubscriber}. A subscriber that throws is logged
+ * and isolated — one bad reload must not stop the others, nor wedge the event bus.
  */
 public final class ClusterConfigReloadCoordinator implements AutoCloseable {
 

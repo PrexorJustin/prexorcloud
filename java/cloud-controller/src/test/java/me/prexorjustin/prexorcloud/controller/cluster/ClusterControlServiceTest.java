@@ -1,28 +1,21 @@
 package me.prexorjustin.prexorcloud.controller.cluster;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.net.ServerSocket;
 import java.nio.file.Path;
-import java.security.SecureRandom;
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.UUID;
 
 import me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore;
-import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterEntry;
-import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterMeta;
-import me.prexorjustin.prexorcloud.controller.cluster.state.Member;
+import me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile;
 import me.prexorjustin.prexorcloud.controller.config.ClusterConfig;
+import me.prexorjustin.prexorcloud.controller.config.ClusterJoinTemplate;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.config.CorsConfig;
 import me.prexorjustin.prexorcloud.controller.config.HttpConfig;
@@ -32,33 +25,81 @@ import me.prexorjustin.prexorcloud.controller.config.RedisConfig;
 import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.config.SecurityControllerConfig;
 
-import org.junit.jupiter.api.DisplayName;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.testcontainers.DockerClientFactory;
+import org.testcontainers.containers.MongoDBContainer;
+import org.testcontainers.utility.DockerImageName;
 
 /**
- * R3 acceptance test for the cluster control plane lifecycle: stamping
- * cluster identity on first boot, surviving restart, refusing on yaml
- * mismatch, and migrating v1.0 controller.yml into the Raft-held
- * cluster_config on first v1.1 boot.
+ * Integration test for {@link ClusterControlService} against the Mongo cluster store — the pure-Mongo,
+ * single-writer control plane (no Raft). Day-0 stamps a fresh identity + CA + config seed + self member
+ * into Mongo; a restart verifies the stored identity against {@code controller.yml} and reuses it; a
+ * configured {@code cluster.id} that disagrees with the store refuses to boot; an empty store under a
+ * retained {@code cluster.id} flags the catastrophic-reset signal. Needs a real replica-set Mongo
+ * (majority/linearizable concerns, atomic CAS), so it boots a {@link MongoDBContainer} and self-skips
+ * without Docker / an external URI; CI runs it.
  */
-class ClusterControlServiceTest {
+final class ClusterControlServiceTest {
 
+    private static MongoClient client;
+    private static MongoDBContainer mongo;
+
+    @BeforeAll
+    static void up() {
+        String externalUri = System.getenv("PREXOR_TEST_MONGO_URI");
+        if (externalUri == null || externalUri.isBlank()) {
+            externalUri = System.getProperty("prexor.test.mongoUri");
+        }
+        if (externalUri != null && !externalUri.isBlank()) {
+            client = MongoClients.create(externalUri);
+            return;
+        }
+        assumeTrue(dockerAvailable(), "Docker not available — skipping cluster control service integration test");
+        mongo = new MongoDBContainer(DockerImageName.parse("mongo:7.0"));
+        mongo.start();
+        client = MongoClients.create(mongo.getConnectionString());
+    }
+
+    @AfterAll
+    static void down() {
+        if (client != null) {
+            client.close();
+        }
+        if (mongo != null) {
+            mongo.stop();
+        }
+    }
+
+    private static boolean dockerAvailable() {
+        try {
+            return DockerClientFactory.instance().isDockerAvailable();
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private MongoDatabase freshDb() {
+        return client.getDatabase("ccs_" + UUID.randomUUID().toString().replace("-", ""));
+    }
+
+    /** Shared with the materials + Mongo-join tests in this package. */
     static int freePort() throws Exception {
         try (ServerSocket s = new ServerSocket(0)) {
             return s.getLocalPort();
         }
     }
 
-    static ControllerConfig sampleConfigWithRaft(Path tmp, int raftPort, String yamlClusterId) throws Exception {
-        return sampleConfigWithRaft(tmp, "127.0.0.1", raftPort, yamlClusterId);
-    }
-
-    static ControllerConfig sampleConfigWithRaft(Path tmp, String raftHost, int raftPort, String yamlClusterId)
-            throws Exception {
+    /** Shared config factory; {@code clusterId} is the optional {@code controller.yml} cluster id mirror. */
+    static ControllerConfig sampleConfig(Path tmp, int raftPort, String clusterId) {
         return new ControllerConfig(
                 "node-local-uuid",
-                new HttpConfig("0.0.0.0", 8080, new CorsConfig(List.of("https://dashboard.example.com"))),
+                new HttpConfig("0.0.0.0", 8080, new CorsConfig(List.of())),
                 null,
                 new NetworkConfig(List.of("10.0.0.0/8")),
                 null,
@@ -77,324 +118,83 @@ class ClusterControlServiceTest {
                 List.of(),
                 List.of(),
                 new RedisConfig("redis://10.0.0.50:6379"),
-                new ClusterConfig(yamlClusterId, null, null),
-                new RaftConfig(raftHost, raftPort, tmp.resolve("raft").toString(), List.of()));
-    }
-
-    private static String selfRaftAddr(ClusterControlService svc, String nodeId) {
-        return svc.controlPlane().listMembers().stream()
-                .filter(m -> nodeId.equals(m.nodeId()))
-                .map(Member::raftAddr)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("no self member " + nodeId));
+                new ClusterConfig(clusterId, null, null),
+                new RaftConfig("127.0.0.1", raftPort, tmp.resolve("raft").toString(), List.of()));
     }
 
     @Test
-    @DisplayName("an attached cluster shadow receives committed entries (dual-write wiring)")
-    void attachedClusterShadowReceivesCommittedEntries(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-        List<ClusterEntry> mirrored = new CopyOnWriteArrayList<>();
+    void day0StampsIdentityCaConfigAndSelfMemberIntoMongo(@TempDir Path tmp) throws Exception {
+        MongoClusterStore store = new MongoClusterStore(freshDb());
+        ControllerConfig cfg = sampleConfig(tmp, freePort(), null);
 
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.attachClusterShadow(mirrored::add); // inject before start, as bootstrap does
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1", store)) {
             svc.start();
 
-            // Parent on the live active version — start() seeds a v1 from controller.yml (the v1.0
-            // migration) before the shadow registers, so that committed patch is NOT in the collector.
-            int active = svc.controlPlane().getActiveConfigVersion();
-            svc.controlPlane().proposeConfigPatch(active, "alice", Map.of("k", "v1"), "first");
-
-            // The shadow is registered exactly once via startMembershipReconciler and fires
-            // synchronously on commit — so the committed patch is already mirrored.
-            assertTrue(
-                    mirrored.stream().anyMatch(e -> e instanceof ClusterEntry.WriteConfigVersion),
-                    "the committed config patch must reach the attached shadow exactly once");
-            assertEquals(
-                    1,
-                    mirrored.stream()
-                            .filter(e -> e instanceof ClusterEntry.WriteConfigVersion)
-                            .count(),
-                    "exactly-once: no double registration on a single state machine");
-        }
-    }
-
-    @Test
-    @DisplayName("clusterReadView defaults to the Raft projection and surfaces committed members + identity")
-    void clusterReadViewDefaultsToRaft(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-
-            ClusterReadView view = svc.clusterReadView();
-            assertTrue(
-                    view.listMembers().stream().anyMatch(m -> "controller-1".equals(m.nodeId())),
-                    "default read view must surface the Raft self member");
-            assertEquals(
-                    svc.controlPlane().getActiveConfigVersion(),
-                    view.getActiveConfigVersion(),
-                    "default read view must match the Raft active config version");
-            assertTrue(view.getClusterMeta().isPresent(), "cluster identity must be readable through the view");
-        }
-    }
-
-    @Test
-    @DisplayName("enableMongoReads cuts the read view over to the Mongo store (Phase-4 read cutover)")
-    void enableMongoReadsSwitchesSource(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-        Member mongoOnly = new Member(
-                "mongo-only",
-                "10.9.9.9:9190",
-                "10.9.9.9:8080",
-                "10.9.9.9:50051",
-                "mongo",
-                Instant.EPOCH,
-                Instant.EPOCH);
-
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            // Before cutover the Raft self member is visible and the Mongo sentinel is not.
-            assertTrue(svc.clusterReadView().listMembers().stream().noneMatch(m -> "mongo-only".equals(m.nodeId())));
-
-            MongoClusterStore store = mock(MongoClusterStore.class);
-            when(store.listMembers()).thenReturn(List.of(mongoOnly));
-            when(store.getActiveConfigVersion()).thenReturn(99);
-            svc.enableMongoReads(store);
-
-            ClusterReadView view = svc.clusterReadView();
-            assertEquals(List.of(mongoOnly), view.listMembers(), "reads must come from the Mongo store after cutover");
-            assertEquals(99, view.getActiveConfigVersion(), "active config version must come from Mongo after cutover");
-        }
-    }
-
-    @Test
-    @DisplayName("first boot stamps a fresh clusterId and seedSecret into the Raft state machine")
-    void firstBootStampsClusterIdentity(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-
-        try (ClusterControlService svc = new ClusterControlService(
-                cfg,
-                "controller-1",
-                Clock.fixed(Instant.parse("2026-05-29T18:00:00Z"), ZoneOffset.UTC),
-                new SecureRandom(new byte[] {1, 2, 3, 4}))) {
-            svc.start();
-
-            ClusterMeta meta = svc.controlPlane().getClusterMeta().orElseThrow();
-            assertNotNull(meta.clusterId(), "clusterId must be stamped on first boot");
-            assertNotNull(meta.seedSecretBase64(), "seedSecret must be stamped on first boot");
-            assertTrue(meta.seedSecretBase64().length() > 16, "seedSecret must be base64 of >=24 bytes");
-            assertEquals(Instant.parse("2026-05-29T18:00:00Z"), meta.createdAt());
-            assertEquals(ClusterMeta.CURRENT_SCHEMA_VERSION, meta.schemaVersion());
-            assertEquals(meta.clusterId(), svc.clusterId());
-            assertFalse(
-                    svc.unsafeResetDetected(),
-                    "a virgin first boot (no configured cluster.id) is NOT a single-survivor reset");
-        }
-    }
-
-    @Test
-    @DisplayName("Day-0 stamping with a configured cluster.id is flagged as a single-survivor reset")
-    void day0WithConfiguredClusterIdFlagsUnsafeReset(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        // Empty Raft dataDir (fresh tmp) + a retained controller.yml cluster.id is the signature
-        // of a catastrophic reset: the Raft state was wiped under an existing install.
-        String retainedId = "11111111-1111-1111-1111-111111111111";
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, retainedId);
-
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-
-            assertTrue(
-                    svc.unsafeResetDetected(),
-                    "Day-0 stamping while a cluster.id is configured must be flagged as an unsafe reset");
-            assertEquals(retainedId, svc.clusterId(), "the configured clusterId must be preserved across the reset");
-        }
-    }
-
-    @Test
-    @DisplayName("restart reads the same clusterId and seedSecret from Raft")
-    void restartReadsSameIdentity(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-
-        String firstClusterId;
-        String firstSeed;
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            ClusterMeta meta = svc.controlPlane().getClusterMeta().orElseThrow();
-            firstClusterId = meta.clusterId();
-            firstSeed = meta.seedSecretBase64();
-        }
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            ClusterMeta meta = svc.controlPlane().getClusterMeta().orElseThrow();
-            assertEquals(firstClusterId, meta.clusterId(), "restart must read the same clusterId");
-            assertEquals(firstSeed, meta.seedSecretBase64(), "restart must read the same seedSecret");
-        }
-    }
-
-    @Test
-    @DisplayName("first boot mints a cluster CA into the Raft state, restart reuses it")
-    void firstBootMintsClusterCa(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-
-        byte[] firstCert;
-        byte[] firstKey;
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            var cert = svc.controlPlane()
-                    .getClusterFile(
-                            me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
-                    .orElseThrow(() -> new AssertionError("CA cert must be stamped on first boot"));
-            var key = svc.controlPlane()
-                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
-                    .orElseThrow(() -> new AssertionError("CA key must be stamped on first boot"));
-            assertTrue(cert.bytes().length > 0);
-            assertTrue(key.bytes().length > 0);
-            // Verify the bytes round-trip through the security helper as a real EC keypair / X.509 cert.
-            var reloaded =
-                    me.prexorjustin.prexorcloud.security.ca.CertificateAuthority.loadFromDer(cert.bytes(), key.bytes());
-            assertNotNull(reloaded.certificate());
-            assertNotNull(reloaded.keyPair().getPrivate());
-            firstCert = cert.bytes();
-            firstKey = key.bytes();
-        }
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            var cert = svc.controlPlane()
-                    .getClusterFile(
-                            me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_CERT)
-                    .orElseThrow();
-            var key = svc.controlPlane()
-                    .getClusterFile(me.prexorjustin.prexorcloud.controller.cluster.state.ClusterFile.KEY_CLUSTER_CA_KEY)
-                    .orElseThrow();
-            org.junit.jupiter.api.Assertions.assertArrayEquals(firstCert, cert.bytes(), "CA cert survives restart");
-            org.junit.jupiter.api.Assertions.assertArrayEquals(firstKey, key.bytes(), "CA key survives restart");
-        }
-    }
-
-    @Test
-    @DisplayName("yaml mismatch refuses to boot")
-    void yamlMismatchRefusesBoot(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig firstCfg = sampleConfigWithRaft(tmp, port, null);
-
-        // First boot — Raft stamps some random clusterId.
-        String stampedClusterId;
-        try (ClusterControlService svc = new ClusterControlService(firstCfg, "controller-1")) {
-            svc.start();
-            stampedClusterId = svc.clusterId();
-        }
-
-        // Second boot with a DIFFERENT yaml cluster.id — must refuse.
-        ControllerConfig wrongCfg = sampleConfigWithRaft(tmp, port, "deliberately-wrong-cluster-id");
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () -> {
-            try (ClusterControlService svc = new ClusterControlService(wrongCfg, "controller-1")) {
-                svc.start();
+            assertNotNull(svc.clusterId());
+            assertTrue(store.getClusterMeta().isPresent(), "identity stamped into Mongo");
+            assertEquals(svc.clusterId(), store.getClusterMeta().orElseThrow().clusterId());
+            assertTrue(store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT).isPresent(), "CA cert stamped");
+            assertTrue(store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_KEY).isPresent(), "CA key stamped");
+            assertEquals(1, store.listMembers().size(), "Day-0 self member registered");
+            assertEquals("controller-1", store.listMembers().get(0).nodeId());
+            if (!ClusterJoinTemplate.buildSharedMap(cfg).isEmpty()) {
+                assertTrue(store.getActiveConfigVersion() > 0, "initial cluster_config seeded from controller.yml");
             }
-        });
-        assertTrue(ex.getMessage().contains("deliberately-wrong-cluster-id"));
-        assertTrue(ex.getMessage().contains(stampedClusterId), "error must show the actual Raft id");
-    }
-
-    @Test
-    @DisplayName("Day-0 boot stamps the self member at the advertised raft.host")
-    void day0StampsSelfMember(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, "127.0.0.1", port, null);
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            assertEquals("127.0.0.1:" + port, selfRaftAddr(svc, "controller-1"));
         }
     }
 
     @Test
-    @DisplayName("restart with a changed raft.host self-heals the member's advertised address")
-    void restartSelfHealsAdvertisedAddress(@TempDir Path tmp) throws Exception {
-        // Mirrors the live ctrl-1 scenario: Day-0 stamped 0.0.0.0, the operator later sets a
-        // routable raft.host for HA. The advertised address must self-heal on the next boot so
-        // the membership reconciler re-advertises it (and joiners are handed the right address).
-        // Same port across boots — the transport always binds wildcard; only the advertised host
-        // changes, exactly as 0.0.0.0 -> 10.0.0.3 does in production.
-        int port = freePort();
-        ControllerConfig boot1 = sampleConfigWithRaft(tmp, "127.0.0.1", port, null);
-        try (ClusterControlService svc = new ClusterControlService(boot1, "controller-1")) {
+    void restartVerifiesAndReusesTheStoredIdentity(@TempDir Path tmp) throws Exception {
+        MongoClusterStore store = new MongoClusterStore(freshDb());
+        ControllerConfig cfg = sampleConfig(tmp, freePort(), null);
+
+        String clusterId;
+        byte[] caBytes;
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1", store)) {
             svc.start();
-            assertEquals("127.0.0.1:" + port, selfRaftAddr(svc, "controller-1"));
+            clusterId = svc.clusterId();
+            caBytes = store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                    .orElseThrow()
+                    .bytes();
         }
 
-        // Boot 2 — same data dir, changed advertised host. ensureSelfMember must rewrite it.
-        ControllerConfig boot2 = sampleConfigWithRaft(tmp, "127.0.0.2", port, null);
-        try (ClusterControlService svc = new ClusterControlService(boot2, "controller-1")) {
+        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1", store)) {
             svc.start();
-            assertEquals(
-                    "127.0.0.2:" + port,
-                    selfRaftAddr(svc, "controller-1"),
-                    "advertised address must self-heal to the new raft.host on restart");
-            // The single-node leader must still serve reads/writes after reconfiguring its own
-            // address — getClusterMeta is a read; the v1.0 migration on boot 1 proves writes work.
-            assertNotNull(svc.controlPlane().getClusterMeta().orElseThrow().clusterId());
-        }
-
-        // Boot 3 — unchanged host. Self-heal must be a no-op: still exactly one self member.
-        try (ClusterControlService svc = new ClusterControlService(boot2, "controller-1")) {
-            svc.start();
-            long selfCount = svc.controlPlane().listMembers().stream()
-                    .filter(m -> "controller-1".equals(m.nodeId()))
-                    .count();
-            assertEquals(1, selfCount, "unchanged address must not duplicate the self member");
-            assertEquals("127.0.0.2:" + port, selfRaftAddr(svc, "controller-1"));
+            assertEquals(clusterId, svc.clusterId(), "restart reuses the stored clusterId");
+            assertArrayEquals(
+                    caBytes,
+                    store.getClusterFile(ClusterFile.KEY_CLUSTER_CA_CERT)
+                            .orElseThrow()
+                            .bytes(),
+                    "restart must not re-mint the CA");
+            assertEquals(1, store.listMembers().size(), "restart must not duplicate the self member");
         }
     }
 
     @Test
-    @DisplayName("v1.0 migration seeds cluster_config v1 from controller.yml on first boot")
-    void v10MigrationSeedsClusterConfig(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
-
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+    void refusesToBootOnConfiguredClusterIdMismatch(@TempDir Path tmp) throws Exception {
+        MongoClusterStore store = new MongoClusterStore(freshDb());
+        try (ClusterControlService svc = new ClusterControlService(sampleConfig(tmp, freePort(), null), "c1", store)) {
             svc.start();
+        }
 
-            assertEquals(
-                    1,
-                    svc.controlPlane().getActiveConfigVersion(),
-                    "v1.0 migration must write version 1 on first boot");
-            var versions = svc.controlPlane().listConfigVersions();
-            assertEquals(1, versions.size());
-            var v1 = versions.get(0);
-            assertEquals(1, v1.version());
-            assertEquals(0, v1.parentVersion());
-            assertEquals("v1.0-migration", v1.mutator());
-            // Spot-check that recognisable cluster-shared sections are present in the seeded patch.
-            assertTrue(v1.patch().containsKey("runtime"), "migration must carry runtime profile");
-            assertTrue(v1.patch().containsKey("security"), "migration must carry security block");
-            assertTrue(v1.patch().containsKey("redis"), "migration must carry redis URI");
+        ControllerConfig mismatched =
+                sampleConfig(tmp, freePort(), UUID.randomUUID().toString());
+        try (ClusterControlService svc = new ClusterControlService(mismatched, "c1", store)) {
+            assertThrows(IllegalStateException.class, svc::start, "a configured cluster.id that disagrees must refuse");
         }
     }
 
     @Test
-    @DisplayName("v1.0 migration is idempotent — restart does not write a second version")
-    void v10MigrationIdempotentOnRestart(@TempDir Path tmp) throws Exception {
-        int port = freePort();
-        ControllerConfig cfg = sampleConfigWithRaft(tmp, port, null);
+    void flagsUnsafeResetWhenStoreEmptyButYamlCarriesAnId(@TempDir Path tmp) throws Exception {
+        MongoClusterStore store = new MongoClusterStore(freshDb());
+        String configuredId = UUID.randomUUID().toString();
+        ControllerConfig cfg = sampleConfig(tmp, freePort(), configuredId);
 
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
+        try (ClusterControlService svc = new ClusterControlService(cfg, "c1", store)) {
             svc.start();
-            assertEquals(1, svc.controlPlane().listConfigVersions().size());
-        }
-        try (ClusterControlService svc = new ClusterControlService(cfg, "controller-1")) {
-            svc.start();
-            assertEquals(
-                    1,
-                    svc.controlPlane().listConfigVersions().size(),
-                    "migration must not run again on restart — version 1 already present");
-            assertEquals(1, svc.controlPlane().getActiveConfigVersion());
+            assertEquals(configuredId, svc.clusterId(), "the configured id is preserved");
+            assertTrue(svc.unsafeResetDetected(), "empty store + retained cluster.id is a catastrophic reset");
         }
     }
 }

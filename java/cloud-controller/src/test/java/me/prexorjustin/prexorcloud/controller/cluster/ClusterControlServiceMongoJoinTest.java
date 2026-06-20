@@ -32,12 +32,12 @@ import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * Integration test for the Phase-4 Mongo-register join ({@code clusterStore=mongo}). Seeds a real
- * replica-set Mongo cluster store with a founder's identity, CA, and a valid join token, then drives a
- * second controller through {@link ClusterControlService#startInMongoJoinMode} and asserts it registers
- * itself in {@code cluster_members}, single-use-redeems the token, and persists CA-chained TLS material
- * — all WITHOUT a Raft group join. Needs a real RS Mongo (atomic redeem, majority concerns), so it
- * boots a {@link MongoDBContainer} and self-skips without Docker / an external URI; CI runs it.
+ * Integration test for the Mongo-register join. Seeds a real replica-set Mongo cluster store with a
+ * founder's identity, CA, and a valid join token, then drives a second controller through
+ * {@link ClusterControlService#startInJoinMode} and asserts it registers itself in {@code cluster_members},
+ * single-use-redeems the token, and persists CA-chained TLS material — all without a consensus group join
+ * or a peer mTLS handshake. Needs a real RS Mongo (atomic redeem, majority concerns), so it boots a
+ * {@link MongoDBContainer} and self-skips without Docker / an external URI; CI runs it.
  */
 final class ClusterControlServiceMongoJoinTest {
 
@@ -115,13 +115,12 @@ final class ClusterControlServiceMongoJoinTest {
 
         // --- the joiner runs the Mongo-register path ---
         ControllerConfig cfg =
-                ClusterControlServiceTest.sampleConfigWithRaft(tmp, ClusterControlServiceTest.freePort(), clusterId);
+                ClusterControlServiceTest.sampleConfig(tmp, ClusterControlServiceTest.freePort(), clusterId);
         var materials = new LocalClusterMaterials(tmp.resolve("cluster-materials"));
         var identity = new ClusterControlService.JoinIdentity("10.0.0.6:9190", "10.0.0.6:8080", "10.0.0.6:50051");
 
-        try (ClusterControlService svc = new ClusterControlService(cfg, "ctrl-2")) {
-            svc.enableMongoReads(store); // clusterPlane() now resolves to Mongo
-            svc.startInMongoJoinMode(issued.token(), materials, identity);
+        try (ClusterControlService svc = new ClusterControlService(cfg, "ctrl-2", store)) {
+            svc.startInJoinMode(issued.token(), materials, identity);
 
             assertEquals(clusterId, svc.clusterId(), "adopted the cluster identity from Mongo");
             assertTrue(store.getMember("ctrl-2").isPresent(), "joiner registered itself in cluster_members");
@@ -165,15 +164,14 @@ final class ClusterControlServiceMongoJoinTest {
                 null));
 
         ControllerConfig cfg =
-                ClusterControlServiceTest.sampleConfigWithRaft(tmp, ClusterControlServiceTest.freePort(), clusterId);
+                ClusterControlServiceTest.sampleConfig(tmp, ClusterControlServiceTest.freePort(), clusterId);
         var materials = new LocalClusterMaterials(tmp.resolve("cluster-materials"));
         var identity = new ClusterControlService.JoinIdentity("10.0.0.6:9190", "10.0.0.6:8080", "10.0.0.6:50051");
 
-        try (ClusterControlService svc = new ClusterControlService(cfg, "ctrl-2")) {
-            svc.enableMongoReads(store);
+        try (ClusterControlService svc = new ClusterControlService(cfg, "ctrl-2", store)) {
             assertThrows(
                     IOException.class,
-                    () -> svc.startInMongoJoinMode(issued.token(), materials, identity),
+                    () -> svc.startInJoinMode(issued.token(), materials, identity),
                     "a replayed (already-redeemed) token must be rejected");
         }
     }

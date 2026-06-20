@@ -31,6 +31,8 @@ A note on tone: these aren't tablets from a mountain. They reflect what fits the
 
 ## ADR 3: MongoDB for durable state, Valkey for coordination
 
+> **The two-store split is superseded by [ADR 34](#adr-34-single-writer-mongo-authoritative-control-plane).** The single-writer rewrite consolidates on MongoDB alone: coordination that justified Valkey (leases, ownership, pub/sub fan-out) dissolves into single-writer leadership + change streams, and the remaining ephemeral/durable paths re-home to leader memory or Mongo TTL. The "MongoDB owns durable state" half stands; "Valkey for coordination" is retired. The reasoning below explains why the split made sense under multi-writer HA.
+
 **Decision.** Two backing stores. MongoDB owns anything that must survive a full restart. Valkey (or any Redis-protocol-compatible store) owns coordination.
 
 **MongoDB owns:** users, roles, groups, templates, catalog, deployments, durable workflow intent, instance composition plans, module package metadata, per-module document storage, audit logs, crash records, recovery metadata, backup manifests, networks.
@@ -55,6 +57,8 @@ A note on tone: these aren't tablets from a mountain. They reflect what fits the
 ## ADR 4: Active-active HA, not active-passive
 
 > **Update (v1.1).** The active-active architecture stands. The lease + fencing **mechanism** described below moves from Valkey-TTL to Raft leases under **ADR 29**. Subsequent sections of this ADR describe the original Valkey-based path and stay accurate for v1.0 deployments; v1.1 substitutes the Raft state machine for the same role.
+>
+> **Update (single-writer rewrite) — see [ADR 34](#adr-34-single-writer-mongo-authoritative-control-plane).** The mechanism changes again, and the *shape* shifts: instead of any healthy controller taking leases (active-active), there is now exactly **one active writer** elected by a fenced Mongo lease, with the others as read-only warm standbys that redirect to it. The window-free-failover goal is preserved — election is fast and fenced, so work moves to the new leader without a standby-unreadiness gap — but mutation is single-writer, not lease-scoped active-active.
 
 **Decision.** Multiple controllers run simultaneously. Mutation is gated by lease + fencing token. There is no "leader" controller; any healthy controller can serve traffic and take leases.
 
@@ -463,6 +467,8 @@ If either check fails, or the module simply does not set the flag, the existing 
 
 ## ADR 29: Embedded Apache Ratis for the cluster control plane
 
+> **Superseded in full by [ADR 34](#adr-34-single-writer-mongo-authoritative-control-plane).** Embedded Ratis was deleted in the single-writer rewrite: leadership, fencing, membership, identity, versioned config, and join tokens all moved onto MongoDB, and the consensus group, gRPC join handshake, and the Ratis dependency are gone. The reasoning below is preserved for v1.1 context and to explain *why* a consensus substrate was wanted; ADR 34 explains why MongoDB now provides it instead of a second Raft cluster.
+
 **Decision.** Multi-controller HA is backed by an embedded Apache Ratis Raft group. The N controllers form one Raft group with a typed state machine (`ClusterControlStateMachine`) that holds cluster identity, versioned config, members, join tokens, and named leader leases. MongoDB stays the system-of-record for business state (templates, instances, deployments, audit log, shares); Valkey stays for ephemeral high-frequency state (rate-limit counters, SSE tickets, daemon heartbeats, console buffers). The Raft state machine holds none of that.
 
 **Why Ratis and not something else.**
@@ -489,7 +495,7 @@ If either check fails, or the module simply does not set the flag, the existing 
 - Supersedes the **mechanism** in **ADR 4 "Active-active HA, not active-passive"** — active-active is preserved, but the lease + fencing primitive moves from Valkey TTL to Raft leases. The architectural shape is unchanged; the substrate is stronger.
 - Live config reload is the Raft `apply()` itself. Subscribers (CorsAllowList, JwtManager, RateLimiter) react to a typed `ClusterConfigChangedEvent` on the controller's local EventBus. No Redis round-trip for config.
 
-**Status.** Shipped in v1.1 (2026-05-31), all phases complete: gRPC membership + TLS bootstrap, REST + `prexorctl cluster`, leader leases, the wizard token-join branch, the dashboard `/cluster` view, and recovery tooling. The operator path is in [`upgrade-v1.0-to-v1.1.md`](../runbooks/upgrade-v1.0-to-v1.1.md) and [`recover-cluster.md`](../runbooks/recover-cluster.md); the planning track lives in `northstar-plan.md` (Track A).
+**Status.** Shipped in v1.1 (2026-05-31), then **superseded and deleted** in the single-writer rewrite (see ADR 34). The Ratis control plane, its gRPC join handshake, the leader leases, and the v1.0→v1.1 upgrade runbook are gone; `recover-cluster.md` survives for the catastrophic-reset path (now Mongo-backed).
 
 ---
 
@@ -571,4 +577,26 @@ When enabled, spans are batch-exported over OTLP to any compatible collector (Ja
 - **Not a ban on a future package.** If a workspace is ever introduced (the ADR-32 escape hatch), real headless components could live alongside the CSS reference. Not a v1.x need.
 
 **Trade-off.** Surfaces re-implement component markup/behaviour rather than importing it — accepted, because the per-surface idioms differ anyway and the only thing that must not drift (token-driven styling) is mechanically guarded. See `docs/engineering/northstar-plan.md` Track E (E-P4).
+
+---
+
+## ADR 34: Single-writer, Mongo-authoritative control plane
+
+> **Supersedes [ADR 29](#adr-29-embedded-apache-ratis-for-the-cluster-control-plane) in full** (embedded Ratis is deleted), **supersedes the two-store half of [ADR 3](#adr-3-mongodb-for-durable-state-valkey-for-coordination)** (Valkey is retired; Mongo is the single backing store), and **refines the mechanism of [ADR 4](#adr-4-active-active-ha-not-active-passive)** (active-active over a shared lease becomes one active writer over a fenced Mongo lease, with read-only warm standbys).
+
+**Decision.** The control plane has **one** backing store — MongoDB, run in replica-set mode — and **exactly one active writer** at a time. The active writer ("leader") is elected by a **fenced Mongo lease**: a single `cluster_leadership` document with a monotonically increasing `epoch` that serves as the fencing token, acquired and renewed by an atomic `findOneAndUpdate` under majority write / linearizable read. Only the leader runs the scheduler/reconciler, owns every daemon gRPC stream, and writes control-plane state; followers are read-only warm standbys that redirect daemons (and, by design, client traffic) to the leader. The reconcile loop is **reactive over Mongo change streams** with a periodic floor underneath it (the stream is an optimisation, never the sole driver). Node ownership collapses to leadership (`ownsNode() ⇒ isLeader()`), deleting the multi-writer ownership model and its divergence bug class. Cluster join is a **registration in Mongo** — the joiner shares the replica set, redeems its token and upserts its member document directly — so there is no consensus group to join and no peer-to-peer mTLS handshake to bootstrap.
+
+**Why retire Ratis (reverse ADR 29).** ADR 29 bought strong consistency and free leader election, but the embedded Raft group was a *second* consensus cluster bolted beside Mongo, and its operational surface — the join handshake's TLS chicken-and-egg, single-survivor reset + CA self-heal, leave-orphan fences, listener-promote-by-restart, and an empty-log follower that could never `InstallSnapshot` — was the dominant source of HA failures in the live runs. MongoDB already *had* to be a replica set for transactions; a replica set already gives consensus-grade CAS (`findOneAndUpdate`), majority/linearizable reads, native TTL, and **first-class, resumable change streams**. Putting leadership, fencing, and the reactive reconcile on the substrate we already operate consolidates two consensus systems into one. MicroRaft/JRaft would have been lateral (still a second cluster); etcd/Consul/ZooKeeper would have reintroduced the external coordinator ADR 29 was right to avoid; rolling our own Raft is still "not the place to be original." Keeping Mongo and deleting Ratis is the smaller, not the larger, system.
+
+**Why one store, no Valkey (reverse the two-store half of ADR 3).** ADR 3's split was right when coordination was Valkey-shaped (TTL leases, ownership, pub/sub fan-out). Single-writer dissolves most of that: leases become "am I the leader?"; ownership becomes leadership; pub/sub fan-out becomes change streams + the leader's local event bus. The genuinely hot ephemeral paths re-home cleanly — plugin tokens and revocation/throttle checks served from the leader's own memory (it issues and validates every one, zero hops), durable security state (revocation records, login throttle, password-reset, workload-seq replay) onto Mongo TTL so it survives a leader restart, and rate-limit + module KV onto leader memory now that client traffic routes to the leader. The result is **Mongo + nothing**: the stack drops from three systems (Mongo + Valkey + Ratis) to one.
+
+**The fencing centerpiece.** Correctness rests on the lease epoch. Every state-changing write and every daemon command carries the leader's `epoch`; daemons reject any command with a lower epoch (`STALE_EPOCH`). A leader that cannot renew (Mongo unreachable, GC pause, partition from Mongo) self-fences locally within `ttl − safetyMargin` even while it still holds live daemon streams, and a successor elects via the surviving Mongo quorum. Lease renew and the change stream share the same Mongo failover window, so the leader steps down on loss of either; change-stream resume uses a stored resume token with a stale-token full-resync fallback, and the periodic reconcile floor keeps the system correct if the stream is lagging or down.
+
+**Trade-off.**
+- **Mongo is now the single point of failure for the control plane.** Honest, but not a *new* dependency: Mongo already held templates/groups/composition-plans, so a Mongo outage already paused placement and scaling. This consolidates an existing critical dependency rather than adding one; running games are unaffected by a control-plane pause. Single-node is the accepted floor; growing to a 3-member replica set across zones is pure ops with **zero code change** (single ⇄ HA is the same code; only member count differs).
+- **Leader-only serving** means API/dashboard share the ~one-election-window gap on failover, rate limits are per-leader (not cluster-wide), and SSE replay is leader-local (clients resync on reconnect). Accepted for a single-operator control plane.
+- **The one externally visible change:** per-module key/value storage loses its Valkey backend and moves to Mongo / leader memory (noted in the module docs).
+- We hand-roll one piece of consensus-adjacent correctness (the fenced lease). ADR 29 warned against being original with Raft; we keep that discipline by leaning entirely on Mongo's documented majority/linearizable + atomic-CAS semantics for the lease, and never reimplementing log replication.
+
+**Status.** Ratis is deleted and the cluster control plane is Mongo-authoritative as of the single-writer rewrite (branch `rewrite/single-writer-control-plane`): the `cluster/raft/` package, the gRPC join handshake, the dual-write migration scaffolding, and the Apache Ratis dependency are gone; leadership, membership, identity, versioned config, join tokens, and the cluster CA all live in Mongo, with the reactive reconcile on change streams. The final Valkey removal (re-homing the ~29 coordination uses per the table above) lands as the closing phase; until it ships, Valkey is still present but no longer carries any control-plane consensus role.
 

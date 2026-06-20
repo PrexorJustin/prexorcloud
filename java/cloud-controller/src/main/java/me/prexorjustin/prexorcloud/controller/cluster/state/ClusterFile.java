@@ -3,12 +3,11 @@ package me.prexorjustin.prexorcloud.controller.cluster.state;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * A small binary blob the cluster shares through Raft — cluster CA cert + key,
- * future trust roots, the like. The state machine holds the bytes inline; the
- * SHA-256 lets readers verify they got what was committed.
+ * A small binary blob the cluster shares through the Mongo cluster store — cluster CA cert + key,
+ * future trust roots, the like. The {@code cluster_files} collection holds the bytes inline; the
+ * SHA-256 lets readers verify they got what was written.
  *
- * <p>Large blobs do NOT belong here — they go to Mongo and the entry holds the
- * ObjectId. Per cluster-join-plan.md the rule of thumb is "a few KB at most".
+ * <p>Large blobs do NOT belong here — the rule of thumb is "a few KB at most".
  */
 public record ClusterFile(
         @JsonProperty("key") String key,

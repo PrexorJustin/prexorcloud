@@ -14,9 +14,9 @@ import me.prexorjustin.prexorcloud.common.config.YamlConfigLoader;
  * without authoritative config; an over-included node-local field would stamp a
  * per-node bind address or admin password onto the cluster state.
  *
- * <p>As of v1.1 this projection seeds the initial {@code cluster_config} version
- * on first boot (the v1.0→v1.1 migration in {@code ClusterControlService}); the
- * Raft control plane then distributes it to joining controllers. The legacy
+ * <p>This projection seeds the initial {@code cluster_config} version on Day-0
+ * (the config seed in {@code ClusterControlService}); the Mongo cluster store then
+ * serves it to joining controllers. The legacy
  * {@code GET /api/v1/admin/cluster/join-template} REST endpoint that previously
  * served it has been removed.
  */

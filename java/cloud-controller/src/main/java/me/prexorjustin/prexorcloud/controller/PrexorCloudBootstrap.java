@@ -140,8 +140,7 @@ public final class PrexorCloudBootstrap {
     private RuntimeServices runtime;
     private RedisEventBridge eventBridge;
     private MongoDatabase mongoDatabase;
-    // Phase-4 dual-write opt-in: the Mongo cluster store the shadow mirrors into. Non-null only when
-    // clusterStore != RAFT, in which case it is also backfilled from Raft once the control plane starts.
+    // The Mongo-backed cluster control-plane store; built right after storage and shared with ClusterControlService.
     private me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore mongoClusterStore;
     private GrpcServer grpcServer;
     private RestServer restServer;
@@ -177,23 +176,21 @@ public final class PrexorCloudBootstrap {
         logger.info("PrexorCloud Controller v{} (Java {})", version.version(), version.javaVersion());
 
         var store = initStorage();
-        clusterControlService = new ClusterControlService(config, config.uuid());
-        maybeAttachClusterShadow();
+        mongoClusterStore = new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore(mongoDatabase);
+        clusterControlService = new ClusterControlService(config, config.uuid(), mongoClusterStore);
         startClusterControlPlane();
-        maybeBackfillClusterStore();
         config = clusterControlService.effectiveConfig();
         logger.info("Cluster control plane online (cluster.id={})", clusterControlService.clusterId());
         if (clusterControlService.unsafeResetDetected()) {
-            // Record the catastrophic single-survivor reset as an audit event (the runbook
-            // promises this marker). The audit log lives in Mongo and survives the Raft wipe.
+            // Record the catastrophic store-wipe as an audit event (the runbook promises this marker).
             store.audit(
                     "system",
                     "cluster.recovery.unsafe-reset",
                     "cluster",
                     clusterControlService.clusterId(),
-                    "Single-survivor reset: Raft state was re-formed as a single-member cluster from a wiped"
-                            + " dataDir under a retained cluster.id. Cluster CA, seed secret, and config history"
-                            + " were regenerated; join tokens must be re-issued.",
+                    "Catastrophic reset: the Mongo cluster store was empty under a retained cluster.id, so cluster"
+                            + " identity was re-stamped. Cluster CA, seed secret, and config history were"
+                            + " regenerated; join tokens must be re-issued.",
                     null);
         }
         // Distributed tracing (Track D). Built here — after the effective cluster config resolves —
@@ -201,7 +198,6 @@ public final class PrexorCloudBootstrap {
         telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         runtime = initRuntimeServices();
         var core = initCore(runtime.runtimeStore(), store);
-        clusterControlService.attachEventBus(core.eventBus());
         var security = initSecurity();
         var auth = initAuth(security, store, runtime);
         var templates = initTemplates(core, store);
@@ -211,14 +207,12 @@ public final class PrexorCloudBootstrap {
         var obs = initObservability(core, templates, crash, modules);
 
         var controller = new PrexorController(config, core, security, auth, templates, crash, network, modules, obs);
-        controller.setClusterControlPlane(clusterControlService.controlPlane());
         controller.setClusterReadView(clusterControlService.clusterReadView());
         controller.setClusterPlane(clusterControlService.clusterPlane());
         controller.setTelemetry(telemetry);
         if (controller.authManager() != null) {
             controller.authManager().setTracer(telemetry.tracer());
         }
-        clusterControlService.attachTracer(telemetry.tracer());
         if (telemetry.isEnabled()) {
             mongoCommandTracer.attachTracer(telemetry.tracer());
         }
@@ -278,73 +272,20 @@ public final class PrexorCloudBootstrap {
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /**
-     * Phase-4 dual-write opt-in. When {@code clusterStore != RAFT}, mirror every committed Raft
-     * cluster entry into the Mongo cluster store via {@link
-     * me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow}. Attached BEFORE the
-     * control plane starts so the shadow registers on the state machine as it comes up (and re-attaches
-     * across in-process SM rebuilds). Default {@code RAFT} is a no-op — zero behavior change.
-     */
-    private void maybeAttachClusterShadow() {
-        me.prexorjustin.prexorcloud.controller.config.ClusterStoreMode mode = config.clusterStore();
-        if (!mode.mirrorsToMongo()) {
-            return;
-        }
-        if (mongoDatabase == null) {
-            logger.warn(
-                    "clusterStore={} requested but the Mongo database handle is unavailable — dual-write shadow NOT attached",
-                    mode);
-            return;
-        }
-        mongoClusterStore = new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore(mongoDatabase);
-        if (mode.readsFromMongo()) {
-            // MONGO authority: cluster state reads AND writes go straight to Mongo; Raft is bypassed for
-            // cluster state (no dual-write shadow, no backfill — Mongo is the source of truth, not a mirror).
-            clusterControlService.enableMongoReads(mongoClusterStore);
-            logger.info(
-                    "clusterStore=MONGO: cluster state reads + writes now serve from the Mongo store (Raft bypassed)");
-        } else {
-            // DUAL: Raft stays authoritative; mirror every committed entry into Mongo for the soak.
-            clusterControlService.attachClusterShadow(
-                    new me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterShadow(mongoClusterStore));
-            logger.info(
-                    "Cluster dual-write shadow ENABLED (clusterStore=DUAL): committed Raft entries mirror into Mongo");
-        }
-    }
-
-    /**
-     * Backfill the Mongo cluster store from the authoritative Raft state once the control plane is up
-     * (Phase-4 dual-write). Runs after {@code startClusterControlPlane} so the Day-0 writes that commit
-     * before the shadow registers (meta, CA, founder member, config v1) are captured. No-op unless the
-     * shadow was attached ({@code clusterStore != RAFT}). Idempotent — safe on every boot.
-     */
-    private void maybeBackfillClusterStore() {
-        if (mongoClusterStore == null || config.clusterStore().readsFromMongo()) {
-            // No store, or MONGO authority — backfilling from the now-vestigial Raft state would clobber
-            // the Mongo store that is itself the source of truth. Backfill is a DUAL-soak concern only.
-            return;
-        }
-        me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterBackfill.seed(
-                clusterControlService.controlPlane(), mongoClusterStore);
-        logger.info("Backfilled the Mongo cluster store from Raft (clusterStore={})", config.clusterStore());
-    }
-
-    /**
      * Pick the cluster control-plane entry branch:
      *
      * <ul>
-     *   <li>{@code pending-join-token} on disk → run {@code startInJoinMode} (Day-N).
-     *       On success delete the token. On failure leave it in place so a
-     *       restart retries automatically.</li>
-     *   <li>{@code config/security/cluster/} already populated → restart with the
-     *       persisted TLS material (Day-0 founder coming back, or post-join restart).</li>
-     *   <li>Otherwise → Day-0 fresh bootstrap. The cluster control service mints
-     *       its own CA + self leaf cert and persists them locally.</li>
+     *   <li>{@code pending-join-token} on disk → Mongo-register join (Day-N). The joiner validates +
+     *       redeems the token against the shared Mongo cluster store, adopts the cluster CA, and registers
+     *       itself in {@code cluster_members}. On success delete the token; on failure leave it so a
+     *       restart retries.</li>
+     *   <li>Otherwise → Day-0 founder bootstrap (mint CA + stamp identity into Mongo) or a founder restart
+     *       (verify identity against Mongo), both handled by {@link ClusterControlService#start}.</li>
      * </ul>
      *
-     * <p>After a successful join the cluster id from the leader gets mirrored into
-     * {@code controller.yml} via {@link #persistClusterIdentity} so subsequent
-     * restarts hit the "yaml mismatch refusal" guard if the operator points the
-     * controller at the wrong Raft state dir.
+     * <p>After a successful join the adopted cluster id is mirrored into {@code controller.yml} via
+     * {@link #persistClusterIdentity} so a later restart hits the "yaml mismatch refusal" guard if the
+     * operator points the controller at the wrong cluster.
      */
     private void startClusterControlPlane() throws Exception {
         Files.createDirectories(SECURITY_DIR);
@@ -362,24 +303,17 @@ public final class PrexorCloudBootstrap {
             }
             String restAddr = config.http().host() + ":" + config.http().port();
             String grpcAddr = config.grpc().host() + ":" + config.grpc().port();
-            String raftAddr = config.raft().host() + ":" + config.raft().port();
+            String primaryAddr = config.raft().host() + ":" + config.raft().port();
             var identity = new me.prexorjustin.prexorcloud.controller.cluster.ClusterControlService.JoinIdentity(
-                    raftAddr, restAddr, grpcAddr);
+                    primaryAddr, restAddr, grpcAddr);
             logger.info(
-                    "Found pending join token at {} — joining cluster as {} (raft={}, rest={}, grpc={})",
+                    "Found pending join token at {} — joining cluster as {} (rest={}, grpc={})",
                     PENDING_JOIN_TOKEN_FILE,
                     config.uuid(),
-                    raftAddr,
                     restAddr,
                     grpcAddr);
-            if (config.clusterStore().readsFromMongo()) {
-                // MONGO authority: register in Mongo (cluster_members + token redeem) and adopt the CA from
-                // Mongo — no Raft group join, no mTLS handshake to an existing controller.
-                clusterControlService.startInMongoJoinMode(token, materials, identity);
-            } else {
-                clusterControlService.startInJoinMode(token, materials, identity);
-            }
-            // Persist the new cluster id mirror so the next boot's "yaml vs raft" guard fires.
+            clusterControlService.startInJoinMode(token, materials, identity);
+            // Persist the adopted cluster id mirror so the next boot's "yaml vs store" guard fires.
             String joinedClusterId = clusterControlService.clusterId();
             if (joinedClusterId != null) {
                 persistClusterIdentity(joinedClusterId);
@@ -389,16 +323,15 @@ public final class PrexorCloudBootstrap {
             return;
         }
 
-        // Fence against the leave-orphan split-brain: a controller that gracefully left the
-        // cluster must NOT auto-rejoin on a systemd/Docker restart. Its persisted Raft state is
-        // stale, and re-forming a group (same fixed groupId + clusterId) makes it a rogue peer
-        // that corrupts the live cluster's Raft config. Refuse to start until an operator either
-        // stages a join token (handled above — re-join) or explicitly re-bootstraps.
+        // Fence against the leave-orphan split-brain: a controller that gracefully left the cluster must
+        // NOT auto-rejoin on a systemd/Docker restart. It was removed from cluster_members on the way out;
+        // letting it silently re-register would put a stale node back into the writer-eligible set. Refuse
+        // to start until an operator either stages a join token (handled above — re-join) or re-bootstraps.
         if (Files.isRegularFile(LEFT_MARKER_FILE)) {
             String marker = Files.readString(LEFT_MARKER_FILE).trim();
             throw new IllegalStateException("This controller gracefully left its cluster (" + LEFT_MARKER_FILE
-                    + ": " + marker + ") and will not rejoin automatically — auto-restarting it would resurrect"
-                    + " stale Raft state and corrupt the live cluster. To rejoin, stage a join token at "
+                    + ": " + marker + ") and will not rejoin automatically — auto-restarting it would re-register"
+                    + " a stale node into the cluster. To rejoin, stage a join token at "
                     + PENDING_JOIN_TOKEN_FILE + ". To re-bootstrap a brand-new cluster on this host, delete "
                     + LEFT_MARKER_FILE + " and the " + CLUSTER_MATERIALS_DIR + " directory.");
         }
@@ -573,7 +506,6 @@ public final class PrexorCloudBootstrap {
         mongoDatabase = mongoClient.getDatabase(config.database().database());
         var stateStore = new MongoStateStore(mongoClient, mongoDatabase);
         stateStore.initialize();
-        migrateClusterIdentityFromMongoIfNeeded(stateStore);
         return stateStore;
     }
 
@@ -608,48 +540,6 @@ public final class PrexorCloudBootstrap {
                     + " (single-writer control plane ADR).");
         }
         logger.info("MongoDB replica-set mode confirmed (set: {})", setName);
-    }
-
-    /**
-     * One-shot v1.0 → v1.1 migration of cluster identity from Mongo into the Raft
-     * state machine. Runs <em>before</em> {@link ClusterControlService} starts so
-     * that the Raft reconcile picks up the migrated id from {@code controller.yml}.
-     *
-     * <p>Three cases:
-     * <ul>
-     *   <li><b>Mongo absent</b> — no legacy state. Skip. Day-0 first-boot or a
-     *       fresh v1.1 install. {@code ClusterControlService} will mint a fresh
-     *       id or honour an operator-supplied one.</li>
-     *   <li><b>Mongo present, yaml absent or matching</b> — pre-seed
-     *       {@code controller.yml} with the legacy id, drop {@code cluster_meta}.
-     *       {@code ClusterControlService} will reuse the id when stamping fresh
-     *       Raft state.</li>
-     *   <li><b>Mongo present, yaml present, mismatch</b> — refuse to boot. Same
-     *       guard as the v1 plan: the operator has pointed at the wrong Mongo.</li>
-     * </ul>
-     *
-     * <p>Idempotent on retry: a crash after {@link #persistClusterIdentity} but
-     * before {@link StateStore#dropClusterMeta} leaves Mongo+yaml in a matching
-     * state; the next boot's mismatch check passes and the drop runs cleanly.
-     */
-    private void migrateClusterIdentityFromMongoIfNeeded(StateStore stateStore) {
-        String mongoId = stateStore.getClusterId().orElse(null);
-        if (mongoId == null) {
-            return;
-        }
-        String yamlId = config.cluster() == null ? null : config.cluster().id();
-        if (yamlId != null && !yamlId.equals(mongoId)) {
-            throw new IllegalStateException("Configured cluster.id=" + yamlId
-                    + " but legacy Mongo cluster_meta has cluster.id=" + mongoId
-                    + ". Either point database.uri at the correct Mongo, or remove cluster.id from"
-                    + " controller.yml to adopt this Mongo's existing id.");
-        }
-        if (yamlId == null) {
-            persistClusterIdentity(mongoId);
-            logger.info("v1.0 → v1.1 migration: adopted cluster.id={} from legacy Mongo cluster_meta", mongoId);
-        }
-        stateStore.dropClusterMeta();
-        logger.info("v1.0 → v1.1 migration: dropped legacy cluster_meta collection — Raft is now the source of truth");
     }
 
     private void persistClusterIdentity(String clusterId) {
@@ -931,11 +821,7 @@ public final class PrexorCloudBootstrap {
         });
         shutdownManager.register("cluster control plane", () -> {
             if (clusterControlService != null) {
-                try {
-                    clusterControlService.close();
-                } catch (java.io.IOException e) {
-                    logger.warn("error closing cluster control plane: {}", e.getMessage());
-                }
+                clusterControlService.close();
             }
         });
         shutdownManager.register("state store", controller.stateStore()::close);
@@ -1219,8 +1105,6 @@ public final class PrexorCloudBootstrap {
                 controller.jwtManager(),
                 subnetAutoReg);
         var adminService = new AdminServiceImpl(controller.joinTokenStore());
-        var clusterMembershipService = new me.prexorjustin.prexorcloud.controller.grpc.ClusterMembershipServiceImpl(
-                clusterControlService.controlPlane(), java.time.Clock.systemUTC(), controller.stateStore());
 
         var mtlsInterceptor = new MtlsEnforcementInterceptor(runtime.nodeCertRevocationStore());
         var subnetGuard =
@@ -1233,7 +1117,6 @@ public final class PrexorCloudBootstrap {
                 daemonService,
                 bootstrapService,
                 adminService,
-                clusterMembershipService,
                 mtlsInterceptor,
                 subnetGuard);
         grpcServer.start();
@@ -1323,10 +1206,9 @@ public final class PrexorCloudBootstrap {
         scheduler.setConvergenceGate(convergenceGate);
         scheduler.placementCoordinator().setLeadership(leaderElector);
         nodeMessageDispatcher.setLeadership(leaderElector);
-        // Phase 3 redirect: on handshake the leader stamps its fencing epoch; a follower returns the
+        // Daemon redirect: on handshake the leader stamps its fencing epoch; a follower returns the
         // current leader's gRPC address so the daemon redirects to it. The leader is the lease holder
-        // (== a cluster member's nodeId); resolve its gRPC address from the cluster member list (which
-        // Phase 4 will repoint from Raft to the Mongo `cluster_members` collection — same resolver).
+        // (== a cluster member's nodeId); resolve its gRPC address from the Mongo `cluster_members` list.
         if (daemonService != null) {
             daemonService.setLeadership(leaderElector);
             daemonService.setLeaderGrpcAddressResolver(() -> resolveLeaderGrpcAddress(leaderElector));
@@ -1569,14 +1451,14 @@ public final class PrexorCloudBootstrap {
     }
 
     /**
-     * Phase-7 (Track A.5): wire the cluster_config live-reload fan-out. Each
-     * subscriber holds a live, mutable subsystem and re-reads its slice of the
-     * folded config when a config version is committed through Raft. Runs after
+     * Wire the cluster_config live-reload fan-out. Each subscriber holds a live, mutable subsystem and
+     * re-reads its slice of the folded config when a {@code ClusterConfigChangedEvent} fires on the local
+     * event bus (published by the cluster-config write path on the serving leader). Runs after
      * {@link #initRestServer} so the rate-limit middleware instance exists.
      */
     private void initClusterConfigReload(PrexorController controller) {
         clusterConfigReload = new me.prexorjustin.prexorcloud.controller.cluster.reload.ClusterConfigReloadCoordinator(
-                        clusterControlService.controlPlane()::effectiveConfig, controller.eventBus())
+                        clusterControlService.clusterPlane()::effectiveConfig, controller.eventBus())
                 .register(new me.prexorjustin.prexorcloud.controller.cluster.reload.CorsAllowListReloader(
                         controller.corsAllowList()))
                 .register(new me.prexorjustin.prexorcloud.controller.cluster.reload.RateLimitReloader(
