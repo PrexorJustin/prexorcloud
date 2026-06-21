@@ -455,6 +455,16 @@ public final class RestServer {
             ctx.json(errorResponse("NOT_FOUND", "Not Found", 404));
             return;
         }
+        // Fail-closed authorization: module routes carry no per-route permission yet (see audit
+        // F-M1; per-route declarations are the follow-up), so the dispatcher gates centrally —
+        // reads need modules.view, mutations need modules.manage. Throws 403 before route
+        // resolution so an unauthorized caller cannot even probe which module routes exist.
+        boolean mutating = !"GET".equals(method);
+        JwtAuthMiddleware.requirePermission(
+                ctx,
+                mutating
+                        ? me.prexorjustin.prexorcloud.controller.auth.Permission.MODULES_MANAGE
+                        : me.prexorjustin.prexorcloud.controller.auth.Permission.MODULES_VIEW);
         String subpath = ctx.pathParam("sub");
         var match = moduleRouteRegistry.resolve(moduleId, method, subpath);
         if (match.isEmpty()) {
@@ -523,7 +533,19 @@ public final class RestServer {
         public Map<String, String> headers() {
             Map<String, String> flat = new java.util.LinkedHashMap<>();
             ctx.headerMap().forEach(flat::put);
+            // Never let a client spoof its identity via X-User-Id: overwrite (or drop) it with the
+            // server-authenticated JWT subject so a module that reads the raw header sees the real
+            // principal. See audit F-M1.
+            flat.entrySet().removeIf(e -> "X-User-Id".equalsIgnoreCase(e.getKey()));
+            String principal = ctx.attribute("username");
+            if (principal != null) flat.put("X-User-Id", principal);
             return flat;
+        }
+
+        @Override
+        public java.util.Optional<String> userId() {
+            // Authenticated principal set by JwtAuthMiddleware, not the client-controlled header.
+            return java.util.Optional.ofNullable(ctx.attribute("username"));
         }
 
         @Override

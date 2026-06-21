@@ -117,7 +117,11 @@ function useSseEventBusState() {
       const config = useRuntimeConfig()
       const apiBase = config.public.apiBase as string
 
-      // Obtain a short-lived SSE ticket via authenticated POST
+      // Obtain a short-lived SSE ticket via authenticated POST. There is deliberately no
+      // token-in-URL fallback: the controller only accepts a ticket, so falling back to
+      // ?token=<JWT> never authenticated — it just leaked the JWT into the URL (browser
+      // history / proxy logs) and reconnected forever. On failure, back off and retry the
+      // ticket. (audit F-F3)
       let ticket: string
       try {
         const res = await $fetch<{ ticket: string }>(`${apiBase}/api/v1/events/ticket`, {
@@ -126,14 +130,13 @@ function useSseEventBusState() {
         })
         ticket = res.ticket
       } catch (err) {
-        console.warn('[SSE] Failed to obtain ticket, falling back to token:', err)
-        // Fallback: use JWT directly (for backward compatibility with older controllers)
-        ticket = ''
+        console.warn('[SSE] Failed to obtain ticket, retrying with backoff:', err)
+        reconnect()
+        return
       }
 
       const params = new URLSearchParams()
-      if (ticket) params.set('ticket', ticket)
-      else params.set('token', token)
+      params.set('ticket', ticket)
       if (lastSequence.value > 0) {
         params.set('lastSequence', String(lastSequence.value))
       }

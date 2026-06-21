@@ -127,10 +127,25 @@ public final class JarCache {
             }
 
             String sha256 = sha256(tempJar);
-            if (expectedHash != null && !expectedHash.isBlank() && !expectedHash.equalsIgnoreCase(sha256)) {
-                Files.deleteIfExists(tempJar);
-                throw new SecurityException(
-                        "JAR hash mismatch for " + jarFile + ": expected " + expectedHash + " but got " + sha256);
+            if (expectedHash != null && !expectedHash.isBlank()) {
+                if (!expectedHash.equalsIgnoreCase(sha256)) {
+                    Files.deleteIfExists(tempJar);
+                    throw new SecurityException(
+                            "JAR hash mismatch for " + jarFile + ": expected " + expectedHash + " but got " + sha256);
+                }
+            } else {
+                // No pinned hash: integrity rests solely on the download URL's TLS, so a poisoned
+                // cache/mirror would be executed with the node's identity. Surfaced loudly until the
+                // controller pins a hash for every runtime/platform version (then this becomes
+                // fail-closed). See audit F-D6.
+                logger.warn(
+                        "SECURITY: cached {} for {}/{} from {} WITHOUT an integrity hash (sha256={}); "
+                                + "download integrity is unverified",
+                        jarFile,
+                        platform,
+                        platformVersion,
+                        downloadUrl,
+                        sha256);
             }
             Files.move(tempJar, cachedJar, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             JSON.writeValue(

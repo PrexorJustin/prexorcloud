@@ -544,6 +544,9 @@ public final class DaemonGrpcClient {
     }
 
     private void startStatusReporting() {
+        // Idempotent: a reconnect can re-enter onHandshakeAckReceived() without an intervening
+        // disconnect, which would otherwise orphan the previous scheduler thread.
+        stopStatusReporting();
         statusScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "status-reporter");
             t.setDaemon(true);
