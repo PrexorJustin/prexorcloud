@@ -52,6 +52,38 @@ class WorkloadIdentityRegistryTest {
     }
 
     @Test
+    void adoptGapGraceAcceptsAbsentInstanceOnlyDuringConvergence() {
+        var registry = new WorkloadIdentityRegistry(Clock.fixed(NOW, ZoneOffset.UTC), Duration.ofMinutes(15));
+        String token = registry.issuePluginToken("instance-1");
+
+        // Default (no grace -- steady state / followers): an unknown instance -> reject.
+        assertTrue(
+                registry.validatePluginToken(token, id -> Optional.empty()).isEmpty(),
+                "absent instance must be rejected outside the post-takeover window");
+
+        // Post-takeover convergence window: the daemon hasn't re-reported the instance yet, but the token
+        // is still durable -> accept so the plugin isn't 401'd during the failover adopt-gap.
+        registry.setPostTakeoverGraceSupplier(() -> true);
+        assertEquals(
+                Optional.of("instance-1"),
+                registry.validatePluginToken(token, id -> Optional.empty()),
+                "a durable token for a not-yet-reported instance must be accepted during convergence");
+
+        // Grace must NOT resurrect a token for a *known* terminal instance -- that one is really gone.
+        assertTrue(
+                registry.validatePluginToken(
+                                token, id -> Optional.of(runningInstance("instance-1", InstanceState.STOPPED)))
+                        .isEmpty(),
+                "grace relaxes only the absent-instance case, not a known terminal instance");
+
+        // Once convergence ends, strict again: an absent instance -> reject.
+        registry.setPostTakeoverGraceSupplier(() -> false);
+        assertTrue(
+                registry.validatePluginToken(token, id -> Optional.empty()).isEmpty(),
+                "absent instance must be rejected again after the window closes");
+    }
+
+    @Test
     void expiredTokensAreRejectedForNormalCallsAndEvictedPastGrace() {
         var clock = new MutableClock(NOW);
         var registry = new WorkloadIdentityRegistry(clock, Duration.ofMinutes(15));

@@ -1209,6 +1209,11 @@ public final class PrexorCloudBootstrap {
                         event -> convergenceGate.nodeReported(event.nodeId()));
         scheduler.setLeadership(leaderElector);
         scheduler.setConvergenceGate(convergenceGate);
+        // During the post-takeover convergence window a freshly elected leader hasn't been told about
+        // running instances yet (the daemon re-reports them), so plugin-token validation would 401 until
+        // adoption. Let the registry accept still-durable tokens for not-yet-reported instances until the
+        // daemon converges. Closes the ~10s failover 401 gap; strict again the moment observation ends.
+        controller.clusterState().setPostTakeoverGraceSupplier(convergenceGate::isObserving);
         scheduler.placementCoordinator().setLeadership(leaderElector);
         nodeMessageDispatcher.setLeadership(leaderElector);
         modules.platformManager().setLeadership(leaderElector);

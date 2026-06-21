@@ -126,6 +126,20 @@ public final class WorkloadIdentityRegistry {
      * the token is unknown, expired, or the backing instance is not running.
      * Expired entries are evicted on the read path.
      */
+    /**
+     * True when the controller is in its post-takeover convergence window (daemons have not all
+     * re-reported their inventory yet). Wired to {@code ConvergenceGate.isObserving()} in bootstrap;
+     * defaults to never-grace so unit tests and followers stay strict. See {@link #instanceLive}.
+     */
+    private volatile java.util.function.BooleanSupplier postTakeoverGraceSupplier = () -> false;
+
+    /** Wires the post-takeover grace signal (null is ignored, keeping the strict default). */
+    public void setPostTakeoverGraceSupplier(java.util.function.BooleanSupplier supplier) {
+        if (supplier != null) {
+            this.postTakeoverGraceSupplier = supplier;
+        }
+    }
+
     public Optional<String> validatePluginToken(String token, Function<String, Optional<InstanceInfo>> instanceLookup) {
         var entry = pluginTokens.get(token);
         if (!isEntryUsable(token, entry, instanceLookup)) {
@@ -310,7 +324,14 @@ public final class WorkloadIdentityRegistry {
     private boolean instanceLive(PluginTokenEntry entry, Function<String, Optional<InstanceInfo>> instanceLookup) {
         var instance = instanceLookup.apply(entry.instanceId());
         if (instance.isEmpty()) {
-            return false;
+            // Adopt-gap grace (HA failover): right after a leadership change the new leader has not yet
+            // been told about this instance -- the daemon re-reports its inventory during convergence
+            // observation, which is also when the instance gets adopted. The token is already durable
+            // (Mongo) and unexpired, so accept it during that window instead of 401'ing the plugin until
+            // the daemon reports. The moment the daemon reports, observation ends + the instance is live,
+            // so the strict check below resumes. Outside observation an unknown instance is genuinely
+            // gone -> reject. A *known* instance in a terminal/pre-launch state is still rejected below.
+            return postTakeoverGraceSupplier.getAsBoolean();
         }
         InstanceInfo resolvedInstance = instance.get();
         if (!entry.instanceId().equals(resolvedInstance.id())) {

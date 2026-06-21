@@ -62,6 +62,15 @@ public final class ClusterState {
         workloadIdentityRegistry.hydrate(store.loadAllTokens());
     }
 
+    /**
+     * Wire the post-takeover grace signal (typically {@code ConvergenceGate.isObserving()}) so a freshly
+     * elected leader accepts a still-durable plugin token whose instance the daemon has not yet re-reported,
+     * instead of 401'ing it for the duration of the convergence window. See {@code WorkloadIdentityRegistry}.
+     */
+    public void setPostTakeoverGraceSupplier(java.util.function.BooleanSupplier supplier) {
+        workloadIdentityRegistry.setPostTakeoverGraceSupplier(supplier);
+    }
+
     // --- Nodes ---
 
     public void addNode(
