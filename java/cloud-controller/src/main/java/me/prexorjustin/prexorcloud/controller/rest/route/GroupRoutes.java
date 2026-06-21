@@ -112,8 +112,8 @@ public final class GroupRoutes {
         InputValidator.requireSafeName(config.name(), "Group name");
         controller.groupManager().create(config);
         controller.groupStore().save(config);
-        // Notify peers (their GroupManager caches are otherwise blind to this write) -- the
-        // RedisEventBridge forwards this over CHANNEL_GROUP and peers reload from the store.
+        // Single-writer: this runs on the leader (followers redirect writes here), so the local
+        // EventBus is the only cache that needs the signal — no cross-controller relay.
         controller.eventBus().publish(new GroupCreatedEvent(config.name()));
         auditDiff(ctx, controller.stateStore(), "group.create", "group", config.name(), null, config);
         ctx.status(201);
@@ -198,7 +198,7 @@ public final class GroupRoutes {
 
         var merged = controller.groupManager().patch(name, update, sent);
         controller.groupStore().save(merged);
-        // Propagate to peers AFTER the store write so their reload reads the new config.
+        // Signal the local EventBus after the store write (single-writer: this is the leader).
         controller.eventBus().publish(new GroupUpdatedEvent(name));
         auditDiff(ctx, controller.stateStore(), "group.update", "group", name, before, merged);
         ctx.json(GroupDtoMapper.toDto(merged, controller.clusterState(), controller.catalogStore()));
@@ -236,7 +236,7 @@ public final class GroupRoutes {
         }
         controller.groupManager().delete(name);
         controller.groupStore().delete(name);
-        // Peers drop the group from their caches on this event (CHANNEL_GROUP).
+        // Drop the group from the local cache via the EventBus (single-writer: this is the leader).
         controller.eventBus().publish(new GroupDeletedEvent(name));
         // Reap the auto-created group-template (named after the group) so it doesn't orphan --
         // but only when no remaining group still layers it or inherits it as a parent.

@@ -58,7 +58,7 @@ class InstancePlacementCoordinatorTest {
                 scalingEvaluator,
                 stateStore,
                 compositionPlanner,
-                new NodeMessageDispatcher(sessionManager, null, null),
+                new NodeMessageDispatcher(sessionManager),
                 "http://localhost:8080");
         clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
         when(nodeSelector.select(any(), any()))

@@ -60,7 +60,7 @@ class SchedulerStartRetryTest {
         stateStore = mock(StateStore.class);
         groupManager = mock(GroupManager.class);
         scalingEvaluator = mock(ScalingEvaluator.class);
-        nodeMessageDispatcher = new NodeMessageDispatcher(sessionManager, null, null);
+        nodeMessageDispatcher = new NodeMessageDispatcher(sessionManager);
         placementCoordinator = new InstancePlacementCoordinator(
                 clusterState,
                 mock(NodeSelector.class),

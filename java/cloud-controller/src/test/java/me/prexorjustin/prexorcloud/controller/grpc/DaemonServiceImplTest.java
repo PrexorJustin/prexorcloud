@@ -18,7 +18,6 @@ import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
 import me.prexorjustin.prexorcloud.controller.crash.CrashStore;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.session.HeartbeatTracker;
 import me.prexorjustin.prexorcloud.controller.session.NodeSessionManager;
@@ -32,13 +31,11 @@ import me.prexorjustin.prexorcloud.protocol.DaemonMessage;
 import me.prexorjustin.prexorcloud.protocol.Handshake;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 import me.prexorjustin.prexorcloud.protocol.InstanceStatusUpdate;
-import me.prexorjustin.prexorcloud.protocol.Pong;
 import me.prexorjustin.prexorcloud.protocol.StartFailureDisposition;
 import me.prexorjustin.prexorcloud.protocol.StartInstanceAck;
 import me.prexorjustin.prexorcloud.protocol.StartPreparationStage;
 
 import io.grpc.stub.StreamObserver;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,10 +82,7 @@ class DaemonServiceImplTest {
                         new ConsoleBuffer(),
                         mock(GroupManager.class),
                         mock(CatalogStore.class),
-                        null,
-                        null,
-                        newPendingRequestRegistry(),
-                        null),
+                        newPendingRequestRegistry()),
                 30_000,
                 3,
                 8080);
@@ -307,92 +301,6 @@ class DaemonServiceImplTest {
         assertTrue(clusterState.getNode("node-1").isPresent());
         assertEquals(1, sessionManager.sessionCount());
         assertTrue(sessionManager.getByNodeId("node-1").isPresent());
-    }
-
-    @Test
-    void handshakePersistsNodeOwnershipWithTtlAndPongRefreshesIt() {
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
-        var sessionManager = new NodeSessionManager();
-        var serviceWithRedis = new DaemonServiceImpl(
-                new DaemonServiceImpl.Deps(
-                        sessionManager,
-                        clusterState,
-                        new HeartbeatTracker(sessionManager, clusterState, eventBus, 3),
-                        eventBus,
-                        crashStore,
-                        new CrashLoopDetector(3, 60, eventBus),
-                        mock(TemplateManager.class),
-                        mock(TemplateMerger.class),
-                        mock(StateStore.class),
-                        new ConsoleBuffer(),
-                        mock(GroupManager.class),
-                        mock(CatalogStore.class),
-                        redisCommands,
-                        "controller-a",
-                        newPendingRequestRegistry(),
-                        null),
-                30_000,
-                3,
-                8080);
-
-        var requestObserver = serviceWithRedis.connect(responseObserver);
-        requestObserver.onNext(DaemonMessage.newBuilder()
-                .setHandshake(Handshake.newBuilder()
-                        .setNodeId("node-ttl")
-                        .setVersion("1.0.0")
-                        .setProtocolVersion(1)
-                        .build())
-                .build());
-
-        long expectedTtlSeconds = RedisKeys.nodeOwnerTtl(30_000, 3).getSeconds();
-        verify(redisCommands).setex(RedisKeys.nodeOwner("node-ttl"), expectedTtlSeconds, "controller-a");
-
-        requestObserver.onNext(DaemonMessage.newBuilder()
-                .setPong(Pong.newBuilder().setSequence(1).build())
-                .build());
-
-        verify(redisCommands).expire(RedisKeys.nodeOwner("node-ttl"), expectedTtlSeconds);
-    }
-
-    @Test
-    void cleanupRemovesNodeOwnershipHintFromRedis() {
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> redisCommands = mock(RedisCommands.class);
-        var sessionManager = new NodeSessionManager();
-        var serviceWithRedis = new DaemonServiceImpl(
-                new DaemonServiceImpl.Deps(
-                        sessionManager,
-                        clusterState,
-                        new HeartbeatTracker(sessionManager, clusterState, eventBus, 3),
-                        eventBus,
-                        crashStore,
-                        new CrashLoopDetector(3, 60, eventBus),
-                        mock(TemplateManager.class),
-                        mock(TemplateMerger.class),
-                        mock(StateStore.class),
-                        new ConsoleBuffer(),
-                        mock(GroupManager.class),
-                        mock(CatalogStore.class),
-                        redisCommands,
-                        "controller-a",
-                        newPendingRequestRegistry(),
-                        null),
-                30_000,
-                3,
-                8080);
-
-        var requestObserver = serviceWithRedis.connect(responseObserver);
-        requestObserver.onNext(DaemonMessage.newBuilder()
-                .setHandshake(Handshake.newBuilder()
-                        .setNodeId("node-cleanup")
-                        .setVersion("1.0.0")
-                        .setProtocolVersion(1)
-                        .build())
-                .build());
-        requestObserver.onCompleted();
-
-        verify(redisCommands).del(RedisKeys.nodeOwner("node-cleanup"));
     }
 
     private StreamObserver<DaemonMessage> connectNode(String nodeId) {

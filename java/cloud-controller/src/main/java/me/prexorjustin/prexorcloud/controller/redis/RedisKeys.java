@@ -18,7 +18,6 @@ public final class RedisKeys {
 
     public static final String LEASE_PREFIX = NAMESPACE_PREFIX + "lease:";
     public static final String LEASE_TOKEN_PREFIX = NAMESPACE_PREFIX + "lease-token:";
-    public static final String NODE_OWNER_PREFIX = NAMESPACE_PREFIX + "nodeowner:";
     public static final String NODE_PREFIX = NAMESPACE_PREFIX + "node:";
     public static final String INSTANCE_PREFIX = NAMESPACE_PREFIX + "instance:";
     public static final String PLAYER_PREFIX = NAMESPACE_PREFIX + "player:";
@@ -44,13 +43,6 @@ public final class RedisKeys {
     public static final String LOGIN_LOCK_PREFIX = LOGIN_PREFIX + "lock:";
     public static final String PASSWORD_RESET_PREFIX = NAMESPACE_PREFIX + "pwreset:";
 
-    public static final String CHANNEL_NODE = NAMESPACE_PREFIX + "events:node";
-    public static final String CHANNEL_INSTANCE = NAMESPACE_PREFIX + "events:instance";
-    public static final String CHANNEL_PLAYER = NAMESPACE_PREFIX + "events:player";
-    public static final String CHANNEL_GROUP = NAMESPACE_PREFIX + "events:group";
-    public static final String CHANNEL_COMMAND = NAMESPACE_PREFIX + "events:command";
-    public static final String CHANNEL_REPLY = NAMESPACE_PREFIX + "events:reply";
-
     private static final List<KeyFamilyPolicy> KEY_POLICIES = List.of(
             new KeyFamilyPolicy(
                     "lease",
@@ -64,12 +56,6 @@ public final class RedisKeys {
                     "no TTL",
                     "persistent monotonic fencing counter",
                     "fencing token allocation per lease resource"),
-            new KeyFamilyPolicy(
-                    "node-owner",
-                    NODE_OWNER_PREFIX,
-                    "heartbeat interval x missed-threshold window",
-                    "expires automatically unless refreshed by active session heartbeats",
-                    "controller hint for node ownership routing"),
             new KeyFamilyPolicy(
                     "node-runtime",
                     NODE_PREFIX,
@@ -190,14 +176,6 @@ public final class RedisKeys {
         return Duration.ofSeconds(60);
     }
 
-    public static Duration nodeOwnerTtl(long heartbeatIntervalMs, int missedThreshold) {
-        long safeIntervalMs = Math.max(1L, heartbeatIntervalMs);
-        long safeMissedThreshold = Math.max(1L, missedThreshold);
-        long ttlMillis = safeIntervalMs * safeMissedThreshold;
-        long ttlSeconds = Math.max(1L, Duration.ofMillis(ttlMillis).getSeconds());
-        return Duration.ofSeconds(ttlSeconds);
-    }
-
     public static Duration consoleWindowRetention(long windowMs) {
         return Duration.ofMillis(Math.max(1L, windowMs) * 2L);
     }
@@ -217,10 +195,6 @@ public final class RedisKeys {
 
     public static String leaseToken(String resource) {
         return LEASE_TOKEN_PREFIX + resource;
-    }
-
-    public static String nodeOwner(String nodeId) {
-        return NODE_OWNER_PREFIX + nodeId;
     }
 
     public static String node(String nodeId) {

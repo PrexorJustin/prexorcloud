@@ -49,7 +49,6 @@ import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleStor
 import me.prexorjustin.prexorcloud.controller.network.MongoNetworkStore;
 import me.prexorjustin.prexorcloud.controller.network.NetworkManager;
 import me.prexorjustin.prexorcloud.controller.redis.RedisConnection;
-import me.prexorjustin.prexorcloud.controller.redis.RedisEventBridge;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
 import me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices;
 import me.prexorjustin.prexorcloud.controller.runtime.RedisRuntimeServices;
@@ -135,7 +134,6 @@ public final class PrexorCloudBootstrap {
     // Lifecycle fields held for the shutdown hook.
     private MongoClient mongoClient;
     private RuntimeServices runtime;
-    private RedisEventBridge eventBridge;
     private MongoDatabase mongoDatabase;
     // The Mongo-backed cluster control-plane store; built right after storage and shared with ClusterControlService.
     private me.prexorjustin.prexorcloud.controller.cluster.mongo.MongoClusterStore mongoClusterStore;
@@ -227,7 +225,7 @@ public final class PrexorCloudBootstrap {
             redisRuntime.attachMetricsCollector(controller.metricsCollector());
         }
 
-        wireRedisEventBridge(core, templates, network);
+        wireGroupAndNetworkStores(templates, network);
         this.pendingRequestScheduler = java.util.concurrent.Executors.newScheduledThreadPool(1, r -> {
             Thread t = new Thread(r, "prexor-pending-request-timeouts");
             t.setDaemon(true);
@@ -778,28 +776,13 @@ public final class PrexorCloudBootstrap {
      * {@code core.eventBus()} out to every other controller in the cluster
      * so dashboard SSE consumers see events from any node uniformly.
      */
-    private void wireRedisEventBridge(
-            PrexorController.CoreServices core,
-            PrexorController.TemplateServices templates,
-            PrexorController.NetworkServices network) {
+    private void wireGroupAndNetworkStores(
+            PrexorController.TemplateServices templates, PrexorController.NetworkServices network) {
         if (!runtime.coordinationEnabled()) {
             return;
         }
         templates.groupManager().setGroupStore(templates.groupStore());
         network.networkManager().setNetworkStore(network.networkStore());
-        var publishPubSub = runtime.openPubSubConnection();
-        var subscribePubSub = runtime.openPubSubConnection();
-        eventBridge = new RedisEventBridge(
-                config.uuid(),
-                core.eventBus(),
-                core.clusterState(),
-                core.sessionManager(),
-                templates.groupManager(),
-                publishPubSub,
-                subscribePubSub,
-                REDIS_MAPPER);
-        eventBridge.register();
-        eventBridge.subscribe();
     }
 
     /**
@@ -1093,10 +1076,7 @@ public final class PrexorCloudBootstrap {
                 controller.consoleBuffer(),
                 controller.groupManager(),
                 controller.catalogStore(),
-                runtime.coordinationEnabled() ? runtime.redisCommands() : null,
-                config.uuid(),
-                pendingRequests,
-                eventBridge);
+                pendingRequests);
         daemonService = new DaemonServiceImpl(
                 daemonDeps,
                 heartbeatMs,
@@ -1465,8 +1445,7 @@ public final class PrexorCloudBootstrap {
         var nodeSelector = new WeightedNodeSelector();
         var scalingEvaluator = new ScalingEvaluator(
                 controller.clusterState(), config.scheduler().scalingCooldownSeconds(), runtime);
-        var redisSync = runtime.coordinationEnabled() ? runtime.redisCommands() : null;
-        nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager(), eventBridge, redisSync);
+        nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager());
         if (controller.metricsCollector() != null) {
             nodeMessageDispatcher.attachMetricsCollector(controller.metricsCollector());
         }
@@ -1477,26 +1456,6 @@ public final class PrexorCloudBootstrap {
                 new me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileContentService(
                         nodeMessageDispatcher, pendingRequests, config.uuid()));
 
-        // Cross-controller HA: when a daemon reply lands on a controller other than the
-        // originating one, RedisEventBridge re-publishes it on CHANNEL_REPLY. Wire the
-        // local handler to dispatch the DaemonMessage variants into our pending registry.
-        if (eventBridge != null) {
-            eventBridge.onRemoteReply(daemonMessage -> {
-                switch (daemonMessage.getPayloadCase()) {
-                    case INSTANCE_FILE_TREE ->
-                        pendingRequests.complete(
-                                daemonMessage.getInstanceFileTree().getRequestId(),
-                                daemonMessage.getInstanceFileTree());
-                    case INSTANCE_FILE_CONTENT ->
-                        pendingRequests.complete(
-                                daemonMessage.getInstanceFileContent().getRequestId(),
-                                daemonMessage.getInstanceFileContent());
-                    default -> {
-                        // No-op: other payloads do not currently use the cross-controller reply channel.
-                    }
-                }
-            });
-        }
         var compositionPlanner = new InstanceCompositionPlanner(
                 controller.templateManager(),
                 controller.catalogStore(),

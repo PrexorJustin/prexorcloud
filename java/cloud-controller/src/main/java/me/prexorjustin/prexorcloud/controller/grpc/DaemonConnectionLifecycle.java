@@ -1,7 +1,6 @@
 package me.prexorjustin.prexorcloud.controller.grpc;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -23,7 +22,6 @@ import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
 import me.prexorjustin.prexorcloud.controller.module.platform.ModuleDistributor;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.session.HeartbeatTracker;
 import me.prexorjustin.prexorcloud.controller.session.NodeSession;
@@ -42,7 +40,6 @@ import me.prexorjustin.prexorcloud.protocol.RequestCacheStatus;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,14 +66,11 @@ final class DaemonConnectionLifecycle {
     private final StateStore stateStore;
     private final GroupManager groupManager;
     private final CatalogStore catalogStore;
-    private final RedisCommands<String, String> redisCommands; // nullable
-    private final String controllerId; // nullable
     private final Supplier<Scheduler> scheduler;
     private final Supplier<ModuleDistributor> moduleDistributor;
     private final Supplier<DaemonEventForwarder> daemonEventForwarder;
     private final PendingRequestRegistry pendingRequests;
     private final long heartbeatIntervalMs;
-    private final int heartbeatMissedThreshold;
     private final int controllerApiPort;
 
     // Single-writer redirect (Phase 3): on handshake the leader stamps its fencing epoch on the ack;
@@ -98,14 +92,11 @@ final class DaemonConnectionLifecycle {
             StateStore stateStore,
             GroupManager groupManager,
             CatalogStore catalogStore,
-            RedisCommands<String, String> redisCommands,
-            String controllerId,
             Supplier<Scheduler> scheduler,
             Supplier<ModuleDistributor> moduleDistributor,
             Supplier<DaemonEventForwarder> daemonEventForwarder,
             PendingRequestRegistry pendingRequests,
             long heartbeatIntervalMs,
-            int heartbeatMissedThreshold,
             int controllerApiPort) {
         this.sessionManager = sessionManager;
         this.heartbeatTracker = heartbeatTracker;
@@ -114,14 +105,11 @@ final class DaemonConnectionLifecycle {
         this.stateStore = stateStore;
         this.groupManager = groupManager;
         this.catalogStore = catalogStore;
-        this.redisCommands = redisCommands;
-        this.controllerId = controllerId;
         this.scheduler = scheduler;
         this.moduleDistributor = moduleDistributor;
         this.daemonEventForwarder = daemonEventForwarder;
         this.pendingRequests = pendingRequests;
         this.heartbeatIntervalMs = heartbeatIntervalMs;
-        this.heartbeatMissedThreshold = heartbeatMissedThreshold;
         this.controllerApiPort = controllerApiPort;
     }
 
@@ -157,7 +145,7 @@ final class DaemonConnectionLifecycle {
      * Stamp the leadership fields onto a {@link HandshakeAck} (Phase 3 redirect/fencing). The leader
      * sets its fencing {@code epoch} so the daemon floors on it; a follower instead sets
      * {@code leader_grpc_addr} so the daemon redirects. An empty address leaves the daemon on this
-     * controller (no known leader yet — the Redis relay still carries commands until one resolves).
+     * controller (no known leader yet — the daemon retries / rotates its seed list until one resolves).
      * Package-private + static so the decision is unit-tested without the full handshake harness.
      */
     static void applyLeadership(HandshakeAck.Builder ack, Leadership leadership, Supplier<String> leaderAddrResolver) {
@@ -254,14 +242,6 @@ final class DaemonConnectionLifecycle {
             heartbeatTracker.removeSession(replacedSession.sessionId());
             logger.info(
                     "Replacing stale session {} with {} for node {}", replacedSession.sessionId(), sessionId, nodeId);
-        }
-
-        if (redisCommands != null && controllerId != null) {
-            try {
-                persistNodeOwnership(nodeId);
-            } catch (Exception e) {
-                logger.warn("Failed to register node ownership in Redis for {}: {}", nodeId, e.getMessage());
-            }
         }
 
         var hostInfo = NodeHostInfo.UNKNOWN;
@@ -369,31 +349,9 @@ final class DaemonConnectionLifecycle {
             }
         }
         if (nodeId != null && activeSessionRemoved) {
-            if (redisCommands != null) {
-                try {
-                    redisCommands.del(RedisKeys.nodeOwner(nodeId));
-                } catch (Exception e) {
-                    logger.warn("Failed to remove node ownership in Redis for {}: {}", nodeId, e.getMessage());
-                }
-            }
             clusterState.removeNode(nodeId, reason);
             stateStore.updateNodeLastSeen(nodeId);
             eventBus.publish(new NodeDisconnectedEvent(nodeId, reason, Instant.now()));
-        }
-    }
-
-    /**
-     * Refreshes the Redis TTL on this node's ownership hint. Called on each
-     * pong to keep the routing record alive while the daemon is online.
-     */
-    void refreshNodeOwnershipTtl(String nodeId) {
-        if (redisCommands == null || controllerId == null || nodeId == null) {
-            return;
-        }
-        try {
-            redisCommands.expire(RedisKeys.nodeOwner(nodeId), nodeOwnerTtl().getSeconds());
-        } catch (Exception e) {
-            logger.warn("Failed to refresh node ownership TTL in Redis for {}: {}", nodeId, e.getMessage());
         }
     }
 
@@ -560,17 +518,6 @@ final class DaemonConnectionLifecycle {
         } catch (IOException e) {
             logger.warn("Failed to build pre-warm cache hints: {}", e.getMessage());
         }
-    }
-
-    private void persistNodeOwnership(String nodeId) {
-        if (redisCommands == null || controllerId == null || nodeId == null) {
-            return;
-        }
-        redisCommands.setex(RedisKeys.nodeOwner(nodeId), nodeOwnerTtl().getSeconds(), controllerId);
-    }
-
-    private Duration nodeOwnerTtl() {
-        return RedisKeys.nodeOwnerTtl(heartbeatIntervalMs, heartbeatMissedThreshold);
     }
 
     private static Map<String, String> redactSensitiveKeys(Map<String, String> map) {

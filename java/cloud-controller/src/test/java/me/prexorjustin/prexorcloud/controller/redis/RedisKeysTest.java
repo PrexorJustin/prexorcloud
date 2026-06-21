@@ -11,7 +11,6 @@ class RedisKeysTest {
     void formatsCanonicalRuntimeKeys() {
         assertEquals("prexor:v1:lease:group:lobby", RedisKeys.lease("group:lobby"));
         assertEquals("prexor:v1:lease-token:group:lobby", RedisKeys.leaseToken("group:lobby"));
-        assertEquals("prexor:v1:nodeowner:node-1", RedisKeys.nodeOwner("node-1"));
         assertEquals("prexor:v1:node:node-1", RedisKeys.node("node-1"));
         assertEquals("prexor:v1:instance:lobby-1", RedisKeys.instance("lobby-1"));
         assertEquals("prexor:v1:player:uuid", RedisKeys.player("uuid"));
@@ -29,7 +28,6 @@ class RedisKeysTest {
     void backupPrefixesCoverControllerOwnedKeyFamilies() {
         assertTrue(RedisKeys.backupPrefixes().contains(RedisKeys.LEASE_PREFIX));
         assertTrue(RedisKeys.backupPrefixes().contains(RedisKeys.LEASE_TOKEN_PREFIX));
-        assertTrue(RedisKeys.backupPrefixes().contains(RedisKeys.NODE_OWNER_PREFIX));
         assertTrue(RedisKeys.backupPrefixes().contains(RedisKeys.NODE_PREFIX));
         assertTrue(RedisKeys.backupPrefixes().contains(RedisKeys.INSTANCE_PREFIX));
         assertTrue(RedisKeys.backupPrefixes().contains(RedisKeys.PLAYER_PREFIX));

@@ -50,11 +50,7 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
             ConsoleBuffer consoleBuffer,
             GroupManager groupManager,
             CatalogStore catalogStore,
-            io.lettuce.core.api.sync.RedisCommands<String, String> redisCommands, // nullable
-            String controllerId, // nullable
-            PendingRequestRegistry pendingRequests, // for async controller↔daemon round-trips
-            me.prexorjustin.prexorcloud.controller.redis.RedisEventBridge
-                    eventBridge) {} // nullable; used to forward replies under HA
+            PendingRequestRegistry pendingRequests) {} // for async controller↔daemon round-trips
 
     private final NodeSessionManager sessionManager;
     private final ClusterState clusterState;
@@ -71,8 +67,6 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
     private final ConsoleBuffer consoleBuffer;
     private final GroupManager groupManager;
     private final CatalogStore catalogStore;
-    private final io.lettuce.core.api.sync.RedisCommands<String, String> redisCommands;
-    private final String controllerId;
     private volatile Scheduler scheduler;
     private volatile DaemonLogStore daemonLogStore;
     private volatile MetricsCollector metricsCollector;
@@ -122,17 +116,14 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
         this.consoleBuffer = deps.consoleBuffer();
         this.groupManager = deps.groupManager();
         this.catalogStore = deps.catalogStore();
-        this.redisCommands = deps.redisCommands();
-        this.controllerId = deps.controllerId();
         this.commandAckHandler =
                 new DaemonCommandAckHandler(this.clusterState, this.crashLoopDetector, () -> this.scheduler);
         this.crashEventReceiver = new DaemonCrashEventReceiver(
                 this.clusterState, this.crashStore, this.crashLoopDetector, this.eventBus, this.stateStore);
         this.cacheStatusReceiver = new DaemonCacheStatusReceiver(this.clusterState);
         this.pendingRequests = deps.pendingRequests();
-        this.fileTreeReceiver = new DaemonFileTreeReceiver(this.pendingRequests, this.controllerId, deps.eventBridge());
-        this.fileContentReceiver =
-                new DaemonFileContentReceiver(this.pendingRequests, this.controllerId, deps.eventBridge());
+        this.fileTreeReceiver = new DaemonFileTreeReceiver(this.pendingRequests);
+        this.fileContentReceiver = new DaemonFileContentReceiver(this.pendingRequests);
         this.templateRequestHandler = new DaemonTemplateRequestHandler(this.templateManager, this.templateMerger);
         this.connectionLifecycle = new DaemonConnectionLifecycle(
                 this.sessionManager,
@@ -142,14 +133,11 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
                 this.stateStore,
                 this.groupManager,
                 this.catalogStore,
-                this.redisCommands,
-                this.controllerId,
                 () -> this.scheduler,
                 () -> this.moduleDistributor,
                 () -> this.daemonEventForwarder,
                 this.pendingRequests,
                 this.heartbeatIntervalMs,
-                this.heartbeatMissedThreshold,
                 this.controllerApiPort);
     }
 
@@ -383,7 +371,6 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
                 }
                 if (nodeId != null) {
                     clusterState.recordHeartbeat(nodeId);
-                    connectionLifecycle.refreshNodeOwnershipTtl(nodeId);
                 }
             }
 
