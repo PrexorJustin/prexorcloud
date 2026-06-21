@@ -87,8 +87,12 @@ public final class PrexorDaemon {
         // to the current leader). Configured seeds come first, then any controllers learned + cached
         // from earlier runs — so a daemon recovers even if every configured seed was decommissioned.
         var learnedControllersStore = new LearnedControllersStore(LEARNED_CONTROLLERS_PATH);
-        var controllerEndpoints =
-                unionEndpoints(config.controller().resolvedEndpoints(), learnedControllersStore.load());
+        // Resolve DNS seeds (SRV / A-record) into concrete dial candidates, then union with the controllers
+        // learned + cached from earlier runs. DNS is the cold-start hint only -- after the first connect the
+        // HandshakeAck self-sync supplies the live member set.
+        var controllerEndpoints = unionEndpoints(
+                new me.prexorjustin.prexorcloud.daemon.config.ControllerSeedResolver().resolve(config.controller()),
+                learnedControllersStore.load());
         var bootstrapManager = new BootstrapManager(
                 controllerEndpoints, Path.of(config.security().certificateDir()));
 
@@ -317,6 +321,10 @@ public final class PrexorDaemon {
 
     public static void main(String[] args) {
         Thread.currentThread().setContextClassLoader(PrexorDaemon.class.getClassLoader());
+        // Keep DNS-based controller seeds fresh across reconnects: cap the JVM positive-resolution cache
+        // (default 30s without a SecurityManager) so a re-resolved A-record seed can't pin a dead controller
+        // IP. SRV via JNDI bypasses this cache entirely.
+        java.security.Security.setProperty("networkaddress.cache.ttl", "20");
         registerGrpcProviders();
 
         try {

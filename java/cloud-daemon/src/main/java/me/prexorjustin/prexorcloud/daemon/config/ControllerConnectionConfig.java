@@ -13,11 +13,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * daemon can reach the cluster through any of them and survive one controller being down — the
  * existing redirect-to-leader then routes it to the current leader. The cluster also advertises
  * its live members at runtime, so the configured list is a bootstrap seed, not a fixed roster.</p>
+ *
+ * <p>Preferred for HA: set {@code dnsSrv} to a single SRV record name (e.g.
+ * {@code _prexor-controller._tcp.prexor.internal}) instead of enumerating IPs — {@code ControllerSeedResolver}
+ * expands it (and any DNS-name {@code host}) to concrete dial candidates at startup, so adding/removing a
+ * controller is a DNS change with no daemon re-config.</p>
  */
 public record ControllerConnectionConfig(
         @JsonProperty("host") String host,
         @JsonProperty("grpcPort") int grpcPort,
-        @JsonProperty("endpoints") List<String> endpoints) {
+        @JsonProperty("endpoints") List<String> endpoints,
+        @JsonProperty("dnsSrv") String dnsSrv) {
 
     public ControllerConnectionConfig {
         if (host == null) host = "127.0.0.1";
@@ -25,9 +31,14 @@ public record ControllerConnectionConfig(
         endpoints = endpoints == null ? List.of() : List.copyOf(endpoints);
     }
 
+    /** Back-compat: a seed list without an SRV discovery name. */
+    public ControllerConnectionConfig(String host, int grpcPort, List<String> endpoints) {
+        this(host, grpcPort, endpoints, null);
+    }
+
     /** Single-endpoint convenience constructor (back-compat with pre-seed-list callers). */
     public ControllerConnectionConfig(String host, int grpcPort) {
-        this(host, grpcPort, List.of());
+        this(host, grpcPort, List.of(), null);
     }
 
     public ControllerConnectionConfig() {
