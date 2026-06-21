@@ -10,6 +10,7 @@ import me.prexorjustin.prexorcloud.controller.health.ControllerReadinessProbe;
 import me.prexorjustin.prexorcloud.controller.recovery.BackupServices;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.DynamicCorsHandler;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
+import me.prexorjustin.prexorcloud.controller.rest.middleware.LeaderRedirectMiddleware;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.RateLimitMiddleware;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.RequestIdMiddleware;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.SubnetGuardMiddleware;
@@ -50,6 +51,12 @@ public final class RestServer {
     private final ModuleRouteRegistry moduleRouteRegistry;
     private Javalin app;
     private RateLimitMiddleware rateLimitMiddleware;
+    // Single-writer routing: a non-leader redirects API requests to the leader (see
+    // LeaderRedirectMiddleware). Defaults to always-leader + no leader address so single-controller
+    // installs and tests never redirect; bootstrap injects the real elector + resolver before start().
+    private me.prexorjustin.prexorcloud.controller.cluster.Leadership leadership =
+            me.prexorjustin.prexorcloud.controller.cluster.Leadership.alwaysLeader();
+    private java.util.function.Supplier<String> leaderRestAddressResolver = () -> "";
 
     /**
      * Thrown by {@link #requireFound} when an entity is not present. Caught by the
@@ -107,6 +114,18 @@ public final class RestServer {
      */
     public Javalin javalin() {
         return app;
+    }
+
+    /**
+     * Inject single-writer leadership + a resolver for the current leader's REST {@code host:port}
+     * (bootstrap, before {@link #start()}). A non-leader then redirects API requests to the leader.
+     * Tests + single-controller installs skip this and run as always-leader (no redirect).
+     */
+    public void setLeadership(
+            me.prexorjustin.prexorcloud.controller.cluster.Leadership leadership,
+            java.util.function.Supplier<String> leaderRestAddressResolver) {
+        this.leadership = leadership;
+        this.leaderRestAddressResolver = leaderRestAddressResolver;
     }
 
     /**
@@ -236,6 +255,13 @@ public final class RestServer {
                 // JWT validation. Bootstrap endpoint and health probes are exempt; see
                 // SubnetGuardMiddleware.EXEMPT_PATHS.
                 io.javalin.apibuilder.ApiBuilder.before(subnetGuard);
+
+                // Single-writer routing: a non-leader redirects every API request (v1 + plugin +
+                // proxy) to the leader (307). Runs before request-id/rate-limit/auth so a follower
+                // does no per-request work beyond the redirect. No-op on the leader / single-controller
+                // (default always-leader). Health/ready/metrics are exempt (see EXEMPT_PATHS).
+                io.javalin.apibuilder.ApiBuilder.before(
+                        "/api/*", new LeaderRedirectMiddleware(leadership, leaderRestAddressResolver));
 
                 // Correlation ID for every request
                 io.javalin.apibuilder.ApiBuilder.before("/api/v1/*", requestIdMiddleware);

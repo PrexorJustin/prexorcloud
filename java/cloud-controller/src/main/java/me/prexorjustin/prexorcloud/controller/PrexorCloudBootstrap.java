@@ -1383,6 +1383,27 @@ public final class PrexorCloudBootstrap {
                 .orElse("");
     }
 
+    /**
+     * The current leader's REST {@code host:port}, for the follower API redirect (mirror of
+     * {@link #resolveLeaderGrpcAddress} over {@code Member.restAddr}). Empty when this controller is
+     * the leader (no redirect) or no leader is known (the redirect middleware then returns 503).
+     */
+    private String resolveLeaderRestAddress(me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector elector) {
+        var lease = elector.readLease().orElse(null);
+        if (lease == null || lease.holder() == null || lease.holder().equals(config.uuid())) {
+            return "";
+        }
+        if (clusterControlService == null) {
+            return "";
+        }
+        return clusterControlService.clusterReadView().listMembers().stream()
+                .filter(member -> lease.holder().equals(member.nodeId()))
+                .map(me.prexorjustin.prexorcloud.controller.cluster.state.Member::restAddr)
+                .filter(addr -> addr != null && !addr.isBlank())
+                .findFirst()
+                .orElse("");
+    }
+
     /** Cap on advertised controller addresses — a sanity bound, far above any real cluster size. */
     private static final int MAX_ADVERTISED_CONTROLLERS = 16;
 
@@ -1526,6 +1547,11 @@ public final class PrexorCloudBootstrap {
                 mongoDatabase, Path.of(""), backupCatalog);
         restServer = new RestServer(
                 controller, runtime, createReadinessProbe(controller), backupServices, moduleRouteRegistry);
+        // Single-writer routing: a non-leader redirects API requests to the leader's REST address.
+        // leaderElector was built + started in initScheduler (runs before initRestServer).
+        if (leaderElector != null) {
+            restServer.setLeadership(leaderElector, () -> resolveLeaderRestAddress(leaderElector));
+        }
         restServer.start();
     }
 
