@@ -62,14 +62,18 @@ and `MongoClusterStore`), then a wiring slice swaps the production path and dele
     that all traffic reaches the leader (daemon redirect + REST redirect): nothing lands on a follower
     to relay. ⚠️ behaviour-changing — still wants the fleet gate (kill leader under load; no double-
     mutation / split-brain). Controller suite green throughout.
-- **Slice 3f** ⏳ Swap `ClusterState.runtimeStore` (`RedisRuntimeStore` → `WorkloadTokenStore`,
-  keeping the nullable seam); drop node/instance/player projection + `reconcile/adoptInstanceFromRedis`;
-  update the scheduler tick + daemon adopt callers; hydrate token cache on takeover from `loadAllTokens`.
-  - **Finding #11 fix-A (follower-read guard) already landed in 3e (`cde80b8`)** — followers now `307`
-    to the leader, so dropping the projection here no longer exposes empty follower reads. Still MUST
-    repoint the plugin-token read-through (`ClusterState.validatePluginToken` →
-    `hydratePluginTokenFromRedis`) to `MongoWorkloadTokenStore` so a cold leader (and any controller that
-    briefly serves before redirect resolves) validates tokens from Mongo, or the post-restart 401 returns.
+- **Slice 3f** — ✅ DONE.
+  - ✅ Dead `applyRemote*` projection hooks removed (`97f4ed3`) — orphaned when `RedisEventBridge` went.
+  - ✅ `ClusterState` token-store swap (`6e4d0ee`): the store field is now `WorkloadTokenStore`
+    (Mongo, via `MongoWorkloadTokenStore`), token-only. Dropped every node/instance/player
+    write-through + `reconcileInstancesFromRedis` + `adoptInstanceFromRedis` + the prune helper;
+    `Scheduler.evaluate` no longer ticks the projection; `DaemonServiceImpl.verifyNodeOwnership`
+    drops the Redis adopt (daemon-handshake `decideReportedInstance` is the rebuild path). `hydrate`
+    warms the token cache from `loadAllTokens` on takeover. **This completes the 401 fix** — a cold
+    leader reads a still-valid token back from Mongo (`hydratePluginTokenFromStore`) instead of
+    rejecting the plugin. Finding #11's token read-through is now Mongo-backed. Suite green (810).
+    ⚠️ behaviour-changing — the leader rebuilds node/instance state from daemon re-announce + Mongo
+    composition-plan recovery (no projection); fleet gate validates it.
 - **Slice 3g** ⏳ Rebuild the production `RuntimeServices` on Mongo (wire slices 1+2; select by
   `RuntimeConfig.profile`, not `config.redis()`); delete `RedisRuntimeServices`.
   - **Note (see `live-run-findings.md` #12):** the Mongo state-write path is not epoch-fenced (a deposed

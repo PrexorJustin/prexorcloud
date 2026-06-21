@@ -496,9 +496,10 @@ quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #1
 > to the leader's REST address (resolved from `Member.restAddr` via the leadership holder), the HTTP analog
 > of the daemon handshake redirect. Health/ready/metrics exempt; no known leader → `503 Retry-After`. So
 > followers no longer silently serve stale/empty app data — the "safe by luck" invariant is now enforced.
-> Remaining: (fix-B) a real Mongo-backed follower read path + consistency classification, only if the leader
-> becomes a throughput bottleneck; and the plugin-token read-through must point at Mongo in 3f (else a cold
-> leader 401s before redirect resolves). Original analysis below.
+> The plugin-token read-through is now Mongo-backed too (3f, `6e4d0ee`: `ClusterState` →
+> `MongoWorkloadTokenStore`, `hydratePluginTokenFromStore`), so a cold leader reads a still-valid token
+> back instead of 401-ing. Remaining: only (fix-B) a real Mongo-backed follower *read* path + consistency
+> classification, and only if the leader becomes a throughput bottleneck. Original analysis below.
 
 - **Symptom (latent):** a dashboard/CLI/plugin that reaches a **non-leader** controller gets a `200 OK` built from
   stale (today) or empty (after Phase 3f) instance/node/metrics data. Silent-wrong, not an error. Only "safe by luck"
