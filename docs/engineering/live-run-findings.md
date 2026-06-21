@@ -475,3 +475,65 @@ Deployed the pure-Mongo controller jar (Ratis deleted) to the 3-controller fleet
 - **Fleet left clean:** ctrl-1 leader, ctrl-2/ctrl-3 followers, all controllers on the failover-fix jar, daemon
   node-frankenstein-1 on the seed-list jar with a 3-seed config + populated `known-controllers.json` + fresh
   `lobby-2` RUNNING.
+
+---
+
+## 2026-06-21 — single-writer correctness review (NOT a live run; design+code audit) — **OPEN**
+
+Surfaced while reviewing the single-writer model after the Phase-6 (3e) lease→leadership collapse. The daemon
+command path is properly epoch-fenced (`NodeMessageDispatcher` stamps `leadership.currentEpoch()`,
+`MessageDispatcher.acceptEpoch` rejects stale-epoch at the daemon), so the *catastrophic* outcome — two leaders
+causing physical side effects (double-spawn, double-port, duplicate process) — is prevented. These two findings are
+the **two surfaces that are NOT yet fenced**: REST reads and Mongo state writes. Neither is a data-plane safety bug;
+both are control-plane correctness gaps. Priority-0 prerequisite for the whole election argument: **run a real
+3-member replica set across 3 zones** (the controller enforces RS *mode* at `PrexorCloudBootstrap.java:577`, but the
+shipped compose has no `--replSet` and docs bless a single-member RS — single-member gives CAS but no majority
+quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #12 — they're orthogonal.
+
+### 11. Followers serve REST reads from a frozen in-memory view, with no guard or redirect — **OPEN**
+- **Symptom (latent):** a dashboard/CLI/plugin that reaches a **non-leader** controller gets a `200 OK` built from
+  stale (today) or empty (after Phase 3f) instance/node/metrics data. Silent-wrong, not an error. Only "safe by luck"
+  today because clients happen to reach the leader (CLI seed-list / dashboard pointed at the leader) — nothing enforces it.
+- **Evidence:** the `rest/` layer has **zero** `isLeader`/redirect/`307`/`Location` logic (the daemon path *does*
+  redirect followers via `DaemonConnectionLifecycle.applyLeadership` → `leader_grpc_addr`; REST has no analog). Hot
+  reads come from the in-memory view (`InstanceRoutes`/`NodeRoutes` → `controller.clusterState().getAllInstances()/
+  getInstance()/getNode()/getInstanceMetrics()`). That view is **frozen on a follower**: `clusterState.hydrate(...)`
+  runs once at boot (`PrexorCloudBootstrap.java:366`); the only refresh, `reconcileInstancesFromRedis()`, is called
+  **only** from the leader-gated `Scheduler.evaluate()` (`Scheduler.java:279`); and followers redirect daemons away so
+  they hold no sessions → no heartbeat updates. A few reads *are* follower-consistent (Mongo-backed: composition plan,
+  console history, registered nodes via `stateStore.*`).
+- **Trajectory:** today = silently *stale* (boot snapshot from the shared `RedisRuntimeStore`); after **Phase 3f**
+  drops the node/instance/player projection, the follower loses its hydration source → silently *empty*.
+- **Also:** plugin-token validation on a follower works *today* only via the Redis read-through
+  (`ClusterState.validatePluginToken` → `hydratePluginTokenFromRedis`, `ClusterState.java:498/528`). After Phase 6 this
+  must be repointed to `MongoWorkloadTokenStore` **on followers too** (non-null store) or the 401-on-follower returns.
+- **Fix direction:** (A) **near-term, cheap, correct** — a follower returns `421 Misdirected Request` (or `307` to the
+  leader's REST addr), the HTTP analog of the daemon redirect; makes the wrong-read impossible. (B) **scaling, later** —
+  give followers a real Mongo-backed read path (`majority`/causal read concern) and classify endpoints
+  linearizable-vs-eventual; **do not do (B) without (A)** — until followers read from Mongo they must not answer reads.
+
+### 12. `MongoStateStore` state writes are not epoch-fenced (deposed-leader write window) — **OPEN**
+- **Symptom:** during a failover-overlap window (e.g. the old leader GC-pauses past the 15s TTL, a new leader acquires,
+  the old leader wakes and writes before re-checking `isLeader()` — a concrete TOCTOU exists in
+  `InstancePlacementCoordinator`, which persists to Mongo before a later leadership re-check), a **deposed** leader can
+  last-writer-wins-clobber instance/deployment/node/**intent** docs in Mongo. Bounded control-plane state divergence
+  (flapping, stale records, a new leader acting on a stale workflow intent) — **not** two leaders acting on the world
+  (the daemon epoch fence prevents that).
+- **Evidence:** `MongoStateStore` writes filter only on `seqId`/`_id`, no epoch reference across ~7 write paths
+  (~`:282,:332,:367,:624`). `reservePlacement` (`ClusterState.java:114` → `nodeRegistry.reservePlacement`) is an
+  **in-memory atomic CAS** — it guards the *intra-leader* concurrent-placement race (the earlier double-port fix), but
+  it is **not** epoch-aware: a deposed leader reserving against its own stale `NodeRegistry` is not blocked, so ports
+  are **not** covered by a cross-leader fence.
+- **Residual-risk concentration:** running-state docs get scrubbed by daemon re-announce + `instance_id` natural-key
+  idempotency; **workflow-intent docs (deployment-in-progress, start-retry, drain, healing) have no daemon-truth source**
+  and are the soft target — a stale intent re-enters the physical world via the *valid new* leader (whose command is
+  correctly epoch-stamped, just wrong).
+- **Fix direction (stamp/txn hybrid):**
+  - *Tier 1 (default, cheap, self-healing):* route every state mutation through one helper that stamps
+    `ownerEpoch = leadership.currentEpoch()`; the new leader's reconcile treats any doc with `ownerEpoch < myEpoch` as
+    non-authoritative and supersedes it. Fits the existing level-triggered/daemon-truth model; no per-write txn.
+  - *Tier 2 (destructive/irreversible writes + intents):* wrap in a Mongo transaction that asserts the leadership doc
+    still reads `{holder:me, epoch:e}` in-session and aborts on mismatch — rejects the deposed write at write time.
+    Apply to terminal transitions, port release, deployment commit, and the intent docs Tier 1 can't safely converge.
+  - Orthogonal to the 3-node-RS prerequisite: quorum stops two lease grants; it does **not** stop a deposed leader
+    writing LWW to the one true primary it still has a valid connection to.

@@ -52,8 +52,21 @@ and `MongoClusterStore`), then a wiring slice swaps the production path and dele
 - **Slice 3f** ⏳ Swap `ClusterState.runtimeStore` (`RedisRuntimeStore` → `WorkloadTokenStore`,
   keeping the nullable seam); drop node/instance/player projection + `reconcile/adoptInstanceFromRedis`;
   update the scheduler tick + daemon adopt callers; hydrate token cache on takeover from `loadAllTokens`.
+  - **⚠️ Fold in here (see `live-run-findings.md` #11):** dropping the node/instance/player projection
+    turns follower REST reads from *stale* into *empty* (a follower's in-memory `ClusterState` only
+    hydrates at boot + refreshes via the leader-gated scheduler tick). So this slice MUST add the
+    follower-read guard — a non-leader returns `421`/`307` to the leader's REST addr (the HTTP analog of
+    the daemon redirect; `rest/` has no such guard today) — and MUST repoint the plugin-token read-through
+    (`ClusterState.validatePluginToken` → `hydratePluginTokenFromRedis`) to `MongoWorkloadTokenStore` on
+    **followers too** (non-null store), or the post-restart 401 returns.
 - **Slice 3g** ⏳ Rebuild the production `RuntimeServices` on Mongo (wire slices 1+2; select by
   `RuntimeConfig.profile`, not `config.redis()`); delete `RedisRuntimeServices`.
+  - **Note (see `live-run-findings.md` #12):** the Mongo state-write path is not epoch-fenced (a deposed
+    leader can LWW-clobber instance/deployment/intent docs in the failover-overlap window). Tackle AFTER
+    3f/3g settle the write surface — don't fence a surface you're about to restructure. Fix = `ownerEpoch`
+    stamp on every state write + txn-precondition on destructive writes/intents. Orthogonal P0 prerequisite:
+    a real 3-node replica set (the single-member RS gives CAS but no quorum) — fold into the next HA fleet
+    stand-up, not behind the code.
 - **Slice 4** ⏳ Delete `redis/` package, `RedisConfig`/`RedisTracing`/`RedisKeyspaceInspector`,
   `ControllerConfig.redis()`, the Lettuce gradle dependency, the Valkey compose/systemd container,
   and the Redis readiness/diagnostics probes. Suite passes with Valkey **absent**, not disabled.
