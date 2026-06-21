@@ -74,17 +74,32 @@ and `MongoClusterStore`), then a wiring slice swaps the production path and dele
     rejecting the plugin. Finding #11's token read-through is now Mongo-backed. Suite green (810).
     ⚠️ behaviour-changing — the leader rebuilds node/instance state from daemon re-announce + Mongo
     composition-plan recovery (no projection); fleet gate validates it.
-- **Slice 3g** ⏳ Rebuild the production `RuntimeServices` on Mongo (wire slices 1+2; select by
-  `RuntimeConfig.profile`, not `config.redis()`); delete `RedisRuntimeServices`.
+- **Slice 3g** — ✅ DONE (`26070a1`).
+  - ✅ Production `RuntimeServices` is now `MongoRuntimeServices` — wires the Mongo `JwtRevocationStore`,
+    `LoginAttemptStore`, `NodeCertificateRevocationStore` (slices 1+2) on the authoritative Mongo;
+    password-reset tokens too (`MongoPasswordResetTokenStore`). `bootstrap.initRuntimeServices()` always
+    builds it (Mongo is the one mandatory store now — no `config.redis()` branch). The console flood
+    window stays leader-memory (ephemeral, leader-only — no Mongo write per console line).
+  - ✅ The interface dropped the raw lettuce accessors (`redisCommands`/`openPubSubConnection`/`runtimeStore`).
+    Migrated the last `redisCommands()` users so it could: scaling cooldown → leader-memory (only the
+    leader scales; a failover resets the window, corrected next pass); backups are Mongo + filesystem
+    only (`BackupScope` redis prefixes emptied, `null` redis handle); readiness lost its redis dimension;
+    the redis keyspace inspector reports empty. `SystemRoutes`/`BackupRoutes`/`DiagnosticsCollector` no
+    longer take `RuntimeServices`.
+  - ✅ Deleted `RedisRuntimeServices` + `RedisRuntimeStore` (+ `RedisRuntimeStoreTest`). The leftover
+    `Redis*Store` classes, `redis/` pkg and lettuce dep are now unreferenced from the production wiring —
+    slice 4 sweeps them. Suite green (808; −2 = the deleted `RedisRuntimeStoreTest`).
   - **Note (see `live-run-findings.md` #12):** the Mongo state-write path is not epoch-fenced (a deposed
     leader can LWW-clobber instance/deployment/intent docs in the failover-overlap window). Tackle AFTER
     3f/3g settle the write surface — don't fence a surface you're about to restructure. Fix = `ownerEpoch`
     stamp on every state write + txn-precondition on destructive writes/intents. Orthogonal P0 prerequisite:
     a real 3-node replica set (the single-member RS gives CAS but no quorum) — fold into the next HA fleet
     stand-up, not behind the code.
-- **Slice 4** ⏳ Delete `redis/` package, `RedisConfig`/`RedisTracing`/`RedisKeyspaceInspector`,
-  `ControllerConfig.redis()`, the Lettuce gradle dependency, the Valkey compose/systemd container,
-  and the Redis readiness/diagnostics probes. Suite passes with Valkey **absent**, not disabled.
+- **Slice 4** ⏳ Delete `redis/` package, `RedisConfig`/`RedisTracing`/`RedisKeyspaceInspector`, the
+  now-unreferenced `Redis*Store` classes, `ControllerConfig.redis()`, the Lettuce gradle dependency,
+  the Valkey compose/systemd container, and the `/system/redis/*` endpoint shells (3g already neutered
+  the redis readiness/diagnostics probes; the recovery package still carries lettuce-typed backup/restore
+  params to drop here). Suite passes with Valkey **absent**, not disabled.
 - **Slice 5** ⏳ ADR (amend the relevant decisions) + docs.
 
 ## Fleet validation (behaviour-changing slices)
