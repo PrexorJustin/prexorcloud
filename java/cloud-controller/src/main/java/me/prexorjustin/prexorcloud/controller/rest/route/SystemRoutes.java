@@ -13,7 +13,6 @@ import me.prexorjustin.prexorcloud.controller.auth.Permission;
 import me.prexorjustin.prexorcloud.controller.health.ControllerReadinessProbe;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerLogBuffer;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerLogBuffer.LogFilter;
-import me.prexorjustin.prexorcloud.controller.recovery.BackupScope;
 import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.controller.redis.RedisKeyspaceInspector;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ShareLogRequestDto;
@@ -24,8 +23,6 @@ import me.prexorjustin.prexorcloud.controller.rest.dto.SystemDtoMapper;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
 import me.prexorjustin.prexorcloud.controller.rest.sse.LogStreamer;
 import me.prexorjustin.prexorcloud.controller.rest.sse.SseTicketManager;
-import me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices;
-import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 import me.prexorjustin.prexorcloud.controller.share.ShareContext;
 import me.prexorjustin.prexorcloud.controller.share.ShareKind;
 import me.prexorjustin.prexorcloud.controller.share.ShareRequest;
@@ -48,24 +45,17 @@ public final class SystemRoutes {
     private static final String P_SYSTEM_LOGS_STREAM = "/api/v1/system/logs/stream";
 
     private final PrexorController controller;
-    private final RuntimeServices runtime;
     private final SseTicketManager sseTicketManager;
     private final ControllerReadinessProbe readinessProbe;
 
     public SystemRoutes(PrexorController controller) {
-        this(controller, new InMemoryRuntimeServices(), null);
+        this(controller, null);
     }
 
-    public SystemRoutes(PrexorController controller, RuntimeServices runtime) {
-        this(controller, runtime, null);
-    }
-
-    public SystemRoutes(PrexorController controller, RuntimeServices runtime, SseTicketManager sseTicketManager) {
+    public SystemRoutes(PrexorController controller, SseTicketManager sseTicketManager) {
         this.controller = controller;
-        this.runtime = runtime;
         this.sseTicketManager = sseTicketManager;
-        this.readinessProbe = ControllerReadinessProbe.from(
-                controller, () -> controller.stateStore() != null, runtime::coordinationEnabled);
+        this.readinessProbe = ControllerReadinessProbe.from(controller, () -> controller.stateStore() != null);
     }
 
     public void register() {
@@ -208,11 +198,9 @@ public final class SystemRoutes {
             })
     private void getRedisKeyspace(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.SYSTEM_SETTINGS);
-        if (!runtime.coordinationEnabled()) {
-            ctx.json(new RedisKeyspaceInspector.KeyspaceReport(false, 0, java.util.List.of(), "redis disabled"));
-            return;
-        }
-        ctx.json(new RedisKeyspaceInspector(runtime.redisCommands()).inspect(BackupScope.defaultRedisKeyPrefixes()));
+        // The single-writer control plane keeps no Redis keyspace; the endpoint is retained
+        // (always-empty) until the Redis teardown removes it.
+        ctx.json(new RedisKeyspaceInspector.KeyspaceReport(false, 0, java.util.List.of(), "redis removed"));
     }
 
     @OpenApi(
@@ -350,7 +338,7 @@ public final class SystemRoutes {
         JwtAuthMiddleware.requirePermission(ctx, Permission.SHARE_INVOKE);
         ShareRequestDto req = parseShareRequest(ctx);
         var snapshot = new me.prexorjustin.prexorcloud.controller.diagnostics.DiagnosticsCollector(
-                        controller, runtime, readinessProbe)
+                        controller, readinessProbe)
                 .collect();
         String username = ctx.attribute("username");
         var result = controller
@@ -443,8 +431,7 @@ public final class SystemRoutes {
             })
     private void getDiagnostics(Context ctx) {
         JwtAuthMiddleware.requirePermission(ctx, Permission.SYSTEM_SETTINGS);
-        ctx.json(new me.prexorjustin.prexorcloud.controller.diagnostics.DiagnosticsCollector(
-                        controller, runtime, readinessProbe)
+        ctx.json(new me.prexorjustin.prexorcloud.controller.diagnostics.DiagnosticsCollector(controller, readinessProbe)
                 .collect()
                 .sections());
     }

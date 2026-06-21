@@ -6,9 +6,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
-import me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices;
-import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
@@ -27,16 +24,10 @@ public final class ScalingEvaluator {
     private final ClusterState clusterState;
     private final long defaultCooldownSeconds;
     private final Map<String, Instant> lastScaleAction = new ConcurrentHashMap<>();
-    private final RuntimeServices runtime;
 
     public ScalingEvaluator(ClusterState clusterState, long defaultCooldownSeconds) {
-        this(clusterState, defaultCooldownSeconds, new InMemoryRuntimeServices());
-    }
-
-    public ScalingEvaluator(ClusterState clusterState, long defaultCooldownSeconds, RuntimeServices runtime) {
         this.clusterState = clusterState;
         this.defaultCooldownSeconds = defaultCooldownSeconds;
-        this.runtime = java.util.Objects.requireNonNull(runtime, "runtime");
     }
 
     /**
@@ -125,18 +116,10 @@ public final class ScalingEvaluator {
     }
 
     public void recordScaleAction(String group, long cooldownSeconds) {
+        // Leader-memory cooldown: only the leader runs the scheduler, so the local map is
+        // authoritative. A leadership change resets the window — at worst a group scales one
+        // step early on the new leader, which the next evaluation pass corrects.
         lastScaleAction.put(group, Instant.now());
-        if (runtime.coordinationEnabled()) {
-            try {
-                runtime.redisCommands()
-                        .setex(
-                                RedisKeys.cooldown(group),
-                                cooldownSeconds,
-                                Instant.now().toString());
-            } catch (Exception e) {
-                logger.warn("Failed to record distributed cooldown for {}: {}", group, e.getMessage());
-            }
-        }
     }
 
     public void recordScaleAction(String group) {
@@ -144,13 +127,6 @@ public final class ScalingEvaluator {
     }
 
     private boolean isOnCooldown(String group, long cooldownSeconds) {
-        if (runtime.coordinationEnabled()) {
-            try {
-                return runtime.redisCommands().exists(RedisKeys.cooldown(group)) > 0;
-            } catch (Exception e) {
-                logger.warn("Failed to check distributed cooldown for {}: {}", group, e.getMessage());
-            }
-        }
         Instant last = lastScaleAction.get(group);
         if (last == null) return false;
         return Instant.now().isBefore(last.plusSeconds(cooldownSeconds));

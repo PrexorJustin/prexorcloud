@@ -27,30 +27,8 @@ class BackupScopeTest {
         assertTrue(scope.mongoCollections().contains("workflow_start_retries"));
         assertTrue(scope.mongoCollections().contains("instance_composition_plans"));
         assertTrue(scope.mongoCollectionPrefixes().contains("platform_"));
-        assertTrue(
-                scope.redisKeyPrefixes().contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.LEASE_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.LEASE_TOKEN_PREFIX));
-        assertTrue(
-                scope.redisKeyPrefixes().contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.NODE_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.INSTANCE_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.PLAYER_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.PLUGIN_TOKEN_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.PLATFORM_MODULE_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.RATE_LIMIT_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.COOLDOWN_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.WORKLOAD_SEQUENCE_PREFIX));
-        assertTrue(scope.redisKeyPrefixes()
-                .contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.CONSOLE_PREFIX));
-        assertTrue(
-                scope.redisKeyPrefixes().contains(me.prexorjustin.prexorcloud.controller.redis.RedisKeys.SSE_PREFIX));
+        // The single-writer control plane keeps no Redis keyspace, so backups are Mongo + filesystem only.
+        assertTrue(scope.redisKeyPrefixes().isEmpty());
         assertTrue(scope.files().contains(Path.of("config", "security", "ca.p12")));
         assertTrue(scope.directories().contains(Path.of("templates")));
         assertTrue(scope.directories().contains(Path.of("modules")));
@@ -81,7 +59,7 @@ class BackupScopeTest {
     }
 
     @Test
-    void restoreValidatorRequiresMongoArtifactsAndRedisPrefixManifest() throws Exception {
+    void restoreValidatorRequiresMongoArtifacts() throws Exception {
         BackupScope scope = BackupScope.from(new ControllerConfig(
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null));
@@ -100,7 +78,6 @@ class BackupScopeTest {
         assertFalse(missing.valid());
         assertTrue(missing.missingMongoCollections().contains("groups"));
         assertTrue(missing.missingMongoCollectionPrefixes().contains("platform_"));
-        assertTrue(missing.missingRedisPrefixes().contains("prexor:v1:lease:"));
 
         Path mongoRoot = tempDir.resolve(Path.of("mongo", scope.mongoDatabase()));
         Files.createDirectories(mongoRoot);
@@ -110,11 +87,6 @@ class BackupScopeTest {
         Files.writeString(
                 mongoRoot.resolve("prefixes.txt"),
                 scope.mongoCollectionPrefixes().stream().collect(Collectors.joining(System.lineSeparator())));
-        Path redisRoot = tempDir.resolve("redis");
-        Files.createDirectories(redisRoot);
-        Files.writeString(
-                redisRoot.resolve("prefixes.txt"),
-                scope.redisKeyPrefixes().stream().collect(Collectors.joining(System.lineSeparator())));
 
         assertTrue(validator.validate(scope, tempDir).valid());
     }

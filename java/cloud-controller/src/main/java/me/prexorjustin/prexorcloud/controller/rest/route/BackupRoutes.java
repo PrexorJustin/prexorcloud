@@ -25,7 +25,6 @@ import me.prexorjustin.prexorcloud.controller.rest.RestServer;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ErrorResponse;
 import me.prexorjustin.prexorcloud.controller.rest.dto.RestoreRequest;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
-import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 
 import io.javalin.http.Context;
 import io.javalin.openapi.HttpMethod;
@@ -47,12 +46,10 @@ public final class BackupRoutes {
     private static final String P_BACKUP_VERIFY = "/api/v1/backups/{id}/verify";
 
     private final PrexorController controller;
-    private final RuntimeServices runtime;
     private final BackupServices services;
 
-    public BackupRoutes(PrexorController controller, RuntimeServices runtime, BackupServices services) {
+    public BackupRoutes(PrexorController controller, BackupServices services) {
         this.controller = controller;
-        this.runtime = runtime;
         this.services = services;
     }
 
@@ -111,7 +108,7 @@ public final class BackupRoutes {
                 bundle,
                 services.workingDirectory(),
                 services.mongoDatabase(),
-                runtime.coordinationEnabled() ? runtime.redisCommands() : null,
+                null,
                 controller.config().uuid(),
                 VersionInfo.get().version());
         audit(
@@ -287,12 +284,8 @@ public final class BackupRoutes {
                 response.put("filesystem", filesystemReport);
             }
             if (datastores) {
-                DataRestoreReport report = executor.restoreDatastores(
-                        scope,
-                        bundle,
-                        services.mongoDatabase(),
-                        runtime.coordinationEnabled() ? runtime.redisCommands() : null,
-                        mode);
+                DataRestoreReport report =
+                        executor.restoreDatastores(scope, bundle, services.mongoDatabase(), null, mode);
                 response.put(
                         "datastores",
                         Map.of(

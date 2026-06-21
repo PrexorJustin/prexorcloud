@@ -18,10 +18,7 @@ import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.health.ControllerReadinessProbe;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerConfigRedactor;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerLogBuffer;
-import me.prexorjustin.prexorcloud.controller.recovery.BackupScope;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeyspaceInspector;
 import me.prexorjustin.prexorcloud.controller.rest.dto.SystemDtoMapper;
-import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 
 import org.slf4j.Logger;
@@ -49,13 +46,10 @@ public final class DiagnosticsCollector {
     static final int TEMPLATE_WALK_MAX_DEPTH = 8;
 
     private final PrexorController controller;
-    private final RuntimeServices runtime;
     private final ControllerReadinessProbe readinessProbe;
 
-    public DiagnosticsCollector(
-            PrexorController controller, RuntimeServices runtime, ControllerReadinessProbe readinessProbe) {
+    public DiagnosticsCollector(PrexorController controller, ControllerReadinessProbe readinessProbe) {
         this.controller = controller;
-        this.runtime = runtime;
         this.readinessProbe = readinessProbe;
     }
 
@@ -79,9 +73,8 @@ public final class DiagnosticsCollector {
                 controller.config().telemetry().enabled(),
                 controller.config().telemetry().traceUiTemplate());
 
-        Object redisKeyspace = runtime.coordinationEnabled()
-                ? new RedisKeyspaceInspector(runtime.redisCommands()).inspect(BackupScope.defaultRedisKeyPrefixes())
-                : Map.of("enabled", false);
+        // The control plane keeps no Redis keyspace after the single-writer rewrite.
+        Object redisKeyspace = Map.of("enabled", false);
 
         ControllerLogBuffer logs = controller.logBuffer();
         Map<String, Object> logBufferStats = logs == null

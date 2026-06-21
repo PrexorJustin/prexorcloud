@@ -20,26 +20,19 @@ public final class ControllerReadinessProbe {
     }
 
     private final BooleanSupplier mongoReady;
-    private final BooleanSupplier redisReady;
     private final BooleanSupplier schedulerReady;
     private final BooleanSupplier platformModulesReady;
 
     public ControllerReadinessProbe(
-            BooleanSupplier mongoReady,
-            BooleanSupplier redisReady,
-            BooleanSupplier schedulerReady,
-            BooleanSupplier platformModulesReady) {
+            BooleanSupplier mongoReady, BooleanSupplier schedulerReady, BooleanSupplier platformModulesReady) {
         this.mongoReady = mongoReady;
-        this.redisReady = redisReady;
         this.schedulerReady = schedulerReady;
         this.platformModulesReady = platformModulesReady;
     }
 
-    public static ControllerReadinessProbe from(
-            PrexorController controller, BooleanSupplier mongoReady, BooleanSupplier redisReady) {
+    public static ControllerReadinessProbe from(PrexorController controller, BooleanSupplier mongoReady) {
         return new ControllerReadinessProbe(
                 mongoReady,
-                redisReady,
                 controller::hasScheduler,
                 () -> controller.moduleRegistry() != null
                         && controller.moduleRegistry().platformManager() != null);
@@ -48,7 +41,6 @@ public final class ControllerReadinessProbe {
     public Snapshot snapshot() {
         Map<String, Boolean> checks = new LinkedHashMap<>();
         checks.put("mongo", mongoReady.getAsBoolean());
-        checks.put("redis", redisReady.getAsBoolean());
         checks.put("scheduler", schedulerReady.getAsBoolean());
         checks.put("platformModules", platformModulesReady.getAsBoolean());
         boolean ready = checks.values().stream().allMatch(Boolean::booleanValue);

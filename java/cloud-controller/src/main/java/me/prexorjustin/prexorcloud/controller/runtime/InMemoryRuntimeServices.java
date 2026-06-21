@@ -7,20 +7,15 @@ import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
 import me.prexorjustin.prexorcloud.controller.security.InMemoryNodeCertificateRevocationStore;
 import me.prexorjustin.prexorcloud.controller.security.NodeCertificateRevocationStore;
-import me.prexorjustin.prexorcloud.controller.state.RedisRuntimeStore;
-
-import io.lettuce.core.api.sync.RedisCommands;
-import io.lettuce.core.pubsub.StatefulRedisPubSubConnection;
 
 /**
  * Development {@link RuntimeServices}. {@link #coordinationEnabled()} is
- * {@code false}; coordination-only accessors return {@code null} and
- * always-on accessors return in-memory no-op equivalents.
+ * {@code false}; every accessor returns an in-memory equivalent.
  *
  * <p>Out of scope in this mode (documented in {@code architecture.md}):
- * cross-controller leases, JWT revocation across controllers, persisted
- * runtime snapshots, SSE replay across restart, distributed rate limiting.
- * Single-controller restart-only workflows continue to function.
+ * cross-controller JWT revocation, login lockouts visible to peer controllers,
+ * password-reset tokens that work on any controller. Single-controller
+ * restart-only workflows continue to function.
  */
 public final class InMemoryRuntimeServices implements RuntimeServices {
 
@@ -39,21 +34,6 @@ public final class InMemoryRuntimeServices implements RuntimeServices {
     @Override
     public boolean coordinationEnabled() {
         return false;
-    }
-
-    @Override
-    public RedisCommands<String, String> redisCommands() {
-        return null;
-    }
-
-    @Override
-    public StatefulRedisPubSubConnection<String, String> openPubSubConnection() {
-        return null;
-    }
-
-    @Override
-    public RedisRuntimeStore runtimeStore() {
-        return null;
     }
 
     @Override

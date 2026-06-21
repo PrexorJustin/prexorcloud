@@ -76,11 +76,7 @@ public final class RestServer {
     }
 
     public RestServer(PrexorController controller, RuntimeServices runtime) {
-        this(
-                controller,
-                runtime,
-                ControllerReadinessProbe.from(
-                        controller, () -> controller.stateStore() != null, runtime::coordinationEnabled));
+        this(controller, runtime, ControllerReadinessProbe.from(controller, () -> controller.stateStore() != null));
     }
 
     public RestServer(PrexorController controller, RuntimeServices runtime, ControllerReadinessProbe readinessProbe) {
@@ -306,7 +302,7 @@ public final class RestServer {
                 new UserRoutes(controller).register();
                 new RoleRoutes(controller).register();
                 new AuditRoutes(controller).register();
-                new SystemRoutes(controller, runtime, sseTicketManager).register();
+                new SystemRoutes(controller, sseTicketManager).register();
                 new DaemonLogRoutes(controller, sseTicketManager).register();
                 new MaintenanceRoutes(controller).register();
                 new ModuleRoutes(controller).register();
@@ -317,7 +313,7 @@ public final class RestServer {
                 new ProxyRoutes(controller, sseTicketManager).register();
                 new PluginRoutes(controller, sseTicketManager).register();
                 if (backupServices != null) {
-                    new BackupRoutes(controller, runtime, backupServices).register();
+                    new BackupRoutes(controller, backupServices).register();
                 }
             });
 

@@ -10,7 +10,7 @@ class ControllerReadinessProbeTest {
 
     @Test
     void reportsReadyWhenAllCriticalSubsystemsAreInitialized() {
-        var probe = new ControllerReadinessProbe(() -> true, () -> true, () -> true, () -> true);
+        var probe = new ControllerReadinessProbe(() -> true, () -> true, () -> true);
 
         var snapshot = probe.snapshot();
 
@@ -18,26 +18,25 @@ class ControllerReadinessProbeTest {
         assertEquals("READY", snapshot.status());
         assertEquals(200, snapshot.httpStatus());
         assertEquals(true, snapshot.checks().get("mongo"));
-        assertEquals(true, snapshot.checks().get("redis"));
         assertEquals(true, snapshot.checks().get("scheduler"));
         assertEquals(true, snapshot.checks().get("platformModules"));
     }
 
     @Test
-    void reportsNotReadyWhenAnyCriticalSubsystemIsMissing() {
-        var probe = new ControllerReadinessProbe(() -> true, () -> false, () -> true, () -> true);
+    void reportsNotReadyWhenMongoIsMissing() {
+        var probe = new ControllerReadinessProbe(() -> false, () -> true, () -> true);
 
         var snapshot = probe.snapshot();
 
         assertFalse(snapshot.ready());
         assertEquals("NOT_READY", snapshot.status());
         assertEquals(503, snapshot.httpStatus());
-        assertEquals(false, snapshot.checks().get("redis"));
+        assertEquals(false, snapshot.checks().get("mongo"));
     }
 
     @Test
     void reportsNotReadyWhenSchedulerIsMissing() {
-        var probe = new ControllerReadinessProbe(() -> true, () -> true, () -> false, () -> true);
+        var probe = new ControllerReadinessProbe(() -> true, () -> false, () -> true);
 
         var snapshot = probe.snapshot();
 

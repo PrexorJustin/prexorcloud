@@ -17,12 +17,11 @@ import me.prexorjustin.prexorcloud.controller.auth.AuthManager;
 import me.prexorjustin.prexorcloud.controller.auth.MongoRoleStore;
 import me.prexorjustin.prexorcloud.controller.auth.MongoUserStore;
 import me.prexorjustin.prexorcloud.controller.auth.Role;
-import me.prexorjustin.prexorcloud.controller.auth.passwordreset.InMemoryPasswordResetTokenStore;
 import me.prexorjustin.prexorcloud.controller.auth.passwordreset.LogMailer;
 import me.prexorjustin.prexorcloud.controller.auth.passwordreset.Mailer;
+import me.prexorjustin.prexorcloud.controller.auth.passwordreset.MongoPasswordResetTokenStore;
 import me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetManager;
 import me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetTokenStore;
-import me.prexorjustin.prexorcloud.controller.auth.passwordreset.RedisPasswordResetTokenStore;
 import me.prexorjustin.prexorcloud.controller.auth.passwordreset.SmtpMailer;
 import me.prexorjustin.prexorcloud.controller.catalog.CatalogConfigLoader;
 import me.prexorjustin.prexorcloud.controller.catalog.MongoCatalogStore;
@@ -48,10 +47,8 @@ import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleStor
 import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleStore;
 import me.prexorjustin.prexorcloud.controller.network.MongoNetworkStore;
 import me.prexorjustin.prexorcloud.controller.network.NetworkManager;
-import me.prexorjustin.prexorcloud.controller.redis.RedisConnection;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
-import me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices;
-import me.prexorjustin.prexorcloud.controller.runtime.RedisRuntimeServices;
+import me.prexorjustin.prexorcloud.controller.runtime.MongoRuntimeServices;
 import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 import me.prexorjustin.prexorcloud.controller.scheduler.InstancePlacementCoordinator;
 import me.prexorjustin.prexorcloud.controller.scheduler.NodeMessageDispatcher;
@@ -219,11 +216,11 @@ public final class PrexorCloudBootstrap {
                 java.time.Clock.systemUTC(),
                 controller.stateStore(),
                 controller.metricsCollector()));
-        initPasswordReset(controller, runtime);
+        initPasswordReset(controller);
         bootPlatformModules(controller, modules);
 
-        if (controller.metricsCollector() != null && runtime instanceof RedisRuntimeServices redisRuntime) {
-            redisRuntime.attachMetricsCollector(controller.metricsCollector());
+        if (controller.metricsCollector() != null && runtime instanceof MongoRuntimeServices mongoRuntime) {
+            mongoRuntime.attachMetricsCollector(controller.metricsCollector());
         }
 
         wireGroupAndNetworkStores(templates, network);
@@ -263,11 +260,6 @@ public final class PrexorCloudBootstrap {
             shutdownManager.shutdown();
         }
     }
-
-    private static final ObjectMapper REDIS_MAPPER = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     /**
      * Pick the cluster control-plane entry branch:
@@ -338,22 +330,9 @@ public final class PrexorCloudBootstrap {
     }
 
     private RuntimeServices initRuntimeServices() {
-        if (config.redis() == null) {
-            // Production-profile installs are rejected by ConfigValidator before reaching here,
-            // so this branch only fires in development. Make the divergence loud — silent
-            // in-process fallbacks are exactly the kind of dev/prod skew that ships bugs.
-            logger.warn("Running without Redis — coordination features (distributed rate-limit, SSE tickets,"
-                    + " scheduler locks, event bridge) use in-process fallbacks. This is fine for"
-                    + " single-controller development; set 'redis.uri' in controller.yml before"
-                    + " running multiple controllers or load-testing against production behaviour.");
-            return new InMemoryRuntimeServices();
-        }
-        // Instrument Redis only when telemetry is on; Lettuce is built without the adapter otherwise
-        // and behaves exactly as before (Track D.1).
-        io.lettuce.core.tracing.Tracing redisTracing = telemetry != null && telemetry.isEnabled()
-                ? new me.prexorjustin.prexorcloud.controller.observability.telemetry.RedisTracing(telemetry.tracer())
-                : null;
-        return new RedisRuntimeServices(new RedisConnection(config.redis().uri(), redisTracing), REDIS_MAPPER);
+        // Single-writer control plane: MongoDB is the one authoritative store, so every durable
+        // coordination service is Mongo-backed and shares the handle opened in initStorage().
+        return new MongoRuntimeServices(mongoDatabase);
     }
 
     private PrexorController.CoreServices initCore(
@@ -641,21 +620,15 @@ public final class PrexorCloudBootstrap {
      * moving parts. Mailer falls back to {@link LogMailer} until SMTP host is
      * configured; the token store is Redis-backed when coordination is on.
      */
-    private void initPasswordReset(PrexorController controller, RuntimeServices runtime) {
+    private void initPasswordReset(PrexorController controller) {
         var prConfig = controller.config().security().passwordReset();
         if (!prConfig.enabled()) {
             logger.info("Password reset disabled — security.passwordReset.enabled=false");
             return;
         }
-        var json = new com.fasterxml.jackson.databind.ObjectMapper();
-        PasswordResetTokenStore tokenStore;
-        if (runtime.coordinationEnabled()) {
-            tokenStore = new RedisPasswordResetTokenStore(runtime.redisCommands(), json);
-        } else {
-            logger.warn("Password-reset tokens are stored in-memory because the coordination store is disabled — a "
-                    + "reset link will only work on the controller that issued it. Configure Redis/Valkey for HA.");
-            tokenStore = new InMemoryPasswordResetTokenStore();
-        }
+        // Mongo-backed and single-use: an in-flight reset survives a restart or leadership
+        // change and a reset link works on whichever controller the user reaches.
+        PasswordResetTokenStore tokenStore = new MongoPasswordResetTokenStore(mongoDatabase);
 
         Mailer mailer;
         var smtp = prConfig.smtp();
@@ -1445,7 +1418,7 @@ public final class PrexorCloudBootstrap {
                 + config.http().port();
         var nodeSelector = new WeightedNodeSelector();
         var scalingEvaluator = new ScalingEvaluator(
-                controller.clusterState(), config.scheduler().scalingCooldownSeconds(), runtime);
+                controller.clusterState(), config.scheduler().scalingCooldownSeconds());
         nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager());
         if (controller.metricsCollector() != null) {
             nodeMessageDispatcher.attachMetricsCollector(controller.metricsCollector());
@@ -1534,7 +1507,7 @@ public final class PrexorCloudBootstrap {
     }
 
     private ControllerReadinessProbe createReadinessProbe(PrexorController controller) {
-        return ControllerReadinessProbe.from(controller, this::isMongoReady, this::isRedisReady);
+        return ControllerReadinessProbe.from(controller, this::isMongoReady);
     }
 
     private boolean isMongoReady() {
@@ -1544,17 +1517,6 @@ public final class PrexorCloudBootstrap {
         try {
             mongoDatabase.runCommand(new Document("ping", 1));
             return true;
-        } catch (Exception _) {
-            return false;
-        }
-    }
-
-    private boolean isRedisReady() {
-        if (!runtime.coordinationEnabled()) {
-            return false;
-        }
-        try {
-            return "PONG".equalsIgnoreCase(runtime.redisCommands().ping());
         } catch (Exception _) {
             return false;
         }

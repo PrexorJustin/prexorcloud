@@ -27,24 +27,24 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 /**
- * Phase 30 acceptance test. The production wiring graph must not carry any
- * {@code Optional<*Redis*>}-typed dependencies after construction — every
- * Redis-shaped reference is sourced from {@link RuntimeServices} and is
- * non-null in production.
+ * Wiring invariant for the single-writer control plane. After the Redis/Valkey
+ * removal the controller has exactly one datastore, so the production wiring
+ * graph must not carry any Redis-shaped ({@code io.lettuce.*} or {@code *Redis*})
+ * dependency. Every coordination service is sourced from {@link RuntimeServices}
+ * and is non-null in production.
  */
 @DisplayName("RuntimeServices wiring")
 class RuntimeServicesWiringTest {
 
     @Test
-    @DisplayName("RedisRuntimeServices accessors are all non-null when coordination is enabled")
-    void redisRuntimeServicesAccessorsAreNonNull() {
+    @DisplayName("production RuntimeServices accessors are all non-null when coordination is enabled")
+    void productionRuntimeServicesAccessorsAreNonNull() {
         RuntimeServices runtime = mockProductionRuntime();
         assertTrue(runtime.coordinationEnabled());
-        assertNotNull(runtime.redisCommands());
-        assertNotNull(runtime.runtimeStore());
         assertNotNull(runtime.jwtRevocationStore());
         assertNotNull(runtime.loginAttemptStore());
         assertNotNull(runtime.consoleFloodWindow());
+        assertNotNull(runtime.nodeCertRevocationStore());
     }
 
     @Test
@@ -56,6 +56,7 @@ class RuntimeServicesWiringTest {
         assertNotNull(runtime.jwtRevocationStore());
         assertNotNull(runtime.loginAttemptStore());
         assertNotNull(runtime.consoleFloodWindow());
+        assertNotNull(runtime.nodeCertRevocationStore());
         runtime.close();
     }
 
@@ -66,8 +67,6 @@ class RuntimeServicesWiringTest {
         @Test
         @DisplayName("contains zero Optional<*Redis*>-typed fields under construction")
         void productionWiringHasNoOptionalRedisFields() {
-            // Every component that previously branched on `redis != null`
-            // accepts a RuntimeServices reference now.
             RuntimeServices runtime = mockProductionRuntime();
 
             List<Object> graph = buildProductionGraph(runtime);
@@ -77,21 +76,19 @@ class RuntimeServicesWiringTest {
         }
 
         @Test
-        @DisplayName("contains zero raw nullable RedisCommands fields after construction")
-        void productionWiringHasNoNullRawRedisFields() {
+        @DisplayName("contains zero raw Redis-typed (io.lettuce) fields after construction")
+        void productionWiringHasNoRawRedisFields() {
             RuntimeServices runtime = mockProductionRuntime();
 
             List<Object> graph = buildProductionGraph(runtime);
 
-            List<String> nullRedisFields = new ArrayList<>();
+            List<String> redisFields = new ArrayList<>();
             walk(graph, (owner, field, value) -> {
-                if (typeNameContainsRedis(field.getGenericType()) && value == null) {
-                    nullRedisFields.add(owner.getClass().getSimpleName() + "#" + field.getName());
+                if (typeNameContainsRedis(field.getGenericType())) {
+                    redisFields.add(owner.getClass().getSimpleName() + "#" + field.getName());
                 }
             });
-            assertTrue(
-                    nullRedisFields.isEmpty(),
-                    "Production wiring still has nullable Redis-typed fields: " + nullRedisFields);
+            assertTrue(redisFields.isEmpty(), "Production wiring still has Redis-typed fields: " + redisFields);
         }
 
         private static List<Object> buildProductionGraph(RuntimeServices runtime) {
@@ -100,7 +97,7 @@ class RuntimeServicesWiringTest {
             graph.add(runtime);
             graph.add(clusterState);
             graph.add(new RateLimitMiddleware(new RateLimitingConfig(60, 600)));
-            graph.add(new ScalingEvaluator(clusterState, 30L, runtime));
+            graph.add(new ScalingEvaluator(clusterState, 30L));
             graph.add(new PlatformModuleStorageManager(null, null, runtime, new ObjectMapper()));
             return graph;
         }
@@ -108,14 +105,8 @@ class RuntimeServicesWiringTest {
 
     private static RuntimeServices mockProductionRuntime() {
         RuntimeServices runtime = Mockito.mock(RuntimeServices.class);
-        @SuppressWarnings("unchecked")
-        io.lettuce.core.api.sync.RedisCommands<String, String> redis =
-                Mockito.mock(io.lettuce.core.api.sync.RedisCommands.class);
         Mockito.when(runtime.profile()).thenReturn("production");
         Mockito.when(runtime.coordinationEnabled()).thenReturn(true);
-        Mockito.when(runtime.redisCommands()).thenReturn(redis);
-        Mockito.when(runtime.runtimeStore())
-                .thenReturn(Mockito.mock(me.prexorjustin.prexorcloud.controller.state.RedisRuntimeStore.class));
         Mockito.when(runtime.jwtRevocationStore())
                 .thenReturn(Mockito.mock(me.prexorjustin.prexorcloud.controller.auth.JwtRevocationStore.class));
         Mockito.when(runtime.loginAttemptStore())
@@ -123,6 +114,9 @@ class RuntimeServicesWiringTest {
         Mockito.when(runtime.consoleFloodWindow())
                 .thenReturn(Mockito.mock(
                         me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer.FloodWindowStore.class));
+        Mockito.when(runtime.nodeCertRevocationStore())
+                .thenReturn(Mockito.mock(
+                        me.prexorjustin.prexorcloud.controller.security.NodeCertificateRevocationStore.class));
         return runtime;
     }
 

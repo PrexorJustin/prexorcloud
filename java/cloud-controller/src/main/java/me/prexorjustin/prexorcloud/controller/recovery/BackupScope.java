@@ -4,7 +4,6 @@ import java.nio.file.Path;
 import java.util.List;
 
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 
 /**
  * Canonical controller backup scope used by recovery tooling.
@@ -37,7 +36,9 @@ public record BackupScope(
 
     private static final List<String> MONGO_COLLECTION_PREFIXES = List.of("platform_");
 
-    private static final List<String> REDIS_KEY_PREFIXES = RedisKeys.backupPrefixes();
+    // The single-writer control plane keeps no Redis keyspace, so backups are Mongo + filesystem
+    // only. The field and accessor remain (empty) until the Redis teardown removes them wholesale.
+    private static final List<String> REDIS_KEY_PREFIXES = List.of();
 
     private static final List<Path> SECURITY_FILES = List.of(
             Path.of("config", "controller.yml"),
