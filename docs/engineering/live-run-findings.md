@@ -547,3 +547,33 @@ quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #1
     Apply to terminal transitions, port release, deployment commit, and the intent docs Tier 1 can't safely converge.
   - Orthogonal to the 3-node-RS prerequisite: quorum stops two lease grants; it does **not** stop a deposed leader
     writing LWW to the one true primary it still has a valid connection to.
+
+---
+
+## Rewrite branch (`rewrite/single-writer-control-plane`) — 2026-06-21 B-track failover gate
+
+### Plugin token 401-loop during the new-leader *adopt gap* on failover — **OPEN (residual after the seed-list fix)**
+- **Found:** failover gate (kill the leader under a running Paper instance) on `rewrite/single-writer-control-plane`,
+  with the new leader-following plugin + `CLOUD_CONTROLLER_SEEDS` injection live.
+- **Symptom:** for ~10 s after a leader change the in-server plugin's controller calls (`/api/plugin/ready`,
+  `/api/plugin/metrics`, token refresh, the SSE state-stream ticket) get **HTTP 401** from the *new* leader, then
+  recover cleanly (0×401 thereafter). The game server keeps running; only the plugin↔controller sync degrades.
+- **Root cause (live-traced):** recovery lands in the *same second* as
+  `DaemonConnectionLifecycle - reconcileInstances: adopting running instance lobby-1` (17:03:14), 9 s after
+  `MongoLeaderElector - Acquired leadership epoch=7` (17:03:05). So plugin-token validation on the new leader is gated
+  on the instance being present in its **live (daemon-reported) ClusterState**, not on the **Mongo `plugin_tokens`**
+  doc where the token is already persisted (the steady-state 401-fix). Until the daemon re-asserts the instance
+  (≈ convergence-observation / adopt time) the token is unknown to the new leader.
+- **Not** the bf8d2e7 bug (bearer stripped on a cross-host 307): that is fixed — with the seed list (committed
+  `99006cb`) + the leader-following client, the plugin *reaches* the new leader and recovers on its own instead of
+  stranding on the dead one. This residual only **delays full recovery by one adopt cycle**.
+- **Fix options (user's call — security tradeoff):**
+  - *(a) read-through:* validate a plugin token against the Mongo `plugin_tokens` doc even before the instance is
+    adopted (token is already durable there). Closes the window; accepts a token for an instance the new leader hasn't
+    yet seen reported (spoofing surface if a token leaks).
+  - *(b) prime on takeover:* bulk-load `plugin_tokens` into the new leader's validation cache at leadership
+    acquisition, so adoption isn't a prerequisite for auth.
+  - *(c) accept it:* ~10 s of self-healing plugin-sync degradation per failover, no player impact — document & move on.
+- **Repro:** running Paper instance (new plugin) → `docker stop`/kill the leader → watch the instance `latest.log`
+  for the `BaseControllerClient … HTTP 401` burst that ends exactly at the daemon's `Connected to controller` + the
+  leader's `adopting running instance` line.
