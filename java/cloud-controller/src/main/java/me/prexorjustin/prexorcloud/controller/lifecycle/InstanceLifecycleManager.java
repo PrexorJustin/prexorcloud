@@ -9,10 +9,10 @@ import java.util.concurrent.TimeUnit;
 import me.prexorjustin.prexorcloud.api.domain.InstanceState;
 import me.prexorjustin.prexorcloud.api.event.events.InstanceStateChangedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeDisconnectedEvent;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
@@ -45,6 +45,9 @@ public final class InstanceLifecycleManager {
     private final ScheduledExecutorService cleanupExecutor;
     private final HealingReconciler healingReconciler;
     private volatile ScheduledFuture<?> healingReconcileTask;
+    // Single-writer authority: only the leader mutates instance lifecycle / drives healing.
+    // Defaults to always-leader so single-controller installs and tests behave unchanged.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
 
     public InstanceLifecycleManager(
             ClusterState clusterState,
@@ -99,6 +102,9 @@ public final class InstanceLifecycleManager {
     }
 
     private void onInstanceStateChanged(InstanceStateChangedEvent event) {
+        if (!leadership.isLeader()) {
+            return;
+        }
         if (event.newState() == InstanceState.STOPPED) {
             handleTerminalState(event.instanceId(), event.nodeId(), STOPPED_CLEANUP_DELAY_SECONDS);
             healingReconciler.clearHealingIntent(event.instanceId());
@@ -114,6 +120,9 @@ public final class InstanceLifecycleManager {
     }
 
     private void onNodeDisconnected(NodeDisconnectedEvent event) {
+        if (!leadership.isLeader()) {
+            return;
+        }
         var orphaned = clusterState.getInstancesByNode(event.nodeId());
         for (InstanceInfo instance : orphaned) {
             if (instance.state() != me.prexorjustin.prexorcloud.protocol.InstanceState.STOPPED
@@ -190,14 +199,17 @@ public final class InstanceLifecycleManager {
         scheduleRemoval(instanceId, cleanupDelaySeconds);
     }
 
-    public void attachHealingWorkflow(WorkflowStateStore workflowStateStore, Scheduler scheduler) {
-        attachHealingWorkflow(workflowStateStore, scheduler, null);
+    /** Inject single-writer leadership (bootstrap). Tests run as always-leader. */
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
     }
 
-    public void attachHealingWorkflow(
-            WorkflowStateStore workflowStateStore, Scheduler scheduler, DistributedLeaseManager leaseManager) {
-        healingReconciler.attachWorkflow(workflowStateStore, scheduler::scheduleReplacement, leaseManager);
-        if (leaseManager != null && healingReconcileTask == null) {
+    public void attachHealingWorkflow(WorkflowStateStore workflowStateStore, Scheduler scheduler) {
+        healingReconciler.attachWorkflow(workflowStateStore, scheduler::scheduleReplacement);
+        if (healingReconcileTask == null) {
+            // Runs on every controller but no-ops unless we're the leader (see the guard in
+            // reconcilePersistedHealingActionsSafely) so a fresh leader recovers persisted
+            // healing intents the previous leader did not finish.
             healingReconcileTask = cleanupExecutor.scheduleWithFixedDelay(
                     this::reconcilePersistedHealingActionsSafely,
                     HEALING_RECONCILE_INTERVAL_SECONDS,
@@ -219,6 +231,9 @@ public final class InstanceLifecycleManager {
     }
 
     private void reconcilePersistedHealingActionsSafely() {
+        if (!leadership.isLeader()) {
+            return;
+        }
         try {
             reconcilePersistedHealingActions();
         } catch (Exception e) {

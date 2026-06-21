@@ -240,8 +240,10 @@ public final class PrexorCloudBootstrap {
         var scheduler = initScheduler(controller, modules);
         controller.setScheduler(scheduler);
         initLifecycle(controller);
-        var healingLeaseManager = runtime.newLeaseManager(config.scheduler().evaluationIntervalSeconds() * 2);
-        lifecycleManager.attachHealingWorkflow(controller.workflowStateStore(), scheduler, healingLeaseManager);
+        if (leaderElector != null) {
+            lifecycleManager.setLeadership(leaderElector);
+        }
+        lifecycleManager.attachHealingWorkflow(controller.workflowStateStore(), scheduler);
         initGrpc(controller, security.caPassword());
         initRestServer(controller);
         initClusterConfigReload(controller);
