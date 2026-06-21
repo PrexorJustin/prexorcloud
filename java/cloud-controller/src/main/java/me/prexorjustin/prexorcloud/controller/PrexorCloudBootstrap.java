@@ -192,7 +192,8 @@ public final class PrexorCloudBootstrap {
         // so the Redis client can be instrumented at connection time. No-op unless telemetry.enabled.
         telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         runtime = initRuntimeServices();
-        var core = initCore(runtime.runtimeStore(), store);
+        var core = initCore(
+                new me.prexorjustin.prexorcloud.controller.state.MongoWorkloadTokenStore(mongoDatabase), store);
         var security = initSecurity();
         var auth = initAuth(security, store, runtime);
         var templates = initTemplates(core, store);
@@ -356,10 +357,10 @@ public final class PrexorCloudBootstrap {
     }
 
     private PrexorController.CoreServices initCore(
-            me.prexorjustin.prexorcloud.controller.state.RedisRuntimeStore runtimeStore, StateStore stateStore) {
+            me.prexorjustin.prexorcloud.controller.state.WorkloadTokenStore tokenStore, StateStore stateStore) {
         var eventBus = new EventBus();
-        var clusterState = new ClusterState(eventBus, runtimeStore);
-        if (runtimeStore != null) clusterState.hydrate(runtimeStore);
+        var clusterState = new ClusterState(eventBus, tokenStore);
+        if (tokenStore != null) clusterState.hydrate(tokenStore);
         var workflowStateStore = new WorkflowStateStore(stateStore);
         var sessionManager = new NodeSessionManager();
         var consoleBuffer = new ConsoleBuffer(runtime.consoleFloodWindow());

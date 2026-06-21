@@ -95,8 +95,7 @@ class RuntimeServicesWiringTest {
         }
 
         private static List<Object> buildProductionGraph(RuntimeServices runtime) {
-            ClusterState clusterState = new ClusterState(
-                    new me.prexorjustin.prexorcloud.controller.event.EventBus(), runtime.runtimeStore());
+            ClusterState clusterState = new ClusterState(new me.prexorjustin.prexorcloud.controller.event.EventBus());
             List<Object> graph = new ArrayList<>();
             graph.add(runtime);
             graph.add(clusterState);

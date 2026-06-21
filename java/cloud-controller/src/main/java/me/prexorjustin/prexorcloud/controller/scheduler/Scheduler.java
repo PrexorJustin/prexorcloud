@@ -262,10 +262,6 @@ public final class Scheduler implements LeaseGate {
                 if (eventChoreographer != null) {
                     eventChoreographer.refresh(Instant.now());
                 }
-                // Converge our instance view from the shared Redis projection BEFORE planning,
-                // so a controller that does not own a node's daemon connection still sees that
-                // node's instances and never re-places a duplicate on a port it cannot see in use.
-                clusterState.reconcileInstancesFromRedis();
                 reconcileRecoverableStarts();
                 reconcilePersistedStartRetries();
                 reconcilePersistedDeployments();

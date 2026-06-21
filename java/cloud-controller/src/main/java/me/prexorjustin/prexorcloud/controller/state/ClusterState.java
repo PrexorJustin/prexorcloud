@@ -38,31 +38,28 @@ public final class ClusterState {
     private final PlayerSessionRegistry playerSessionRegistry = new PlayerSessionRegistry();
     private final WorkloadIdentityRegistry workloadIdentityRegistry;
     private final EventBus eventBus;
-    private final RedisRuntimeStore runtimeStore;
+    // Durable plugin-token store (Mongo), nullable in dev/tests. Node/instance/player runtime state
+    // is NOT projected to a shared store: the single-writer leader owns every daemon stream and
+    // rebuilds that state in-memory from daemon re-announce, so only the tokens need durability
+    // (the 401 fix — a cold leader reads a still-valid token back rather than rejecting the plugin).
+    private final WorkloadTokenStore tokenStore;
     /** Last published (runningInstances, totalPlayers) per group, for emit-on-change deduplication. */
     private final ConcurrentHashMap<String, long[]> lastGroupAggregates = new ConcurrentHashMap<>();
 
-    public ClusterState(EventBus eventBus, RedisRuntimeStore runtimeStore) {
+    public ClusterState(EventBus eventBus, WorkloadTokenStore tokenStore) {
         this.eventBus = eventBus;
-        this.runtimeStore = runtimeStore;
+        this.tokenStore = tokenStore;
         this.workloadIdentityRegistry =
-                runtimeStore == null ? new WorkloadIdentityRegistry() : new WorkloadIdentityRegistry(runtimeStore);
+                tokenStore == null ? new WorkloadIdentityRegistry() : new WorkloadIdentityRegistry(tokenStore);
     }
 
     public ClusterState(EventBus eventBus) {
         this(eventBus, null);
     }
 
-    /**
-     * Hydrates in-memory registries from a Redis snapshot taken at startup. Called
-     * once after construction when Redis is available.
-     */
-    public void hydrate(RedisRuntimeStore store) {
-        var snapshot = store.loadAll();
-        nodeRegistry.hydrate(snapshot.nodes());
-        instanceRegistry.hydrate(snapshot.instances());
-        playerSessionRegistry.hydrate(snapshot.players());
-        workloadIdentityRegistry.hydrate(snapshot.pluginTokens());
+    /** Warm the in-memory plugin-token cache from durable storage on leadership takeover. */
+    public void hydrate(WorkloadTokenStore store) {
+        workloadIdentityRegistry.hydrate(store.loadAllTokens());
     }
 
     // --- Nodes ---
@@ -75,14 +72,12 @@ public final class ClusterState {
             Instant connectedSince,
             NodeHostInfo hostInfo) {
         var node = nodeRegistry.add(nodeId, address, totalMemoryMb, labels, connectedSince, hostInfo);
-        if (runtimeStore != null) runtimeStore.saveNode(nodeId, node);
         logger.debug("Node added: {} (address={}, labels={})", nodeId, address, labels);
         eventBus.publish(new NodeConnectedEvent(nodeId, nodeId, connectedSince));
     }
 
     public void removeNode(String nodeId, String reason) {
         nodeRegistry.remove(nodeId);
-        if (runtimeStore != null) runtimeStore.removeNode(nodeId);
         logger.debug("Node removed: {} ({})", nodeId, reason);
         eventBus.publish(new NodeDisconnectedEvent(nodeId, reason, Instant.now()));
     }
@@ -99,7 +94,6 @@ public final class ClusterState {
         var updated = nodeRegistry.updateStatus(
                 nodeId, cpuUsage, totalMemoryMb, usedMemoryMb, freeDiskMb, totalDiskMb, instanceCount, usedPorts);
         if (updated != null) {
-            if (runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
             eventBus.publish(
                     new NodeStatusUpdatedEvent(nodeId, cpuUsage, usedMemoryMb, totalMemoryMb, updated.lastHeartbeat()));
         }
@@ -115,7 +109,6 @@ public final class ClusterState {
             String nodeId, long memoryMb, int portRangeStart, int portRangeEnd) {
         var reservation = nodeRegistry.reservePlacement(nodeId, memoryMb, portRangeStart, portRangeEnd);
         reservation.ifPresent(r -> {
-            if (runtimeStore != null) runtimeStore.saveNode(nodeId, r.node());
             eventBus.publish(new NodeStatusUpdatedEvent(
                     nodeId,
                     r.node().cpuUsage(),
@@ -130,7 +123,6 @@ public final class ClusterState {
     public void releasePlacement(String nodeId, long memoryMb, int port) {
         var updated = nodeRegistry.releasePlacement(nodeId, memoryMb, port);
         if (updated != null) {
-            if (runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
             eventBus.publish(new NodeStatusUpdatedEvent(
                     nodeId,
                     updated.cpuUsage(),
@@ -172,7 +164,6 @@ public final class ClusterState {
                 onNode.size(),
                 hasPreRunning);
         if (updated != null) {
-            if (runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
             eventBus.publish(new NodeStatusUpdatedEvent(
                     nodeId,
                     updated.cpuUsage(),
@@ -183,8 +174,7 @@ public final class ClusterState {
     }
 
     public void setNodeStatus(String nodeId, NodeState.NodeStatus status) {
-        var updated = nodeRegistry.setStatus(nodeId, status);
-        if (updated != null && runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
+        nodeRegistry.setStatus(nodeId, status);
     }
 
     public void recordHeartbeat(String nodeId) {
@@ -203,7 +193,6 @@ public final class ClusterState {
 
     public void addInstance(InstanceInfo instance) {
         instanceRegistry.add(instance);
-        if (runtimeStore != null) runtimeStore.saveInstance(instance.id(), instance);
         logger.debug("Instance added: {} (group={})", instance.id(), instance.group());
         eventBus.publish(new InstanceStateChangedEvent(
                 instance.id(),
@@ -212,98 +201,6 @@ public final class ClusterState {
                 toModuleState(InstanceState.INSTANCE_STATE_UNSPECIFIED),
                 toModuleState(instance.state())));
         publishGroupAggregatesIfChanged(instance.group());
-    }
-
-    /** Per-instance count of consecutive reconciles in which the instance was absent from Redis. */
-    private final ConcurrentHashMap<String, Integer> redisAbsenceStreak = new ConcurrentHashMap<>();
-
-    /** Prune a local instance mirror only after it has been gone from Redis this many ticks. */
-    private static final int PRUNE_AFTER_ABSENT_TICKS = 2;
-
-    /**
-     * Converge this controller's in-memory instance view toward the shared Redis projection,
-     * which the node-owning controller keeps current via write-through. Fixes cross-controller
-     * divergence: a daemon's instance-status updates only reach the node-owning controller's
-     * {@link ClusterState}, so a peer that wins a group lease/leadership would otherwise be
-     * blind to those instances (re-placing duplicates) or retain phantoms (inflating its scale
-     * math). Three passes:
-     *
-     * <ul>
-     *   <li><b>Add-if-missing</b> — learn instances present in Redis but unknown locally.
-     *   <li><b>Converge state</b> — when a known instance's local state differs from Redis,
-     *       apply the Redis state <em>through the transition validator</em>, so a stale read
-     *       can never move a fresher local state backward (no owner-write-back clobber).
-     *   <li><b>Prune</b> — drop local mirrors absent from the shared projection for
-     *       {@link #PRUNE_AFTER_ABSENT_TICKS} consecutive ticks (the owner deletes the Redis
-     *       key on {@code removeInstance}; the grace tick guards against a transient scan miss).
-     * </ul>
-     *
-     * @return the number of previously-unknown instances learned this pass
-     */
-    public int reconcileInstancesFromRedis() {
-        if (runtimeStore == null) return 0;
-        int learned = 0;
-        Map<String, InstanceInfo> redis = runtimeStore.loadInstances();
-
-        for (var entry : redis.entrySet()) {
-            redisAbsenceStreak.remove(entry.getKey());
-            Optional<InstanceInfo> local = instanceRegistry.get(entry.getKey());
-            if (local.isEmpty()) {
-                instanceRegistry.add(entry.getValue());
-                learned++;
-            } else if (local.get().state() != entry.getValue().state()) {
-                // Mirror the owner's authoritative state; the validator rejects a stale
-                // backward transition, so this never overwrites a fresher local state.
-                updateInstanceState(entry.getKey(), entry.getValue().state());
-            }
-        }
-
-        List<String> toPrune = new java.util.ArrayList<>();
-        for (InstanceInfo local : instanceRegistry.getAll()) {
-            if (redis.containsKey(local.id())) continue;
-            int streak = redisAbsenceStreak.merge(local.id(), 1, Integer::sum);
-            if (streak >= PRUNE_AFTER_ABSENT_TICKS) toPrune.add(local.id());
-        }
-        for (String id : toPrune) {
-            redisAbsenceStreak.remove(id);
-            removeInstanceLocalMirror(id);
-            logger.info("Pruned instance {} (gone from shared projection for {} ticks)", id, PRUNE_AFTER_ABSENT_TICKS);
-        }
-
-        if (learned > 0) {
-            logger.debug("Reconciled {} previously-unknown instance(s) from Redis", learned);
-        }
-        return learned;
-    }
-
-    /**
-     * On-demand adopt of a single peer-placed instance from the shared Redis projection.
-     * Called by the node-owning controller's daemon status/console handlers when a daemon
-     * reports for an instance this controller has not yet learned: a peer (the group-lease
-     * holder) places the instance and writes it to Redis at {@code SCHEDULED} time, but
-     * status flows only to the node-owner, which would otherwise drop it as "unknown
-     * instance" until the next periodic {@link #reconcileInstancesFromRedis} tick — and that
-     * tick rides the scheduler loop, which can stall. Adopting here breaks that deadlock
-     * deterministically.
-     *
-     * <p>Guarded: only adopts when the Redis record exists <em>and</em> is assigned to
-     * {@code reportingNodeId} — the daemon is authoritative for instances physically on its
-     * own node, so a mismatch (or absence) is not adopted.
-     *
-     * @return {@code true} if the instance is now present locally (adopted or already known)
-     */
-    public boolean adoptInstanceFromRedis(String instanceId, String reportingNodeId) {
-        if (instanceRegistry.get(instanceId).isPresent()) return true;
-        if (runtimeStore == null) return false;
-        InstanceInfo fromRedis = runtimeStore.loadInstance(instanceId).orElse(null);
-        if (fromRedis == null || !reportingNodeId.equals(fromRedis.nodeId())) return false;
-        instanceRegistry.add(fromRedis);
-        logger.info(
-                "Adopted peer-placed instance {} on node {} from Redis (state={})",
-                instanceId,
-                reportingNodeId,
-                fromRedis.state());
-        return true;
     }
 
     public void updateInstanceState(String instanceId, InstanceState newState) {
@@ -320,7 +217,6 @@ public final class ClusterState {
                     toModuleState(newState)));
             publishGroupAggregatesIfChanged(existing.group());
         }
-        if (updated != null && runtimeStore != null) runtimeStore.saveInstance(instanceId, updated);
     }
 
     /**
@@ -376,50 +272,20 @@ public final class ClusterState {
         }
         // playerCount may have shifted even when state didn't — re-evaluate aggregates.
         if (existing != null) publishGroupAggregatesIfChanged(existing.group());
-        if (updated != null && runtimeStore != null) runtimeStore.saveInstance(instanceId, updated);
     }
 
-    /**
-     * Drop a stale local instance mirror <em>without</em> touching the shared Redis
-     * projection — used by {@link #reconcileInstancesFromRedis} pruning, where the instance
-     * is already gone from Redis (the node-owner deleted it). Deliberately does not call
-     * {@code runtimeStore.remove*}: re-deleting could clobber a Redis entry the owner has
-     * since re-created in a narrow scan race. Cleans only in-memory mirrors (instance +
-     * player sessions) and refreshes group aggregates.
-     */
-    private void removeInstanceLocalMirror(String instanceId) {
-        Optional<InstanceInfo> removed = instanceRegistry.get(instanceId);
-        String group = removed.map(InstanceInfo::group).orElse(null);
-        playerSessionRegistry.removeByInstance(instanceId);
-        instanceRegistry.remove(instanceId);
-        removed.ifPresent(i -> releaseNodePort(i.nodeId(), i.port()));
-        if (group != null) publishGroupAggregatesIfChanged(group);
-    }
-
-    /** Release a freed instance port from the owning node and persist the node delta. */
+    /** Release a freed instance port from the owning node. */
     private void releaseNodePort(String nodeId, int port) {
-        var updated = nodeRegistry.releasePort(nodeId, port);
-        if (updated != null && runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
+        nodeRegistry.releasePort(nodeId, port);
     }
 
     public void removeInstance(String instanceId) {
         Optional<InstanceInfo> removed = instanceRegistry.get(instanceId);
         String group = removed.map(InstanceInfo::group).orElse(null);
-        if (runtimeStore != null) {
-            playerSessionRegistry.getAll().forEach(player -> {
-                if (instanceId.equals(player.instanceId()) || instanceId.equals(player.proxyInstanceId())) {
-                    runtimeStore.removePlayer(player.uuid());
-                }
-            });
-            workloadIdentityRegistry.pluginTokens().forEach((token, entry) -> {
-                if (instanceId.equals(entry.instanceId())) runtimeStore.removePluginToken(token);
-            });
-        }
         playerSessionRegistry.removeByInstance(instanceId);
         instanceRegistry.remove(instanceId);
         removed.ifPresent(i -> releaseNodePort(i.nodeId(), i.port()));
         unregisterPluginToken(instanceId);
-        if (runtimeStore != null) runtimeStore.removeInstance(instanceId);
         if (group != null) publishGroupAggregatesIfChanged(group);
     }
 
@@ -452,10 +318,8 @@ public final class ClusterState {
     /** Issue a new short-lived plugin token for the instance and persist it. */
     public String issuePluginToken(String instanceId) {
         String token = workloadIdentityRegistry.issuePluginToken(instanceId);
-        if (runtimeStore != null) {
-            workloadIdentityRegistry
-                    .getPluginToken(token)
-                    .ifPresent(entry -> runtimeStore.savePluginToken(token, entry));
+        if (tokenStore != null) {
+            workloadIdentityRegistry.getPluginToken(token).ifPresent(entry -> tokenStore.saveToken(token, entry));
         }
         return token;
     }
@@ -466,10 +330,8 @@ public final class ClusterState {
      */
     public void registerPluginToken(String token, String instanceId) {
         workloadIdentityRegistry.registerPluginToken(token, instanceId);
-        if (runtimeStore != null) {
-            workloadIdentityRegistry
-                    .getPluginToken(token)
-                    .ifPresent(entry -> runtimeStore.savePluginToken(token, entry));
+        if (tokenStore != null) {
+            workloadIdentityRegistry.getPluginToken(token).ifPresent(entry -> tokenStore.saveToken(token, entry));
         }
     }
 
@@ -479,12 +341,12 @@ public final class ClusterState {
      */
     public void importPluginToken(String token, String instanceId, Instant issuedAt) {
         workloadIdentityRegistry.importPluginToken(token, instanceId, issuedAt);
-        if (runtimeStore != null) {
+        if (tokenStore != null) {
             workloadIdentityRegistry.getPluginToken(token).ifPresent(entry -> {
                 if (Instant.now().isBefore(entry.expiresAt())) {
-                    runtimeStore.savePluginToken(token, entry);
+                    tokenStore.saveToken(token, entry);
                 } else {
-                    runtimeStore.removePluginToken(token);
+                    tokenStore.removeToken(token);
                 }
             });
         }
@@ -493,12 +355,12 @@ public final class ClusterState {
     public Optional<String> validatePluginToken(String token) {
         Optional<String> validated = workloadIdentityRegistry.validatePluginToken(token, this::getInstance);
         if (validated.isEmpty()
-                && runtimeStore != null
+                && tokenStore != null
                 && workloadIdentityRegistry.getPluginToken(token).isEmpty()) {
-            if (hydratePluginTokenFromRedis(token)) {
+            if (hydratePluginTokenFromStore(token)) {
                 return workloadIdentityRegistry.validatePluginToken(token, this::getInstance);
             }
-            runtimeStore.removePluginToken(token);
+            tokenStore.removeToken(token);
         }
         return validated;
     }
@@ -506,28 +368,26 @@ public final class ClusterState {
     public Optional<String> validatePluginToken(String token, long sequence) {
         Optional<String> validated = workloadIdentityRegistry.validatePluginToken(token, sequence, this::getInstance);
         if (validated.isEmpty()
-                && runtimeStore != null
+                && tokenStore != null
                 && workloadIdentityRegistry.getPluginToken(token).isEmpty()) {
-            if (hydratePluginTokenFromRedis(token)) {
+            if (hydratePluginTokenFromStore(token)) {
                 return workloadIdentityRegistry.validatePluginToken(token, sequence, this::getInstance);
             }
-            runtimeStore.removePluginToken(token);
+            tokenStore.removeToken(token);
         }
         return validated;
     }
 
     /**
-     * Hydrate a plugin token from the shared Redis projection into the in-process registry.
-     * A token is issued on whichever controller placed the instance, but the plugin connects
-     * to the controller that owns its node's daemon stream — which may be a different
-     * controller. Without this read-through, that controller's in-process map misses the token
-     * and the old code would reject the call AND delete the still-valid token from Redis.
+     * Hydrate a plugin token from the durable {@link WorkloadTokenStore} into the in-process registry.
+     * The 401 fix: a token is durable in Mongo, but a cold leader's in-memory cache misses it after a
+     * leadership change. Rather than reject the call (and delete the still-valid token), read it back.
      *
-     * @return true if a (non-expired) token was found in Redis and adopted locally
+     * @return true if a (non-expired) token was found in the store and adopted locally
      */
-    private boolean hydratePluginTokenFromRedis(String token) {
-        if (runtimeStore == null) return false;
-        var entry = runtimeStore.loadPluginToken(token).orElse(null);
+    private boolean hydratePluginTokenFromStore(String token) {
+        if (tokenStore == null) return false;
+        var entry = tokenStore.loadToken(token).orElse(null);
         if (entry == null) return false;
         workloadIdentityRegistry.adopt(token, entry);
         return workloadIdentityRegistry.getPluginToken(token).isPresent();
@@ -541,12 +401,12 @@ public final class ClusterState {
     public Optional<String> refreshPluginToken(String currentToken) {
         var result = workloadIdentityRegistry.refreshPluginToken(currentToken, this::getInstance);
         if (result.isEmpty()) {
-            if (runtimeStore != null) runtimeStore.removePluginToken(currentToken);
+            if (tokenStore != null) tokenStore.removeToken(currentToken);
             return Optional.empty();
         }
-        if (runtimeStore != null) {
-            runtimeStore.removePluginToken(currentToken);
-            runtimeStore.savePluginToken(result.get().token(), result.get().entry());
+        if (tokenStore != null) {
+            tokenStore.removeToken(currentToken);
+            tokenStore.saveToken(result.get().token(), result.get().entry());
         }
         return Optional.of(result.get().token());
     }
@@ -554,19 +414,19 @@ public final class ClusterState {
     public Optional<String> refreshPluginToken(String currentToken, long sequence) {
         var result = workloadIdentityRegistry.refreshPluginToken(currentToken, sequence, this::getInstance);
         if (result.isEmpty()) {
-            if (runtimeStore != null) runtimeStore.removePluginToken(currentToken);
+            if (tokenStore != null) tokenStore.removeToken(currentToken);
             return Optional.empty();
         }
-        if (runtimeStore != null) {
-            runtimeStore.removePluginToken(currentToken);
-            runtimeStore.savePluginToken(result.get().token(), result.get().entry());
+        if (tokenStore != null) {
+            tokenStore.removeToken(currentToken);
+            tokenStore.saveToken(result.get().token(), result.get().entry());
         }
         return Optional.of(result.get().token());
     }
 
     public void revokePluginToken(String token) {
         workloadIdentityRegistry.revokeToken(token);
-        if (runtimeStore != null) runtimeStore.removePluginToken(token);
+        if (tokenStore != null) tokenStore.removeToken(token);
     }
 
     public boolean revokePluginTokenId(String tokenId) {
@@ -574,8 +434,8 @@ public final class ClusterState {
         for (var entry : workloadIdentityRegistry.pluginTokens().entrySet()) {
             if (entry.getValue().tokenId().equals(tokenId)) {
                 revoked = workloadIdentityRegistry.revokeTokenId(tokenId);
-                if (revoked && runtimeStore != null) {
-                    runtimeStore.removePluginToken(entry.getKey());
+                if (revoked && tokenStore != null) {
+                    tokenStore.removeToken(entry.getKey());
                 }
                 break;
             }
@@ -593,9 +453,9 @@ public final class ClusterState {
     }
 
     public void unregisterPluginToken(String instanceId) {
-        if (runtimeStore != null) {
+        if (tokenStore != null) {
             workloadIdentityRegistry.pluginTokens().forEach((token, entry) -> {
-                if (instanceId.equals(entry.instanceId())) runtimeStore.removePluginToken(token);
+                if (instanceId.equals(entry.instanceId())) tokenStore.removeToken(token);
             });
         }
         workloadIdentityRegistry.unregisterPluginTokens(instanceId);
@@ -642,7 +502,6 @@ public final class ClusterState {
      */
     public void addPlayer(UUID uuid, String name, String instanceId, String group) {
         var updated = playerSessionRegistry.addReportedByBackend(uuid, name, instanceId, group);
-        if (runtimeStore != null) runtimeStore.savePlayer(uuid, updated.player());
         if (updated.created()) {
             eventBus.publish(new PlayerConnectedEvent(uuid, name, instanceId, group));
         } else {
@@ -665,7 +524,6 @@ public final class ClusterState {
     public void addPlayer(
             UUID uuid, String name, String instanceId, String group, String proxyInstanceId, String edition) {
         var updated = playerSessionRegistry.addReportedByProxy(uuid, name, instanceId, group, proxyInstanceId, edition);
-        if (runtimeStore != null) runtimeStore.savePlayer(uuid, updated.player());
         if (updated.created()) {
             eventBus.publish(new PlayerConnectedEvent(uuid, name, instanceId, group));
         } else {
@@ -685,7 +543,6 @@ public final class ClusterState {
     public void removePlayer(UUID uuid) {
         var player = playerSessionRegistry.remove(uuid);
         if (player != null) {
-            if (runtimeStore != null) runtimeStore.removePlayer(uuid);
             eventBus.publish(new PlayerDisconnectedEvent(uuid, player.name(), player.instanceId(), player.group()));
         }
     }
