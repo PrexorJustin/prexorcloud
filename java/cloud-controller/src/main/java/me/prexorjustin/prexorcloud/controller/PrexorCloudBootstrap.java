@@ -356,8 +356,7 @@ public final class PrexorCloudBootstrap {
         io.lettuce.core.tracing.Tracing redisTracing = telemetry != null && telemetry.isEnabled()
                 ? new me.prexorjustin.prexorcloud.controller.observability.telemetry.RedisTracing(telemetry.tracer())
                 : null;
-        return new RedisRuntimeServices(
-                new RedisConnection(config.redis().uri(), redisTracing), REDIS_MAPPER, config.uuid());
+        return new RedisRuntimeServices(new RedisConnection(config.redis().uri(), redisTracing), REDIS_MAPPER);
     }
 
     private PrexorController.CoreServices initCore(
@@ -1447,7 +1446,6 @@ public final class PrexorCloudBootstrap {
         var nodeSelector = new WeightedNodeSelector();
         var scalingEvaluator = new ScalingEvaluator(
                 controller.clusterState(), config.scheduler().scalingCooldownSeconds(), runtime);
-        var leaseManager = runtime.newLeaseManager(config.scheduler().evaluationIntervalSeconds() * 2);
         var redisSync = runtime.coordinationEnabled() ? runtime.redisCommands() : null;
         nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager(), eventBridge, redisSync);
         if (controller.metricsCollector() != null) {
@@ -1515,7 +1513,6 @@ public final class PrexorCloudBootstrap {
                 deploymentReconciler,
                 config.scheduler().evaluationIntervalSeconds(),
                 () -> controller.config().maintenance().enabled(),
-                leaseManager,
                 startRetryWakeupQueue,
                 nodeMessageDispatcher,
                 controller.eventChoreographer(),

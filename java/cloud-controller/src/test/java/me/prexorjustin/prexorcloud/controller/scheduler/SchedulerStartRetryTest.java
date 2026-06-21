@@ -16,13 +16,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.crash.CrashLoopDetector;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentReconciler;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
 import me.prexorjustin.prexorcloud.controller.session.NodeSession;
@@ -36,8 +35,6 @@ import me.prexorjustin.prexorcloud.protocol.ControllerMessage;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
 import io.grpc.stub.StreamObserver;
-import io.lettuce.core.KeyScanCursor;
-import io.lettuce.core.ScanCursor;
 import io.lettuce.core.SetArgs;
 import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterEach;
@@ -90,7 +87,6 @@ class SchedulerStartRetryTest {
                 deploymentReconciler,
                 30,
                 () -> false,
-                null,
                 null,
                 nodeMessageDispatcher);
         scheduler.start();
@@ -242,66 +238,6 @@ class SchedulerStartRetryTest {
     }
 
     @Test
-    void leaseAcquisitionTriggersRecoverableStartReconciliation() throws Exception {
-        InMemoryLeaseRedis redis = new InMemoryLeaseRedis();
-        var leaseManager = new DistributedLeaseManager(redis.commands(), "controller-a", 60);
-        var leasedScheduler = new Scheduler(
-                groupManager,
-                clusterState,
-                scalingEvaluator,
-                mock(CrashLoopDetector.class),
-                stateStore,
-                workflowStateStore,
-                placementCoordinator,
-                deploymentReconciler,
-                30,
-                () -> false,
-                leaseManager,
-                null,
-                nodeMessageDispatcher);
-        try {
-            var messages = new CopyOnWriteArrayList<ControllerMessage>();
-            var sent = new CountDownLatch(1);
-            sessionManager.register(new NodeSession(
-                    "session-recover-handoff",
-                    "node-1",
-                    new StreamObserver<>() {
-                        @Override
-                        public void onNext(ControllerMessage value) {
-                            messages.add(value);
-                            sent.countDown();
-                        }
-
-                        @Override
-                        public void onError(Throwable t) {}
-
-                        @Override
-                        public void onCompleted() {}
-                    },
-                    Instant.now()));
-
-            var group = stubGroup("lobby");
-            when(groupManager.get("lobby")).thenReturn(Optional.of(group));
-            when(groupManager.resolveGroup("lobby")).thenReturn(group);
-            clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
-            clusterState.addInstance(new InstanceInfo(
-                    "lobby-recover-handoff", "lobby", "node-1", InstanceState.SCHEDULED, 25572, 0, 0, Instant.now()));
-            var compositionPlan = compositionPlan("lobby-recover-handoff");
-            when(stateStore.getInstanceCompositionPlan("lobby-recover-handoff"))
-                    .thenReturn(Optional.of(compositionPlan));
-
-            leaseManager.tryAcquireLease("group:lobby").orElseThrow();
-
-            assertTrue(sent.await(5, TimeUnit.SECONDS));
-            assertEquals(
-                    "lobby-recover-handoff",
-                    messages.getFirst().getStartInstance().getInstanceId());
-        } finally {
-            leasedScheduler.stop();
-        }
-    }
-
-    @Test
     void reconcilePersistedStartRetriesClearsTerminalRetries() {
         clusterState.addInstance(
                 new InstanceInfo("lobby-2", "lobby", "node-1", InstanceState.CRASHED, 25566, 0, 0, Instant.now()));
@@ -314,220 +250,118 @@ class SchedulerStartRetryTest {
     }
 
     @Test
-    void reconcilePersistedStartRetriesSkipsControllerWithoutLease() throws Exception {
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> commands = mock(RedisCommands.class);
-        when(commands.incr(RedisKeys.leaseToken("group:lobby"))).thenReturn(1L);
-        when(commands.set(
-                        org.mockito.ArgumentMatchers.eq(RedisKeys.lease("group:lobby")),
-                        org.mockito.ArgumentMatchers.anyString(),
-                        org.mockito.ArgumentMatchers.any(SetArgs.class)))
-                .thenReturn(null);
-        when(commands.get(RedisKeys.lease("group:lobby"))).thenReturn("controller-b|2");
+    void reconcilePersistedStartRetriesSkipsWhenNotLeader() throws Exception {
+        // ownership = leadership: a follower must not resend a persisted start retry — the leader does.
+        scheduler.setLeadership(notLeader());
 
-        var leasedScheduler = new Scheduler(
-                groupManager,
-                clusterState,
-                scalingEvaluator,
-                mock(CrashLoopDetector.class),
-                stateStore,
-                workflowStateStore,
-                placementCoordinator,
-                deploymentReconciler,
-                30,
-                () -> false,
-                new DistributedLeaseManager(commands, "controller-a", 60),
-                null,
-                nodeMessageDispatcher);
-        leasedScheduler.start();
-        try {
-            var messages = new CopyOnWriteArrayList<ControllerMessage>();
-            sessionManager.register(new NodeSession(
-                    "session-2",
-                    "node-1",
-                    new StreamObserver<>() {
-                        @Override
-                        public void onNext(ControllerMessage value) {
-                            messages.add(value);
-                        }
+        var messages = new CopyOnWriteArrayList<ControllerMessage>();
+        sessionManager.register(new NodeSession(
+                "session-2",
+                "node-1",
+                new StreamObserver<>() {
+                    @Override
+                    public void onNext(ControllerMessage value) {
+                        messages.add(value);
+                    }
 
-                        @Override
-                        public void onError(Throwable t) {}
+                    @Override
+                    public void onError(Throwable t) {}
 
-                        @Override
-                        public void onCompleted() {}
-                    },
-                    Instant.now()));
+                    @Override
+                    public void onCompleted() {}
+                },
+                Instant.now()));
 
-            var group = stubGroup("lobby");
-            when(groupManager.get("lobby")).thenReturn(Optional.of(group));
-            when(groupManager.resolveGroup("lobby")).thenReturn(group);
+        var group = stubGroup("lobby");
+        when(groupManager.get("lobby")).thenReturn(Optional.of(group));
+        when(groupManager.resolveGroup("lobby")).thenReturn(group);
 
-            clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
-            clusterState.addInstance(new InstanceInfo(
-                    "lobby-lease", "lobby", "node-1", InstanceState.SCHEDULED, 25567, 0, 0, Instant.now()));
-            when(stateStore.getInstanceCompositionPlan("lobby-lease"))
-                    .thenReturn(Optional.of(compositionPlan("lobby-lease")));
+        clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
+        clusterState.addInstance(new InstanceInfo(
+                "lobby-follower", "lobby", "node-1", InstanceState.SCHEDULED, 25567, 0, 0, Instant.now()));
+        when(stateStore.getInstanceCompositionPlan("lobby-follower"))
+                .thenReturn(Optional.of(compositionPlan("lobby-follower")));
 
-            workflowStateStore.saveStartRetry(new StartRetryIntent(
-                    "lobby-lease",
-                    "lobby",
-                    "node-1",
-                    "RUNTIME_PROVISION_FAILED",
-                    "plan-hash-123",
-                    1,
-                    Instant.now(),
-                    Instant.now()));
+        workflowStateStore.saveStartRetry(new StartRetryIntent(
+                "lobby-follower",
+                "lobby",
+                "node-1",
+                "RUNTIME_PROVISION_FAILED",
+                "plan-hash-123",
+                1,
+                Instant.now(),
+                Instant.now()));
 
-            leasedScheduler.reconcilePersistedStartRetries();
+        scheduler.reconcilePersistedStartRetries();
 
-            Thread.sleep(200);
-            assertTrue(messages.isEmpty());
-            assertTrue(workflowStateStore.getStartRetry("lobby-lease").isPresent());
-        } finally {
-            leasedScheduler.stop();
-        }
+        Thread.sleep(200);
+        assertTrue(messages.isEmpty());
+        assertTrue(workflowStateStore.getStartRetry("lobby-follower").isPresent());
     }
 
     @Test
-    void reconcilePersistedStartRetriesSkipsDispatchWhenFenceTokenTurnsStale() throws Exception {
-        InMemoryLeaseRedis redis = new InMemoryLeaseRedis();
-        var controllerALeaseManager = new DistributedLeaseManager(redis.commands(), "controller-a", 60);
-        var controllerBLeaseManager = new DistributedLeaseManager(redis.commands(), "controller-b", 60);
+    void reconcilePersistedStartRetriesSkipsDispatchWhenLeadershipLostMidWork() throws Exception {
+        // The tick-level gate passes, but leadership is lost after the composition plan is fetched and
+        // before dispatch. The fencing re-check (ensureLeaseCurrent) must abort the resend.
+        var leader = new java.util.concurrent.atomic.AtomicBoolean(true);
+        scheduler.setLeadership(new Leadership() {
+            @Override
+            public boolean isLeader() {
+                return leader.get();
+            }
 
-        var leasedScheduler = new Scheduler(
-                groupManager,
-                clusterState,
-                scalingEvaluator,
-                mock(CrashLoopDetector.class),
-                stateStore,
-                workflowStateStore,
-                placementCoordinator,
-                deploymentReconciler,
-                30,
-                () -> false,
-                controllerALeaseManager,
-                null,
-                new NodeMessageDispatcher(sessionManager, null, redis.commands()));
-        leasedScheduler.start();
-        try {
-            var messages = new CopyOnWriteArrayList<ControllerMessage>();
-            sessionManager.register(new NodeSession(
-                    "session-3",
-                    "node-1",
-                    new StreamObserver<>() {
-                        @Override
-                        public void onNext(ControllerMessage value) {
-                            messages.add(value);
-                        }
+            @Override
+            public long currentEpoch() {
+                return 1L;
+            }
+        });
 
-                        @Override
-                        public void onError(Throwable t) {}
+        var messages = new CopyOnWriteArrayList<ControllerMessage>();
+        sessionManager.register(new NodeSession(
+                "session-3",
+                "node-1",
+                new StreamObserver<>() {
+                    @Override
+                    public void onNext(ControllerMessage value) {
+                        messages.add(value);
+                    }
 
-                        @Override
-                        public void onCompleted() {}
-                    },
-                    Instant.now()));
+                    @Override
+                    public void onError(Throwable t) {}
 
-            var group = stubGroup("lobby");
-            when(groupManager.get("lobby")).thenReturn(Optional.of(group));
-            when(groupManager.resolveGroup("lobby")).thenReturn(group);
+                    @Override
+                    public void onCompleted() {}
+                },
+                Instant.now()));
 
-            clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
-            clusterState.addInstance(new InstanceInfo(
-                    "lobby-fence", "lobby", "node-1", InstanceState.SCHEDULED, 25568, 0, 0, Instant.now()));
-            var compositionPlan = compositionPlan("lobby-fence");
-            when(stateStore.getInstanceCompositionPlan("lobby-fence")).thenAnswer(invocation -> {
-                redis.delete(RedisKeys.lease("group:lobby"));
-                assertTrue(
-                        controllerBLeaseManager.tryAcquireLease("group:lobby").isPresent());
-                return Optional.of(compositionPlan);
-            });
+        var group = stubGroup("lobby");
+        when(groupManager.get("lobby")).thenReturn(Optional.of(group));
+        when(groupManager.resolveGroup("lobby")).thenReturn(group);
 
-            workflowStateStore.saveStartRetry(new StartRetryIntent(
-                    "lobby-fence",
-                    "lobby",
-                    "node-1",
-                    "RUNTIME_PROVISION_FAILED",
-                    compositionPlan.planHash(),
-                    1,
-                    Instant.now(),
-                    Instant.now()));
+        clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
+        clusterState.addInstance(new InstanceInfo(
+                "lobby-fence", "lobby", "node-1", InstanceState.SCHEDULED, 25568, 0, 0, Instant.now()));
+        var compositionPlan = compositionPlan("lobby-fence");
+        when(stateStore.getInstanceCompositionPlan("lobby-fence")).thenAnswer(invocation -> {
+            leader.set(false); // leadership lost after planning, before dispatch
+            return Optional.of(compositionPlan);
+        });
 
-            leasedScheduler.reconcilePersistedStartRetries();
+        workflowStateStore.saveStartRetry(new StartRetryIntent(
+                "lobby-fence",
+                "lobby",
+                "node-1",
+                "RUNTIME_PROVISION_FAILED",
+                compositionPlan.planHash(),
+                1,
+                Instant.now(),
+                Instant.now()));
 
-            Thread.sleep(200);
-            assertTrue(messages.isEmpty());
-            assertTrue(workflowStateStore.getStartRetry("lobby-fence").isPresent());
-        } finally {
-            leasedScheduler.stop();
-        }
-    }
+        scheduler.reconcilePersistedStartRetries();
 
-    @Test
-    void leaseAcquisitionTriggersStartRetryReconciliation() throws Exception {
-        InMemoryLeaseRedis redis = new InMemoryLeaseRedis();
-        var leaseManager = new DistributedLeaseManager(redis.commands(), "controller-a", 60);
-        var leasedScheduler = new Scheduler(
-                groupManager,
-                clusterState,
-                scalingEvaluator,
-                mock(CrashLoopDetector.class),
-                stateStore,
-                workflowStateStore,
-                placementCoordinator,
-                deploymentReconciler,
-                30,
-                () -> false,
-                leaseManager,
-                null,
-                nodeMessageDispatcher);
-        try {
-            var messages = new CopyOnWriteArrayList<ControllerMessage>();
-            var sent = new CountDownLatch(1);
-            sessionManager.register(new NodeSession(
-                    "session-4",
-                    "node-1",
-                    new StreamObserver<>() {
-                        @Override
-                        public void onNext(ControllerMessage value) {
-                            messages.add(value);
-                            sent.countDown();
-                        }
-
-                        @Override
-                        public void onError(Throwable t) {}
-
-                        @Override
-                        public void onCompleted() {}
-                    },
-                    Instant.now()));
-
-            var group = stubGroup("lobby");
-            when(groupManager.get("lobby")).thenReturn(Optional.of(group));
-            when(groupManager.resolveGroup("lobby")).thenReturn(group);
-            clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
-            clusterState.addInstance(new InstanceInfo(
-                    "lobby-handoff", "lobby", "node-1", InstanceState.SCHEDULED, 25569, 0, 0, Instant.now()));
-            var compositionPlan = compositionPlan("lobby-handoff");
-            when(stateStore.getInstanceCompositionPlan("lobby-handoff")).thenReturn(Optional.of(compositionPlan));
-            workflowStateStore.saveStartRetry(new StartRetryIntent(
-                    "lobby-handoff",
-                    "lobby",
-                    "node-1",
-                    "RUNTIME_PROVISION_FAILED",
-                    compositionPlan.planHash(),
-                    1,
-                    Instant.now(),
-                    Instant.now()));
-
-            leaseManager.tryAcquireLease("group:lobby").orElseThrow();
-
-            assertTrue(sent.await(5, TimeUnit.SECONDS));
-            assertEquals("lobby-handoff", messages.getFirst().getStartInstance().getInstanceId());
-        } finally {
-            leasedScheduler.stop();
-        }
+        Thread.sleep(200);
+        assertTrue(messages.isEmpty());
+        assertTrue(workflowStateStore.getStartRetry("lobby-fence").isPresent());
     }
 
     @Test
@@ -574,7 +408,6 @@ class SchedulerStartRetryTest {
                 deploymentReconciler,
                 30,
                 () -> false,
-                null,
                 new RedisStartRetryWakeupQueue(queueRedis.commands(), "controller-a", 30),
                 nodeMessageDispatcher);
         queuedScheduler.start();
@@ -678,62 +511,18 @@ class SchedulerStartRetryTest {
                 Map.of());
     }
 
-    private static final class InMemoryLeaseRedis {
-
-        private final Map<String, String> values = new ConcurrentHashMap<>();
-        private final Map<String, Long> counters = new ConcurrentHashMap<>();
-
-        @SuppressWarnings("unchecked")
-        private RedisCommands<String, String> commands() {
-            return (RedisCommands<String, String>) Proxy.newProxyInstance(
-                    RedisCommands.class.getClassLoader(),
-                    new Class<?>[] {RedisCommands.class},
-                    (proxy, method, args) -> switch (method.getName()) {
-                        case "set" -> set((String) args[0], (String) args[1], (SetArgs) args[2]);
-                        case "get" -> values.get((String) args[0]);
-                        case "expire" -> true;
-                        case "del" -> deleteAll(args);
-                        case "incr" -> counters.merge((String) args[0], 1L, Long::sum);
-                        case "scan" -> scan(args);
-                        case "toString" -> "InMemoryLeaseRedis";
-                        default ->
-                            throw new UnsupportedOperationException("Unsupported Redis method: " + method.getName());
-                    });
-        }
-
-        private String set(String key, String value, SetArgs args) {
-            if (values.containsKey(key)) {
-                return null;
+    private static Leadership notLeader() {
+        return new Leadership() {
+            @Override
+            public boolean isLeader() {
+                return false;
             }
-            values.put(key, value);
-            return "OK";
-        }
 
-        private long deleteAll(Object[] args) {
-            long deleted = 0;
-            for (Object rawKey : args) {
-                if (rawKey instanceof String key) {
-                    deleted += values.remove(key) != null ? 1 : 0;
-                } else if (rawKey instanceof String[] keys) {
-                    for (String key : keys) {
-                        deleted += values.remove(key) != null ? 1 : 0;
-                    }
-                }
+            @Override
+            public long currentEpoch() {
+                return 0L;
             }
-            return deleted;
-        }
-
-        private KeyScanCursor<String> scan(Object[] args) {
-            KeyScanCursor<String> cursor = new KeyScanCursor<>();
-            cursor.setCursor(ScanCursor.FINISHED.getCursor());
-            cursor.setFinished(true);
-            cursor.getKeys().addAll(values.keySet());
-            return cursor;
-        }
-
-        private void delete(String key) {
-            values.remove(key);
-        }
+        };
     }
 
     private static final class InMemoryRetryWakeupRedis {

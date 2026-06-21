@@ -45,7 +45,6 @@ class RuntimeServicesWiringTest {
         assertNotNull(runtime.jwtRevocationStore());
         assertNotNull(runtime.loginAttemptStore());
         assertNotNull(runtime.consoleFloodWindow());
-        assertNotNull(runtime.newLeaseManager(30L));
     }
 
     @Test
@@ -125,8 +124,6 @@ class RuntimeServicesWiringTest {
         Mockito.when(runtime.consoleFloodWindow())
                 .thenReturn(Mockito.mock(
                         me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer.FloodWindowStore.class));
-        Mockito.when(runtime.newLeaseManager(Mockito.anyLong()))
-                .thenReturn(Mockito.mock(me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager.class));
         return runtime;
     }
 

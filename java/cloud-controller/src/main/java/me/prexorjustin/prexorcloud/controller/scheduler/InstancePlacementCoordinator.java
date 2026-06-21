@@ -38,10 +38,7 @@ public final class InstancePlacementCoordinator {
 
     @FunctionalInterface
     public interface LeaseGuard {
-        boolean ensureLeaseCurrent(
-                me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager.Lease lease,
-                String groupName,
-                String action);
+        boolean ensureLeaseCurrent(String groupName, String action);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(InstancePlacementCoordinator.class);
@@ -93,24 +90,16 @@ public final class InstancePlacementCoordinator {
     }
 
     public boolean placeResolvedInstance(
-            GroupConfig resolved,
-            String instanceId,
-            me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager.Lease lease,
-            LeaseGuard leaseGuard,
-            Consumer<String> clearStartRetryBudget) {
+            GroupConfig resolved, String instanceId, LeaseGuard leaseGuard, Consumer<String> clearStartRetryBudget) {
         return me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.call(
                 tracer,
                 "placement.evaluate",
-                () -> doPlaceResolvedInstance(resolved, instanceId, lease, leaseGuard, clearStartRetryBudget));
+                () -> doPlaceResolvedInstance(resolved, instanceId, leaseGuard, clearStartRetryBudget));
     }
 
     private boolean doPlaceResolvedInstance(
-            GroupConfig resolved,
-            String instanceId,
-            me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager.Lease lease,
-            LeaseGuard leaseGuard,
-            Consumer<String> clearStartRetryBudget) {
-        if (!leaseGuard.ensureLeaseCurrent(lease, resolved.name(), "schedule instance " + instanceId)) {
+            GroupConfig resolved, String instanceId, LeaseGuard leaseGuard, Consumer<String> clearStartRetryBudget) {
+        if (!leaseGuard.ensureLeaseCurrent(resolved.name(), "schedule instance " + instanceId)) {
             return false;
         }
 
@@ -159,7 +148,7 @@ public final class InstancePlacementCoordinator {
                     node.nodeId(),
                     projection.freeDiskAfterMb());
         }
-        if (!leaseGuard.ensureLeaseCurrent(lease, resolved.name(), "reserve placement for instance " + instanceId)) {
+        if (!leaseGuard.ensureLeaseCurrent(resolved.name(), "reserve placement for instance " + instanceId)) {
             return false;
         }
 
@@ -212,9 +201,9 @@ public final class InstancePlacementCoordinator {
             hook.run();
         }
 
-        if (!leaseGuard.ensureLeaseCurrent(lease, resolved.name(), "dispatch start for instance " + instanceId)) {
+        if (!leaseGuard.ensureLeaseCurrent(resolved.name(), "dispatch start for instance " + instanceId)) {
             logger.warn(
-                    "Preserving scheduled placement for {} after lease loss; recoverable start handoff will redispatch",
+                    "Preserving scheduled placement for {} after leadership loss; recoverable start handoff will redispatch",
                     instanceId);
             return true;
         }

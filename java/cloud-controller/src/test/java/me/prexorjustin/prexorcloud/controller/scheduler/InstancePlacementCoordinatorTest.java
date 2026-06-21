@@ -97,8 +97,8 @@ class InstancePlacementCoordinatorTest {
                 .thenReturn(compositionPlan);
         var clearedRetries = new CopyOnWriteArrayList<String>();
 
-        boolean placed = coordinator.placeResolvedInstance(
-                group, "lobby-1", null, (lease, groupName, action) -> true, clearedRetries::add);
+        boolean placed =
+                coordinator.placeResolvedInstance(group, "lobby-1", (groupName, action) -> true, clearedRetries::add);
 
         assertTrue(placed);
         assertEquals(List.of("lobby-1"), clearedRetries);
@@ -158,8 +158,7 @@ class InstancePlacementCoordinatorTest {
         when(compositionPlanner.plan(eq(group), eq("lobby-1"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
                 .thenReturn(compositionPlan);
 
-        boolean placed = coordinator.placeResolvedInstance(
-                group, "lobby-1", null, (lease, groupName, action) -> true, retry -> {});
+        boolean placed = coordinator.placeResolvedInstance(group, "lobby-1", (groupName, action) -> true, retry -> {});
 
         assertTrue(placed, "placement returns true — the record is durably persisted for the leader");
         assertTrue(clusterState.getInstance("lobby-1").isPresent());
@@ -175,8 +174,8 @@ class InstancePlacementCoordinatorTest {
                 .thenThrow(new IllegalStateException("boom"));
         var clearedRetries = new CopyOnWriteArrayList<String>();
 
-        boolean placed = coordinator.placeResolvedInstance(
-                group, "lobby-2", null, (lease, groupName, action) -> true, clearedRetries::add);
+        boolean placed =
+                coordinator.placeResolvedInstance(group, "lobby-2", (groupName, action) -> true, clearedRetries::add);
 
         assertFalse(placed);
         assertFalse(clusterState.getInstance("lobby-2").isPresent());
@@ -196,8 +195,8 @@ class InstancePlacementCoordinatorTest {
                 .thenReturn(compositionPlan);
         var clearedRetries = new CopyOnWriteArrayList<String>();
 
-        boolean placed = coordinator.placeResolvedInstance(
-                group, "lobby-3", null, (lease, groupName, action) -> true, clearedRetries::add);
+        boolean placed =
+                coordinator.placeResolvedInstance(group, "lobby-3", (groupName, action) -> true, clearedRetries::add);
 
         assertTrue(placed);
         assertTrue(clusterState.getInstance("lobby-3").isPresent());
@@ -210,20 +209,19 @@ class InstancePlacementCoordinatorTest {
     }
 
     @Test
-    void placeResolvedInstancePreservesRecoverablePlacementWhenLeaseTurnsStaleAfterPlanning() {
+    void placeResolvedInstancePreservesRecoverablePlacementWhenLeadershipLostAfterPlanning() {
         var group = stubGroup("lobby");
         var compositionPlan = compositionPlan("lobby-4");
         when(compositionPlanner.plan(eq(group), eq("lobby-4"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
                 .thenReturn(compositionPlan);
         var clearedRetries = new CopyOnWriteArrayList<String>();
-        var leaseChecks = new java.util.concurrent.atomic.AtomicInteger();
+        var fenceChecks = new java.util.concurrent.atomic.AtomicInteger();
 
         boolean placed = coordinator.placeResolvedInstance(
                 group,
                 "lobby-4",
-                null,
-                (lease, groupName, action) -> {
-                    int attempt = leaseChecks.incrementAndGet();
+                (groupName, action) -> {
+                    int attempt = fenceChecks.incrementAndGet();
                     return attempt < 3;
                 },
                 clearedRetries::add);

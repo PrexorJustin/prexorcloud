@@ -19,7 +19,6 @@ import me.prexorjustin.prexorcloud.controller.event_choreography.EventChoreograp
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
 import me.prexorjustin.prexorcloud.controller.metrics.MetricsCollector;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
@@ -50,7 +49,6 @@ public final class Scheduler implements LeaseGate {
     private final NodeMessageDispatcher nodeMessageDispatcher;
     private final long evaluationIntervalSeconds;
     private final java.util.function.BooleanSupplier globalMaintenanceCheck;
-    private final DistributedLeaseManager leaseManager; // nullable — null when Redis unavailable
     private final StartRetryWakeupQueue startRetryWakeupQueue; // nullable — null when Redis unavailable
     private final EventChoreographer eventChoreographer; // nullable
     private final MetricsCollector metricsCollector; // nullable
@@ -91,7 +89,6 @@ public final class Scheduler implements LeaseGate {
             DeploymentReconciler deploymentReconciler,
             long evaluationIntervalSeconds,
             java.util.function.BooleanSupplier globalMaintenanceCheck,
-            DistributedLeaseManager leaseManager,
             StartRetryWakeupQueue startRetryWakeupQueue,
             NodeMessageDispatcher nodeMessageDispatcher) {
         this(
@@ -105,7 +102,6 @@ public final class Scheduler implements LeaseGate {
                 deploymentReconciler,
                 evaluationIntervalSeconds,
                 globalMaintenanceCheck,
-                leaseManager,
                 startRetryWakeupQueue,
                 nodeMessageDispatcher,
                 null,
@@ -123,7 +119,6 @@ public final class Scheduler implements LeaseGate {
             DeploymentReconciler deploymentReconciler,
             long evaluationIntervalSeconds,
             java.util.function.BooleanSupplier globalMaintenanceCheck,
-            DistributedLeaseManager leaseManager,
             StartRetryWakeupQueue startRetryWakeupQueue,
             NodeMessageDispatcher nodeMessageDispatcher,
             EventChoreographer eventChoreographer) {
@@ -138,7 +133,6 @@ public final class Scheduler implements LeaseGate {
                 deploymentReconciler,
                 evaluationIntervalSeconds,
                 globalMaintenanceCheck,
-                leaseManager,
                 startRetryWakeupQueue,
                 nodeMessageDispatcher,
                 eventChoreographer,
@@ -156,7 +150,6 @@ public final class Scheduler implements LeaseGate {
             DeploymentReconciler deploymentReconciler,
             long evaluationIntervalSeconds,
             java.util.function.BooleanSupplier globalMaintenanceCheck,
-            DistributedLeaseManager leaseManager,
             StartRetryWakeupQueue startRetryWakeupQueue,
             NodeMessageDispatcher nodeMessageDispatcher,
             EventChoreographer eventChoreographer,
@@ -180,7 +173,6 @@ public final class Scheduler implements LeaseGate {
         this.nodeMessageDispatcher = nodeMessageDispatcher;
         this.evaluationIntervalSeconds = evaluationIntervalSeconds;
         this.globalMaintenanceCheck = globalMaintenanceCheck;
-        this.leaseManager = leaseManager;
         this.startRetryWakeupQueue = startRetryWakeupQueue;
         this.eventChoreographer = eventChoreographer;
         this.metricsCollector = metricsCollector;
@@ -191,7 +183,6 @@ public final class Scheduler implements LeaseGate {
                 groupManager,
                 placementCoordinator,
                 this,
-                leaseManager,
                 startRetryWakeupQueue,
                 () -> this.executor);
         this.recovery = new RecoveryOrchestrator(
@@ -200,12 +191,7 @@ public final class Scheduler implements LeaseGate {
                 stateStore,
                 groupManager,
                 placementCoordinator,
-                this,
-                leaseManager,
                 evaluationIntervalSeconds);
-        if (leaseManager != null) {
-            leaseManager.addLeaseChangeListener(this::onLeaseAcquired);
-        }
     }
 
     public void start() {
@@ -250,9 +236,6 @@ public final class Scheduler implements LeaseGate {
     public void stop() {
         if (executor != null) {
             executor.shutdownNow();
-        }
-        if (leaseManager != null) {
-            leaseManager.releaseAll();
         }
     }
 
@@ -355,21 +338,15 @@ public final class Scheduler implements LeaseGate {
             return;
         }
 
-        DistributedLeaseManager.Lease lease = acquireGroupLease(group.name());
-        if (leaseManager != null && lease == null) {
-            logger.trace("Skipping group {} (leased by another controller)", group.name());
-            return;
-        }
-
-        executeGroupPlan(plan, lease);
+        executeGroupPlan(plan);
     }
 
-    private void executeGroupPlan(SchedulerDesiredStatePlanner.GroupPlan plan, DistributedLeaseManager.Lease lease) {
+    private void executeGroupPlan(SchedulerDesiredStatePlanner.GroupPlan plan) {
         GroupConfig resolved = plan.resolvedGroup();
         if (!plan.staticInstanceIdsToPlace().isEmpty()) {
             for (String instanceId : plan.staticInstanceIdsToPlace()) {
                 if (!placementCoordinator.placeResolvedInstance(
-                        resolved, instanceId, lease, this::ensureLeaseCurrent, this::clearStartRetryBudget)) {
+                        resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget)) {
                     logger.warn("No eligible node for static instance {}", instanceId);
                     break;
                 }
@@ -378,7 +355,7 @@ public final class Scheduler implements LeaseGate {
         }
 
         for (int i = 0; i < plan.dynamicPlacementsToAdd(); i++) {
-            if (!placeResolvedInstance(resolved, lease)) {
+            if (!placeResolvedInstance(resolved)) {
                 logger.warn(
                         "No eligible node for group {} ({} of {} placed)",
                         resolved.name(),
@@ -400,24 +377,16 @@ public final class Scheduler implements LeaseGate {
      * generation.
      */
     public boolean placeInstance(GroupConfig group) {
-        return placeInstance(group, acquireGroupLease(group.name()));
+        return placeResolvedInstance(groupManager.resolveGroup(group.name()));
     }
 
-    private boolean placeInstance(GroupConfig group, DistributedLeaseManager.Lease lease) {
-        if (leaseManager != null && lease == null) {
-            logger.debug("Skipping placement for group {} because another controller owns the lease", group.name());
-            return false;
-        }
-        return placeResolvedInstance(groupManager.resolveGroup(group.name()), lease);
-    }
-
-    private boolean placeResolvedInstance(GroupConfig resolved, DistributedLeaseManager.Lease lease) {
+    private boolean placeResolvedInstance(GroupConfig resolved) {
         Set<String> existingIds = new HashSet<>(
                 clusterState.getAllInstances().stream().map(InstanceInfo::id).toList());
         String instanceId = InstanceIdGenerator.generateDynamic(resolved.name(), existingIds);
 
         return placementCoordinator.placeResolvedInstance(
-                resolved, instanceId, lease, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+                resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
     }
 
     /**
@@ -483,14 +452,6 @@ public final class Scheduler implements LeaseGate {
         recovery.reconcileForNode(nodeId);
     }
 
-    private void reconcilePersistedStartRetriesForGroup(String groupName) {
-        startRetry.reconcilePersistedForGroup(groupName);
-    }
-
-    private void reconcilePersistedDeploymentsForGroup(String groupName) {
-        stateStore.getInProgressDeployment(groupName).ifPresent(this::reconcilePersistedDeployment);
-    }
-
     /**
      * Manually schedule one new instance for a group (via REST API). For static
      * groups, places the next missing static ID. For dynamic groups, uses
@@ -515,16 +476,15 @@ public final class Scheduler implements LeaseGate {
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException(
                             "All static instances for group " + groupName + " are already running"));
-            var lease = requireGroupLease(groupName, "manual scheduling");
             placementCoordinator.placeResolvedInstance(
-                    resolved, missingId, lease, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+                    resolved, missingId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
         } else {
             int current = clusterState.getInstancesByGroup(groupName).size();
             if (current >= group.maxInstances()) {
                 throw new IllegalStateException(
                         "Group " + groupName + " already at max instances (" + group.maxInstances() + ")");
             }
-            placeInstance(group, requireGroupLease(groupName, "manual scheduling"));
+            placeInstance(group);
         }
     }
 
@@ -569,16 +529,8 @@ public final class Scheduler implements LeaseGate {
             }
         }
 
-        DistributedLeaseManager.Lease lease = acquireGroupLease(groupName);
-        if (leaseManager != null && lease == null) {
-            logger.debug(
-                    "Skipping replacement for {} in group {} because another controller owns the lease",
-                    instanceId,
-                    groupName);
-            return false;
-        }
         return placementCoordinator.placeResolvedInstance(
-                resolved, instanceId, lease, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+                resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
     }
 
     /**
@@ -636,16 +588,8 @@ public final class Scheduler implements LeaseGate {
             return;
         }
         try {
-            DistributedLeaseManager.Lease lease = acquireGroupLease(deployment.groupName());
-            if (leaseManager != null && lease == null) {
-                logger.debug(
-                        "Skipping rolling restart for group {} revision {} because another controller owns the lease",
-                        deployment.groupName(),
-                        deployment.revision());
-                return;
-            }
             deploymentReconciler.rollingRestart(
-                    deployment, action -> ensureLeaseCurrent(lease, deployment.groupName(), action));
+                    deployment, action -> ensureLeaseCurrent(deployment.groupName(), action));
         } finally {
             activeDeployments.remove(key);
         }
@@ -681,68 +625,33 @@ public final class Scheduler implements LeaseGate {
                 .name("reconcile-deploy-" + deployment.groupName() + "-r" + deployment.revision())
                 .start(() -> {
                     try {
-                        DistributedLeaseManager.Lease lease = acquireGroupLease(deployment.groupName());
-                        if (leaseManager != null && lease == null) {
-                            return;
-                        }
                         deploymentReconciler.rollingRestart(
-                                deployment, action -> ensureLeaseCurrent(lease, deployment.groupName(), action));
+                                deployment, action -> ensureLeaseCurrent(deployment.groupName(), action));
                     } finally {
                         activeDeployments.remove(key);
                     }
                 });
     }
 
+    // Single-writer authority: the per-group Redis lease collapsed onto leadership. Both gate methods
+    // ask "am I the leader?". The group name is kept for log diagnostics. The scheduler tick is already
+    // leader-gated; ensureLeaseCurrent is the belt-and-suspenders mid-work re-check that catches a
+    // leadership change between the top-of-tick check and the actual cluster mutation.
     @Override
     public boolean ownsGroupLease(String groupName) {
-        return leaseManager == null
-                || leaseManager.tryAcquireLease("group:" + groupName).isPresent();
+        return leadership.isLeader();
     }
 
     @Override
-    public DistributedLeaseManager.Lease acquireGroupLease(String groupName) {
-        if (leaseManager == null) {
-            return null;
-        }
-        return leaseManager.tryAcquireLease("group:" + groupName).orElse(null);
-    }
-
-    private DistributedLeaseManager.Lease requireGroupLease(String groupName, String action) {
-        DistributedLeaseManager.Lease lease = acquireGroupLease(groupName);
-        if (leaseManager != null && lease == null) {
-            throw new IllegalStateException(
-                    "cannot " + action + " for group '" + groupName + "' because another controller owns its lease");
-        }
-        return lease;
-    }
-
-    @Override
-    public boolean ensureLeaseCurrent(DistributedLeaseManager.Lease lease, String groupName, String action) {
-        if (leaseManager == null || (lease != null && leaseManager.isCurrent(lease))) {
+    public boolean ensureLeaseCurrent(String groupName, String action) {
+        if (leadership.isLeader()) {
             return true;
         }
-        logger.warn("Aborting {} for group {} because the lease fencing token is no longer current", action, groupName);
+        logger.warn("Aborting {} for group {} because this controller is no longer the leader", action, groupName);
         return false;
-    }
-
-    private void onLeaseAcquired(DistributedLeaseManager.Lease lease) {
-        String groupName = groupNameFromLease(lease.resource());
-        if (groupName == null) return;
-        logger.debug("Reconciling persisted workflows after acquiring lease {}", lease.resource());
-        recovery.reconcileForGroup(groupName);
-        reconcilePersistedStartRetriesForGroup(groupName);
-        reconcilePersistedDeploymentsForGroup(groupName);
     }
 
     private static String deploymentKey(DeploymentRecord deployment) {
         return deployment.groupName() + ":" + deployment.revision();
-    }
-
-    private static String groupNameFromLease(String resource) {
-        String prefix = "group:";
-        if (resource == null || !resource.startsWith(prefix) || resource.length() == prefix.length()) {
-            return null;
-        }
-        return resource.substring(prefix.length());
     }
 }

@@ -3,7 +3,6 @@ package me.prexorjustin.prexorcloud.controller.runtime;
 import me.prexorjustin.prexorcloud.controller.auth.JwtRevocationStore;
 import me.prexorjustin.prexorcloud.controller.auth.LoginAttemptStore;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.security.NodeCertificateRevocationStore;
 import me.prexorjustin.prexorcloud.controller.state.RedisRuntimeStore;
 
@@ -93,14 +92,6 @@ public interface RuntimeServices extends AutoCloseable {
      * non-nullable handle.
      */
     NodeCertificateRevocationStore nodeCertRevocationStore();
-
-    /**
-     * Build a fresh {@link DistributedLeaseManager} scoped to a workflow
-     * with the given lease TTL. Non-null when {@link #coordinationEnabled()}
-     * is {@code true}; {@code null} otherwise. Callers requiring multi-controller
-     * partitioning must guard with {@link #coordinationEnabled()}.
-     */
-    DistributedLeaseManager newLeaseManager(long leaseTtlSeconds);
 
     @Override
     void close();

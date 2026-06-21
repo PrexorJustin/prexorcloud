@@ -5,7 +5,6 @@ import me.prexorjustin.prexorcloud.controller.auth.JwtRevocationStore;
 import me.prexorjustin.prexorcloud.controller.auth.LoginAttemptStore;
 import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.security.InMemoryNodeCertificateRevocationStore;
 import me.prexorjustin.prexorcloud.controller.security.NodeCertificateRevocationStore;
 import me.prexorjustin.prexorcloud.controller.state.RedisRuntimeStore;
@@ -75,11 +74,6 @@ public final class InMemoryRuntimeServices implements RuntimeServices {
     @Override
     public NodeCertificateRevocationStore nodeCertRevocationStore() {
         return nodeCertRevocationStore;
-    }
-
-    @Override
-    public DistributedLeaseManager newLeaseManager(long leaseTtlSeconds) {
-        return null;
     }
 
     @Override

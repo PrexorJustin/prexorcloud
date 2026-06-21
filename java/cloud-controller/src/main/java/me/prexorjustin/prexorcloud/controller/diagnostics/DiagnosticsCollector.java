@@ -19,7 +19,6 @@ import me.prexorjustin.prexorcloud.controller.health.ControllerReadinessProbe;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerConfigRedactor;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerLogBuffer;
 import me.prexorjustin.prexorcloud.controller.recovery.BackupScope;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.redis.RedisKeyspaceInspector;
 import me.prexorjustin.prexorcloud.controller.rest.dto.SystemDtoMapper;
 import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
@@ -83,9 +82,6 @@ public final class DiagnosticsCollector {
         Object redisKeyspace = runtime.coordinationEnabled()
                 ? new RedisKeyspaceInspector(runtime.redisCommands()).inspect(BackupScope.defaultRedisKeyPrefixes())
                 : Map.of("enabled", false);
-        List<DistributedLeaseManager.LeaseSnapshot> leases = runtime.coordinationEnabled()
-                ? DistributedLeaseManager.scanAllLeases(runtime.redisCommands())
-                : List.of();
 
         ControllerLogBuffer logs = controller.logBuffer();
         Map<String, Object> logBufferStats = logs == null
@@ -101,7 +97,6 @@ public final class DiagnosticsCollector {
                 .put("settings", settings)
                 .put("redactedConfig", ControllerConfigRedactor.redact(controller.config()))
                 .put("redisKeyspace", redisKeyspace)
-                .put("leases", leases)
                 .put("logBuffer", logBufferStats)
                 .put("nodes", controller.clusterState().getAllNodes())
                 .put("instances", controller.clusterState().getAllInstances())

@@ -10,7 +10,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceTransitionValidator;
 import me.prexorjustin.prexorcloud.controller.state.StartRetryIntent;
@@ -60,7 +59,6 @@ public final class StartRetryOrchestrator {
     private final GroupManager groupManager;
     private final InstancePlacementCoordinator placementCoordinator;
     private final LeaseGate leaseGate;
-    private final DistributedLeaseManager leaseManager; // nullable
     private final StartRetryWakeupQueue startRetryWakeupQueue; // nullable
     private final Supplier<ScheduledExecutorService> executorSupplier;
 
@@ -78,7 +76,6 @@ public final class StartRetryOrchestrator {
             GroupManager groupManager,
             InstancePlacementCoordinator placementCoordinator,
             LeaseGate leaseGate,
-            DistributedLeaseManager leaseManager,
             StartRetryWakeupQueue startRetryWakeupQueue,
             Supplier<ScheduledExecutorService> executorSupplier) {
         this.workflowStateStore = workflowStateStore;
@@ -87,7 +84,6 @@ public final class StartRetryOrchestrator {
         this.groupManager = groupManager;
         this.placementCoordinator = placementCoordinator;
         this.leaseGate = leaseGate;
-        this.leaseManager = leaseManager;
         this.startRetryWakeupQueue = startRetryWakeupQueue;
         this.executorSupplier = executorSupplier;
     }
@@ -180,19 +176,6 @@ public final class StartRetryOrchestrator {
     }
 
     /**
-     * Re-issue persisted retries scoped to one group — called from the
-     * lease-acquired hook so newly-acquired leases pick up in-flight
-     * retries for groups they're now responsible for.
-     */
-    public void reconcilePersistedForGroup(String groupName) {
-        for (var intent : workflowStateStore.startRetries().values()) {
-            if (intent.groupName().equals(groupName)) {
-                reconcileOne(intent);
-            }
-        }
-    }
-
-    /**
      * Drain the wakeup queue (Redis-backed mode only) — pulls all due
      * intents and dispatches a retry for each. No-op when no queue is
      * configured.
@@ -275,10 +258,9 @@ public final class StartRetryOrchestrator {
             pendingStartRetryTasks.remove(intent.instanceId());
         }
         String instanceId = intent.instanceId();
-        DistributedLeaseManager.Lease lease = leaseGate.acquireGroupLease(intent.groupName());
-        if (leaseManager != null && lease == null) {
+        if (!leaseGate.ownsGroupLease(intent.groupName())) {
             logger.debug(
-                    "Skipping persisted start retry for {} because this controller does not hold lease for group {}",
+                    "Skipping persisted start retry for {} because this controller is not the leader for group {}",
                     instanceId,
                     intent.groupName());
             return;
@@ -315,7 +297,7 @@ public final class StartRetryOrchestrator {
         var resolved = groupManager.resolveGroup(group.name());
         var startMsg = placementCoordinator.buildStartMessage(
                 resolved, current, compositionPlan, clusterState.issuePluginToken(instanceId));
-        if (!leaseGate.ensureLeaseCurrent(lease, intent.groupName(), "retry start for instance " + instanceId)) {
+        if (!leaseGate.ensureLeaseCurrent(intent.groupName(), "retry start for instance " + instanceId)) {
             return;
         }
         if (!placementCoordinator.dispatchStartMessage(current.nodeId(), instanceId, startMsg)) {

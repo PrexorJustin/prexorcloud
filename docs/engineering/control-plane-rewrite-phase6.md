@@ -37,8 +37,18 @@ and `MongoClusterStore`), then a wiring slice swaps the production path and dele
 - **Slice 3a–d** ⏳ Collapse ephemeral consumers to in-memory, one at a time: rate-limit
   (`RateLimitMiddleware` → `WindowCounter` only; delete `RateLimitReloader` + `failOpenOnRedisError`),
   SSE tickets/replay, console flood, module KV (Mongo only).
-- **Slice 3e** ⏳ Collapse `LeaseGate` → `isLeader()`; delete `DistributedLeaseManager`,
-  `RedisStartRetryWakeupQueue`, `nodeowner:*`, `RedisEventBridge` relay (scheduler surgery).
+- **Slice 3e** — leadership-gate the self-gated components and retire their leases.
+  - ✅ Healing (`699b4cc`), node drain (`5da1a11`), platform module mutation (`5da86dd`):
+    each gates on `leadership.isLeader()` and drops its Redis lease; the multi-controller-lease
+    tests became leadership tests (a follower ignores the work).
+  - ✅ Scheduler-cluster lease threading: `LeaseGate`/`LeaseGuard` collapsed to a boolean
+    leadership fence (drop the `DistributedLeaseManager.Lease` token from every signature);
+    `Scheduler`/`InstancePlacementCoordinator`/`StartRetryOrchestrator`/`RecoveryOrchestrator`
+    no longer thread a lease; `DistributedLeaseManager` + `newLeaseManager` (RuntimeServices/impls)
+    + `DiagnosticsCollector.scanAllLeases` + `DistributedLeaseManagerTest` deleted. The
+    `onLeaseAcquired` per-group reconcile hook is dropped — `MongoLeaderElector.onAcquired`
+    already triggers a full `scheduler.requestReconcile()` on takeover. Controller suite green.
+  - ⏳ Remaining: delete `RedisStartRetryWakeupQueue`, `nodeowner:*`, `RedisEventBridge` relay.
 - **Slice 3f** ⏳ Swap `ClusterState.runtimeStore` (`RedisRuntimeStore` → `WorkloadTokenStore`,
   keeping the nullable seam); drop node/instance/player projection + `reconcile/adoptInstanceFromRedis`;
   update the scheduler tick + daemon adopt callers; hydrate token cache on takeover from `loadAllTokens`.

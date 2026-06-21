@@ -10,7 +10,6 @@ import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
 import me.prexorjustin.prexorcloud.controller.console.RedisConsoleFloodWindowStore;
 import me.prexorjustin.prexorcloud.controller.metrics.MetricsCollector;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.redis.RedisConnection;
 import me.prexorjustin.prexorcloud.controller.security.NodeCertificateRevocationStore;
 import me.prexorjustin.prexorcloud.controller.security.RedisNodeCertificateRevocationStore;
@@ -34,17 +33,14 @@ public final class RedisRuntimeServices implements RuntimeServices {
     private final RedisLoginAttemptStore loginAttemptStore;
     private final RedisConsoleFloodWindowStore consoleFloodWindow;
     private final RedisNodeCertificateRevocationStore nodeCertRevocationStore;
-    private final String controllerId;
-    private volatile MetricsCollector metricsCollector;
 
     /**
      * Connects to Redis using the URI in {@code connection} and probes the
      * server with a PING. Throws if the probe fails — production must
      * fail fast rather than silently degrade.
      */
-    public RedisRuntimeServices(RedisConnection connection, ObjectMapper redisMapper, String controllerId) {
+    public RedisRuntimeServices(RedisConnection connection, ObjectMapper redisMapper) {
         this.connection = Objects.requireNonNull(connection, "connection");
-        this.controllerId = Objects.requireNonNull(controllerId, "controllerId");
         Objects.requireNonNull(redisMapper, "redisMapper");
         connection.initialize();
         this.commands = connection.sync();
@@ -113,23 +109,11 @@ public final class RedisRuntimeServices implements RuntimeServices {
         return nodeCertRevocationStore;
     }
 
-    @Override
-    public DistributedLeaseManager newLeaseManager(long leaseTtlSeconds) {
-        var leaseManager = new DistributedLeaseManager(commands, controllerId, leaseTtlSeconds);
-        MetricsCollector mc = metricsCollector;
-        if (mc != null) {
-            leaseManager.attachMetricsCollector(mc);
-        }
-        return leaseManager;
-    }
-
     /**
      * Wires the controller's {@link MetricsCollector} into stores that produce
-     * coordination-store traffic. Called from the bootstrap once metrics are
-     * built; lease managers minted afterwards inherit the wiring.
+     * coordination-store traffic. Called from the bootstrap once metrics are built.
      */
     public void attachMetricsCollector(MetricsCollector metricsCollector) {
-        this.metricsCollector = metricsCollector;
         if (metricsCollector != null) {
             jwtRevocationStore.attachMetricsCollector(metricsCollector);
         }

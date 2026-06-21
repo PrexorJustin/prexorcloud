@@ -6,7 +6,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
@@ -47,8 +46,6 @@ public final class RecoveryOrchestrator {
     private final StateStore stateStore;
     private final GroupManager groupManager;
     private final InstancePlacementCoordinator placementCoordinator;
-    private final LeaseGate leaseGate;
-    private final DistributedLeaseManager leaseManager; // nullable
     private final long evaluationIntervalSeconds;
     // Single-writer authority: only the leader recovers/redispatches. Defaults to always-leader so
     // tests behave unchanged; the scheduler injects the real elector via setLeadership.
@@ -67,16 +64,12 @@ public final class RecoveryOrchestrator {
             StateStore stateStore,
             GroupManager groupManager,
             InstancePlacementCoordinator placementCoordinator,
-            LeaseGate leaseGate,
-            DistributedLeaseManager leaseManager,
             long evaluationIntervalSeconds) {
         this.clusterState = clusterState;
         this.workflowStateStore = workflowStateStore;
         this.stateStore = stateStore;
         this.groupManager = groupManager;
         this.placementCoordinator = placementCoordinator;
-        this.leaseGate = leaseGate;
-        this.leaseManager = leaseManager;
         this.evaluationIntervalSeconds = evaluationIntervalSeconds;
     }
 
@@ -99,13 +92,6 @@ public final class RecoveryOrchestrator {
     /** Sweep only instances bound to {@code nodeId} — called on node reconnect. */
     public void reconcileForNode(String nodeId) {
         for (var instance : clusterState.getInstancesByNode(nodeId)) {
-            reconcileOne(instance);
-        }
-    }
-
-    /** Sweep instances in a single group — called from the lease-acquired hook. */
-    public void reconcileForGroup(String groupName) {
-        for (var instance : clusterState.getInstancesByGroup(groupName)) {
             reconcileOne(instance);
         }
     }
