@@ -169,6 +169,22 @@ class InstanceCompositionPlannerTest {
                         new InstanceCompositionPlan.ResolvedConfigPatch("server.properties", "motd", "Lobby MOTD"),
                         new InstanceCompositionPlan.ResolvedConfigPatch("server.properties", "server-port", "30001")),
                 plan.configPatches());
+
+        // --- Controller seed-list injection (B1) ---
+        // Baseline plan above has no supplier wired, so it carries no seed list (single-controller fallback).
+        assertNull(plan.env().get("CLOUD_CONTROLLER_SEEDS"), "seed list absent until a supplier is wired");
+
+        // Wire a two-controller membership view and re-plan the same instance.
+        planner.setControllerSeedSupplier(() -> List.of("http://10.0.0.3:8080", "http://10.0.0.6:8080"));
+        InstanceCompositionPlan seeded = planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+
+        assertEquals(
+                "http://10.0.0.3:8080,http://10.0.0.6:8080",
+                seeded.env().get("CLOUD_CONTROLLER_SEEDS"),
+                "every controller's REST address is injected as a comma-separated seed list");
+        // The seed list tracks live membership and MUST NOT feed the plan hash, or a controller
+        // joining/leaving would churn re-composition of every running instance.
+        assertEquals(plan.planHash(), seeded.planHash(), "controller membership changes must not alter the plan hash");
     }
 
     @Test

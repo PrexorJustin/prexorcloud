@@ -53,6 +53,14 @@ public final class InstanceCompositionPlanner {
     private final MetricsCollector metricsCollector;
     private final BedrockRemoteResolver bedrockRemoteResolver;
 
+    /**
+     * Supplies the cluster's controller REST seed URLs (e.g. {@code http://10.0.0.3:8080}) injected as
+     * {@code CLOUD_CONTROLLER_SEEDS} so the in-server plugin can follow the leader across a failover.
+     * Evaluated per-plan (membership is dynamic). Defaults to empty — single-controller behaviour — until
+     * bootstrap wires the cluster membership view via {@link #setControllerSeedSupplier}.
+     */
+    private volatile java.util.function.Supplier<List<String>> controllerSeedSupplier = () -> List.of();
+
     public InstanceCompositionPlanner(
             TemplateManager templateManager, CatalogStore catalogStore, PlatformModuleManager platformModuleManager) {
         this(templateManager, catalogStore, platformModuleManager, null);
@@ -77,6 +85,16 @@ public final class InstanceCompositionPlanner {
         this.platformModuleManager = platformModuleManager;
         this.metricsCollector = metricsCollector;
         this.bedrockRemoteResolver = bedrockRemoteResolver;
+    }
+
+    /**
+     * Wires the supplier of controller REST seed URLs injected as {@code CLOUD_CONTROLLER_SEEDS}.
+     * Null is ignored (the empty default stays). See {@link #controllerSeedSupplier}.
+     */
+    public void setControllerSeedSupplier(java.util.function.Supplier<List<String>> supplier) {
+        if (supplier != null) {
+            this.controllerSeedSupplier = supplier;
+        }
     }
 
     public InstanceCompositionPlan plan(
@@ -125,6 +143,23 @@ public final class InstanceCompositionPlanner {
                 extensions);
         for (InstanceCompositionPlan.ResolvedConfigPatch configPatch : configPatches) {
             planHash = planHash(planHash, configPatch.file(), configPatch.key(), configPatch.value());
+        }
+
+        // Controller REST seed list for the in-server plugin's leader-following client. Injected AFTER
+        // planHash on purpose: the seed list tracks live controller membership, which must NOT feed the
+        // plan hash (a controller joining/leaving would otherwise change every running instance's hash and
+        // churn re-composition). The seed list is reach-the-controller metadata, not composed identity.
+        // A resolution failure must never block placement — fall back to the single CLOUD_CONTROLLER_URL.
+        try {
+            List<String> controllerSeeds = controllerSeedSupplier.get();
+            if (controllerSeeds != null && !controllerSeeds.isEmpty()) {
+                env.put("CLOUD_CONTROLLER_SEEDS", String.join(",", controllerSeeds));
+            }
+        } catch (RuntimeException e) {
+            logger.warn(
+                    "Failed to resolve controller seed list for {} -- plugin falls back to single controller: {}",
+                    instanceId,
+                    e.getMessage());
         }
 
         try (var ignored = CorrelationContext.open("compositionPlanId", planHash)) {

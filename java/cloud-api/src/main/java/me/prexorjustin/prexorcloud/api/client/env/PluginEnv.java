@@ -40,9 +40,22 @@ public final class PluginEnv {
         return System.getenv("CLOUD_INSTANCE_ID") != null;
     }
 
-    /** Returns {@code http://host:port} for the controller. */
+    /**
+     * Returns the controller REST base URL(s) the in-server client should use, as a comma-separated
+     * seed list. The daemon-connected controller ({@code CLOUD_CONTROLLER_HOST}/{@code _PORT}) comes
+     * first so the client tries the known-good controller before rotating; when the controller injected
+     * a {@code CLOUD_CONTROLLER_SEEDS} list (every controller's REST address) it is appended so the
+     * client can follow the leader after a failover. The controller client de-duplicates the resulting
+     * list, so the connected controller appearing twice is harmless. Falls back to the single
+     * connected controller when no seed list was injected (single-controller deployments).
+     */
     public static String controllerUrl() {
-        return "http://" + controllerHost() + ":" + controllerPort();
+        String connected = "http://" + controllerHost() + ":" + controllerPort();
+        String seeds = System.getenv("CLOUD_CONTROLLER_SEEDS");
+        if (seeds != null && !seeds.isBlank()) {
+            return connected + "," + seeds;
+        }
+        return connected;
     }
 
     /** Returns the plugin authentication token injected by the daemon. */

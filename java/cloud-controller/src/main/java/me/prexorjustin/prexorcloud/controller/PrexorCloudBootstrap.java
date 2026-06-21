@@ -1382,7 +1382,33 @@ public final class PrexorCloudBootstrap {
                 .toList();
     }
 
-    /** A controller gRPC "host:port" a daemon could actually dial — non-blank, non-loopback/wildcard. */
+    /**
+     * Enumerate the cluster's controller REST base URLs (e.g. {@code http://10.0.0.3:8080}) injected into
+     * each instance as {@code CLOUD_CONTROLLER_SEEDS}, so the in-server plugin's REST client can rotate to
+     * another controller and follow the leader across a failover. Mirrors {@link #resolveControllerGrpcAddresses}
+     * over {@code Member.restAddr} (the host routability check is protocol-agnostic): blank and loopback/wildcard
+     * addresses are dropped, freshest-seen members come first, and the list is capped. Empty when membership
+     * is unknown — the plugin then falls back to the single daemon-injected controller URL.
+     */
+    @SuppressWarnings("HttpUrlsUsage") // internal cluster REST URLs injected into daemon/plugin env, not external
+    private java.util.List<String> resolveControllerRestSeedUrls() {
+        if (clusterControlService == null) {
+            return java.util.List.of();
+        }
+        return clusterControlService.clusterReadView().listMembers().stream()
+                .filter(member -> isRoutableGrpcAddr(member.restAddr()))
+                .sorted(java.util.Comparator.comparing(
+                                me.prexorjustin.prexorcloud.controller.cluster.state.Member::lastSeen,
+                                java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()))
+                        .reversed())
+                .map(me.prexorjustin.prexorcloud.controller.cluster.state.Member::restAddr)
+                .distinct()
+                .limit(MAX_ADVERTISED_CONTROLLERS)
+                .map(addr -> "http://" + addr)
+                .toList();
+    }
+
+    /** A controller "host:port" a daemon/plugin could actually dial — non-blank, non-loopback/wildcard. */
     private static boolean isRoutableGrpcAddr(String addr) {
         if (addr == null || addr.isBlank()) {
             return false;
@@ -1436,6 +1462,9 @@ public final class PrexorCloudBootstrap {
                 modules.platformManager(),
                 controller.metricsCollector(),
                 new ClusterStateBedrockRemoteResolver(controller.clusterState()));
+        // Inject every controller's REST address as the in-server plugin's seed list so it can follow the
+        // leader across a failover (the daemon-connected URL alone strands the plugin once that leader dies).
+        compositionPlanner.setControllerSeedSupplier(this::resolveControllerRestSeedUrls);
         var placementCoordinator = new InstancePlacementCoordinator(
                 controller.clusterState(),
                 nodeSelector,
