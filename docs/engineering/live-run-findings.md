@@ -552,7 +552,15 @@ quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #1
 
 ## Rewrite branch (`rewrite/single-writer-control-plane`) — 2026-06-21 B-track failover gate
 
-### Plugin token 401-loop during the new-leader *adopt gap* on failover — **OPEN (residual after the seed-list fix)**
+### Plugin token 401-loop during the new-leader *adopt gap* on failover — **DONE (committed `52f617c`, validated live 0×401)**
+- **Fix (chosen: read-through-ish / grace):** `WorkloadIdentityRegistry.instanceLive` now accepts a still-durable,
+  unexpired plugin token for an *absent* instance while the controller is in its post-takeover convergence window
+  (`ConvergenceGate.isObserving()`, wired via `ClusterState.setPostTakeoverGraceSupplier`). Strict again the moment the
+  daemon reports (observation ends + instance is live); a *known* terminal instance is still rejected; the window is
+  bounded by the convergence grace. **Live re-test:** stop the leader under a running Paper instance → **0×401**
+  (was ~14), only 2 transient 503s in the sub-second no-leader instant. Unit test
+  `WorkloadIdentityRegistryTest.adoptGapGraceAcceptsAbsentInstanceOnlyDuringConvergence`.
+
 - **Found:** failover gate (kill the leader under a running Paper instance) on `rewrite/single-writer-control-plane`,
   with the new leader-following plugin + `CLOUD_CONTROLLER_SEEDS` injection live.
 - **Symptom:** for ~10 s after a leader change the in-server plugin's controller calls (`/api/plugin/ready`,
