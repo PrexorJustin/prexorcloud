@@ -49,7 +49,6 @@ public final class Scheduler implements LeaseGate {
     private final NodeMessageDispatcher nodeMessageDispatcher;
     private final long evaluationIntervalSeconds;
     private final java.util.function.BooleanSupplier globalMaintenanceCheck;
-    private final StartRetryWakeupQueue startRetryWakeupQueue; // nullable — null when Redis unavailable
     private final EventChoreographer eventChoreographer; // nullable
     private final MetricsCollector metricsCollector; // nullable
     // Tracer for the scheduler.tick span (Track D.2). Defaults to no-op; bootstrap swaps in the
@@ -89,7 +88,6 @@ public final class Scheduler implements LeaseGate {
             DeploymentReconciler deploymentReconciler,
             long evaluationIntervalSeconds,
             java.util.function.BooleanSupplier globalMaintenanceCheck,
-            StartRetryWakeupQueue startRetryWakeupQueue,
             NodeMessageDispatcher nodeMessageDispatcher) {
         this(
                 groupManager,
@@ -102,7 +100,6 @@ public final class Scheduler implements LeaseGate {
                 deploymentReconciler,
                 evaluationIntervalSeconds,
                 globalMaintenanceCheck,
-                startRetryWakeupQueue,
                 nodeMessageDispatcher,
                 null,
                 null);
@@ -119,7 +116,6 @@ public final class Scheduler implements LeaseGate {
             DeploymentReconciler deploymentReconciler,
             long evaluationIntervalSeconds,
             java.util.function.BooleanSupplier globalMaintenanceCheck,
-            StartRetryWakeupQueue startRetryWakeupQueue,
             NodeMessageDispatcher nodeMessageDispatcher,
             EventChoreographer eventChoreographer) {
         this(
@@ -133,7 +129,6 @@ public final class Scheduler implements LeaseGate {
                 deploymentReconciler,
                 evaluationIntervalSeconds,
                 globalMaintenanceCheck,
-                startRetryWakeupQueue,
                 nodeMessageDispatcher,
                 eventChoreographer,
                 null);
@@ -150,7 +145,6 @@ public final class Scheduler implements LeaseGate {
             DeploymentReconciler deploymentReconciler,
             long evaluationIntervalSeconds,
             java.util.function.BooleanSupplier globalMaintenanceCheck,
-            StartRetryWakeupQueue startRetryWakeupQueue,
             NodeMessageDispatcher nodeMessageDispatcher,
             EventChoreographer eventChoreographer,
             MetricsCollector metricsCollector) {
@@ -173,7 +167,6 @@ public final class Scheduler implements LeaseGate {
         this.nodeMessageDispatcher = nodeMessageDispatcher;
         this.evaluationIntervalSeconds = evaluationIntervalSeconds;
         this.globalMaintenanceCheck = globalMaintenanceCheck;
-        this.startRetryWakeupQueue = startRetryWakeupQueue;
         this.eventChoreographer = eventChoreographer;
         this.metricsCollector = metricsCollector;
         this.startRetry = new StartRetryOrchestrator(
@@ -183,7 +176,6 @@ public final class Scheduler implements LeaseGate {
                 groupManager,
                 placementCoordinator,
                 this,
-                startRetryWakeupQueue,
                 () -> this.executor);
         this.recovery = new RecoveryOrchestrator(
                 clusterState,
@@ -202,9 +194,6 @@ public final class Scheduler implements LeaseGate {
         });
         executor.scheduleAtFixedRate(
                 this::evaluate, evaluationIntervalSeconds, evaluationIntervalSeconds, TimeUnit.SECONDS);
-        if (startRetryWakeupQueue != null) {
-            executor.scheduleAtFixedRate(startRetry::processDueWakeupsSafely, 1, 1, TimeUnit.SECONDS);
-        }
         logger.debug("Scheduler started (interval={}s)", evaluationIntervalSeconds);
     }
 
@@ -280,7 +269,6 @@ public final class Scheduler implements LeaseGate {
                 reconcileRecoverableStarts();
                 reconcilePersistedStartRetries();
                 reconcilePersistedDeployments();
-                startRetry.processDueWakeupsSafely();
 
                 // Convergence gate: right after a leadership change, don't scale-reconcile
                 // (spawn / scale-down / reschedule) until daemons have reported their inventory,

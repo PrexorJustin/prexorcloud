@@ -30,22 +30,17 @@ import org.slf4j.LoggerFactory;
  * {@code StartInstance} message, and either succeeds, transitions to
  * a permanent failure, or reschedules another retry.
  *
- * <p>Two storage modes are supported:
- *
- * <ul>
- *   <li><b>Single-controller</b> (no Redis/Valkey): wakeups are scheduled
- *       in-process via {@link ScheduledExecutorService}. The
- *       {@link #pendingStartRetryTasks} map tracks future handles so a
- *       state change can cancel the pending retry.
- *   <li><b>Active-active</b> (Redis present): wakeups go through
- *       {@link StartRetryWakeupQueue} which is durable across controller
- *       failover. The in-memory map is unused in this mode.
- * </ul>
+ * <p>Wakeups are scheduled in-process via {@link ScheduledExecutorService}
+ * on the leader (the single writer that owns retries). The intent is
+ * persisted in Mongo ({@code workflow_start_retries}), so a leadership
+ * change resumes in-flight retries via {@link #reconcilePersisted()} on
+ * the new leader; the {@link #pendingStartRetryTasks} map only tracks the
+ * live future handles so a state change can cancel a pending retry.
  *
  * <p>This class extracted from {@link Scheduler}. The Scheduler keeps a
  * thin {@code retryStart}/{@code clearStartRetryBudget}/{@code
- * reconcilePersistedStartRetries}/{@code processDueStartRetryWakeups}
- * delegator API for backwards compatibility with REST + tests.
+ * reconcilePersistedStartRetries} delegator API for backwards
+ * compatibility with REST + tests.
  */
 public final class StartRetryOrchestrator {
 
@@ -59,13 +54,12 @@ public final class StartRetryOrchestrator {
     private final GroupManager groupManager;
     private final InstancePlacementCoordinator placementCoordinator;
     private final LeaseGate leaseGate;
-    private final StartRetryWakeupQueue startRetryWakeupQueue; // nullable
     private final Supplier<ScheduledExecutorService> executorSupplier;
 
     /**
      * In-memory book-keeping of scheduled retry futures, keyed by instance
-     * id. Used in single-controller (no Redis) mode; in active-active mode
-     * {@link #startRetryWakeupQueue} is the durable peer.
+     * id, so a state change can cancel a pending retry. Live on the leader
+     * only; the durable record is the persisted {@link StartRetryIntent}.
      */
     private final Map<String, ScheduledFuture<?>> pendingStartRetryTasks = new ConcurrentHashMap<>();
 
@@ -76,7 +70,6 @@ public final class StartRetryOrchestrator {
             GroupManager groupManager,
             InstancePlacementCoordinator placementCoordinator,
             LeaseGate leaseGate,
-            StartRetryWakeupQueue startRetryWakeupQueue,
             Supplier<ScheduledExecutorService> executorSupplier) {
         this.workflowStateStore = workflowStateStore;
         this.clusterState = clusterState;
@@ -84,7 +77,6 @@ public final class StartRetryOrchestrator {
         this.groupManager = groupManager;
         this.placementCoordinator = placementCoordinator;
         this.leaseGate = leaseGate;
-        this.startRetryWakeupQueue = startRetryWakeupQueue;
         this.executorSupplier = executorSupplier;
     }
 
@@ -158,9 +150,6 @@ public final class StartRetryOrchestrator {
         if (pending != null) {
             pending.cancel(false);
         }
-        if (startRetryWakeupQueue != null) {
-            startRetryWakeupQueue.cancel(instanceId);
-        }
         workflowStateStore.deleteStartRetry(instanceId);
     }
 
@@ -172,37 +161,6 @@ public final class StartRetryOrchestrator {
     public void reconcilePersisted() {
         for (var intent : workflowStateStore.startRetries().values()) {
             reconcileOne(intent);
-        }
-    }
-
-    /**
-     * Drain the wakeup queue (Redis-backed mode only) — pulls all due
-     * intents and dispatches a retry for each. No-op when no queue is
-     * configured.
-     */
-    public void processDueWakeupsSafely() {
-        try {
-            processDueWakeups();
-        } catch (Exception e) {
-            logger.warn("Failed to process due start retry wakeups: {}", e.getMessage(), e);
-        }
-    }
-
-    private void processDueWakeups() {
-        if (startRetryWakeupQueue == null) {
-            return;
-        }
-        for (String instanceId : startRetryWakeupQueue.claimDue(Instant.now(), 64)) {
-            var intent = workflowStateStore.getStartRetry(instanceId).orElse(null);
-            if (intent == null) {
-                startRetryWakeupQueue.cancel(instanceId);
-                continue;
-            }
-            if (!leaseGate.ownsGroupLease(intent.groupName())) {
-                startRetryWakeupQueue.schedule(intent);
-                continue;
-            }
-            resendStart(intent);
         }
     }
 
@@ -224,10 +182,6 @@ public final class StartRetryOrchestrator {
 
     private void scheduleRetry(StartRetryIntent intent) {
         if (!leaseGate.ownsGroupLease(intent.groupName())) {
-            return;
-        }
-        if (startRetryWakeupQueue != null) {
-            startRetryWakeupQueue.schedule(intent);
             return;
         }
         var pending = pendingStartRetryTasks.get(intent.instanceId());
@@ -254,9 +208,7 @@ public final class StartRetryOrchestrator {
     }
 
     private void resendStart(StartRetryIntent intent) {
-        if (startRetryWakeupQueue == null) {
-            pendingStartRetryTasks.remove(intent.instanceId());
-        }
+        pendingStartRetryTasks.remove(intent.instanceId());
         String instanceId = intent.instanceId();
         if (!leaseGate.ownsGroupLease(intent.groupName())) {
             logger.debug(

@@ -56,10 +56,8 @@ import me.prexorjustin.prexorcloud.controller.runtime.RedisRuntimeServices;
 import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 import me.prexorjustin.prexorcloud.controller.scheduler.InstancePlacementCoordinator;
 import me.prexorjustin.prexorcloud.controller.scheduler.NodeMessageDispatcher;
-import me.prexorjustin.prexorcloud.controller.scheduler.RedisStartRetryWakeupQueue;
 import me.prexorjustin.prexorcloud.controller.scheduler.ScalingEvaluator;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
-import me.prexorjustin.prexorcloud.controller.scheduler.StartRetryWakeupQueue;
 import me.prexorjustin.prexorcloud.controller.scheduler.WeightedNodeSelector;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.ClusterStateBedrockRemoteResolver;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
@@ -1478,10 +1476,6 @@ public final class PrexorCloudBootstrap {
                 }
             });
         }
-        StartRetryWakeupQueue startRetryWakeupQueue = redisSync != null
-                ? new RedisStartRetryWakeupQueue(
-                        redisSync, config.uuid(), config.scheduler().evaluationIntervalSeconds())
-                : null;
         var compositionPlanner = new InstanceCompositionPlanner(
                 controller.templateManager(),
                 controller.catalogStore(),
@@ -1513,7 +1507,6 @@ public final class PrexorCloudBootstrap {
                 deploymentReconciler,
                 config.scheduler().evaluationIntervalSeconds(),
                 () -> controller.config().maintenance().enabled(),
-                startRetryWakeupQueue,
                 nodeMessageDispatcher,
                 controller.eventChoreographer(),
                 controller.metricsCollector());

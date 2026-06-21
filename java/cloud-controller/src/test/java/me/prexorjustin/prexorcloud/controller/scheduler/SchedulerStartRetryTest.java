@@ -6,12 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Proxy;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -35,8 +33,6 @@ import me.prexorjustin.prexorcloud.protocol.ControllerMessage;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
 import io.grpc.stub.StreamObserver;
-import io.lettuce.core.SetArgs;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -87,7 +83,6 @@ class SchedulerStartRetryTest {
                 deploymentReconciler,
                 30,
                 () -> false,
-                null,
                 nodeMessageDispatcher);
         scheduler.start();
     }
@@ -364,73 +359,6 @@ class SchedulerStartRetryTest {
         assertTrue(workflowStateStore.getStartRetry("lobby-fence").isPresent());
     }
 
-    @Test
-    void redisWakeupQueueResendsQueuedStart() throws Exception {
-        var messages = new CopyOnWriteArrayList<ControllerMessage>();
-        var sent = new CountDownLatch(1);
-        sessionManager.register(new NodeSession(
-                "session-queue",
-                "node-1",
-                new StreamObserver<>() {
-                    @Override
-                    public void onNext(ControllerMessage value) {
-                        messages.add(value);
-                        sent.countDown();
-                    }
-
-                    @Override
-                    public void onError(Throwable t) {}
-
-                    @Override
-                    public void onCompleted() {}
-                },
-                Instant.now()));
-
-        var group = stubGroup("lobby");
-        when(groupManager.get("lobby")).thenReturn(Optional.of(group));
-        when(groupManager.resolveGroup("lobby")).thenReturn(group);
-
-        clusterState.addNode("node-1", "10.0.0.1", 4096, Map.of(), Instant.now(), null);
-        clusterState.addInstance(new InstanceInfo(
-                "lobby-queue", "lobby", "node-1", InstanceState.SCHEDULED, 25570, 0, 0, Instant.now()));
-        var compositionPlan = compositionPlan("lobby-queue");
-        when(stateStore.getInstanceCompositionPlan("lobby-queue")).thenReturn(Optional.of(compositionPlan));
-
-        var queueRedis = new InMemoryRetryWakeupRedis();
-        var queuedScheduler = new Scheduler(
-                groupManager,
-                clusterState,
-                scalingEvaluator,
-                mock(CrashLoopDetector.class),
-                stateStore,
-                workflowStateStore,
-                placementCoordinator,
-                deploymentReconciler,
-                30,
-                () -> false,
-                new RedisStartRetryWakeupQueue(queueRedis.commands(), "controller-a", 30),
-                nodeMessageDispatcher);
-        queuedScheduler.start();
-        try {
-            workflowStateStore.saveStartRetry(new StartRetryIntent(
-                    "lobby-queue",
-                    "lobby",
-                    "node-1",
-                    "RUNTIME_PROVISION_FAILED",
-                    compositionPlan.planHash(),
-                    1,
-                    Instant.now(),
-                    Instant.now()));
-
-            queuedScheduler.reconcilePersistedStartRetries();
-
-            assertTrue(sent.await(5, TimeUnit.SECONDS));
-            assertEquals("lobby-queue", messages.getFirst().getStartInstance().getInstanceId());
-        } finally {
-            queuedScheduler.stop();
-        }
-    }
-
     private static InstanceCompositionPlan compositionPlan(String instanceId) {
         return new InstanceCompositionPlan(
                 instanceId,
@@ -523,112 +451,5 @@ class SchedulerStartRetryTest {
                 return 0L;
             }
         };
-    }
-
-    private static final class InMemoryRetryWakeupRedis {
-
-        private final Map<String, String> values = new ConcurrentHashMap<>();
-        private final Map<String, java.util.NavigableMap<Double, java.util.Set<String>>> zsets =
-                new ConcurrentHashMap<>();
-
-        @SuppressWarnings("unchecked")
-        private RedisCommands<String, String> commands() {
-            return (RedisCommands<String, String>) Proxy.newProxyInstance(
-                    RedisCommands.class.getClassLoader(),
-                    new Class<?>[] {RedisCommands.class},
-                    (proxy, method, args) -> switch (method.getName()) {
-                        case "set" -> set((String) args[0], (String) args[1], (SetArgs) args[2]);
-                        case "get" -> values.get((String) args[0]);
-                        case "del" -> deleteAll(args);
-                        case "zadd" -> zadd((String) args[0], toDouble(args[1]), (String) args[2]);
-                        case "zrem" -> zrem((String) args[0], args[1]);
-                        case "zrangebyscore" -> zrangebyscore((String) args[0], toDouble(args[1]), toDouble(args[2]));
-                        case "toString" -> "InMemoryRetryWakeupRedis";
-                        default ->
-                            throw new UnsupportedOperationException("Unsupported Redis method: " + method.getName());
-                    });
-        }
-
-        private String set(String key, String value, SetArgs args) {
-            if (values.containsKey(key)) {
-                return null;
-            }
-            values.put(key, value);
-            return "OK";
-        }
-
-        private long deleteAll(Object[] args) {
-            long deleted = 0;
-            for (Object rawKey : args) {
-                if (rawKey instanceof String key) {
-                    deleted += values.remove(key) != null ? 1 : 0;
-                    deleted += zsets.remove(key) != null ? 1 : 0;
-                } else if (rawKey instanceof String[] keys) {
-                    for (String key : keys) {
-                        deleted += values.remove(key) != null ? 1 : 0;
-                        deleted += zsets.remove(key) != null ? 1 : 0;
-                    }
-                }
-            }
-            return deleted;
-        }
-
-        private long zadd(String key, double score, String member) {
-            var sortedMembers = zsets.computeIfAbsent(key, ignored -> new java.util.TreeMap<>());
-            sortedMembers.values().forEach(members -> members.remove(member));
-            sortedMembers
-                    .computeIfAbsent(score, ignored -> new java.util.LinkedHashSet<>())
-                    .add(member);
-            return 1L;
-        }
-
-        private long zrem(String key, Object rawMembers) {
-            var sortedMembers = zsets.get(key);
-            if (sortedMembers == null) {
-                return 0L;
-            }
-            var members = new java.util.ArrayList<String>();
-            if (rawMembers instanceof String member) {
-                members.add(member);
-            } else if (rawMembers instanceof String[] manyMembers) {
-                members.addAll(List.of(manyMembers));
-            }
-            long removed = 0L;
-            var iterator = sortedMembers.entrySet().iterator();
-            while (iterator.hasNext()) {
-                var entry = iterator.next();
-                for (String member : members) {
-                    if (entry.getValue().remove(member)) {
-                        removed++;
-                    }
-                }
-                if (entry.getValue().isEmpty()) {
-                    iterator.remove();
-                }
-            }
-            return removed;
-        }
-
-        private List<String> zrangebyscore(String key, double min, double max) {
-            var sortedMembers = zsets.get(key);
-            if (sortedMembers == null) {
-                return List.of();
-            }
-            var result = new java.util.ArrayList<String>();
-            for (var entry : sortedMembers.entrySet()) {
-                if (entry.getKey() < min || entry.getKey() > max) {
-                    continue;
-                }
-                result.addAll(entry.getValue());
-            }
-            return List.copyOf(result);
-        }
-
-        private double toDouble(Object value) {
-            if (value instanceof Number number) {
-                return number.doubleValue();
-            }
-            return Double.parseDouble(String.valueOf(value));
-        }
     }
 }
