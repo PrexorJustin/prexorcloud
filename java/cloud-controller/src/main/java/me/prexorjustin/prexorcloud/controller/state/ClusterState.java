@@ -203,6 +203,31 @@ public final class ClusterState {
         publishGroupAggregatesIfChanged(instance.group());
     }
 
+    /**
+     * Atomically place a freshly-scheduled instance only while its group is still below
+     * {@code maxInstances} non-terminal instances. Returns {@code false} when a concurrent placement
+     * already filled the group — the caller must release any node reservation it took.
+     *
+     * <p>This is the single serialization point that keeps the two independent placement paths —
+     * crash-heal replacement ({@code Scheduler.scheduleReplacement}, on the healing worker) and the
+     * min-instance / scale-up reconcile ({@code Scheduler.evaluateGroup}, on the scheduler thread) —
+     * from both passing their own {@code active < max} check and over-provisioning the group. The
+     * per-group lease that used to serialize them is gone (leadership is the only fence now), so the
+     * count check and the insert must be one critical section. The count excludes the instance's own
+     * id (re-placing a crashed id under the same name is not a net add) and terminal records.
+     */
+    public synchronized boolean addInstanceWithinCap(InstanceInfo instance, int maxInstances) {
+        long active = instanceRegistry.getByGroup(instance.group()).stream()
+                .filter(i -> !i.id().equals(instance.id()))
+                .filter(ClusterState::countsAsRunning)
+                .count();
+        if (active >= maxInstances) {
+            return false;
+        }
+        addInstance(instance);
+        return true;
+    }
+
     public void updateInstanceState(String instanceId, InstanceState newState) {
         InstanceInfo existing = instanceRegistry.get(instanceId).orElse(null);
         if (!canApplyInstanceTransition(instanceId, existing, newState)) return;

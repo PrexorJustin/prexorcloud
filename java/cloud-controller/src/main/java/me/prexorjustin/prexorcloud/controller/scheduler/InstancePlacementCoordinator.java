@@ -182,7 +182,20 @@ public final class InstancePlacementCoordinator {
                 0,
                 Instant.now(),
                 deploymentRevision);
-        clusterState.addInstance(instance);
+        // Atomic group-cap guard: the crash-heal replacement and the min-instance reconcile can race
+        // here (the per-group lease that used to serialize them is gone). Whoever loses the cap check
+        // releases the port + memory it reserved above and yields, so the group never over-provisions.
+        if (!clusterState.addInstanceWithinCap(instance, resolved.maxInstances())) {
+            clusterState.releasePlacement(node.nodeId(), resolved.memoryMb(), port);
+            clearStartRetryBudget.accept(instanceId);
+            logger.info(
+                    "Skipped placing {} — group {} already at max {} active instances "
+                            + "(a concurrent placement won the slot)",
+                    instanceId,
+                    resolved.name(),
+                    resolved.maxInstances());
+            return false;
+        }
         clearStartRetryBudget.accept(instanceId);
 
         final InstanceCompositionPlan compositionPlan;
