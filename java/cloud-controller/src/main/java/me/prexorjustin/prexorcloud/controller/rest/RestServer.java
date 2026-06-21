@@ -155,14 +155,11 @@ public final class RestServer {
         var corsHandler = new DynamicCorsHandler(corsAllowList);
         var subnetGuard = new SubnetGuardMiddleware(controller.allowedSubnetsList());
 
-        var redis = runtime.coordinationEnabled() ? runtime.redisCommands() : null;
-
-        // SSE ticket manager (short-lived single-use tickets for SSE auth)
-        var sseTicketManager = new SseTicketManager(redis);
+        // SSE tickets + replay live in leader memory (streams are leader-served).
+        var sseTicketManager = new SseTicketManager();
 
         // Create SSE streamers (registered inside config block below)
-        SseEventStreamer sseStreamer =
-                new SseEventStreamer(controller.eventBus(), objectMapper, sseTicketManager, redis);
+        SseEventStreamer sseStreamer = new SseEventStreamer(controller.eventBus(), objectMapper, sseTicketManager);
         if (controller.metricsCollector() != null) {
             controller.metricsCollector().registerSseStreamerMetrics(sseStreamer);
         }

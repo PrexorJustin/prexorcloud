@@ -17,17 +17,11 @@ import me.prexorjustin.prexorcloud.api.event.CloudEvent;
 import me.prexorjustin.prexorcloud.api.event.events.InstanceConsoleOutputEvent;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.metrics.MetricsCollector;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.javalin.config.RoutesConfig;
 import io.javalin.http.sse.SseClient;
-import io.lettuce.core.Limit;
-import io.lettuce.core.Range;
-import io.lettuce.core.StreamMessage;
-import io.lettuce.core.XAddArgs;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,20 +49,6 @@ public final class SseEventStreamer implements MetricsCollector.SseStreamerProbe
 
     public SseEventStreamer(EventBus eventBus, ObjectMapper objectMapper, SseTicketManager ticketManager) {
         this(eventBus, objectMapper, ticketManager, DEFAULT_REPLAY_CAPACITY);
-    }
-
-    public SseEventStreamer(
-            EventBus eventBus,
-            ObjectMapper objectMapper,
-            SseTicketManager ticketManager,
-            RedisCommands<String, String> redisCommands) {
-        this(
-                eventBus,
-                objectMapper,
-                ticketManager,
-                redisCommands == null
-                        ? new InMemoryReplayStore(DEFAULT_REPLAY_CAPACITY)
-                        : new RedisReplayStore(redisCommands, objectMapper, DEFAULT_REPLAY_CAPACITY));
     }
 
     SseEventStreamer(EventBus eventBus, ObjectMapper objectMapper, SseTicketManager ticketManager, int replayCapacity) {
@@ -328,115 +308,6 @@ public final class SseEventStreamer implements MetricsCollector.SseStreamerProbe
                 replayBuffer.remove(oldest);
             }
         }
-    }
-
-    static final class RedisReplayStore implements ReplayStore {
-
-        private static final String SEQUENCE_KEY = RedisKeys.SSE_SEQUENCE;
-        private static final String REPLAY_KEY = RedisKeys.SSE_REPLAY;
-
-        private final RedisCommands<String, String> commands;
-        private final ObjectMapper objectMapper;
-        private final int replayCapacity;
-
-        RedisReplayStore(RedisCommands<String, String> commands, ObjectMapper objectMapper, int replayCapacity) {
-            if (replayCapacity < 1) {
-                throw new IllegalArgumentException("replayCapacity must be at least 1");
-            }
-            this.commands = commands;
-            this.objectMapper = objectMapper;
-            this.replayCapacity = replayCapacity;
-        }
-
-        @Override
-        public long nextSequence() {
-            return commands.incr(SEQUENCE_KEY);
-        }
-
-        @Override
-        public ReplayEvent remember(long sequence, Map<String, Object> envelope) {
-            ReplayEvent event = immutableReplayEvent(sequence, envelope);
-            try {
-                commands.xadd(
-                        REPLAY_KEY,
-                        new XAddArgs().maxlen(replayCapacity).exactTrimming(),
-                        Map.of(
-                                "sequence",
-                                Long.toString(event.sequence()),
-                                "envelope",
-                                objectMapper.writeValueAsString(event.envelope())));
-                return event;
-            } catch (Exception e) {
-                throw new IllegalStateException("failed to store SSE replay event", e);
-            }
-        }
-
-        @Override
-        public long latestSequence() {
-            return parseSequence(commands.get(SEQUENCE_KEY));
-        }
-
-        @Override
-        public long earliestSequence() {
-            var retained = loadReplaySnapshot();
-            return retained.events().isEmpty()
-                    ? latestSequence()
-                    : retained.events().getFirst().sequence();
-        }
-
-        @Override
-        public boolean replayGapAfter(long lastSeenSequence) {
-            var retained = loadReplaySnapshot();
-            long latest = latestSequence();
-            if (lastSeenSequence <= 0 && latest > retained.retainedCount()) return true;
-            if (retained.events().isEmpty() || lastSeenSequence <= 0) return false;
-            return lastSeenSequence < retained.events().getFirst().sequence() - 1;
-        }
-
-        @Override
-        public List<ReplayEvent> replayEventsAfter(long lastSeenSequence) {
-            var events = new ArrayList<ReplayEvent>();
-            for (ReplayEvent event : loadReplaySnapshot().events()) {
-                if (event.sequence() > lastSeenSequence) {
-                    events.add(event);
-                }
-            }
-            return List.copyOf(events);
-        }
-
-        private ReplaySnapshot loadReplaySnapshot() {
-            List<ReplayEvent> streamEvents = loadReplayStreamEvents(REPLAY_KEY);
-            return new ReplaySnapshot(streamEvents, streamEvents.size());
-        }
-
-        private List<ReplayEvent> loadReplayStreamEvents(String key) {
-            try {
-                List<StreamMessage<String, String>> messages =
-                        commands.xrange(key, Range.unbounded(), Limit.from(replayCapacity));
-                if (messages == null || messages.isEmpty()) {
-                    return List.of();
-                }
-                var events = new ArrayList<ReplayEvent>(messages.size());
-                for (StreamMessage<String, String> message : messages) {
-                    String sequenceRaw = message.getBody().get("sequence");
-                    String envelopeRaw = message.getBody().get("envelope");
-                    if (sequenceRaw == null || envelopeRaw == null) {
-                        continue;
-                    }
-                    long sequence = parseSequence(sequenceRaw);
-                    Map<String, Object> envelope =
-                            objectMapper.readValue(envelopeRaw, new TypeReference<Map<String, Object>>() {});
-                    events.add(immutableReplayEvent(sequence, envelope));
-                }
-                events.sort((left, right) -> Long.compare(left.sequence(), right.sequence()));
-                return List.copyOf(events);
-            } catch (Exception e) {
-                logger.warn("Failed to read SSE replay stream {}: {}", key, e.getMessage());
-                return List.of();
-            }
-        }
-
-        private record ReplaySnapshot(List<ReplayEvent> events, long retainedCount) {}
     }
 
     private static ReplayEvent immutableReplayEvent(long sequence, Map<String, Object> envelope) {

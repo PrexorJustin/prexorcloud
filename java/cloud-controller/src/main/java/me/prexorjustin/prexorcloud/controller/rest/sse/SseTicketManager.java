@@ -8,12 +8,6 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import io.lettuce.core.api.sync.RedisCommands;
-
 /**
  * Manages short-lived, single-use tickets for SSE authentication.
  *
@@ -25,15 +19,17 @@ import io.lettuce.core.api.sync.RedisCommands;
  * </p>
  *
  * <p>
- * Tickets are single-use and expire after 30 seconds by default.
+ * Tickets are single-use and expire after 30 seconds by default. They live in
+ * leader memory: SSE streams are served by the single leader, so a leader-local
+ * ticket is sufficient — a client whose connection moves after a failover simply
+ * requests a fresh ticket.
  * </p>
  */
 public final class SseTicketManager {
 
-    private static final Duration DEFAULT_TTL = RedisKeys.sseTicketTtl();
+    private static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
     private static final int TICKET_BYTES = 24;
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
 
     record TicketEntry(String username, String role, Instant expiresAt) {
 
@@ -48,24 +44,14 @@ public final class SseTicketManager {
     private final Clock clock;
     private final Duration ttl;
     private final Map<String, TicketEntry> tickets = new ConcurrentHashMap<>();
-    private final RedisCommands<String, String> redisCommands;
 
     public SseTicketManager() {
-        this(Clock.systemUTC(), DEFAULT_TTL, null);
-    }
-
-    public SseTicketManager(RedisCommands<String, String> redisCommands) {
-        this(Clock.systemUTC(), DEFAULT_TTL, redisCommands);
+        this(Clock.systemUTC(), DEFAULT_TTL);
     }
 
     SseTicketManager(Clock clock, Duration ttl) {
-        this(clock, ttl, null);
-    }
-
-    SseTicketManager(Clock clock, Duration ttl, RedisCommands<String, String> redisCommands) {
         this.clock = clock;
         this.ttl = ttl;
-        this.redisCommands = redisCommands;
     }
 
     /**
@@ -82,19 +68,7 @@ public final class SseTicketManager {
         byte[] bytes = new byte[TICKET_BYTES];
         RANDOM.nextBytes(bytes);
         String ticket = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        var entry = new TicketEntry(username, role, clock.instant().plus(ttl));
-        if (redisCommands != null) {
-            try {
-                redisCommands.setex(
-                        RedisKeys.sseTicket(ticket),
-                        RedisKeys.sanitizedTtl(ttl).getSeconds(),
-                        JSON.writeValueAsString(entry));
-            } catch (Exception e) {
-                throw new IllegalStateException("failed to issue Redis-backed SSE ticket", e);
-            }
-        } else {
-            tickets.put(ticket, entry);
-        }
+        tickets.put(ticket, new TicketEntry(username, role, clock.instant().plus(ttl)));
         return ticket;
     }
 
@@ -114,49 +88,16 @@ public final class SseTicketManager {
      */
     public TicketHolder validateHolder(String ticket) {
         if (ticket == null || ticket.isBlank()) return null;
-        if (redisCommands != null) {
-            return validateRedisHolder(ticket);
-        }
         TicketEntry entry = tickets.remove(ticket);
         if (entry == null || entry.isExpired(clock)) return null;
         return new TicketHolder(entry.username(), entry.role());
     }
 
     void importTicket(String ticket, String username, String role, Instant expiresAt) {
-        if (redisCommands != null) {
-            try {
-                long ttlSeconds = Math.max(
-                        1L,
-                        RedisKeys.sanitizedTtl(Duration.between(clock.instant(), expiresAt))
-                                .getSeconds());
-                redisCommands.setex(
-                        RedisKeys.sseTicket(ticket),
-                        ttlSeconds,
-                        JSON.writeValueAsString(new TicketEntry(username, role, expiresAt)));
-                return;
-            } catch (Exception e) {
-                throw new IllegalStateException("failed to import Redis-backed SSE ticket", e);
-            }
-        }
         tickets.put(ticket, new TicketEntry(username, role, expiresAt));
     }
 
     private void cleanup() {
-        if (redisCommands != null) {
-            return;
-        }
         tickets.entrySet().removeIf(e -> e.getValue().isExpired(clock));
-    }
-
-    private TicketHolder validateRedisHolder(String ticket) {
-        try {
-            String raw = redisCommands.getdel(RedisKeys.sseTicket(ticket));
-            if (raw == null || raw.isBlank()) return null;
-            TicketEntry entry = JSON.readValue(raw, TicketEntry.class);
-            if (entry.isExpired(clock)) return null;
-            return new TicketHolder(entry.username(), entry.role());
-        } catch (Exception _) {
-            return null;
-        }
     }
 }
