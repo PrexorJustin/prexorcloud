@@ -2,25 +2,22 @@ package me.prexorjustin.prexorcloud.controller.lifecycle;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.atLeastOnce;
 
-import java.lang.reflect.Proxy;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import me.prexorjustin.prexorcloud.api.event.events.NodeDrainCompletedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeDrainRequestedEvent;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.session.NodeSession;
 import me.prexorjustin.prexorcloud.controller.session.NodeSessionManager;
@@ -32,10 +29,6 @@ import me.prexorjustin.prexorcloud.controller.state.WorkflowStateStore;
 import me.prexorjustin.prexorcloud.protocol.ControllerMessage;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
-import io.lettuce.core.KeyScanCursor;
-import io.lettuce.core.ScanCursor;
-import io.lettuce.core.SetArgs;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -446,86 +439,24 @@ class NodeDrainManagerTest {
         }
 
         @Test
-        @DisplayName("Reconciles persisted drains only after this controller acquires the drain lease")
-        void reconcilesPersistedDrainsAfterLeaseHandoff() throws InterruptedException {
+        @DisplayName("A non-leader controller ignores drain requests (ownership = leadership)")
+        void nonLeaderIgnoresDrainRequests() throws InterruptedException {
             addNode("node-1");
-            addInstance("lobby-1", "lobby", "node-1", InstanceState.DRAINING, 0);
-            workflowStateStore.saveNodeDrain(new NodeDrainIntent(
-                    "node-1",
-                    true,
-                    "Maintenance",
-                    Instant.now(),
-                    Instant.now().plusSeconds(30),
-                    java.util.Set.of("lobby-1")));
-
-            InMemoryLeaseRedis redis = new InMemoryLeaseRedis();
-            var controllerALeaseManager = new DistributedLeaseManager(redis.commands(), "controller-a", 60);
-            var controllerBLeaseManager = new DistributedLeaseManager(redis.commands(), "controller-b", 60);
-            assertTrue(
-                    controllerALeaseManager.tryAcquireLease("node-drain:node-1").isPresent());
+            addInstance("lobby-1", "lobby", "node-1", InstanceState.RUNNING, 0);
 
             var otherScheduler = mock(Scheduler.class);
-            var leasedDrainManager = new NodeDrainManager(
-                    clusterState,
-                    workflowStateStore,
-                    otherScheduler,
-                    sessionManager,
-                    eventBus,
-                    groupManager,
-                    controllerBLeaseManager);
+            var followerDrainManager = new NodeDrainManager(
+                    clusterState, workflowStateStore, otherScheduler, sessionManager, eventBus, groupManager);
+            followerDrainManager.setLeadership(notLeader());
             try {
-                leasedDrainManager.reconcilePersistedDrains();
+                triggerDrain("node-1", true);
                 Thread.sleep(200);
+
+                // The follower ignored the drain; the leader (setUp manager) handled it.
                 verify(otherScheduler, never()).stopInstance("lobby-1", false);
-
-                controllerALeaseManager.release("node-drain:node-1");
-
-                leasedDrainManager.reconcilePersistedDrains();
-                Thread.sleep(200);
-                verify(otherScheduler, atLeastOnce()).stopInstance("lobby-1", false);
+                verify(scheduler).stopInstance("lobby-1", false);
             } finally {
-                leasedDrainManager.shutdown();
-            }
-        }
-
-        @Test
-        @DisplayName("Lease acquisition callback immediately reconciles persisted drains after handoff")
-        void leaseAcquireTriggersAutomaticDrainReconcile() throws InterruptedException {
-            addNode("node-1");
-            addInstance("lobby-1", "lobby", "node-1", InstanceState.DRAINING, 0);
-            workflowStateStore.saveNodeDrain(new NodeDrainIntent(
-                    "node-1",
-                    true,
-                    "Maintenance",
-                    Instant.now(),
-                    Instant.now().plusSeconds(30),
-                    java.util.Set.of("lobby-1")));
-
-            InMemoryLeaseRedis redis = new InMemoryLeaseRedis();
-            var controllerALeaseManager = new DistributedLeaseManager(redis.commands(), "controller-a", 60);
-            var controllerBLeaseManager = new DistributedLeaseManager(redis.commands(), "controller-b", 60);
-            assertTrue(
-                    controllerALeaseManager.tryAcquireLease("node-drain:node-1").isPresent());
-
-            var otherScheduler = mock(Scheduler.class);
-            var leasedDrainManager = new NodeDrainManager(
-                    clusterState,
-                    workflowStateStore,
-                    otherScheduler,
-                    sessionManager,
-                    eventBus,
-                    groupManager,
-                    controllerBLeaseManager);
-            try {
-                controllerALeaseManager.release("node-drain:node-1");
-                assertTrue(controllerBLeaseManager
-                        .tryAcquireLease("node-drain:node-1")
-                        .isPresent());
-
-                Thread.sleep(200);
-                verify(otherScheduler).stopInstance("lobby-1", false);
-            } finally {
-                leasedDrainManager.shutdown();
+                followerDrainManager.shutdown();
             }
         }
 
@@ -569,57 +500,17 @@ class NodeDrainManagerTest {
         }
     }
 
-    private static final class InMemoryLeaseRedis {
-
-        private final Map<String, String> values = new ConcurrentHashMap<>();
-        private final Map<String, Long> counters = new ConcurrentHashMap<>();
-
-        @SuppressWarnings("unchecked")
-        private RedisCommands<String, String> commands() {
-            return (RedisCommands<String, String>) Proxy.newProxyInstance(
-                    RedisCommands.class.getClassLoader(),
-                    new Class<?>[] {RedisCommands.class},
-                    (proxy, method, args) -> switch (method.getName()) {
-                        case "set" -> set((String) args[0], (String) args[1], (SetArgs) args[2]);
-                        case "get" -> values.get((String) args[0]);
-                        case "expire" -> true;
-                        case "del" -> deleteAll(args);
-                        case "incr" -> counters.merge((String) args[0], 1L, Long::sum);
-                        case "scan" -> scan();
-                        case "toString" -> "InMemoryLeaseRedis";
-                        default ->
-                            throw new UnsupportedOperationException("Unsupported Redis method: " + method.getName());
-                    });
-        }
-
-        private String set(String key, String value, SetArgs args) {
-            if (values.containsKey(key)) {
-                return null;
+    private static Leadership notLeader() {
+        return new Leadership() {
+            @Override
+            public boolean isLeader() {
+                return false;
             }
-            values.put(key, value);
-            return "OK";
-        }
 
-        private long deleteAll(Object[] args) {
-            long deleted = 0;
-            for (Object rawKey : args) {
-                if (rawKey instanceof String key) {
-                    deleted += values.remove(key) != null ? 1 : 0;
-                } else if (rawKey instanceof String[] keys) {
-                    for (String key : keys) {
-                        deleted += values.remove(key) != null ? 1 : 0;
-                    }
-                }
+            @Override
+            public long currentEpoch() {
+                return 0L;
             }
-            return deleted;
-        }
-
-        private KeyScanCursor<String> scan() {
-            KeyScanCursor<String> cursor = new KeyScanCursor<>();
-            cursor.setCursor(ScanCursor.FINISHED.getCursor());
-            cursor.setFinished(true);
-            cursor.getKeys().addAll(values.keySet());
-            return cursor;
-        }
+        };
     }
 }

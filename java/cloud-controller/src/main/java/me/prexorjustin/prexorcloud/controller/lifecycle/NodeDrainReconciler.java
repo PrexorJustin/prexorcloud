@@ -5,7 +5,6 @@ import java.util.Set;
 
 import me.prexorjustin.prexorcloud.api.event.events.NodeDrainCompletedEvent;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.session.NodeSessionManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
@@ -21,9 +20,13 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Owns durable node-drain reconciliation, timeout progression, and completion.
+ *
+ * <p>Single-writer model: a plain worker driven only by the leader. The per-node
+ * Redis drain lease that used to elect the drain owner is gone — {@link NodeDrainManager}
+ * gates every event handler, the reconcile tick, and the timeout firing on
+ * {@code leadership.isLeader()}, so this class never runs on a follower.
  */
 public final class NodeDrainReconciler {
-    private static final String NODE_DRAIN_LEASE_PREFIX = "node-drain:";
 
     public interface TimeoutController {
         void schedule(String nodeId, Instant timeoutAt);
@@ -39,7 +42,6 @@ public final class NodeDrainReconciler {
     private final Scheduler scheduler;
     private final NodeSessionManager sessionManager;
     private final EventBus eventBus;
-    private final DistributedLeaseManager leaseManager;
     private final TimeoutController timeoutController;
 
     public NodeDrainReconciler(
@@ -48,14 +50,12 @@ public final class NodeDrainReconciler {
             Scheduler scheduler,
             NodeSessionManager sessionManager,
             EventBus eventBus,
-            DistributedLeaseManager leaseManager,
             TimeoutController timeoutController) {
         this.clusterState = clusterState;
         this.workflowStateStore = workflowStateStore;
         this.scheduler = scheduler;
         this.sessionManager = sessionManager;
         this.eventBus = eventBus;
-        this.leaseManager = leaseManager;
         this.timeoutController = timeoutController;
     }
 
@@ -68,31 +68,14 @@ public final class NodeDrainReconciler {
         if (intent == null || !intent.drainingInstanceIds().contains(instanceId)) {
             return;
         }
-
-        DistributedLeaseManager.Lease lease = requireDrainLease(nodeId, "playerless draining instance");
-        if (leaseManager != null && lease == null) {
-            return;
-        }
-        if (!ensureDrainLeaseCurrent(nodeId, lease, "playerless draining instance")) {
-            return;
-        }
-
-        updateDrainInstances(nodeId, instanceIdsWithout(intent, instanceId), lease);
+        updateDrainInstances(nodeId, instanceIdsWithout(intent, instanceId));
         scheduler.stopInstance(instanceId, false);
         logger.debug("All players left draining instance {} on node {} -- stopping", instanceId, nodeId);
     }
 
     public void onDrainTimeout(String nodeId) {
-        DistributedLeaseManager.Lease lease = requireDrainLease(nodeId, "drain timeout");
-        if (leaseManager != null && lease == null) {
-            return;
-        }
-
         var intent = workflowStateStore.getNodeDrain(nodeId).orElse(null);
         if (intent == null) {
-            return;
-        }
-        if (!ensureDrainLeaseCurrent(nodeId, lease, "drain timeout")) {
             return;
         }
 
@@ -103,14 +86,10 @@ public final class NodeDrainReconciler {
                     .filter(player -> player.instanceId().equals(instanceId))
                     .count();
             if (remaining == 0) {
-                updateDrainInstances(nodeId, instanceIdsWithout(intent, instanceId), lease);
+                updateDrainInstances(nodeId, instanceIdsWithout(intent, instanceId));
                 scheduler.stopInstance(instanceId, false);
             }
         }
-    }
-
-    public void checkDrainCompletion(String nodeId) {
-        checkDrainCompletion(nodeId, requireDrainLease(nodeId, "drain completion check"));
     }
 
     public void reconcilePersistedDrains() {
@@ -130,26 +109,14 @@ public final class NodeDrainReconciler {
             return;
         }
 
-        DistributedLeaseManager.Lease lease = requireDrainLease(intent.nodeId(), "drain reconciliation");
-        if (leaseManager != null && lease == null) {
-            return;
-        }
-
         for (String instanceId : Set.copyOf(intent.drainingInstanceIds())) {
             long remaining = clusterState.getAllPlayers().stream()
                     .filter(player -> player.instanceId().equals(instanceId))
                     .count();
             if (remaining == 0) {
-                if (!ensureDrainLeaseCurrent(intent.nodeId(), lease, "drain reconciliation")) {
-                    return;
-                }
-                updateDrainInstances(intent.nodeId(), instanceIdsWithout(intent, instanceId), lease);
+                updateDrainInstances(intent.nodeId(), instanceIdsWithout(intent, instanceId));
                 scheduler.stopInstance(instanceId, false);
             }
-        }
-
-        if (!ensureDrainLeaseCurrent(intent.nodeId(), lease, "drain reconciliation")) {
-            return;
         }
 
         if (intent.timeoutAt().isAfter(Instant.now())) {
@@ -157,36 +124,23 @@ public final class NodeDrainReconciler {
         } else {
             onDrainTimeout(intent.nodeId());
         }
-        checkDrainCompletion(intent.nodeId(), lease);
+        checkDrainCompletion(intent.nodeId());
     }
 
-    private void checkDrainCompletion(String nodeId, DistributedLeaseManager.Lease lease) {
+    public void checkDrainCompletion(String nodeId) {
         if (workflowStateStore.getNodeDrain(nodeId).isEmpty()) {
             return;
         }
-        if (leaseManager != null && lease == null) {
-            return;
-        }
-        if (!ensureDrainLeaseCurrent(nodeId, lease, "drain completion check")) {
-            return;
-        }
-
         boolean allDone = clusterState.getInstancesByNode(nodeId).stream()
                 .allMatch(instance -> TERMINAL_STATES.contains(instance.state()));
         if (allDone) {
-            completeDrain(nodeId, lease);
+            completeDrain(nodeId);
         }
     }
 
-    private void completeDrain(String nodeId, DistributedLeaseManager.Lease lease) {
+    private void completeDrain(String nodeId) {
         var intent = workflowStateStore.getNodeDrain(nodeId).orElse(null);
         if (intent == null) {
-            return;
-        }
-        if (leaseManager != null && lease == null) {
-            return;
-        }
-        if (!ensureDrainLeaseCurrent(nodeId, lease, "drain completion")) {
             return;
         }
 
@@ -209,51 +163,16 @@ public final class NodeDrainReconciler {
         eventBus.publish(new NodeDrainCompletedEvent(nodeId, Instant.now()));
     }
 
-    private void updateDrainInstances(
-            String nodeId, Set<String> drainingInstanceIds, DistributedLeaseManager.Lease lease) {
-        if (leaseManager != null && !ensureDrainLeaseCurrent(nodeId, lease, "drain state update")) {
-            return;
-        }
+    private void updateDrainInstances(String nodeId, Set<String> drainingInstanceIds) {
         workflowStateStore
                 .getNodeDrain(nodeId)
                 .ifPresent(intent -> workflowStateStore.saveNodeDrain(
                         intent.withDrainingInstanceIds(Set.copyOf(drainingInstanceIds))));
     }
 
-    private DistributedLeaseManager.Lease requireDrainLease(String nodeId, String action) {
-        if (leaseManager == null) {
-            return null;
-        }
-        DistributedLeaseManager.Lease lease =
-                leaseManager.tryAcquireLease("node-drain:" + nodeId).orElse(null);
-        if (lease == null) {
-            timeoutController.cancel(nodeId);
-            logger.debug("Skipping {} for node {} because another controller holds the drain lease", action, nodeId);
-        }
-        return lease;
-    }
-
-    private boolean ensureDrainLeaseCurrent(String nodeId, DistributedLeaseManager.Lease lease, String action) {
-        if (leaseManager == null || (lease != null && leaseManager.isCurrent(lease))) {
-            return true;
-        }
-        timeoutController.cancel(nodeId);
-        logger.info("Aborting {} for node {} because this controller no longer holds the drain lease", action, nodeId);
-        return false;
-    }
-
     private Set<String> instanceIdsWithout(NodeDrainIntent intent, String instanceId) {
         return intent.drainingInstanceIds().stream()
                 .filter(current -> !current.equals(instanceId))
                 .collect(java.util.stream.Collectors.toSet());
-    }
-
-    static String nodeIdFromLeaseResource(String resource) {
-        if (resource == null
-                || !resource.startsWith(NODE_DRAIN_LEASE_PREFIX)
-                || resource.length() == NODE_DRAIN_LEASE_PREFIX.length()) {
-            return null;
-        }
-        return resource.substring(NODE_DRAIN_LEASE_PREFIX.length());
     }
 }

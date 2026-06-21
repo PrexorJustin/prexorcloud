@@ -1351,15 +1351,16 @@ public final class PrexorCloudBootstrap {
                 24,
                 TimeUnit.HOURS);
 
-        var drainLeaseManager = runtime.newLeaseManager(config.scheduler().evaluationIntervalSeconds() * 2);
         drainManager = new NodeDrainManager(
                 controller.clusterState(),
                 controller.workflowStateStore(),
                 scheduler,
                 controller.sessionManager(),
                 controller.eventBus(),
-                controller.groupManager(),
-                drainLeaseManager);
+                controller.groupManager());
+        if (leaderElector != null) {
+            drainManager.setLeadership(leaderElector);
+        }
 
         return scheduler;
     }

@@ -14,9 +14,9 @@ import me.prexorjustin.prexorcloud.api.event.events.InstanceStateChangedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeDrainCompletedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeDrainRequestedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.PlayerDisconnectedEvent;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupManager;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.session.NodeSessionManager;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
@@ -64,10 +64,12 @@ public final class NodeDrainManager {
     private final Scheduler scheduler;
     private final GroupManager groupManager;
     private final NodeDrainReconciler drainReconciler;
-    private final DistributedLeaseManager leaseManager;
     private final ScheduledExecutorService timeoutExecutor;
     private final Map<String, ScheduledFuture<?>> drainTimeouts = new ConcurrentHashMap<>();
     private final ScheduledFuture<?> reconcileTask;
+    // Single-writer authority: only the leader drives node drains. Defaults to always-leader so
+    // single-controller installs and tests behave unchanged; bootstrap injects the real elector.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
 
     public NodeDrainManager(
             ClusterState clusterState,
@@ -76,22 +78,10 @@ public final class NodeDrainManager {
             NodeSessionManager sessionManager,
             EventBus eventBus,
             GroupManager groupManager) {
-        this(clusterState, workflowStateStore, scheduler, sessionManager, eventBus, groupManager, null);
-    }
-
-    public NodeDrainManager(
-            ClusterState clusterState,
-            WorkflowStateStore workflowStateStore,
-            Scheduler scheduler,
-            NodeSessionManager sessionManager,
-            EventBus eventBus,
-            GroupManager groupManager,
-            DistributedLeaseManager leaseManager) {
         this.clusterState = clusterState;
         this.workflowStateStore = workflowStateStore;
         this.scheduler = scheduler;
         this.groupManager = groupManager;
-        this.leaseManager = leaseManager;
         this.timeoutExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "drain-timeout");
             t.setDaemon(true);
@@ -103,7 +93,6 @@ public final class NodeDrainManager {
                 scheduler,
                 sessionManager,
                 eventBus,
-                leaseManager,
                 new NodeDrainReconciler.TimeoutController() {
                     @Override
                     public void schedule(String nodeId, Instant timeoutAt) {
@@ -115,25 +104,30 @@ public final class NodeDrainManager {
                         cancelDrainTimeout(nodeId);
                     }
                 });
-        if (leaseManager != null) {
-            leaseManager.addLeaseChangeListener(this::onLeaseAcquired);
-        }
 
         eventBus.subscribe(NodeDrainRequestedEvent.class, this::onDrainRequested);
         eventBus.subscribe(InstanceStateChangedEvent.class, this::onInstanceStateChanged);
         eventBus.subscribe(PlayerDisconnectedEvent.class, this::onPlayerDisconnected);
-        this.reconcileTask = leaseManager == null
-                ? null
-                : timeoutExecutor.scheduleWithFixedDelay(
-                        this::reconcilePersistedDrainsSafely,
-                        RECONCILE_INTERVAL_SECONDS,
-                        RECONCILE_INTERVAL_SECONDS,
-                        TimeUnit.SECONDS);
+        // Runs on every controller but no-ops unless we're the leader (guarded in
+        // reconcilePersistedDrainsSafely) so a fresh leader resumes in-flight drains.
+        this.reconcileTask = timeoutExecutor.scheduleWithFixedDelay(
+                this::reconcilePersistedDrainsSafely,
+                RECONCILE_INTERVAL_SECONDS,
+                RECONCILE_INTERVAL_SECONDS,
+                TimeUnit.SECONDS);
 
         logger.debug("NodeDrainManager initialized");
     }
 
+    /** Inject single-writer leadership (bootstrap). Tests run as always-leader. */
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
+    }
+
     private void onDrainRequested(NodeDrainRequestedEvent event) {
+        if (!leadership.isLeader()) {
+            return;
+        }
         String nodeId = event.nodeId();
         if (workflowStateStore.getNodeDrain(nodeId).isPresent()) {
             logger.debug("Node {} is already draining; ignoring duplicate drain request", nodeId);
@@ -239,6 +233,9 @@ public final class NodeDrainManager {
     }
 
     private void onPlayerDisconnected(PlayerDisconnectedEvent event) {
+        if (!leadership.isLeader()) {
+            return;
+        }
         String instanceId = event.instanceId();
 
         // Find which draining node owns this instance
@@ -259,6 +256,9 @@ public final class NodeDrainManager {
     }
 
     private void onInstanceStateChanged(InstanceStateChangedEvent event) {
+        if (!leadership.isLeader()) {
+            return;
+        }
         if (!EVENT_TERMINAL_STATES.contains(event.newState())) return;
 
         String nodeId = event.nodeId();
@@ -295,11 +295,20 @@ public final class NodeDrainManager {
         if (existing != null) existing.cancel(false);
         long delayMillis = Math.max(0, timeoutAt.toEpochMilli() - Instant.now().toEpochMilli());
         var timeout = timeoutExecutor.schedule(
-                () -> drainReconciler.onDrainTimeout(nodeId), delayMillis, TimeUnit.MILLISECONDS);
+                () -> {
+                    if (leadership.isLeader()) {
+                        drainReconciler.onDrainTimeout(nodeId);
+                    }
+                },
+                delayMillis,
+                TimeUnit.MILLISECONDS);
         drainTimeouts.put(nodeId, timeout);
     }
 
     private void reconcilePersistedDrainsSafely() {
+        if (!leadership.isLeader()) {
+            return;
+        }
         try {
             reconcilePersistedDrains();
         } catch (Exception e) {
@@ -312,16 +321,5 @@ public final class NodeDrainManager {
         if (timeout != null) {
             timeout.cancel(false);
         }
-    }
-
-    private void onLeaseAcquired(DistributedLeaseManager.Lease lease) {
-        if (leaseManager == null || !leaseManager.isCurrent(lease)) {
-            return;
-        }
-        String nodeId = NodeDrainReconciler.nodeIdFromLeaseResource(lease.resource());
-        if (nodeId == null) {
-            return;
-        }
-        drainReconciler.reconcilePersistedDrain(nodeId);
     }
 }
