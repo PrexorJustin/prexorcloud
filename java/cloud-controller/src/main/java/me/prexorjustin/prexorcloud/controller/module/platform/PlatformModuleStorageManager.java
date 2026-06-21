@@ -1,7 +1,5 @@
 package me.prexorjustin.prexorcloud.controller.module.platform;
 
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,22 +8,21 @@ import me.prexorjustin.prexorcloud.api.module.data.ModuleDataStore;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleStorageRequest;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleStorage;
-import me.prexorjustin.prexorcloud.api.module.platform.PlatformRedisStorage;
 import me.prexorjustin.prexorcloud.api.module.platform.StorageQuotaExceededException;
 import me.prexorjustin.prexorcloud.controller.module.runtime.MongoModuleDataStore;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoDatabase;
-import io.lettuce.core.KeyScanCursor;
-import io.lettuce.core.ScanArgs;
-import io.lettuce.core.api.sync.RedisCommands;
 
 /**
  * Allocates stable, module-scoped persistent storage namespaces for platform
  * modules.
+ *
+ * <p>Module storage is Mongo-only: the Redis/Valkey backend was retired with the
+ * single-store control-plane rewrite. A module that still requests Redis storage
+ * fails fast at {@link #resolve} — there is no Redis to provision against.
  */
 public final class PlatformModuleStorageManager {
 
@@ -54,19 +51,16 @@ public final class PlatformModuleStorageManager {
 
     private final MongoDatabase mongoDatabase;
     private final MongoClient mongoClient;
-    private final RuntimeServices runtime;
     private final ObjectMapper objectMapper;
 
     public PlatformModuleStorageManager(
             MongoDatabase mongoDatabase, MongoClient mongoClient, RuntimeServices runtime, ObjectMapper objectMapper) {
         this.mongoDatabase = mongoDatabase;
         this.mongoClient = mongoClient;
-        this.runtime = Objects.requireNonNull(runtime, "runtime");
+        // runtime is no longer consulted (module storage is Mongo-only); the parameter is kept
+        // until the RuntimeServices wiring is reshaped so existing call sites stay unchanged.
+        Objects.requireNonNull(runtime, "runtime");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
-    }
-
-    private RedisCommands<String, String> redisCommands() {
-        return runtime.coordinationEnabled() ? runtime.redisCommands() : null;
     }
 
     public PlatformModuleStorage resolve(PlatformModuleManifest manifest) {
@@ -78,8 +72,9 @@ public final class PlatformModuleStorageManager {
                     "module '" + manifest.id() + "' requested Mongo storage but Mongo is not configured");
         }
         if (allocation.redisRequested() && !allocation.redisAvailable()) {
-            throw new IllegalStateException(
-                    "module '" + manifest.id() + "' requested Redis storage but Redis is not configured");
+            throw new IllegalStateException("module '"
+                    + manifest.id()
+                    + "' requested Redis storage, which is no longer supported — migrate the module to Mongo storage");
         }
 
         ModuleDataStore mongoDataStore = allocation.mongoAssigned()
@@ -88,19 +83,15 @@ public final class PlatformModuleStorageManager {
                                 allocation.mongoCollectionPrefix(), mongoDatabase, mongoClient, objectMapper),
                         allocation)
                 : null;
-        PlatformRedisStorage redisStorage = allocation.redisAssigned()
-                ? new LettucePlatformRedisStorage(
-                        allocation.redisKeyPrefix(), redisCommands(), allocation.redisKeyLimit())
-                : null;
 
         return new PlatformModuleStorage(
                 manifest.id(),
                 manifest.storage(),
                 allocation.mongoDatabaseName(),
                 allocation.mongoCollectionPrefix(),
-                allocation.redisKeyPrefix(),
+                null,
                 mongoDataStore,
-                redisStorage);
+                null);
     }
 
     public StorageAllocation describe(String moduleId, ModuleStorageRequest request) {
@@ -115,8 +106,8 @@ public final class PlatformModuleStorageManager {
                 effectiveRequest.mongo() ? "platform_" + sanitized + "_" : null,
                 effectiveRequest.limits().mongoDocuments(),
                 effectiveRequest.redis(),
-                runtime.coordinationEnabled(),
-                effectiveRequest.redis() ? RedisKeys.platformModulePrefix(sanitized) : null,
+                false,
+                null,
                 effectiveRequest.limits().redisKeys());
     }
 
@@ -124,7 +115,6 @@ public final class PlatformModuleStorageManager {
         Objects.requireNonNull(moduleId, "moduleId");
         String sanitized = sanitizeModuleId(moduleId);
         String mongoPrefix = "platform_" + sanitized + "_";
-        String redisPrefix = RedisKeys.platformModulePrefix(sanitized);
 
         int droppedCollections = 0;
         if (mongoDatabase != null) {
@@ -136,28 +126,7 @@ public final class PlatformModuleStorageManager {
             }
         }
 
-        int droppedKeys = 0;
-        RedisCommands<String, String> redis = redisCommands();
-        if (redis != null) {
-            List<String> keys = scanKeys(redis, redisPrefix + "*");
-            if (!keys.isEmpty()) {
-                droppedKeys = Math.toIntExact(redis.del(keys.toArray(String[]::new)));
-            }
-        }
-
-        return new StorageDropResult(moduleId, droppedCollections, droppedKeys);
-    }
-
-    private List<String> scanKeys(RedisCommands<String, String> redis, String pattern) {
-        List<String> keys = new ArrayList<>();
-        KeyScanCursor<String> cursor =
-                redis.scan(ScanArgs.Builder.matches(pattern).limit(500));
-        keys.addAll(cursor.getKeys());
-        while (!cursor.isFinished()) {
-            cursor = redis.scan(cursor, ScanArgs.Builder.matches(pattern).limit(500));
-            keys.addAll(cursor.getKeys());
-        }
-        return List.copyOf(keys);
+        return new StorageDropResult(moduleId, droppedCollections, 0);
     }
 
     private static String sanitizeModuleId(String moduleId) {
@@ -316,92 +285,5 @@ public final class PlatformModuleStorageManager {
             }
         }
         return documents;
-    }
-
-    private static final class LettucePlatformRedisStorage implements PlatformRedisStorage {
-
-        private final String keyPrefix;
-        private final RedisCommands<String, String> redisCommands;
-        private final long maxKeys;
-
-        private LettucePlatformRedisStorage(
-                String keyPrefix, RedisCommands<String, String> redisCommands, long maxKeys) {
-            this.keyPrefix = keyPrefix;
-            this.redisCommands = redisCommands;
-            this.maxKeys = maxKeys;
-        }
-
-        @Override
-        public String keyPrefix() {
-            return keyPrefix;
-        }
-
-        @Override
-        public Optional<String> get(String key) {
-            return Optional.ofNullable(redisCommands.get(qualify(key)));
-        }
-
-        @Override
-        public void set(String key, String value) {
-            ensureRedisKeyCapacity(key);
-            redisCommands.set(qualify(key), value);
-        }
-
-        @Override
-        public void set(String key, String value, Duration ttl) {
-            Objects.requireNonNull(ttl, "ttl");
-            ensureRedisKeyCapacity(key);
-            redisCommands.setex(qualify(key), ttl.toSeconds(), value);
-        }
-
-        @Override
-        public long increment(String key) {
-            ensureRedisKeyCapacity(key);
-            return redisCommands.incr(qualify(key));
-        }
-
-        @Override
-        public long decrement(String key) {
-            ensureRedisKeyCapacity(key);
-            return redisCommands.decr(qualify(key));
-        }
-
-        @Override
-        public boolean delete(String key) {
-            return redisCommands.del(qualify(key)) > 0;
-        }
-
-        private void ensureRedisKeyCapacity(String key) {
-            if (maxKeys <= 0) {
-                return;
-            }
-            String qualifiedKey = qualify(key);
-            if (redisCommands.exists(qualifiedKey) > 0) {
-                return;
-            }
-            long currentKeys = currentRedisKeyCount();
-            if (currentKeys + 1 > maxKeys) {
-                throw new StorageQuotaExceededException("redis storage would exceed key soft limit "
-                        + maxKeys
-                        + " for prefix '"
-                        + keyPrefix
-                        + "' (current="
-                        + currentKeys
-                        + ")");
-            }
-        }
-
-        private long currentRedisKeyCount() {
-            long keys = 0;
-            KeyScanCursor<String> cursor =
-                    redisCommands.scan(ScanArgs.Builder.matches(keyPrefix + "*").limit(500));
-            keys += cursor.getKeys().size();
-            while (!cursor.isFinished()) {
-                cursor = redisCommands.scan(
-                        cursor, ScanArgs.Builder.matches(keyPrefix + "*").limit(500));
-                keys += cursor.getKeys().size();
-            }
-            return keys;
-        }
     }
 }
