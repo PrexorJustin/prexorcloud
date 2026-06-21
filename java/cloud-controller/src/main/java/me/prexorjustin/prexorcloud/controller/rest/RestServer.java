@@ -133,7 +133,7 @@ public final class RestServer {
                 controller.telemetry() != null ? controller.telemetry().tracer() : null);
         var requestIdMiddleware = new RequestIdMiddleware();
         rateLimitMiddleware =
-                new RateLimitMiddleware(controller.config().security().rateLimiting(), runtime);
+                new RateLimitMiddleware(controller.config().security().rateLimiting());
 
         // Bootstrap the live CORS allow-list from controller.yml — admin routes
         // mutate the same instance so changes take effect without a restart.

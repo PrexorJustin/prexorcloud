@@ -6,9 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import me.prexorjustin.prexorcloud.controller.config.RateLimitingConfig;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.controller.rest.RestServer;
-import me.prexorjustin.prexorcloud.controller.runtime.RuntimeServices;
 
 import io.javalin.http.Context;
 import io.javalin.http.Handler;
@@ -19,38 +17,31 @@ import org.jetbrains.annotations.NotNull;
  * Sliding-window rate limiter per IP address and per authenticated user.
  *
  * <p>
- * Uses a simple fixed-window counter that resets every 60 seconds. This is
- * intentionally lightweight — no external dependencies required.
+ * A fixed-window counter held in leader memory that resets every 60 seconds.
+ * Since all client traffic is served by the single leader, a per-leader bucket
+ * is the cluster-wide limit — no shared store required.
  * </p>
  */
 public final class RateLimitMiddleware implements Handler {
 
-    private static final long WINDOW_MS = RedisKeys.rateLimitWindow().toMillis();
+    private static final long WINDOW_MS = 60_000L;
 
     // Operator-tunable limits are volatile so the cluster_config live-reload can
     // swap them in atomically while requests are in flight (see reconfigure()).
     private volatile int perIpLimit;
     private volatile int perUserLimit;
-    private volatile boolean failOpenOnRedisError;
     private final int loginLimit;
 
     private final Map<String, WindowCounter> ipCounters = new ConcurrentHashMap<>();
     private final Map<String, WindowCounter> userCounters = new ConcurrentHashMap<>();
     private final Map<String, WindowCounter> loginCounters = new ConcurrentHashMap<>();
-    private final RuntimeServices runtime;
 
     private volatile long lastCleanup = System.currentTimeMillis();
 
     public RateLimitMiddleware(RateLimitingConfig config) {
-        this(config, new me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices());
-    }
-
-    public RateLimitMiddleware(RateLimitingConfig config, RuntimeServices runtime) {
         this.perIpLimit = config.perIpPerMinute();
         this.perUserLimit = config.perUserPerMinute();
         this.loginLimit = 10; // Stricter limit for login attempts
-        this.failOpenOnRedisError = config.failOpenOnRedisError();
-        this.runtime = java.util.Objects.requireNonNull(runtime, "runtime");
     }
 
     /**
@@ -60,13 +51,10 @@ public final class RateLimitMiddleware implements Handler {
      * actually changed.
      */
     public boolean reconfigure(RateLimitingConfig config) {
-        boolean changed = perIpLimit != config.perIpPerMinute()
-                || perUserLimit != config.perUserPerMinute()
-                || failOpenOnRedisError != config.failOpenOnRedisError();
+        boolean changed = perIpLimit != config.perIpPerMinute() || perUserLimit != config.perUserPerMinute();
         if (changed) {
             this.perIpLimit = config.perIpPerMinute();
             this.perUserLimit = config.perUserPerMinute();
-            this.failOpenOnRedisError = config.failOpenOnRedisError();
         }
         return changed;
     }
@@ -119,25 +107,8 @@ public final class RateLimitMiddleware implements Handler {
     }
 
     private boolean isLimited(String bucket, Map<String, WindowCounter> counters, String key, int limit, long now) {
-        if (runtime.coordinationEnabled()) {
-            return isLimitedRedis(bucket, key, limit);
-        }
         WindowCounter counter = counters.computeIfAbsent(key, _ -> new WindowCounter());
         return counter.incrementAndCheck(limit, now);
-    }
-
-    private boolean isLimitedRedis(String bucket, String key, int limit) {
-        try {
-            var redis = runtime.redisCommands();
-            String redisKey = RedisKeys.rateLimit(bucket, key);
-            long count = redis.incr(redisKey);
-            if (count == 1) {
-                redis.expire(redisKey, RedisKeys.rateLimitWindow().getSeconds());
-            }
-            return count > limit;
-        } catch (Exception _) {
-            return !failOpenOnRedisError;
-        }
     }
 
     private void reject(Context ctx) {

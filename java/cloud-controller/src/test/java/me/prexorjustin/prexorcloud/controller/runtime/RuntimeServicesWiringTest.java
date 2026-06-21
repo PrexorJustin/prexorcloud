@@ -101,7 +101,7 @@ class RuntimeServicesWiringTest {
             List<Object> graph = new ArrayList<>();
             graph.add(runtime);
             graph.add(clusterState);
-            graph.add(new RateLimitMiddleware(new RateLimitingConfig(60, 600), runtime));
+            graph.add(new RateLimitMiddleware(new RateLimitingConfig(60, 600)));
             graph.add(new ScalingEvaluator(clusterState, 30L, runtime));
             graph.add(new PlatformModuleStorageManager(null, null, runtime, new ObjectMapper()));
             return graph;
