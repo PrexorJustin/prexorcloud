@@ -35,24 +35,82 @@ import org.slf4j.LoggerFactory;
  * endpoint under its prefix and retries the original request once. Refresh is
  * single-flight across threads so a burst of in-flight requests hitting the
  * expiry window rotates the token only once.
+ *
+ * <p>Single-writer leader following: only the leader serves the API, and a
+ * follower answers with a {@code 307} pointing at the leader. The configured
+ * controller address is a comma-separated <em>seed list</em>; the client tries
+ * the base it last reached the leader on, rotates to the next seed on a
+ * connection failure (the configured controller may be the one that died), and
+ * follows a {@code 307}/{@code 308} <em>manually</em> — re-attaching the bearer,
+ * which the JDK client strips on a cross-host redirect — then caches the leader
+ * base for subsequent calls. Without this a leader failover strands the plugin:
+ * the JDK auto-follow drops the token, so the new leader answers 401.
  */
 public abstract class BaseControllerClient {
 
     private static final Logger logger = LoggerFactory.getLogger(BaseControllerClient.class);
     private static final String SEQUENCE_HEADER = "X-Prexor-Sequence";
+    private static final int MAX_REDIRECT_HOPS = 3;
 
     protected static final ObjectMapper objectMapper = ObjectMappers.standard();
 
+    /** First configured seed; retained for subclasses/tests that reference it. */
     protected final String controllerUrl;
+
+    private final List<String> controllerSeeds;
+    private final AtomicReference<String> leaderBase;
     private final AtomicReference<String> pluginTokenRef;
     private final AtomicLong requestSequence = new AtomicLong();
     private final Object refreshLock = new Object();
     protected final HttpClient httpClient;
 
     protected BaseControllerClient(String controllerUrl, String pluginToken) {
-        this.controllerUrl = controllerUrl;
+        this.controllerSeeds = parseSeeds(controllerUrl);
+        this.controllerUrl = controllerSeeds.get(0);
+        this.leaderBase = new AtomicReference<>(controllerSeeds.get(0));
         this.pluginTokenRef = new AtomicReference<>(pluginToken);
-        this.httpClient = HttpClients.defaultClient();
+        // Follow redirects ourselves so the bearer survives the cross-host hop to the leader.
+        this.httpClient = HttpClients.defaults()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+    }
+
+    /** Builds a request against a given controller base URL (re-callable per seed / per redirect hop). */
+    @FunctionalInterface
+    protected interface RequestFactory {
+        HttpRequest build(String baseUrl);
+    }
+
+    private static List<String> parseSeeds(String configured) {
+        var seeds = new java.util.ArrayList<String>();
+        if (configured != null) {
+            for (String part : configured.split(",")) {
+                String s = part.trim();
+                while (s.endsWith("/")) {
+                    s = s.substring(0, s.length() - 1);
+                }
+                if (!s.isEmpty() && !seeds.contains(s)) {
+                    seeds.add(s);
+                }
+            }
+        }
+        if (seeds.isEmpty()) {
+            seeds.add(configured == null ? "" : configured.trim());
+        }
+        return List.copyOf(seeds);
+    }
+
+    private static String baseOf(String url) {
+        try {
+            URI u = URI.create(url);
+            if (u.getScheme() == null || u.getHost() == null) {
+                return null;
+            }
+            int port = u.getPort();
+            return u.getScheme() + "://" + u.getHost() + (port > 0 ? ":" + port : "");
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /** Returns the API prefix, e.g. "/api/proxy" or "/api/plugin". */
@@ -92,8 +150,8 @@ public abstract class BaseControllerClient {
 
     String issueEventStreamTicket() {
         try {
-            HttpResponse<String> response = sendWithRefresh(() -> HttpRequest.newBuilder()
-                    .uri(URI.create(controllerUrl + apiPrefix() + "/events/ticket"))
+            HttpResponse<String> response = sendWithRefresh(base -> HttpRequest.newBuilder()
+                    .uri(URI.create(base + apiPrefix() + "/events/ticket"))
                     .header("Authorization", "Bearer " + pluginTokenRef.get())
                     .header(SEQUENCE_HEADER, nextSequence())
                     .POST(HttpRequest.BodyPublishers.noBody())
@@ -117,19 +175,33 @@ public abstract class BaseControllerClient {
     HttpResponse<InputStream> openEventStream(long lastSequence) {
         try {
             String ticket = issueEventStreamTicket();
-            StringBuilder query = new StringBuilder("/api/v1/events/stream?ticket=")
-                    .append(URLEncoder.encode(ticket, StandardCharsets.UTF_8));
-            if (lastSequence > 0) {
-                query.append("&lastSequence=").append(lastSequence);
+            String query = "/api/v1/events/stream?ticket=" + URLEncoder.encode(ticket, StandardCharsets.UTF_8)
+                    + (lastSequence > 0 ? "&lastSequence=" + lastSequence : "");
+            RequestFactory factory = b -> {
+                var rb = HttpRequest.newBuilder()
+                        .uri(URI.create(b + query))
+                        .header("Accept", "text/event-stream")
+                        .GET();
+                if (lastSequence > 0) {
+                    rb.header("Last-Event-ID", Long.toString(lastSequence));
+                }
+                return rb.build();
+            };
+            // The ticket is leader-issued, so start at the cached leader; follow a 307 manually in case
+            // leadership moved between the ticket and the stream open.
+            String base = leaderBase.get();
+            HttpResponse<InputStream> response =
+                    httpClient.send(factory.build(base), HttpResponse.BodyHandlers.ofInputStream());
+            int hops = 0;
+            while (isRedirect(response.statusCode()) && hops++ < MAX_REDIRECT_HOPS) {
+                String location = response.headers().firstValue("Location").orElse(null);
+                String redirectBase = location == null ? null : baseOf(location);
+                if (redirectBase == null) break;
+                base = redirectBase;
+                response = httpClient.send(factory.build(base), HttpResponse.BodyHandlers.ofInputStream());
             }
-            var requestBuilder = HttpRequest.newBuilder()
-                    .uri(URI.create(controllerUrl + query))
-                    .header("Accept", "text/event-stream")
-                    .GET();
-            if (lastSequence > 0) {
-                requestBuilder.header("Last-Event-ID", Long.toString(lastSequence));
-            }
-            return httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofInputStream());
+            leaderBase.set(base);
+            return response;
         } catch (Exception e) {
             throw new RuntimeException("Failed to open SSE stream: " + e.getMessage(), e);
         }
@@ -139,8 +211,8 @@ public abstract class BaseControllerClient {
 
     protected <T> T get(String path, TypeReference<T> typeRef) {
         try {
-            HttpResponse<String> response = sendWithRefresh(() -> HttpRequest.newBuilder()
-                    .uri(URI.create(controllerUrl + path))
+            HttpResponse<String> response = sendWithRefresh(base -> HttpRequest.newBuilder()
+                    .uri(URI.create(base + path))
                     .header("Authorization", "Bearer " + pluginTokenRef.get())
                     .header("traceparent", W3CTraceparent.random())
                     .GET()
@@ -157,8 +229,8 @@ public abstract class BaseControllerClient {
 
     protected void postAsync(String path, String body) {
         try {
-            HttpResponse<String> response = sendWithRefresh(() -> HttpRequest.newBuilder()
-                    .uri(URI.create(controllerUrl + path))
+            HttpResponse<String> response = sendWithRefresh(base -> HttpRequest.newBuilder()
+                    .uri(URI.create(base + path))
                     .header("Authorization", "Bearer " + pluginTokenRef.get())
                     .header(SEQUENCE_HEADER, nextSequence())
                     .header("Content-Type", "application/json")
@@ -174,11 +246,49 @@ public abstract class BaseControllerClient {
         }
     }
 
-    private HttpResponse<String> sendWithRefresh(java.util.function.Supplier<HttpRequest> requestBuilder)
-            throws Exception {
-        HttpResponse<String> response = httpClient.send(requestBuilder.get(), HttpResponse.BodyHandlers.ofString());
+    /**
+     * Send a request to the controller, trying the cached leader base first and rotating to the
+     * other seeds on a connection failure (the configured controller may be the one that died), and
+     * manually following a leader {@code 307}/{@code 308} — the JDK client strips the bearer on the
+     * cross-host hop. The base that ultimately served the request is cached as the leader.
+     */
+    private HttpResponse<String> send(RequestFactory factory) throws Exception {
+        var order = new java.util.ArrayList<String>();
+        order.add(leaderBase.get());
+        for (String s : controllerSeeds) {
+            if (!order.contains(s)) order.add(s);
+        }
+        java.io.IOException lastError = null;
+        for (String seed : order) {
+            try {
+                String base = seed;
+                HttpResponse<String> response =
+                        httpClient.send(factory.build(base), HttpResponse.BodyHandlers.ofString());
+                int hops = 0;
+                while (isRedirect(response.statusCode()) && hops++ < MAX_REDIRECT_HOPS) {
+                    String location = response.headers().firstValue("Location").orElse(null);
+                    String redirectBase = location == null ? null : baseOf(location);
+                    if (redirectBase == null) break;
+                    base = redirectBase;
+                    response = httpClient.send(factory.build(base), HttpResponse.BodyHandlers.ofString());
+                }
+                leaderBase.set(base);
+                return response;
+            } catch (java.io.IOException e) {
+                lastError = e; // this controller is unreachable; try the next seed
+            }
+        }
+        throw lastError != null ? lastError : new java.io.IOException("no controller reachable");
+    }
+
+    private static boolean isRedirect(int status) {
+        return status == 307 || status == 308;
+    }
+
+    private HttpResponse<String> sendWithRefresh(RequestFactory factory) throws Exception {
+        HttpResponse<String> response = send(factory);
         if (response.statusCode() == 401 && refreshPluginToken()) {
-            response = httpClient.send(requestBuilder.get(), HttpResponse.BodyHandlers.ofString());
+            response = send(factory);
         }
         return response;
     }
@@ -196,15 +306,13 @@ public abstract class BaseControllerClient {
                 return true;
             }
             try {
-                HttpRequest refreshRequest = HttpRequest.newBuilder()
-                        .uri(URI.create(controllerUrl + apiPrefix() + "/auth/refresh"))
+                HttpResponse<String> refreshResponse = send(base -> HttpRequest.newBuilder()
+                        .uri(URI.create(base + apiPrefix() + "/auth/refresh"))
                         .header("Authorization", "Bearer " + pluginTokenRef.get())
                         .header(SEQUENCE_HEADER, nextSequence())
                         .POST(HttpRequest.BodyPublishers.noBody())
                         .timeout(Duration.ofSeconds(10))
-                        .build();
-                HttpResponse<String> refreshResponse =
-                        httpClient.send(refreshRequest, HttpResponse.BodyHandlers.ofString());
+                        .build());
                 if (refreshResponse.statusCode() != 200) {
                     logger.warn("Plugin token refresh failed: HTTP {}", refreshResponse.statusCode());
                     return false;
