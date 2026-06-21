@@ -4,10 +4,8 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
@@ -161,16 +159,25 @@ public final class InstancePlacementCoordinator {
                     node.nodeId(),
                     projection.freeDiskAfterMb());
         }
-        var portOpt = PortAllocator.allocate(resolved.portRangeStart(), resolved.portRangeEnd(), node.usedPorts());
-        if (portOpt.isEmpty()) {
-            logger.warn("No port available on node {} for group {}", node.nodeId(), resolved.name());
-            return false;
-        }
-        int port = portOpt.getAsInt();
-
         if (!leaseGuard.ensureLeaseCurrent(lease, resolved.name(), "reserve placement for instance " + instanceId)) {
             return false;
         }
+
+        // Atomically reserve the port + memory on the chosen node, deriving both from the node's
+        // current value rather than the selection-time snapshot. Concurrent placements (the per-tier
+        // scheduler fan-out forks all groups in a tier in parallel) can no longer claim the same port
+        // or clobber each other's reservation. An empty result means the node filled between selection
+        // and reservation, so we yield this tick and let the scheduler retry.
+        var reservation = clusterState.reservePlacement(
+                node.nodeId(), resolved.memoryMb(), resolved.portRangeStart(), resolved.portRangeEnd());
+        if (reservation.isEmpty()) {
+            logger.warn(
+                    "No port available on node {} for group {} (lost reservation race)",
+                    node.nodeId(),
+                    resolved.name());
+            return false;
+        }
+        int port = reservation.get().port();
 
         int deploymentRevision = stateStore
                 .getInProgressDeployment(resolved.name())
@@ -188,18 +195,6 @@ public final class InstancePlacementCoordinator {
                 deploymentRevision);
         clusterState.addInstance(instance);
         clearStartRetryBudget.accept(instanceId);
-
-        var updatedPorts = new HashSet<>(node.usedPorts());
-        updatedPorts.add(port);
-        clusterState.updateNodeStatus(
-                node.nodeId(),
-                node.cpuUsage(),
-                node.totalMemoryMb(),
-                node.usedMemoryMb() + resolved.memoryMb(),
-                node.freeDiskMb(),
-                node.totalDiskMb(),
-                node.instanceCount() + 1,
-                updatedPorts);
 
         final InstanceCompositionPlan compositionPlan;
         try {
@@ -318,22 +313,11 @@ public final class InstancePlacementCoordinator {
     private void rollbackScheduledPlacement(
             String nodeId, int memoryMb, int port, String instanceId, Consumer<String> clearStartRetryBudget) {
         clearStartRetryBudget.accept(instanceId);
+        // removeInstance already releases the port (and decrements the instance count); release the
+        // reserved memory delta here so the same-tick view is corrected before any heartbeat arrives.
         clusterState.removeInstance(instanceId);
+        clusterState.releasePlacement(nodeId, memoryMb, port);
         stateStore.deleteInstanceCompositionPlan(instanceId);
-
-        clusterState.getNode(nodeId).ifPresent(currentNode -> {
-            Set<Integer> updatedPorts = new HashSet<>(currentNode.usedPorts());
-            updatedPorts.remove(port);
-            clusterState.updateNodeStatus(
-                    nodeId,
-                    currentNode.cpuUsage(),
-                    currentNode.totalMemoryMb(),
-                    Math.max(0, currentNode.usedMemoryMb() - memoryMb),
-                    currentNode.freeDiskMb(),
-                    currentNode.totalDiskMb(),
-                    Math.max(0, currentNode.instanceCount() - 1),
-                    updatedPorts);
-        });
     }
 
     private static CompositionPlan toWirePlan(InstanceCompositionPlan compositionPlan) {

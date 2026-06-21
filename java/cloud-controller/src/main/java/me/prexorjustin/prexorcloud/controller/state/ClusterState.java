@@ -105,6 +105,83 @@ public final class ClusterState {
         }
     }
 
+    /**
+     * Atomically reserve a port + memory for a placement (single-writer guard against
+     * concurrent placements double-allocating a port — see {@link NodeRegistry#reservePlacement}).
+     * Returns the claimed reservation (whose {@link NodeRegistry.Reservation#port()} the caller
+     * must use), or empty if the node is gone or has no free port in range.
+     */
+    public Optional<NodeRegistry.Reservation> reservePlacement(
+            String nodeId, long memoryMb, int portRangeStart, int portRangeEnd) {
+        var reservation = nodeRegistry.reservePlacement(nodeId, memoryMb, portRangeStart, portRangeEnd);
+        reservation.ifPresent(r -> {
+            if (runtimeStore != null) runtimeStore.saveNode(nodeId, r.node());
+            eventBus.publish(new NodeStatusUpdatedEvent(
+                    nodeId,
+                    r.node().cpuUsage(),
+                    r.node().usedMemoryMb(),
+                    r.node().totalMemoryMb(),
+                    r.node().lastHeartbeat()));
+        });
+        return reservation;
+    }
+
+    /** Release a reservation (port + memory) made by {@link #reservePlacement} — placement rollback. */
+    public void releasePlacement(String nodeId, long memoryMb, int port) {
+        var updated = nodeRegistry.releasePlacement(nodeId, memoryMb, port);
+        if (updated != null) {
+            if (runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
+            eventBus.publish(new NodeStatusUpdatedEvent(
+                    nodeId,
+                    updated.cpuUsage(),
+                    updated.usedMemoryMb(),
+                    updated.totalMemoryMb(),
+                    updated.lastHeartbeat()));
+        }
+    }
+
+    /**
+     * Apply a daemon NodeStatus heartbeat as telemetry that cannot recycle a controller
+     * reservation. Ports union with the existing set; memory is preserved while an
+     * instance on the node is still pre-running (SCHEDULED/PREPARING/STARTING) and then
+     * follows the daemon (self-healing). See {@link NodeRegistry#applyTelemetry}.
+     */
+    public void applyNodeTelemetry(
+            String nodeId,
+            double cpuUsage,
+            long totalMemoryMb,
+            long reportedUsedMemoryMb,
+            long freeDiskMb,
+            long totalDiskMb,
+            int reportedInstanceCount,
+            Set<Integer> reportedPorts) {
+        var onNode = getInstancesByNode(nodeId);
+        boolean hasPreRunning = onNode.stream()
+                .anyMatch(i -> i.state() == InstanceState.SCHEDULED
+                        || i.state() == InstanceState.PREPARING
+                        || i.state() == InstanceState.STARTING);
+        var updated = nodeRegistry.applyTelemetry(
+                nodeId,
+                cpuUsage,
+                totalMemoryMb,
+                reportedUsedMemoryMb,
+                freeDiskMb,
+                totalDiskMb,
+                reportedInstanceCount,
+                reportedPorts,
+                onNode.size(),
+                hasPreRunning);
+        if (updated != null) {
+            if (runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
+            eventBus.publish(new NodeStatusUpdatedEvent(
+                    nodeId,
+                    updated.cpuUsage(),
+                    updated.usedMemoryMb(),
+                    updated.totalMemoryMb(),
+                    updated.lastHeartbeat()));
+        }
+    }
+
     public void setNodeStatus(String nodeId, NodeState.NodeStatus status) {
         var updated = nodeRegistry.setStatus(nodeId, status);
         if (updated != null && runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
@@ -311,14 +388,23 @@ public final class ClusterState {
      * player sessions) and refreshes group aggregates.
      */
     private void removeInstanceLocalMirror(String instanceId) {
-        String group = instanceRegistry.get(instanceId).map(InstanceInfo::group).orElse(null);
+        Optional<InstanceInfo> removed = instanceRegistry.get(instanceId);
+        String group = removed.map(InstanceInfo::group).orElse(null);
         playerSessionRegistry.removeByInstance(instanceId);
         instanceRegistry.remove(instanceId);
+        removed.ifPresent(i -> releaseNodePort(i.nodeId(), i.port()));
         if (group != null) publishGroupAggregatesIfChanged(group);
     }
 
+    /** Release a freed instance port from the owning node and persist the node delta. */
+    private void releaseNodePort(String nodeId, int port) {
+        var updated = nodeRegistry.releasePort(nodeId, port);
+        if (updated != null && runtimeStore != null) runtimeStore.saveNode(nodeId, updated);
+    }
+
     public void removeInstance(String instanceId) {
-        String group = instanceRegistry.get(instanceId).map(InstanceInfo::group).orElse(null);
+        Optional<InstanceInfo> removed = instanceRegistry.get(instanceId);
+        String group = removed.map(InstanceInfo::group).orElse(null);
         if (runtimeStore != null) {
             playerSessionRegistry.getAll().forEach(player -> {
                 if (instanceId.equals(player.instanceId()) || instanceId.equals(player.proxyInstanceId())) {
@@ -331,6 +417,7 @@ public final class ClusterState {
         }
         playerSessionRegistry.removeByInstance(instanceId);
         instanceRegistry.remove(instanceId);
+        removed.ifPresent(i -> releaseNodePort(i.nodeId(), i.port()));
         unregisterPluginToken(instanceId);
         if (runtimeStore != null) runtimeStore.removeInstance(instanceId);
         if (group != null) publishGroupAggregatesIfChanged(group);

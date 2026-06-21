@@ -313,7 +313,11 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
                     logger.warn("Invalid handleNodeStatus from node {}: {}", nodeId, e.getMessage());
                     return;
                 }
-                clusterState.updateNodeStatus(
+                // Apply as telemetry, not authority: a daemon heartbeat reports only the
+                // instances it has already started, so a full overwrite would silently drop
+                // the controller's port/memory reservations for instances still in flight
+                // (SCHEDULED/PREPARING/STARTING), recycling ports and under-counting memory.
+                clusterState.applyNodeTelemetry(
                         nodeId,
                         status.getCpuUsage(),
                         status.getTotalMemoryMb(),
