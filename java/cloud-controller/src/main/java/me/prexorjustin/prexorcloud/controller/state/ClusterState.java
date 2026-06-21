@@ -601,45 +601,6 @@ public final class ClusterState {
         workloadIdentityRegistry.unregisterPluginTokens(instanceId);
     }
 
-    // --- Remote event application (multi-controller HA) ---
-    // These update in-memory state only — no Redis write (source controller already
-    // wrote), no EventBus publish (prevents infinite loops).
-
-    public void applyRemoteNodeConnected(String nodeId, String sessionId, Instant timestamp) {
-        nodeRegistry.add(nodeId, "", 0, Map.of(), timestamp, null);
-    }
-
-    public void applyRemoteNodeDisconnected(String nodeId) {
-        nodeRegistry.remove(nodeId);
-    }
-
-    public void applyRemoteNodeStatusUpdated(String nodeId, double cpuUsage, long usedMemoryMb, long totalMemoryMb) {
-        nodeRegistry
-                .get(nodeId)
-                .ifPresent(existing -> nodeRegistry.updateStatus(
-                        nodeId,
-                        cpuUsage,
-                        totalMemoryMb,
-                        usedMemoryMb,
-                        existing.freeDiskMb(),
-                        existing.totalDiskMb(),
-                        existing.instanceCount(),
-                        existing.usedPorts()));
-    }
-
-    public void applyRemoteInstanceStateChanged(
-            String instanceId, me.prexorjustin.prexorcloud.api.domain.InstanceState newState) {
-        instanceRegistry.updateState(instanceId, fromModuleState(newState));
-    }
-
-    public void applyRemotePlayerConnected(UUID uuid, String name, String instanceId, String group) {
-        playerSessionRegistry.addReportedByBackend(uuid, name, instanceId, group);
-    }
-
-    public void applyRemotePlayerDisconnected(UUID uuid) {
-        playerSessionRegistry.remove(uuid);
-    }
-
     public Optional<InstanceInfo> getInstance(String instanceId) {
         return instanceRegistry.get(instanceId);
     }
@@ -861,20 +822,6 @@ public final class ClusterState {
             case CRASHED -> me.prexorjustin.prexorcloud.api.domain.InstanceState.CRASHED;
             case DRAINING -> me.prexorjustin.prexorcloud.api.domain.InstanceState.DRAINING;
             default -> me.prexorjustin.prexorcloud.api.domain.InstanceState.SCHEDULED;
-        };
-    }
-
-    /** Convert module-api InstanceState to protobuf InstanceState. */
-    public static InstanceState fromModuleState(me.prexorjustin.prexorcloud.api.domain.InstanceState moduleState) {
-        return switch (moduleState) {
-            case SCHEDULED -> InstanceState.SCHEDULED;
-            case PREPARING -> InstanceState.PREPARING;
-            case STARTING -> InstanceState.STARTING;
-            case RUNNING -> InstanceState.RUNNING;
-            case STOPPING -> InstanceState.STOPPING;
-            case STOPPED -> InstanceState.STOPPED;
-            case CRASHED -> InstanceState.CRASHED;
-            case DRAINING -> InstanceState.DRAINING;
         };
     }
 }
