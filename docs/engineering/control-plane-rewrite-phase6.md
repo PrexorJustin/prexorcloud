@@ -48,17 +48,28 @@ and `MongoClusterStore`), then a wiring slice swaps the production path and dele
     + `DiagnosticsCollector.scanAllLeases` + `DistributedLeaseManagerTest` deleted. The
     `onLeaseAcquired` per-group reconcile hook is dropped — `MongoLeaderElector.onAcquired`
     already triggers a full `scheduler.requestReconcile()` on takeover. Controller suite green.
-  - ⏳ Remaining: delete `RedisStartRetryWakeupQueue`, `nodeowner:*`, `RedisEventBridge` relay.
+  - ✅ Start-retries are leader-memory only (`7a31023`): `RedisStartRetryWakeupQueue` +
+    `StartRetryWakeupQueue` deleted; the in-process scheduled-executor on the leader is the only
+    path (intents stay durable in Mongo `workflow_start_retries`, resumed via `reconcilePersisted`).
+  - ✅ REST leader-redirect (`cde80b8`): a non-leader returns `307` to the leader's REST address
+    (`LeaderRedirectMiddleware`, resolving `Member.restAddr` via the leadership holder) — the HTTP
+    analog of the daemon handshake redirect, and the enabler for deleting the relay. This is
+    finding #11 fix-A, pulled forward (no longer deferred to 3f). Health/ready/metrics exempt; no
+    known leader → `503`.
+  - ✅ Cross-controller relay + `nodeowner:*` deleted (`921feee`): `RedisEventBridge` removed
+    wholesale (command **and** reply **and** cache relay), `NodeMessageDispatcher.routeRemote`/`ownsNode`
+    gone, `nodeowner:*` keys/writes gone, the file-reply relay collapsed to local-complete. Safe now
+    that all traffic reaches the leader (daemon redirect + REST redirect): nothing lands on a follower
+    to relay. ⚠️ behaviour-changing — still wants the fleet gate (kill leader under load; no double-
+    mutation / split-brain). Controller suite green throughout.
 - **Slice 3f** ⏳ Swap `ClusterState.runtimeStore` (`RedisRuntimeStore` → `WorkloadTokenStore`,
   keeping the nullable seam); drop node/instance/player projection + `reconcile/adoptInstanceFromRedis`;
   update the scheduler tick + daemon adopt callers; hydrate token cache on takeover from `loadAllTokens`.
-  - **⚠️ Fold in here (see `live-run-findings.md` #11):** dropping the node/instance/player projection
-    turns follower REST reads from *stale* into *empty* (a follower's in-memory `ClusterState` only
-    hydrates at boot + refreshes via the leader-gated scheduler tick). So this slice MUST add the
-    follower-read guard — a non-leader returns `421`/`307` to the leader's REST addr (the HTTP analog of
-    the daemon redirect; `rest/` has no such guard today) — and MUST repoint the plugin-token read-through
-    (`ClusterState.validatePluginToken` → `hydratePluginTokenFromRedis`) to `MongoWorkloadTokenStore` on
-    **followers too** (non-null store), or the post-restart 401 returns.
+  - **Finding #11 fix-A (follower-read guard) already landed in 3e (`cde80b8`)** — followers now `307`
+    to the leader, so dropping the projection here no longer exposes empty follower reads. Still MUST
+    repoint the plugin-token read-through (`ClusterState.validatePluginToken` →
+    `hydratePluginTokenFromRedis`) to `MongoWorkloadTokenStore` so a cold leader (and any controller that
+    briefly serves before redirect resolves) validates tokens from Mongo, or the post-restart 401 returns.
 - **Slice 3g** ⏳ Rebuild the production `RuntimeServices` on Mongo (wire slices 1+2; select by
   `RuntimeConfig.profile`, not `config.redis()`); delete `RedisRuntimeServices`.
   - **Note (see `live-run-findings.md` #12):** the Mongo state-write path is not epoch-fenced (a deposed

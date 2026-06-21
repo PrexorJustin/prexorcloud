@@ -490,7 +490,16 @@ both are control-plane correctness gaps. Priority-0 prerequisite for the whole e
 shipped compose has no `--replSet` and docs bless a single-member RS — single-member gives CAS but no majority
 quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #12 — they're orthogonal.
 
-### 11. Followers serve REST reads from a frozen in-memory view, with no guard or redirect — **OPEN**
+### 11. Followers serve REST reads from a frozen in-memory view, with no guard or redirect — **fix-A DONE (`cde80b8`)**
+
+> **▶ Fix-A landed 2026-06-21 (Phase 6 3e):** `LeaderRedirectMiddleware` — a non-leader now returns `307`
+> to the leader's REST address (resolved from `Member.restAddr` via the leadership holder), the HTTP analog
+> of the daemon handshake redirect. Health/ready/metrics exempt; no known leader → `503 Retry-After`. So
+> followers no longer silently serve stale/empty app data — the "safe by luck" invariant is now enforced.
+> Remaining: (fix-B) a real Mongo-backed follower read path + consistency classification, only if the leader
+> becomes a throughput bottleneck; and the plugin-token read-through must point at Mongo in 3f (else a cold
+> leader 401s before redirect resolves). Original analysis below.
+
 - **Symptom (latent):** a dashboard/CLI/plugin that reaches a **non-leader** controller gets a `200 OK` built from
   stale (today) or empty (after Phase 3f) instance/node/metrics data. Silent-wrong, not an error. Only "safe by luck"
   today because clients happen to reach the leader (CLI seed-list / dashboard pointed at the leader) — nothing enforces it.
