@@ -11,7 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.modules.runtime.CapabilityRegistry;
 import me.prexorjustin.prexorcloud.modules.runtime.ModuleLifecycleManager;
 import me.prexorjustin.prexorcloud.modules.runtime.ModuleRouteRegistry;
@@ -21,8 +21,6 @@ import me.prexorjustin.prexorcloud.security.signing.PlatformModuleSignatureVerif
  * Authoritative controller-side runtime for stored platform modules.
  */
 public final class PlatformModuleManager implements AutoCloseable {
-
-    private static final String MUTATION_LEASE = "platform-modules:mutate";
 
     public record ManagedPlatformModule(
             String moduleId,
@@ -45,7 +43,9 @@ public final class PlatformModuleManager implements AutoCloseable {
     private final CapabilityRegistry capabilityRegistry = new CapabilityRegistry();
     private final PlatformModuleStorageManager storageManager;
     private final ModuleLifecycleManager lifecycleManager;
-    private final DistributedLeaseManager leaseManager;
+    // Single-writer authority: only the leader may mutate platform modules (install / uninstall /
+    // dropStorage). Defaults to always-leader so single-controller installs and tests are unchanged.
+    private volatile Leadership leadership = Leadership.alwaysLeader();
     private final PlatformModuleSignatureVerifier signatureVerifier;
     private final ModuleRouteRegistry.Hook routeHook;
     private volatile ModuleDistributorHook distributorHook = ModuleDistributorHook.NOOP_HOOK;
@@ -87,32 +87,14 @@ public final class PlatformModuleManager implements AutoCloseable {
             PlatformModuleStore store,
             PlatformModuleRuntimeFactory runtimeFactory,
             PlatformModuleStorageManager storageManager,
-            DistributedLeaseManager leaseManager) {
-        this(store, runtimeFactory, storageManager, leaseManager, PlatformModuleSignatureVerifier.NOOP);
-    }
-
-    public PlatformModuleManager(
-            PlatformModuleStore store,
-            PlatformModuleRuntimeFactory runtimeFactory,
-            PlatformModuleStorageManager storageManager,
             PlatformModuleSignatureVerifier signatureVerifier) {
-        this(store, runtimeFactory, storageManager, null, signatureVerifier);
+        this(store, runtimeFactory, storageManager, signatureVerifier, null);
     }
 
     public PlatformModuleManager(
             PlatformModuleStore store,
             PlatformModuleRuntimeFactory runtimeFactory,
             PlatformModuleStorageManager storageManager,
-            DistributedLeaseManager leaseManager,
-            PlatformModuleSignatureVerifier signatureVerifier) {
-        this(store, runtimeFactory, storageManager, leaseManager, signatureVerifier, null);
-    }
-
-    public PlatformModuleManager(
-            PlatformModuleStore store,
-            PlatformModuleRuntimeFactory runtimeFactory,
-            PlatformModuleStorageManager storageManager,
-            DistributedLeaseManager leaseManager,
             PlatformModuleSignatureVerifier signatureVerifier,
             ModuleRouteRegistry routeRegistry) {
         this.store = Objects.requireNonNull(store, "store");
@@ -120,7 +102,6 @@ public final class PlatformModuleManager implements AutoCloseable {
         this.storageManager = Objects.requireNonNull(storageManager, "storageManager");
         this.routeHook = routeRegistry == null ? ModuleRouteRegistry.NOOP_HOOK : routeRegistry.asHook();
         this.lifecycleManager = new ModuleLifecycleManager(capabilityRegistry, storageManager::resolve, this.routeHook);
-        this.leaseManager = leaseManager;
         this.signatureVerifier = Objects.requireNonNull(signatureVerifier, "signatureVerifier");
     }
 
@@ -128,7 +109,12 @@ public final class PlatformModuleManager implements AutoCloseable {
             PlatformModuleStore store,
             PlatformModuleRuntimeFactory runtimeFactory,
             PlatformModuleStorageManager storageManager) {
-        this(store, runtimeFactory, storageManager, (DistributedLeaseManager) null);
+        this(store, runtimeFactory, storageManager, PlatformModuleSignatureVerifier.NOOP);
+    }
+
+    /** Inject single-writer leadership (bootstrap). Tests run as always-leader. */
+    public void setLeadership(Leadership leadership) {
+        this.leadership = leadership;
     }
 
     /**
@@ -202,7 +188,7 @@ public final class PlatformModuleManager implements AutoCloseable {
     }
 
     public synchronized ManagedPlatformModule install(Path sourceJar) {
-        return withMutationLease(() -> {
+        return requireLeaderForMutation(() -> {
             PlatformModuleStore.PreparedModule preparedModule = store.prepare(sourceJar);
             signatureVerifier.verify(new PlatformModuleSignatureVerifier.VerificationInput(
                     preparedModule.sourceJar(),
@@ -296,7 +282,7 @@ public final class PlatformModuleManager implements AutoCloseable {
 
     public synchronized Optional<ManagedPlatformModule> uninstall(String moduleId) {
         Objects.requireNonNull(moduleId, "moduleId");
-        return withMutationLease(() -> {
+        return requireLeaderForMutation(() -> {
             ModuleLifecycleManager.ManagedModule managed =
                     lifecycleManager.find(moduleId).orElse(null);
             RuntimeBinding binding = runtimesByModuleId.remove(moduleId);
@@ -410,7 +396,7 @@ public final class PlatformModuleManager implements AutoCloseable {
 
     public synchronized PlatformModuleStorageManager.StorageDropResult dropStorage(String moduleId) {
         Objects.requireNonNull(moduleId, "moduleId");
-        return withMutationLease(() -> {
+        return requireLeaderForMutation(() -> {
             lifecycleManager.find(moduleId).ifPresent(managed -> {
                 if (managed.state() != ModuleLifecycleManager.ModuleState.UNLOADED) {
                     throw new IllegalStateException("storage can only be dropped after uninstall; current state is "
@@ -546,19 +532,11 @@ public final class PlatformModuleManager implements AutoCloseable {
         return this.classLoaderTracker;
     }
 
-    private <T> T withMutationLease(java.util.function.Supplier<T> action) {
-        if (leaseManager == null) {
-            return action.get();
-        }
-        var lease = leaseManager.tryAcquireLease(MUTATION_LEASE);
-        if (lease.isEmpty()) {
+    private <T> T requireLeaderForMutation(java.util.function.Supplier<T> action) {
+        if (!leadership.isLeader()) {
             throw new IllegalStateException(
-                    "platform module mutation is already owned by another controller; retry once the lease is free");
+                    "platform module mutation is only allowed on the leader; retry against the current leader");
         }
-        try {
-            return action.get();
-        } finally {
-            leaseManager.release(lease.get());
-        }
+        return action.get();
     }
 }

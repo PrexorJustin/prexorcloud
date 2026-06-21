@@ -910,7 +910,6 @@ public final class PrexorCloudBootstrap {
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         var platformStorageManager =
                 new PlatformModuleStorageManager(mongoDatabase, mongoClient, runtime, platformStorageMapper);
-        var platformLeaseManager = runtime.newLeaseManager(config.scheduler().evaluationIntervalSeconds() * 2);
         var signatureVerifier = buildSignatureVerifier(config);
         moduleRouteRegistry = new me.prexorjustin.prexorcloud.modules.runtime.ModuleRouteRegistry();
         var platformManager = new PlatformModuleManager(
@@ -918,7 +917,6 @@ public final class PrexorCloudBootstrap {
                 new me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleRuntimeFactory
                         .JarRuntimeFactory(),
                 platformStorageManager,
-                platformLeaseManager,
                 signatureVerifier,
                 moduleRouteRegistry);
         platformManager.setClassLoaderTracker(
@@ -1262,6 +1260,7 @@ public final class PrexorCloudBootstrap {
         scheduler.setConvergenceGate(convergenceGate);
         scheduler.placementCoordinator().setLeadership(leaderElector);
         nodeMessageDispatcher.setLeadership(leaderElector);
+        modules.platformManager().setLeadership(leaderElector);
         // NOTE: daemonService leadership (HandshakeAck epoch + leader-redirect) is wired in initGrpc,
         // where daemonService is created. initScheduler runs first, so leaderElector is ready by then.
         scheduler.start();

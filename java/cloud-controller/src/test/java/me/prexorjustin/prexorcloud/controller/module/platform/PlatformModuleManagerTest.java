@@ -1,12 +1,6 @@
 package me.prexorjustin.prexorcloud.controller.module.platform;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -22,24 +16,17 @@ import java.util.jar.JarOutputStream;
 import me.prexorjustin.prexorcloud.api.module.platform.CapabilityHandle;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
-import me.prexorjustin.prexorcloud.controller.redis.DistributedLeaseManager;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
+import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.modules.runtime.ModuleLifecycleManager;
 import me.prexorjustin.prexorcloud.modules.runtime.PlatformModuleManifestParser;
 import me.prexorjustin.prexorcloud.security.signing.PlatformModuleSignatureVerifier;
 
-import io.lettuce.core.SetArgs;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("PlatformModuleManager")
 class PlatformModuleManagerTest {
-
-    private static final String MUTATION_RESOURCE = "platform-modules:mutate";
-    private static final String MUTATION_LEASE_KEY = RedisKeys.lease(MUTATION_RESOURCE);
-    private static final String MUTATION_LEASE_TOKEN_KEY = RedisKeys.leaseToken(MUTATION_RESOURCE);
 
     @TempDir
     Path tempDir;
@@ -289,15 +276,8 @@ class PlatformModuleManagerTest {
     }
 
     @Test
-    @DisplayName("install requires the platform mutation lease")
-    void installRequiresMutationLease() {
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> commands = mock(RedisCommands.class);
-        when(commands.incr(MUTATION_LEASE_TOKEN_KEY)).thenReturn(1L);
-        when(commands.set(eq(MUTATION_LEASE_KEY), anyString(), any(SetArgs.class)))
-                .thenReturn(null);
-        when(commands.get(MUTATION_LEASE_KEY)).thenReturn("controller-b|2");
-
+    @DisplayName("install is rejected on a non-leader controller (ownership = leadership)")
+    void installRejectedOnFollower() {
         PlatformModuleManager manager = new PlatformModuleManager(
                 new PlatformModuleStore(tempDir.resolve("store")),
                 storedModule -> new PlatformModuleRuntimeFactory.LoadedRuntime(
@@ -306,13 +286,13 @@ class PlatformModuleManagerTest {
                         null,
                         null,
                         new me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices(),
-                        new com.fasterxml.jackson.databind.ObjectMapper()),
-                new DistributedLeaseManager(commands, "controller-a", 60));
+                        new com.fasterxml.jackson.databind.ObjectMapper()));
+        manager.setLeadership(notLeader());
 
         IllegalStateException error = assertThrows(
                 IllegalStateException.class,
                 () -> manager.install(createModuleJar(tempDir.resolve("queue.jar"), consumerManifestYaml())));
-        assertTrue(error.getMessage().contains("already owned by another controller"));
+        assertTrue(error.getMessage().contains("leader"));
         assertTrue(manager.listModules().isEmpty());
     }
 
@@ -368,37 +348,8 @@ class PlatformModuleManagerTest {
     }
 
     @Test
-    @DisplayName("successful install releases the platform mutation lease")
-    void installReleasesMutationLease() {
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> commands = mock(RedisCommands.class);
-        when(commands.incr(MUTATION_LEASE_TOKEN_KEY)).thenReturn(1L);
-        when(commands.set(eq(MUTATION_LEASE_KEY), anyString(), any(SetArgs.class)))
-                .thenReturn("OK");
-        when(commands.get(MUTATION_LEASE_KEY)).thenReturn("controller-a|1");
-
-        PlatformModuleStore store = new PlatformModuleStore(tempDir.resolve("store"));
-        PlatformModuleManager manager = new PlatformModuleManager(
-                store,
-                storedModule -> new PlatformModuleRuntimeFactory.LoadedRuntime(
-                        storedModule.manifest(), new RecordingPlatformModule(Map.of()), () -> {}),
-                new PlatformModuleStorageManager(
-                        null,
-                        null,
-                        new me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices(),
-                        new com.fasterxml.jackson.databind.ObjectMapper()),
-                new DistributedLeaseManager(commands, "controller-a", 60));
-
-        PlatformModuleManager.ManagedPlatformModule installed =
-                manager.install(createModuleJar(tempDir.resolve("queue.jar"), consumerManifestYaml()));
-
-        assertEquals("queue", installed.moduleId());
-        verify(commands).del(MUTATION_LEASE_KEY);
-    }
-
-    @Test
-    @DisplayName("uninstall requires the platform mutation lease")
-    void uninstallRequiresMutationLease() {
+    @DisplayName("uninstall is rejected on a non-leader controller (ownership = leadership)")
+    void uninstallRejectedOnFollower() {
         PlatformModuleStore store = new PlatformModuleStore(tempDir.resolve("store"));
         PlatformModuleRuntimeFactory runtimeFactory = storedModule -> new PlatformModuleRuntimeFactory.LoadedRuntime(
                 storedModule.manifest(),
@@ -409,13 +360,6 @@ class PlatformModuleManagerTest {
         installer.install(createModuleJar(tempDir.resolve("profile.jar"), providerManifestYaml()));
         installer.close();
 
-        @SuppressWarnings("unchecked")
-        RedisCommands<String, String> commands = mock(RedisCommands.class);
-        when(commands.incr(MUTATION_LEASE_TOKEN_KEY)).thenReturn(1L);
-        when(commands.set(eq(MUTATION_LEASE_KEY), anyString(), any(SetArgs.class)))
-                .thenReturn(null);
-        when(commands.get(MUTATION_LEASE_KEY)).thenReturn("controller-b|2");
-
         PlatformModuleManager manager = new PlatformModuleManager(
                 store,
                 runtimeFactory,
@@ -423,14 +367,28 @@ class PlatformModuleManagerTest {
                         null,
                         null,
                         new me.prexorjustin.prexorcloud.controller.runtime.InMemoryRuntimeServices(),
-                        new com.fasterxml.jackson.databind.ObjectMapper()),
-                new DistributedLeaseManager(commands, "controller-a", 60));
+                        new com.fasterxml.jackson.databind.ObjectMapper()));
+        manager.setLeadership(notLeader());
         manager.loadStoredModules();
 
         IllegalStateException error = assertThrows(IllegalStateException.class, () -> manager.uninstall("profile"));
 
-        assertTrue(error.getMessage().contains("already owned by another controller"));
+        assertTrue(error.getMessage().contains("leader"));
         assertTrue(manager.snapshot("profile").isPresent());
+    }
+
+    private static Leadership notLeader() {
+        return new Leadership() {
+            @Override
+            public boolean isLeader() {
+                return false;
+            }
+
+            @Override
+            public long currentEpoch() {
+                return 0L;
+            }
+        };
     }
 
     private static Path createModuleJar(Path jarPath, String manifest) {
