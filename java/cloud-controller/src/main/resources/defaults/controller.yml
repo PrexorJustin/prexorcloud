@@ -50,10 +50,6 @@ database:
   uri: "mongodb://localhost:27017"
   database: "prexorcloud"
 
-# Runtime coordination (Redis)
-redis:
-  uri: "redis://localhost:6379"
-
 # Logging
 logging:
   level: "INFO"
@@ -78,7 +74,6 @@ security:
   rateLimiting:
     perIpPerMinute: 100
     perUserPerMinute: 300
-    failOpenOnRedisError: false
 
 # Crash intelligence
 crashes:

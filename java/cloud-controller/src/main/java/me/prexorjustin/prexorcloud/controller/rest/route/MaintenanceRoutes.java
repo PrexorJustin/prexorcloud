@@ -116,8 +116,7 @@ public final class MaintenanceRoutes {
                 update,
                 old.dashboard(),
                 old.backup(),
-                old.share(),
-                old.redis());
+                old.share());
         controller.updateConfig(updated);
 
         audit(

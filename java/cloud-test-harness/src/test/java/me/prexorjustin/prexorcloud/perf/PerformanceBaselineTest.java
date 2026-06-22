@@ -28,8 +28,6 @@ import me.prexorjustin.prexorcloud.harness.TestCluster;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.lettuce.core.RedisClient;
-import io.lettuce.core.api.StatefulRedisConnection;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -38,8 +36,7 @@ import org.junit.jupiter.api.Test;
  * {@code perfBaselines} gradle task and the nightly CI job. Measurements:
  *
  * <ul>
- *   <li>controller cold start (TestCluster.startWithRedis() → /api/v1/system/ready 200)</li>
- *   <li>coordination-store latency (Lettuce SET/GET round trip)</li>
+ *   <li>controller cold start (TestCluster.start() → /api/v1/system/ready 200)</li>
  *   <li>SSE event latency (REST → SSE round trip)</li>
  *   <li>scheduler tick at N groups (Micrometer p50/p95)</li>
  * </ul>
@@ -54,14 +51,11 @@ class PerformanceBaselineTest {
             Integer.parseInt(System.getProperty("perf.scheduler.groups", "1000"));
     private static final int SCHEDULER_TICK_SAMPLES =
             Integer.parseInt(System.getProperty("perf.scheduler.samples", "8"));
-    private static final int COORDINATION_SAMPLES =
-            Integer.parseInt(System.getProperty("perf.coordination.samples", "500"));
     private static final int SSE_SAMPLES = Integer.parseInt(System.getProperty("perf.sse.samples", "30"));
 
     @Test
     void publishBaselines() throws Exception {
         assumeTrue(TestCluster.mongoAvailable(), "MongoDB not reachable; perf baselines skipped");
-        assumeTrue(TestCluster.redisAvailable(), "Redis not reachable; perf baselines skipped");
 
         ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         ObjectNode report = mapper.createObjectNode();
@@ -78,8 +72,7 @@ class PerformanceBaselineTest {
 
         measureColdStart(metrics);
 
-        try (TestCluster cluster = TestCluster.startWithRedis()) {
-            measureCoordinationStore(cluster, metrics);
+        try (TestCluster cluster = TestCluster.start()) {
             measureSseLatency(cluster, metrics);
             measureSchedulerTick(cluster, metrics);
         }
@@ -95,7 +88,7 @@ class PerformanceBaselineTest {
 
     private static void measureColdStart(ObjectNode metrics) throws Exception {
         long start = System.nanoTime();
-        try (TestCluster cluster = TestCluster.startWithRedis()) {
+        try (TestCluster cluster = TestCluster.start()) {
             HttpClient client = HttpClient.newHttpClient();
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(cluster.restBaseUrl() + "/api/v1/system/ready"))
@@ -116,34 +109,6 @@ class PerformanceBaselineTest {
         long ms = Duration.ofNanos(System.nanoTime() - start).toMillis();
         ObjectNode node = metrics.putObject("controllerColdStartMs");
         node.put("value", ms);
-    }
-
-    // --- Coordination store latency ---
-
-    private static void measureCoordinationStore(TestCluster cluster, ObjectNode metrics) {
-        String redisUri = cluster.redisUri();
-        if (redisUri == null) return;
-
-        List<Long> samples = new ArrayList<>(COORDINATION_SAMPLES);
-        RedisClient client = RedisClient.create(redisUri);
-        try (StatefulRedisConnection<String, String> connection = client.connect()) {
-            String key = "perf:baseline:" + UUID.randomUUID();
-            // Warmup
-            for (int i = 0; i < 50; i++) {
-                connection.sync().set(key, "v" + i);
-                connection.sync().get(key);
-            }
-            for (int i = 0; i < COORDINATION_SAMPLES; i++) {
-                long t0 = System.nanoTime();
-                connection.sync().set(key, "v" + i);
-                connection.sync().get(key);
-                samples.add(System.nanoTime() - t0);
-            }
-            connection.sync().del(key);
-        } finally {
-            client.shutdown();
-        }
-        writeNanoSamples(metrics.putObject("coordinationStoreSetGetMs"), samples);
     }
 
     // --- SSE event latency ---

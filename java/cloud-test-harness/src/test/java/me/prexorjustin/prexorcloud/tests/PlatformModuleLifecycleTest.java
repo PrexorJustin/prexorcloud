@@ -231,9 +231,8 @@ class PlatformModuleLifecycleTest {
 
     @Test
     void moduleStorageIsIsolatedPerOwnerAndSurvivesControllerReload(@TempDir Path tempDir) throws Exception {
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for platform storage harness tests");
         System.setProperty(PlatformModuleTestJarFactory.EVENT_DIR_PROPERTY, tempDir.toString());
-        try (TestCluster storageCluster = TestCluster.startWithRedis()) {
+        try (TestCluster storageCluster = TestCluster.start()) {
             RestClient storageAdmin = new RestClient(storageCluster.restBaseUrl(), storageCluster.adminJwtToken());
 
             Path alphaJar = PlatformModuleTestJarFactory.createStorageProbeJar(
@@ -390,10 +389,9 @@ class PlatformModuleLifecycleTest {
     @Test
     void standbyControllerFailoverReloadsStoredPlatformModulesAndCapabilities(@TempDir Path tempDir) throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for platform module harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA platform module harness tests");
 
         System.setProperty(PlatformModuleTestJarFactory.EVENT_DIR_PROPERTY, tempDir.toString());
-        try (TestCluster haCluster = TestCluster.startWithRedisHa(0, 2)) {
+        try (TestCluster haCluster = TestCluster.startHa(0, 2)) {
             RestClient activeAdmin = new RestClient(haCluster.restBaseUrl(), haCluster.adminJwtToken());
             Path consumerJar = PlatformModuleTestJarFactory.createConsumerJar(tempDir.resolve("queue-ha.jar"));
             Path providerJar = PlatformModuleTestJarFactory.createProviderV1Jar(tempDir.resolve("profile-ha.jar"));

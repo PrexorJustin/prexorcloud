@@ -31,7 +31,6 @@ import me.prexorjustin.prexorcloud.controller.config.ModuleSigningConfig;
 import me.prexorjustin.prexorcloud.controller.config.ModulesConfig;
 import me.prexorjustin.prexorcloud.controller.config.NetworkConfig;
 import me.prexorjustin.prexorcloud.controller.config.RateLimitingConfig;
-import me.prexorjustin.prexorcloud.controller.config.RedisConfig;
 import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.config.SchedulerConfig;
 import me.prexorjustin.prexorcloud.controller.config.SecurityControllerConfig;
@@ -46,15 +45,14 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import org.testcontainers.DockerClientFactory;
-import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
  * Hermetic integration-test harness for {@code PlatformModule} authors.
  *
- * <p>Boots ephemeral MongoDB + Redis via Testcontainers, then starts an
- * in-process PrexorCloud controller pointed at them. The harness is the
+ * <p>Boots an ephemeral MongoDB via Testcontainers, then starts an
+ * in-process PrexorCloud controller pointed at it. The harness is the
  * lighter sibling of {@code TestCluster} — no daemon, no gRPC chatter, no
  * external-service prerequisite. Module authors get real Mongo persistence
  * and a real Javalin REST surface to exercise their module against.
@@ -77,10 +75,8 @@ import org.testcontainers.utility.DockerImageName;
 public final class ModuleTestHarness implements AutoCloseable {
 
     private static final DockerImageName MONGO_IMAGE = DockerImageName.parse("mongo:7.0");
-    private static final DockerImageName REDIS_IMAGE = DockerImageName.parse("redis:7-alpine");
 
     private final MongoDBContainer mongoContainer;
-    private final GenericContainer<?> redisContainer;
     private final Path controllerDir;
     private final PrexorCloudBootstrap bootstrap;
     private final PrexorController controller;
@@ -93,7 +89,6 @@ public final class ModuleTestHarness implements AutoCloseable {
 
     private ModuleTestHarness(
             MongoDBContainer mongoContainer,
-            GenericContainer<?> redisContainer,
             Path controllerDir,
             PrexorCloudBootstrap bootstrap,
             PrexorController controller,
@@ -103,7 +98,6 @@ public final class ModuleTestHarness implements AutoCloseable {
             int httpPort,
             String adminPassword) {
         this.mongoContainer = mongoContainer;
-        this.redisContainer = redisContainer;
         this.controllerDir = controllerDir;
         this.bootstrap = bootstrap;
         this.controller = controller;
@@ -129,12 +123,9 @@ public final class ModuleTestHarness implements AutoCloseable {
      */
     public static ModuleTestHarness start() throws Exception {
         MongoDBContainer mongo = new MongoDBContainer(MONGO_IMAGE);
-        GenericContainer<?> redis = new GenericContainer<>(REDIS_IMAGE).withExposedPorts(6379);
         mongo.start();
-        redis.start();
 
         String mongoUri = mongo.getConnectionString();
-        String redisUri = "redis://" + redis.getHost() + ":" + redis.getMappedPort(6379);
         String databaseName =
                 "prexor_test_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 
@@ -182,7 +173,6 @@ public final class ModuleTestHarness implements AutoCloseable {
                 new me.prexorjustin.prexorcloud.controller.config.ShareConfig(),
                 java.util.List.of(),
                 java.util.List.of(),
-                new RedisConfig(redisUri),
                 null,
                 new me.prexorjustin.prexorcloud.controller.config.RaftConfig(
                         "127.0.0.1",
@@ -209,7 +199,6 @@ public final class ModuleTestHarness implements AutoCloseable {
 
         return new ModuleTestHarness(
                 mongo,
-                redis,
                 controllerDir,
                 bootstrap,
                 controller,
@@ -286,11 +275,6 @@ public final class ModuleTestHarness implements AutoCloseable {
         }
         try {
             harnessMongoClient.close();
-        } catch (RuntimeException ignored) {
-            // best-effort
-        }
-        try {
-            redisContainer.stop();
         } catch (RuntimeException ignored) {
             // best-effort
         }

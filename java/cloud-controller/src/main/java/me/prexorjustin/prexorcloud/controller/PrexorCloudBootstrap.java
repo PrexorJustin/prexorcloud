@@ -186,7 +186,7 @@ public final class PrexorCloudBootstrap {
                     null);
         }
         // Distributed tracing (Track D). Built here — after the effective cluster config resolves —
-        // so the Redis client can be instrumented at connection time. No-op unless telemetry.enabled.
+        // so the Mongo client can be instrumented at connection time. No-op unless telemetry.enabled.
         telemetry = me.prexorjustin.prexorcloud.controller.observability.telemetry.Telemetry.create(config.telemetry());
         runtime = initRuntimeServices();
         var core = initCore(
@@ -441,7 +441,6 @@ public final class PrexorCloudBootstrap {
                     config.share(),
                     config.networks(),
                     config.events(),
-                    config.redis(),
                     config.cluster(),
                     config.raft());
             YamlConfigLoader.mapper().writeValue(CONFIG_PATH.toFile(), config);
@@ -584,7 +583,6 @@ public final class PrexorCloudBootstrap {
                 config.share(),
                 config.networks(),
                 config.events(),
-                config.redis(),
                 updated,
                 config.raft());
         try {
@@ -618,7 +616,8 @@ public final class PrexorCloudBootstrap {
      * Wire the password-reset manager when {@code security.passwordReset.enabled=true}.
      * Skipped silently otherwise so installs that have not opted in see no extra
      * moving parts. Mailer falls back to {@link LogMailer} until SMTP host is
-     * configured; the token store is Redis-backed when coordination is on.
+     * configured; the token store is Mongo-backed (durable across restarts and
+     * leadership changes).
      */
     private void initPasswordReset(PrexorController controller) {
         var prConfig = controller.config().security().passwordReset();
@@ -743,12 +742,12 @@ public final class PrexorCloudBootstrap {
     }
 
     /**
-     * Wire the Redis pub/sub-backed cross-controller event bridge.
+     * Wire the shared group and network stores onto their live managers so
+     * cluster-wide state is read/written through Mongo.
      *
      * <p>No-op when {@code runtime.coordinationEnabled()} is false (single-node
-     * dev with no Redis). When active, the bridge fans the local
-     * {@code core.eventBus()} out to every other controller in the cluster
-     * so dashboard SSE consumers see events from any node uniformly.
+     * dev). When active, the managers read and persist group/network state via
+     * the shared store so every controller sees a uniform view.
      */
     private void wireGroupAndNetworkStores(
             PrexorController.TemplateServices templates, PrexorController.NetworkServices network) {
@@ -1323,8 +1322,8 @@ public final class PrexorCloudBootstrap {
     /**
      * Resolve the current leader's gRPC address for daemon redirect (Phase 3). Empty when this
      * controller is the leader, when there is no current holder, or when the holder has no resolvable
-     * member entry — the daemon then stays put (the Redis relay still carries commands until a leader
-     * resolves). The leader is the lease holder, whose UUID equals a cluster member's {@code nodeId}.
+     * member entry — the daemon then stays put until a leader resolves. The leader is the lease holder,
+     * whose UUID equals a cluster member's {@code nodeId}.
      */
     private String resolveLeaderGrpcAddress(me.prexorjustin.prexorcloud.controller.cluster.MongoLeaderElector elector) {
         var lease = elector.readLease().orElse(null);

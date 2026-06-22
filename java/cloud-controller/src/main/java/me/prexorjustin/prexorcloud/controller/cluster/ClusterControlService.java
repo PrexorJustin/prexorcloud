@@ -304,7 +304,6 @@ public final class ClusterControlService implements AutoCloseable {
                 cfg.share(),
                 cfg.networks(),
                 cfg.events(),
-                cfg.redis(),
                 updated,
                 cfg.raft());
     }

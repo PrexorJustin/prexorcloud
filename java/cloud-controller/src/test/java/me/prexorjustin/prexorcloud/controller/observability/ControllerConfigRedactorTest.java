@@ -7,18 +7,16 @@ import java.util.List;
 import me.prexorjustin.prexorcloud.controller.config.ControllerConfig;
 import me.prexorjustin.prexorcloud.controller.config.DatabaseConfig;
 import me.prexorjustin.prexorcloud.controller.config.RateLimitingConfig;
-import me.prexorjustin.prexorcloud.controller.config.RedisConfig;
 import me.prexorjustin.prexorcloud.controller.config.SecurityControllerConfig;
 
 import org.junit.jupiter.api.Test;
 
 class ControllerConfigRedactorTest {
 
-    private static ControllerConfig configWith(
-            SecurityControllerConfig security, DatabaseConfig db, RedisConfig redis) {
+    private static ControllerConfig configWith(SecurityControllerConfig security, DatabaseConfig db) {
         return new ControllerConfig(
-                null, null, null, null, db, null, null, null, null, security, null, null, null, null, null, null, null,
-                redis);
+                null, null, null, null, db, null, null, null, null, security, null, null, null, null, null, null,
+                null);
     }
 
     @Test
@@ -29,7 +27,7 @@ class ControllerConfigRedactorTest {
                 "admin-pw-123",
                 new RateLimitingConfig(),
                 List.of("old-secret-1", "old-secret-2"));
-        var config = configWith(security, null, null);
+        var config = configWith(security, null);
 
         var redacted = ControllerConfigRedactor.redact(config);
 
@@ -48,7 +46,7 @@ class ControllerConfigRedactorTest {
 
     @Test
     void leavesNonSecretFieldsAlone() {
-        var redacted = ControllerConfigRedactor.redact(configWith(null, null, null));
+        var redacted = ControllerConfigRedactor.redact(configWith(null, null));
 
         assertTrue(redacted.has("http"));
         assertTrue(redacted.has("scheduler"));
@@ -59,23 +57,13 @@ class ControllerConfigRedactorTest {
     @Test
     void redactsMongoUriPasswordButKeepsHostAndUser() {
         var config = configWith(
-                null, new DatabaseConfig("mongodb://admin:hunter2@mongo.internal:27017/prexor", "prexor"), null);
+                null, new DatabaseConfig("mongodb://admin:hunter2@mongo.internal:27017/prexor", "prexor"));
         var redacted = ControllerConfigRedactor.redact(config);
         String uri = redacted.path("database").path("uri").asText();
         assertFalse(uri.contains("hunter2"), "password must be removed: " + uri);
         assertTrue(uri.startsWith("mongodb://admin:"));
         assertTrue(uri.contains("@mongo.internal:27017"));
         assertTrue(uri.contains("REDACTED"));
-    }
-
-    @Test
-    void redactsRedisUriPassword() {
-        var config = configWith(null, null, new RedisConfig("redis://default:topsecret@valkey.internal:6379"));
-        var redacted = ControllerConfigRedactor.redact(config);
-        String uri = redacted.path("redis").path("uri").asText();
-        assertFalse(uri.contains("topsecret"));
-        assertTrue(uri.startsWith("redis://default:"));
-        assertTrue(uri.contains("@valkey.internal:6379"));
     }
 
     @Test

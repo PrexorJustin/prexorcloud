@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 class ConfigValidatorTest {
 
     @Test
-    void allowsDevelopmentProfileWithoutRedis() {
+    void allowsDevelopmentProfile() {
         ControllerConfig config = new ControllerConfig(
                 null,
                 null,
@@ -26,35 +26,9 @@ class ConfigValidatorTest {
                 null,
                 null,
                 null,
-                null,
                 null);
 
         assertDoesNotThrow(() -> ConfigValidator.validate(config));
-    }
-
-    @Test
-    void rejectsProductionProfileWithoutRedis() {
-        ControllerConfig config = new ControllerConfig(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                new RuntimeConfig(RuntimeConfig.PRODUCTION),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        assertThrows(IllegalStateException.class, () -> ConfigValidator.validate(config));
     }
 
     @Test
@@ -79,8 +53,7 @@ class ConfigValidatorTest {
                 null,
                 null,
                 null,
-                null,
-                new RedisConfig("redis://localhost:6379"));
+                null);
 
         var thrown = assertThrows(IllegalStateException.class, () -> ConfigValidator.validate(config));
         // The same call also rejects multiple errors; ensure the signing one is present.
@@ -110,8 +83,7 @@ class ConfigValidatorTest {
                 null,
                 null,
                 null,
-                null,
-                new RedisConfig("redis://localhost:6379"));
+                null);
 
         assertDoesNotThrow(() -> ConfigValidator.validate(config));
     }
@@ -128,7 +100,6 @@ class ConfigValidatorTest {
                 null,
                 null,
                 new RuntimeConfig("staging"),
-                null,
                 null,
                 null,
                 null,

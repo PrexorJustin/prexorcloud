@@ -11,9 +11,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Projects {@code security.rateLimiting} from the effective cluster config onto
  * the live {@link RateLimitMiddleware}. Only the operator-tunable limits
- * ({@code perIpPerMinute}, {@code perUserPerMinute}, {@code failOpenOnRedisError})
- * are reloadable; the stricter hard-coded login bucket is not cluster-config
- * driven.
+ * ({@code perIpPerMinute}, {@code perUserPerMinute}) are reloadable; the stricter
+ * hard-coded login bucket is not cluster-config driven.
  */
 public final class RateLimitReloader implements ClusterConfigSubscriber {
 
@@ -46,22 +45,16 @@ public final class RateLimitReloader implements ClusterConfigSubscriber {
         // the defaults, so a partial/garbage patch can't disable rate limiting.
         RateLimitingConfig config = new RateLimitingConfig(
                 intValue(map.get("perIpPerMinute")),
-                intValue(map.get("perUserPerMinute")),
-                boolValue(map.get("failOpenOnRedisError")));
+                intValue(map.get("perUserPerMinute")));
         if (rateLimiter.reconfigure(config)) {
             logger.info(
-                    "Rate limiter reloaded from cluster_config: perIp={}/min perUser={}/min failOpen={}",
+                    "Rate limiter reloaded from cluster_config: perIp={}/min perUser={}/min",
                     config.perIpPerMinute(),
-                    config.perUserPerMinute(),
-                    config.failOpenOnRedisError());
+                    config.perUserPerMinute());
         }
     }
 
     private static int intValue(Object value) {
         return value instanceof Number n ? n.intValue() : 0;
-    }
-
-    private static boolean boolValue(Object value) {
-        return value instanceof Boolean b && b;
     }
 }

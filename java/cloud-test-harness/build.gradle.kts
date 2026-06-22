@@ -47,7 +47,6 @@ dependencies {
     testImplementation(libs.jackson.dataformat.yaml)
     testImplementation(libs.jackson.datatype.jsr310)
     testImplementation(libs.jjwt.api)
-    testImplementation(libs.lettuce.core)
     testImplementation(libs.mongodb.driver.sync)
     testRuntimeOnly(libs.jjwt.impl)
     testRuntimeOnly(libs.jjwt.jackson)

@@ -19,7 +19,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
@@ -31,8 +30,6 @@ import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.config.*;
 import me.prexorjustin.prexorcloud.daemon.PrexorDaemon;
 import me.prexorjustin.prexorcloud.daemon.config.*;
-
-import io.lettuce.core.RedisClient;
 
 /**
  * Boots a real PrexorController + N PrexorDaemon instances in-process for integration testing.
@@ -47,8 +44,6 @@ public final class TestCluster implements AutoCloseable {
     private final String adminPassword;
     private final String databaseName;
     private final String mongoUri;
-    private final String redisUri;
-    private final boolean isolatedRedisDatabase;
     private final Map<String, ManagedDaemon> managedDaemons = new ConcurrentHashMap<>();
     private final List<ManagedController> managedControllers = new CopyOnWriteArrayList<>();
     private final Path sharedControllerDir;
@@ -58,7 +53,6 @@ public final class TestCluster implements AutoCloseable {
     private PrexorCloudBootstrap controllerBootstrap;
     private final List<PrexorDaemon> daemons = new CopyOnWriteArrayList<>();
     private String adminJwtToken;
-    private boolean redisPrepared;
     private ManagedController activeController;
     private SwitchableTcpProxy grpcProxy;
     private me.prexorjustin.prexorcloud.controller.config.ModuleSigningConfig signingOverride;
@@ -162,8 +156,6 @@ public final class TestCluster implements AutoCloseable {
             String adminPassword,
             String databaseName,
             String mongoUri,
-            String redisUri,
-            boolean isolatedRedisDatabase,
             Path sharedControllerDir,
             boolean controllerProxyEnabled) {
         this.workDir = workDir;
@@ -173,8 +165,6 @@ public final class TestCluster implements AutoCloseable {
         this.adminPassword = adminPassword;
         this.databaseName = databaseName;
         this.mongoUri = mongoUri;
-        this.redisUri = redisUri;
-        this.isolatedRedisDatabase = isolatedRedisDatabase;
         this.sharedControllerDir = sharedControllerDir;
         this.controllerProxyEnabled = controllerProxyEnabled;
     }
@@ -197,8 +187,6 @@ public final class TestCluster implements AutoCloseable {
         String adminPassword = "testadmin123";
         String databaseName = "prexorcloud-harness-" + UUID.randomUUID();
         String mongoUri = resolveMongoUri();
-        String redisUri = null;
-        boolean isolatedRedisDatabase = false;
 
         var cluster = new TestCluster(
                 workDir,
@@ -208,8 +196,6 @@ public final class TestCluster implements AutoCloseable {
                 adminPassword,
                 databaseName,
                 mongoUri,
-                redisUri,
-                isolatedRedisDatabase,
                 workDir.resolve("controller"),
                 false);
         cluster.startPrimaryController(httpPort, grpcPort);
@@ -245,8 +231,6 @@ public final class TestCluster implements AutoCloseable {
                 adminPassword,
                 databaseName,
                 mongoUri,
-                null,
-                false,
                 workDir.resolve("controller"),
                 false);
         cluster.signingOverride = Objects.requireNonNull(signing, "signing");
@@ -254,46 +238,7 @@ public final class TestCluster implements AutoCloseable {
         return cluster;
     }
 
-    public static TestCluster startWithRedis() throws Exception {
-        return startWithRedis(0);
-    }
-
-    public static TestCluster startWithRedis(int daemonCount) throws Exception {
-        Path workDir = Files.createTempDirectory("prexorcloud-test-");
-        int httpPort = findFreePort();
-        int grpcPort = findFreePort();
-        byte[] secretBytes = new byte[32];
-        new java.security.SecureRandom().nextBytes(secretBytes);
-        String jwtSecret = java.util.Base64.getEncoder().encodeToString(secretBytes);
-        String adminPassword = "testadmin123";
-        String databaseName = "prexorcloud-harness-" + UUID.randomUUID();
-        String mongoUri = resolveMongoUri();
-        String redisBaseUri = resolveRedisUri();
-        boolean isolatedRedisDatabase = !hasExplicitRedisDatabase(redisBaseUri);
-        String redisUri = isolatedRedisDatabase ? withRedisDatabase(redisBaseUri, randomRedisDatabase()) : redisBaseUri;
-
-        var cluster = new TestCluster(
-                workDir,
-                httpPort,
-                grpcPort,
-                jwtSecret,
-                adminPassword,
-                databaseName,
-                mongoUri,
-                redisUri,
-                isolatedRedisDatabase,
-                workDir.resolve("controller"),
-                false);
-        cluster.startPrimaryController(httpPort, grpcPort);
-
-        for (int i = 0; i < daemonCount; i++) {
-            cluster.addDaemon("test-node-" + (i + 1));
-        }
-
-        return cluster;
-    }
-
-    public static TestCluster startWithRedisHa(int daemonCount, int controllerCount) throws Exception {
+    public static TestCluster startHa(int daemonCount, int controllerCount) throws Exception {
         if (controllerCount < 2) {
             throw new IllegalArgumentException("HA test clusters require at least 2 controllers");
         }
@@ -306,9 +251,6 @@ public final class TestCluster implements AutoCloseable {
         String adminPassword = "testadmin123";
         String databaseName = "prexorcloud-harness-" + UUID.randomUUID();
         String mongoUri = resolveMongoUri();
-        String redisBaseUri = resolveRedisUri();
-        boolean isolatedRedisDatabase = !hasExplicitRedisDatabase(redisBaseUri);
-        String redisUri = isolatedRedisDatabase ? withRedisDatabase(redisBaseUri, randomRedisDatabase()) : redisBaseUri;
         Path sharedControllerDir = workDir.resolve("controller-shared");
 
         var cluster = new TestCluster(
@@ -319,8 +261,6 @@ public final class TestCluster implements AutoCloseable {
                 adminPassword,
                 databaseName,
                 mongoUri,
-                redisUri,
-                isolatedRedisDatabase,
                 sharedControllerDir,
                 true);
         cluster.startPrimaryController(findFreePort(), findFreePort());
@@ -335,10 +275,6 @@ public final class TestCluster implements AutoCloseable {
             cluster.addDaemon("test-node-" + (i + 1));
         }
         return cluster;
-    }
-
-    public static boolean redisAvailable() {
-        return socketAvailable(resolveRedisUri(), 6379, 500);
     }
 
     public static boolean mongoAvailable() {
@@ -360,13 +296,6 @@ public final class TestCluster implements AutoCloseable {
 
     private ManagedController startControllerInstance(int directHttpPort, int directGrpcPort) throws Exception {
         waitForMongoAvailability(mongoUri, 10_000);
-        if (redisUri != null) {
-            waitForRedisAvailability(redisUri, 10_000);
-            if (isolatedRedisDatabase && !redisPrepared) {
-                clearRedisDatabase(redisUri);
-                redisPrepared = true;
-            }
-        }
 
         Path controllerDir = sharedControllerDir;
         Files.createDirectories(controllerDir);
@@ -389,7 +318,7 @@ public final class TestCluster implements AutoCloseable {
         // so that the on-disk backup catalog still survives a stopController() +
         // startControllerAfterStop() restart (see startControllerAfterStop). Each
         // controller stays its own single-node group (empty joinAddrs) — these tests
-        // exercise failover via the gRPC proxy and shared Mongo/Redis, not Raft quorum.
+        // exercise failover via the gRPC proxy and shared Mongo, not Raft quorum.
         int raftPort = findFreePort();
         Path raftDataDir = controllerDir.resolve("data").resolve("raft-" + controllerId);
         var config = new ControllerConfig(
@@ -416,7 +345,6 @@ public final class TestCluster implements AutoCloseable {
                 new me.prexorjustin.prexorcloud.controller.config.ShareConfig(),
                 List.of(),
                 List.of(),
-                redisUri == null ? null : new RedisConfig(redisUri),
                 null,
                 new RaftConfig("127.0.0.1", raftPort, raftDataDir.toString(), List.of()));
 
@@ -461,7 +389,7 @@ public final class TestCluster implements AutoCloseable {
     /**
      * Bring the controller back after a {@link #stopController()} call. Reuses
      * the same shared controller directory (and therefore the on-disk backup
-     * catalog), so a wipe of Mongo + Redis between the two calls leaves the
+     * catalog), so a wipe of Mongo between the two calls leaves the
      * filesystem-side bundles intact.
      */
     public void startControllerAfterStop() throws Exception {
@@ -477,7 +405,7 @@ public final class TestCluster implements AutoCloseable {
 
     public void failoverController() throws Exception {
         if (!controllerProxyEnabled) {
-            throw new IllegalStateException("Failover requires an HA cluster started with startWithRedisHa");
+            throw new IllegalStateException("Failover requires an HA cluster started with startHa");
         }
         ManagedController current = activeController;
         ManagedController standby = managedControllers.stream()
@@ -603,10 +531,6 @@ public final class TestCluster implements AutoCloseable {
         return grpcPort;
     }
 
-    public String redisUri() {
-        return redisUri;
-    }
-
     public String mongoUri() {
         return mongoUri;
     }
@@ -616,17 +540,14 @@ public final class TestCluster implements AutoCloseable {
     }
 
     /**
-     * Drop the controller's Mongo database and flush the isolated Redis logical
-     * DB associated with this cluster. Intended to be called between
-     * {@link #close()}-ing the controller bootstrap and {@link #restartController()}
-     * to simulate a full datastore loss for the DR drill harness.
+     * Drop the controller's Mongo database associated with this cluster. Intended
+     * to be called between {@link #close()}-ing the controller bootstrap and
+     * {@link #restartController()} to simulate a full datastore loss for the DR
+     * drill harness.
      */
     public void wipeDatastores() {
         try (var mongo = com.mongodb.client.MongoClients.create(mongoUri)) {
             mongo.getDatabase(databaseName).drop();
-        }
-        if (redisUri != null) {
-            clearRedisDatabase(redisUri);
         }
     }
 
@@ -691,14 +612,6 @@ public final class TestCluster implements AutoCloseable {
             try {
                 grpcProxy.close();
             } catch (IOException _) {
-            }
-        }
-
-        if (redisUri != null && isolatedRedisDatabase) {
-            try {
-                clearRedisDatabase(redisUri);
-            } catch (RuntimeException _) {
-                // Best effort cleanup for isolated test Redis databases.
             }
         }
 
@@ -811,18 +724,6 @@ public final class TestCluster implements AutoCloseable {
         return "mongodb://127.0.0.1:27017";
     }
 
-    private static String resolveRedisUri() {
-        String systemProperty = System.getProperty("prexor.test.redisUri");
-        if (systemProperty != null && !systemProperty.isBlank()) {
-            return systemProperty;
-        }
-        String environment = System.getenv("PREXOR_TEST_REDIS_URI");
-        if (environment != null && !environment.isBlank()) {
-            return environment;
-        }
-        return "redis://127.0.0.1:6379";
-    }
-
     private static void waitForMongoAvailability(String mongoUri, long timeoutMs) throws InterruptedException {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() < deadline) {
@@ -835,18 +736,6 @@ public final class TestCluster implements AutoCloseable {
                 + ". Start MongoDB locally or set PREXOR_TEST_MONGO_URI / -Dprexor.test.mongoUri.");
     }
 
-    private static void waitForRedisAvailability(String redisUri, long timeoutMs) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() < deadline) {
-            if (socketAvailable(redisUri, 6379, 1_000)) {
-                return;
-            }
-            Thread.sleep(250);
-        }
-        throw new IllegalStateException("Redis test dependency is not reachable at " + redisUri
-                + ". Start Redis locally or set PREXOR_TEST_REDIS_URI / -Dprexor.test.redisUri.");
-    }
-
     private static boolean socketAvailable(String endpointUri, int defaultPort, int timeoutMs) {
         URI uri = URI.create(endpointUri);
         String host = uri.getHost();
@@ -856,44 +745,6 @@ public final class TestCluster implements AutoCloseable {
             return true;
         } catch (IOException _) {
             return false;
-        }
-    }
-
-    private static boolean hasExplicitRedisDatabase(String redisUri) {
-        String path = URI.create(redisUri).getPath();
-        return path != null && !path.isBlank() && !"/".equals(path);
-    }
-
-    private static int randomRedisDatabase() {
-        return ThreadLocalRandom.current().nextInt(1, 16);
-    }
-
-    private static String withRedisDatabase(String redisUri, int database) {
-        URI uri = URI.create(redisUri);
-        String authority = uri.getRawAuthority();
-        String query = uri.getRawQuery();
-        String fragment = uri.getRawFragment();
-        StringBuilder resolved = new StringBuilder()
-                .append(uri.getScheme())
-                .append("://")
-                .append(authority)
-                .append("/")
-                .append(database);
-        if (query != null && !query.isBlank()) {
-            resolved.append("?").append(query);
-        }
-        if (fragment != null && !fragment.isBlank()) {
-            resolved.append("#").append(fragment);
-        }
-        return resolved.toString();
-    }
-
-    private static void clearRedisDatabase(String redisUri) {
-        RedisClient client = RedisClient.create(redisUri);
-        try (var connection = client.connect()) {
-            connection.sync().flushdb();
-        } finally {
-            client.shutdown();
         }
     }
 

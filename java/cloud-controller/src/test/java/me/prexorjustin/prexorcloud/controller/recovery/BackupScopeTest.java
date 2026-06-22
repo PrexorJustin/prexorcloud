@@ -20,15 +20,13 @@ class BackupScopeTest {
     @Test
     void scopeIncludesDurableControllerState() {
         BackupScope scope = BackupScope.from(new ControllerConfig(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null));
 
         assertTrue(scope.mongoCollections().contains("groups"));
         assertTrue(scope.mongoCollections().contains("workflow_start_retries"));
         assertTrue(scope.mongoCollections().contains("instance_composition_plans"));
         assertTrue(scope.mongoCollectionPrefixes().contains("platform_"));
-        // The single-writer control plane keeps no Redis keyspace, so backups are Mongo + filesystem only.
-        assertTrue(scope.redisKeyPrefixes().isEmpty());
         assertTrue(scope.files().contains(Path.of("config", "security", "ca.p12")));
         assertTrue(scope.directories().contains(Path.of("templates")));
         assertTrue(scope.directories().contains(Path.of("modules")));
@@ -38,7 +36,7 @@ class BackupScopeTest {
     @Test
     void verifierReportsMissingFilesystemEntries() throws Exception {
         BackupScope scope = BackupScope.from(new ControllerConfig(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null));
         var verifier = new BackupVerifier();
 
@@ -61,7 +59,7 @@ class BackupScopeTest {
     @Test
     void restoreValidatorRequiresMongoArtifacts() throws Exception {
         BackupScope scope = BackupScope.from(new ControllerConfig(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null));
         for (Path file : scope.files()) {
             Path resolved = tempDir.resolve(file);
@@ -94,7 +92,7 @@ class BackupScopeTest {
     @Test
     void restoreValidatorRejectsEmptyRequiredFiles() throws Exception {
         BackupScope scope = BackupScope.from(new ControllerConfig(
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null));
         Path controllerConfig = tempDir.resolve(Path.of("config", "controller.yml"));
         Files.createDirectories(controllerConfig.getParent());

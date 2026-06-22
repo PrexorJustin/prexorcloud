@@ -52,30 +52,30 @@ class ReloadersTest {
     @Test
     @DisplayName("RateLimitReloader swaps the live thresholds")
     void rateLimitReconfigures() {
-        var limiter = new RateLimitMiddleware(new RateLimitingConfig(100, 300, false));
+        var limiter = new RateLimitMiddleware(new RateLimitingConfig(100, 300));
         var reloader = new RateLimitReloader(limiter);
 
         reloader.onClusterConfig(Map.of(
                 "security",
                 Map.of(
                         "rateLimiting",
-                        Map.of("perIpPerMinute", 5, "perUserPerMinute", 7, "failOpenOnRedisError", true))));
+                        Map.of("perIpPerMinute", 5, "perUserPerMinute", 7))));
 
-        // The thresholds are now (5, 7, failOpen=true): re-applying the same values is a
+        // The thresholds are now (5, 7): re-applying the same values is a
         // no-op, while applying the original defaults registers as a change.
         assertFalse(
-                limiter.reconfigure(new RateLimitingConfig(5, 7, true)), "reloaded values should already be active");
-        assertTrue(limiter.reconfigure(new RateLimitingConfig(100, 300, false)), "different values should change");
+                limiter.reconfigure(new RateLimitingConfig(5, 7)), "reloaded values should already be active");
+        assertTrue(limiter.reconfigure(new RateLimitingConfig(100, 300)), "different values should change");
     }
 
     @Test
     @DisplayName("RateLimitReloader floors non-positive limits back to defaults (can't disable limiting)")
     void rateLimitFloorsGarbage() {
-        var limiter = new RateLimitMiddleware(new RateLimitingConfig(100, 300, false));
+        var limiter = new RateLimitMiddleware(new RateLimitingConfig(100, 300));
         var reloader = new RateLimitReloader(limiter);
         // perIpPerMinute=0 -> RateLimitingConfig floors to 100, so reconfigure() reports no change.
         reloader.onClusterConfig(Map.of("security", Map.of("rateLimiting", Map.of("perIpPerMinute", 0))));
-        assertFalse(limiter.reconfigure(new RateLimitingConfig(100, 300, false)));
+        assertFalse(limiter.reconfigure(new RateLimitingConfig(100, 300)));
     }
 
     @Test

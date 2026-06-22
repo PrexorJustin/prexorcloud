@@ -60,7 +60,6 @@ public final class ClusterJoinTemplate {
         root.put("network", network);
 
         root.put("database", config.database());
-        if (config.redis() != null) root.put("redis", config.redis());
         root.put("backup", config.backup());
 
         // security: clone with initialAdminPassword wiped. The new node already has

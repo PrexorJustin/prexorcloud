@@ -30,7 +30,6 @@ public final class LoggingSetup {
     // shows our own lifecycle logs, not library chatter:
     //   - org.apache.ratis     : dumps full Raft config + every election/role transition
     //   - org.mongodb.driver   : huge MongoClientSettings dump + cluster monitor reconnect spam
-    //   - io.lettuce           : Redis client connection chatter
     // We surface the events that matter (Raft leader, datastore connect, bootstrap) ourselves.
     private static final List<String> QUIET_LOGGERS = List.of(
             "io.grpc",
@@ -38,8 +37,7 @@ public final class LoggingSetup {
             "io.javalin",
             "org.eclipse.jetty",
             "org.apache.ratis",
-            "org.mongodb.driver",
-            "io.lettuce");
+            "org.mongodb.driver");
 
     // Default directory for the rolling log file, relative to the process working dir.
     // Overridable with -Dprexorcloud.log.dir=/var/log/prexorcloud.

@@ -22,7 +22,6 @@ import me.prexorjustin.prexorcloud.controller.config.CorsConfig;
 import me.prexorjustin.prexorcloud.controller.config.HttpConfig;
 import me.prexorjustin.prexorcloud.controller.config.NetworkConfig;
 import me.prexorjustin.prexorcloud.controller.config.RaftConfig;
-import me.prexorjustin.prexorcloud.controller.config.RedisConfig;
 import me.prexorjustin.prexorcloud.controller.config.RuntimeConfig;
 import me.prexorjustin.prexorcloud.controller.config.SecurityControllerConfig;
 
@@ -118,7 +117,6 @@ final class ClusterControlServiceTest {
                 null,
                 List.of(),
                 List.of(),
-                new RedisConfig("redis://10.0.0.50:6379"),
                 new ClusterConfig(clusterId, null, null),
                 new RaftConfig("127.0.0.1", raftPort, tmp.resolve("raft").toString(), List.of()));
     }

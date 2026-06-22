@@ -89,10 +89,8 @@ final class BackupCatalogTest {
                 List.of(),
                 List.of(),
                 List.of(),
-                List.of(),
                 42L,
                 7L,
-                3L,
                 2L);
         new ObjectMapper().writeValue(bundle.resolve("manifest.json").toFile(), manifest);
     }

@@ -30,9 +30,8 @@ class DrDrillTest {
     @Test
     void backupRestoreCycle_recoversFullDeclarativeState() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for the DR drill");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis/Valkey is required for the DR drill");
 
-        try (TestCluster cluster = TestCluster.startWithRedis()) {
+        try (TestCluster cluster = TestCluster.start()) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
 
             seedFixture(admin);

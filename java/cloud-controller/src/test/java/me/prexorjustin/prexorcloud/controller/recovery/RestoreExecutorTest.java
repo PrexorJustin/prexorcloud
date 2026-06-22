@@ -18,14 +18,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 import me.prexorjustin.prexorcloud.controller.recovery.RestoreExecutor.DataRestoreReport;
-import me.prexorjustin.prexorcloud.controller.recovery.RestoreExecutor.RedisImportEntry;
 import me.prexorjustin.prexorcloud.controller.recovery.RestoreExecutor.RestoreMode;
 
 import com.mongodb.client.MongoClients;
-import io.lettuce.core.RedisClient;
 import org.bson.Document;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -58,7 +55,6 @@ final class RestoreExecutorTest {
         Path optional = Path.of("config", "security", "join-tokens.json");
         BackupScope scope = new BackupScope(
                 "db",
-                List.of(),
                 List.of(),
                 List.of(Path.of("config", "controller.yml"), optional),
                 List.of(Path.of("templates")));
@@ -114,7 +110,7 @@ final class RestoreExecutorTest {
     void rejectsAbsoluteScopePathsEvenIfValidatorCanSeeThem() throws Exception {
         Path outside = tempDir.resolve("outside.yml");
         Files.writeString(outside, "outside");
-        BackupScope scope = new BackupScope("db", List.of(), List.of(), List.of(outside), List.of());
+        BackupScope scope = new BackupScope("db", List.of(), List.of(outside), List.of());
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -124,38 +120,30 @@ final class RestoreExecutorTest {
     }
 
     @Test
-    void datastoreDryRunReportsMongoAndRedisImportsWithoutMutatingTargets() throws Exception {
+    void datastoreDryRunReportsMongoImportsWithoutMutatingTargets() throws Exception {
         BackupScope scope = datastoreScope();
         Path backupRoot = tempDir.resolve("backup");
         createDatastoreBackup(scope, backupRoot);
         var mongo = new FakeMongoTarget();
-        var redis = new FakeRedisTarget();
         mongo.collections.put("groups", new ArrayList<>(List.of(new Document("_id", "old"))));
-        redis.values.put("prexor:lease:old", "old");
 
-        DataRestoreReport report = executor().restoreDatastores(scope, backupRoot, mongo, redis, RestoreMode.DRY_RUN);
+        DataRestoreReport report = executor().restoreDatastores(scope, backupRoot, mongo, RestoreMode.DRY_RUN);
 
         assertFalse(report.applied());
         assertEquals(1, report.mongoImports().size());
         assertEquals(2, report.mongoImports().getFirst().documentCount());
-        assertEquals(1, report.redisImports().size());
-        assertEquals(1, report.redisImports().getFirst().keyCount());
         assertEquals("old", mongo.collections.get("groups").getFirst().getString("_id"));
-        assertEquals("old", redis.values.get("prexor:lease:old"));
     }
 
     @Test
-    void datastoreApplyReplacesScopedMongoCollectionsAndRedisPrefixes() throws Exception {
+    void datastoreApplyReplacesScopedMongoCollections() throws Exception {
         BackupScope scope = datastoreScope();
         Path backupRoot = tempDir.resolve("backup");
         createDatastoreBackup(scope, backupRoot);
         var mongo = new FakeMongoTarget();
-        var redis = new FakeRedisTarget();
         mongo.collections.put("groups", new ArrayList<>(List.of(new Document("_id", "old"))));
-        redis.values.put("prexor:lease:old", "old");
-        redis.values.put("prexor:other:kept", "kept");
 
-        DataRestoreReport report = executor().restoreDatastores(scope, backupRoot, mongo, redis, RestoreMode.APPLY);
+        DataRestoreReport report = executor().restoreDatastores(scope, backupRoot, mongo, RestoreMode.APPLY);
 
         assertTrue(report.applied());
         assertEquals(
@@ -163,27 +151,21 @@ final class RestoreExecutorTest {
                 mongo.collections.get("groups").stream()
                         .map(doc -> doc.getString("_id"))
                         .toList());
-        assertFalse(redis.values.containsKey("prexor:lease:old"));
-        assertEquals("lease-new", redis.values.get("prexor:lease:new"));
-        assertEquals(120L, redis.ttls.get("prexor:lease:new"));
-        assertEquals("kept", redis.values.get("prexor:other:kept"));
     }
 
     @Test
     void datastoreApplyReplacesMongoCollectionsByDeclaredPrefix() throws Exception {
-        BackupScope scope = new BackupScope(
-                "db", List.of("groups"), List.of("platform_"), List.of("prexor:lease:"), List.of(), List.of());
+        BackupScope scope = new BackupScope("db", List.of("groups"), List.of("platform_"), List.of(), List.of());
         Path backupRoot = tempDir.resolve("backup");
         createDatastoreBackup(scope, backupRoot);
         Path mongoRoot = backupRoot.resolve(Path.of("mongo", scope.mongoDatabase()));
         Files.writeString(mongoRoot.resolve("platform_chat_messages.jsonl"), "{\"_id\":\"msg-1\"}\n");
         Files.writeString(mongoRoot.resolve("prefixes.txt"), "platform_");
         var mongo = new FakeMongoTarget();
-        var redis = new FakeRedisTarget();
         mongo.collections.put("platform_old_messages", new ArrayList<>(List.of(new Document("_id", "old"))));
         mongo.collections.put("other_collection", new ArrayList<>(List.of(new Document("_id", "kept"))));
 
-        DataRestoreReport report = executor().restoreDatastores(scope, backupRoot, mongo, redis, RestoreMode.APPLY);
+        DataRestoreReport report = executor().restoreDatastores(scope, backupRoot, mongo, RestoreMode.APPLY);
 
         assertTrue(report.applied());
         assertEquals(1, report.mongoPrefixImports().getFirst().collectionCount());
@@ -201,74 +183,13 @@ final class RestoreExecutorTest {
         Path backupRoot = tempDir.resolve("backup");
         Files.createDirectories(backupRoot);
         var mongo = new FakeMongoTarget();
-        var redis = new FakeRedisTarget();
         mongo.collections.put("groups", new ArrayList<>(List.of(new Document("_id", "old"))));
-        redis.values.put("prexor:lease:old", "old");
 
         assertThrows(
                 RestoreExecutor.RestoreRejectedException.class,
-                () -> executor().restoreDatastores(scope, backupRoot, mongo, redis, RestoreMode.APPLY));
+                () -> executor().restoreDatastores(scope, backupRoot, mongo, RestoreMode.APPLY));
 
         assertEquals("old", mongo.collections.get("groups").getFirst().getString("_id"));
-        assertEquals("old", redis.values.get("prexor:lease:old"));
-    }
-
-    @Test
-    void datastoreApplyRestoresLiveMongoAndRedisTargets() throws Exception {
-        Assumptions.assumeTrue(mongoAvailable(), "Mongo test dependency is not reachable");
-        Assumptions.assumeTrue(redisAvailable(), "Redis test dependency is not reachable");
-
-        BackupScope scope = datastoreScope();
-        Path backupRoot = tempDir.resolve("backup");
-        createDatastoreBackup(scope, backupRoot);
-
-        String mongoDatabaseName = "prexor-restore-it-" + UUID.randomUUID();
-        String redisUri = isolatedRedisUri();
-
-        try (var mongoClient = MongoClients.create(resolveMongoUri());
-                var redisClient = RedisClient.create(redisUri);
-                var redisConnection = redisClient.connect()) {
-            var mongoDatabase = mongoClient.getDatabase(mongoDatabaseName);
-            var redis = redisConnection.sync();
-            mongoDatabase.getCollection("groups").insertOne(new Document("_id", "old"));
-            redis.set("prexor:lease:old", "old");
-            redis.set("prexor:other:kept", "kept");
-
-            DataRestoreReport report = executor()
-                    .restoreDatastores(
-                            // The bundle lives under mongo/<scope.mongoDatabase()>/; the validator
-                            // resolves it by the scope's db name, so it must match the name the
-                            // bundle was written under (the random db above is only the restore target).
-                            new BackupScope(
-                                    scope.mongoDatabase(),
-                                    scope.mongoCollections(),
-                                    scope.redisKeyPrefixes(),
-                                    List.of(),
-                                    List.of()),
-                            backupRoot,
-                            mongoDatabase,
-                            redis,
-                            RestoreMode.APPLY);
-
-            assertTrue(report.applied());
-            assertEquals(
-                    List.of("lobby", "proxy"),
-                    mongoDatabase
-                            .getCollection("groups")
-                            .find()
-                            .sort(new Document("_id", 1))
-                            .into(new ArrayList<>())
-                            .stream()
-                            .map(document -> document.getString("_id"))
-                            .toList());
-            assertFalse(redis.exists("prexor:lease:old") > 0);
-            assertEquals("lease-new", redis.get("prexor:lease:new"));
-            assertTrue(redis.ttl("prexor:lease:new") > 0);
-            assertEquals("kept", redis.get("prexor:other:kept"));
-
-            mongoDatabase.drop();
-            redis.flushdb();
-        }
     }
 
     @Test
@@ -276,7 +197,7 @@ final class RestoreExecutorTest {
         Assumptions.assumeTrue(mongoAvailable(), "Mongo test dependency is not reachable");
 
         BackupScope scope =
-                new BackupScope("db", List.of("groups"), List.of("platform_"), List.of(), List.of(), List.of());
+                new BackupScope("db", List.of("groups"), List.of("platform_"), List.of(), List.of());
         Path backupRoot = tempDir.resolve("backup");
         createDatastoreBackup(scope, backupRoot);
         Path mongoRoot = backupRoot.resolve(Path.of("mongo", scope.mongoDatabase()));
@@ -298,12 +219,10 @@ final class RestoreExecutorTest {
                                     scope.mongoDatabase(),
                                     scope.mongoCollections(),
                                     scope.mongoCollectionPrefixes(),
-                                    scope.redisKeyPrefixes(),
                                     List.of(),
                                     List.of()),
                             backupRoot,
                             mongoDatabase,
-                            null,
                             RestoreMode.APPLY);
 
             assertTrue(report.applied());
@@ -336,15 +255,11 @@ final class RestoreExecutorTest {
 
     private static BackupScope smallScope() {
         return new BackupScope(
-                "db",
-                List.of(),
-                List.of(),
-                List.of(Path.of("config", "controller.yml")),
-                List.of(Path.of("templates")));
+                "db", List.of(), List.of(Path.of("config", "controller.yml")), List.of(Path.of("templates")));
     }
 
     private static BackupScope datastoreScope() {
-        return new BackupScope("db", List.of("groups"), List.of("prexor:lease:"), List.of(), List.of());
+        return new BackupScope("db", List.of("groups"), List.of(), List.of());
     }
 
     private static void createValidBackup(BackupScope scope, Path backupRoot) throws Exception {
@@ -363,13 +278,6 @@ final class RestoreExecutorTest {
         Files.writeString(mongoRoot.resolve("groups.jsonl"), """
                 {"_id":"lobby","minOnline":1}
                 {"_id":"proxy","minOnline":1}
-                """);
-        Path redisRoot = backupRoot.resolve("redis");
-        Files.createDirectories(redisRoot);
-        Files.writeString(redisRoot.resolve("prefixes.txt"), "prexor:lease:");
-        Files.writeString(redisRoot.resolve("keys.jsonl"), """
-                {"key":"prexor:lease:new","value":"lease-new","ttlSeconds":120}
-                {"key":"prexor:other:ignored","value":"ignored"}
                 """);
     }
 
@@ -391,24 +299,6 @@ final class RestoreExecutorTest {
         }
     }
 
-    private static final class FakeRedisTarget implements RestoreExecutor.RedisRestoreTarget {
-
-        final Map<String, String> values = new HashMap<>();
-        final Map<String, Long> ttls = new HashMap<>();
-
-        @Override
-        public void replacePrefix(String prefix, List<RedisImportEntry> entries) {
-            values.keySet().removeIf(key -> key.startsWith(prefix));
-            ttls.keySet().removeIf(key -> key.startsWith(prefix));
-            for (RedisImportEntry entry : entries) {
-                values.put(entry.key(), entry.value());
-                if (entry.ttlSeconds() != null) {
-                    ttls.put(entry.key(), entry.ttlSeconds());
-                }
-            }
-        }
-    }
-
     private static String resolveMongoUri() {
         String systemProperty = System.getProperty("prexor.test.mongoUri");
         if (systemProperty != null && !systemProperty.isBlank()) {
@@ -421,24 +311,8 @@ final class RestoreExecutorTest {
         return "mongodb://127.0.0.1:27017";
     }
 
-    private static String resolveRedisUri() {
-        String systemProperty = System.getProperty("prexor.test.redisUri");
-        if (systemProperty != null && !systemProperty.isBlank()) {
-            return systemProperty;
-        }
-        String environment = System.getenv("PREXOR_TEST_REDIS_URI");
-        if (environment != null && !environment.isBlank()) {
-            return environment;
-        }
-        return "redis://127.0.0.1:6379";
-    }
-
     private static boolean mongoAvailable() {
         return socketAvailable(resolveMongoUri(), 27017);
-    }
-
-    private static boolean redisAvailable() {
-        return socketAvailable(resolveRedisUri(), 6379);
     }
 
     private static boolean socketAvailable(String endpointUri, int defaultPort) {
@@ -451,28 +325,5 @@ final class RestoreExecutorTest {
         } catch (Exception _) {
             return false;
         }
-    }
-
-    private static String isolatedRedisUri() {
-        String base = resolveRedisUri();
-        URI uri = URI.create(base);
-        String path = uri.getPath();
-        if (path != null && !path.isBlank() && !"/".equals(path)) {
-            return base;
-        }
-        int database = ThreadLocalRandom.current().nextInt(1, 16);
-        StringBuilder resolved = new StringBuilder()
-                .append(uri.getScheme())
-                .append("://")
-                .append(uri.getRawAuthority())
-                .append("/")
-                .append(database);
-        if (uri.getRawQuery() != null && !uri.getRawQuery().isBlank()) {
-            resolved.append("?").append(uri.getRawQuery());
-        }
-        if (uri.getRawFragment() != null && !uri.getRawFragment().isBlank()) {
-            resolved.append("#").append(uri.getRawFragment());
-        }
-        return resolved.toString();
     }
 }

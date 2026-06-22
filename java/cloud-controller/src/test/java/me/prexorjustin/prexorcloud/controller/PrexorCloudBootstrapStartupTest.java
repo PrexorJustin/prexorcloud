@@ -16,7 +16,9 @@ import org.junit.jupiter.api.io.TempDir;
 class PrexorCloudBootstrapStartupTest {
 
     @Test
-    void productionBootstrapFailsFastWithoutRedis(@TempDir Path tempDir) throws Exception {
+    void productionBootstrapFailsFastOnInvalidConfig(@TempDir Path tempDir) throws Exception {
+        // A production profile with no module-signing trust root is invalid: the bootstrap must
+        // fail fast at config validation (exit 1) with a helpful message, before touching Mongo.
         Files.createDirectories(tempDir.resolve("config"));
         Files.writeString(tempDir.resolve(Path.of("config", "controller.yml")), """
                 runtime:
@@ -42,8 +44,8 @@ class PrexorCloudBootstrapStartupTest {
         String output = readOutput(process);
         assertEquals(1, process.exitValue(), () -> "unexpected bootstrap output:\n" + output);
         assertTrue(
-                output.contains("redis.uri must be configured when runtime.profile=production"),
-                () -> "bootstrap output should explain the Redis requirement:\n" + output);
+                output.contains("modules.signing.trustRoot must be configured when runtime.profile=production"),
+                () -> "bootstrap output should explain the production config requirement:\n" + output);
     }
 
     private static Path javaExecutable() {

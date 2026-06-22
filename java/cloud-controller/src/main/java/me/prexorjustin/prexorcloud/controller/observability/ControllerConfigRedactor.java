@@ -22,7 +22,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
  *   <li>{@code security.jwtSecret}</li>
  *   <li>{@code security.initialAdminPassword}</li>
  *   <li>each entry of {@code security.jwtPreviousSecrets}</li>
- *   <li>userinfo password component of {@code database.uri} and {@code redis.uri}</li>
+ *   <li>userinfo password component of {@code database.uri}</li>
  * </ul>
  *
  * <p>
@@ -45,7 +45,6 @@ public final class ControllerConfigRedactor {
         ObjectNode root = MAPPER.valueToTree(config);
         redactSecurity(root);
         redactUriPassword(root, "database");
-        redactUriPassword(root, "redis");
         return root;
     }
 

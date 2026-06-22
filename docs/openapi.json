@@ -1196,7 +1196,7 @@
           "Auth"
         ],
         "summary": "Logout (revoke token)",
-        "description": "Revoke the bearer token used on this request by adding its JTI to the Redis-backed JWT revocation store until the token\u0027s natural expiry. Returns 501 when the controller has no Redis configured.",
+        "description": "Revoke the bearer token used on this request by adding its JTI to the JWT revocation store until the token\u0027s natural expiry. Returns 501 when no revocation store is configured.",
         "operationId": "logoutUser",
         "parameters": [],
         "responses": {
@@ -1221,7 +1221,7 @@
             }
           },
           "501": {
-            "description": "JWT revocation requires Redis to be configured",
+            "description": "JWT revocation store is not configured",
             "content": {
               "application/json": {
                 "schema": {
@@ -6806,7 +6806,7 @@
           "System"
         ],
         "summary": "Aggregated diagnostics document",
-        "description": "Pulls together version, readiness, settings, redacted config, redis keyspace summary, lease snapshot, and cluster overview behind a single ADMIN-gated read so `prexorctl diagnostics bundle` doesn\u0027t fan out separate calls.",
+        "description": "Pulls together version, readiness, settings, redacted config, lease snapshot, and cluster overview behind a single ADMIN-gated read so `prexorctl diagnostics bundle` doesn\u0027t fan out separate calls.",
         "operationId": "getDiagnostics",
         "parameters": [],
         "responses": {
@@ -7130,60 +7130,6 @@
           },
           "503": {
             "description": "Not ready"
-          }
-        },
-        "deprecated": false,
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/system/redis/keyspace": {
-      "get": {
-        "tags": [
-          "System"
-        ],
-        "summary": "Redis keyspace report",
-        "operationId": "getRedisKeyspace",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Keyspace report"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        },
-        "deprecated": false,
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ]
-      }
-    },
-    "/api/v1/system/redis/schema": {
-      "get": {
-        "tags": [
-          "System"
-        ],
-        "summary": "Redis key policies",
-        "operationId": "getRedisSchema",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Key policies"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
           }
         },
         "deprecated": false,
@@ -9573,12 +9519,6 @@
               "type": "string"
             }
           },
-          "redisKeyPrefixes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "files": {
             "type": "array",
             "items": {
@@ -9599,10 +9539,6 @@
             "type": "integer",
             "format": "int64"
           },
-          "redisKeyCount": {
-            "type": "integer",
-            "format": "int64"
-          },
           "fileCount": {
             "type": "integer",
             "format": "int64"
@@ -9612,7 +9548,6 @@
           "createdAtMs",
           "sizeBytes",
           "mongoDocumentCount",
-          "redisKeyCount",
           "fileCount"
         ]
       },

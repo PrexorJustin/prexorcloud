@@ -22,13 +22,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import io.lettuce.core.ScanArgs;
-import io.lettuce.core.api.sync.RedisCommands;
 import org.bson.Document;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Writes a controller backup bundle to disk in the format
@@ -40,13 +36,9 @@ import org.slf4j.LoggerFactory;
  *   {scope.files}                 (e.g. config/controller.yml, config/security/ca.p12)
  *   {scope.directories}/...       (e.g. templates/, modules/)
  *   mongo/{db}/{collection}.jsonl + prefixes.txt
- *   redis/keys.jsonl              (only when redis prefixes are scoped)
- *   redis/prefixes.txt
  * </pre>
  */
 public final class BackupCreator {
-
-    private static final Logger log = LoggerFactory.getLogger(BackupCreator.class);
 
     private static final DateTimeFormatter ID_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneOffset.UTC);
@@ -69,7 +61,6 @@ public final class BackupCreator {
             Path bundleRoot,
             Path workingDirectory,
             MongoDatabase mongo,
-            RedisCommands<String, String> redis,
             String controllerId,
             String controllerVersion)
             throws IOException {
@@ -77,9 +68,6 @@ public final class BackupCreator {
         Objects.requireNonNull(bundleRoot, "bundleRoot");
         Objects.requireNonNull(workingDirectory, "workingDirectory");
         Objects.requireNonNull(mongo, "mongo");
-        if (!scope.redisKeyPrefixes().isEmpty() && redis == null) {
-            throw new IllegalArgumentException("Redis commands required when scope contains redis prefixes");
-        }
 
         Path normalizedBundle = bundleRoot.toAbsolutePath().normalize();
         Path normalizedSource = workingDirectory.toAbsolutePath().normalize();
@@ -87,7 +75,6 @@ public final class BackupCreator {
 
         long fileCount = copyFilesystem(scope, normalizedSource, normalizedBundle);
         long mongoDocs = dumpMongo(scope, normalizedBundle, mongo);
-        long redisKeys = dumpRedis(scope, normalizedBundle, redis);
         long sizeBytes = directorySize(normalizedBundle);
 
         BackupManifest manifest = new BackupManifest(
@@ -102,12 +89,10 @@ public final class BackupCreator {
                 scope.mongoDatabase(),
                 scope.mongoCollections(),
                 scope.mongoCollectionPrefixes(),
-                scope.redisKeyPrefixes(),
                 scope.files().stream().map(Path::toString).toList(),
                 scope.directories().stream().map(Path::toString).toList(),
                 sizeBytes,
                 mongoDocs,
-                redisKeys,
                 fileCount);
         JSON.writeValue(normalizedBundle.resolve("manifest.json").toFile(), manifest);
         return manifest;
@@ -176,62 +161,6 @@ public final class BackupCreator {
                     count++;
                 }
             }
-        }
-        return count;
-    }
-
-    private long dumpRedis(BackupScope scope, Path bundleRoot, RedisCommands<String, String> redis) throws IOException {
-        if (scope.redisKeyPrefixes().isEmpty()) return 0;
-        Path redisRoot = bundleRoot.resolve("redis");
-        Files.createDirectories(redisRoot);
-
-        long count = 0;
-        try (BufferedWriter writer = Files.newBufferedWriter(redisRoot.resolve("keys.jsonl"), StandardCharsets.UTF_8)) {
-            for (String prefix : scope.redisKeyPrefixes()) {
-                count += scanAndWritePrefix(redis, prefix, writer);
-            }
-        }
-        writePrefixManifest(redisRoot.resolve("prefixes.txt"), scope.redisKeyPrefixes());
-        return count;
-    }
-
-    private long scanAndWritePrefix(RedisCommands<String, String> redis, String prefix, BufferedWriter writer)
-            throws IOException {
-        long count = 0;
-        long skippedNonString = 0;
-        var args = ScanArgs.Builder.matches(prefix + "*").limit(500);
-        var cursor = redis.scan(args);
-        while (true) {
-            for (String key : cursor.getKeys()) {
-                // The backup artifact is a flat string key/value model. Non-string
-                // keys (e.g. the ephemeral SSE replay stream `sse:replay-stream`) can't
-                // be represented and aren't durable state — skip them rather than letting
-                // GET throw WRONGTYPE and fail the whole backup.
-                if (!"string".equals(redis.type(key))) {
-                    skippedNonString++;
-                    continue;
-                }
-                String value = redis.get(key);
-                if (value == null) continue;
-                long ttl = redis.ttl(key);
-                StringBuilder line = new StringBuilder()
-                        .append("{\"key\":")
-                        .append(JSON.writeValueAsString(key))
-                        .append(",\"value\":")
-                        .append(JSON.writeValueAsString(value));
-                if (ttl > 0) {
-                    line.append(",\"ttlSeconds\":").append(ttl);
-                }
-                line.append('}');
-                writer.write(line.toString());
-                writer.write('\n');
-                count++;
-            }
-            if (cursor.isFinished()) break;
-            cursor = redis.scan(cursor, args);
-        }
-        if (skippedNonString > 0) {
-            log.debug("Backup skipped {} non-string Redis key(s) under prefix {}", skippedNonString, prefix);
         }
         return count;
     }

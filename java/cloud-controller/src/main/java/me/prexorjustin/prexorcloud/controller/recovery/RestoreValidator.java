@@ -33,7 +33,6 @@ public final class RestoreValidator {
                 filesystem,
                 missingMongoCollections(scope, backupRoot),
                 missingMongoCollectionPrefixes(scope, backupRoot),
-                missingRedisPrefixes(scope, backupRoot),
                 emptyRequiredFiles(scope, backupRoot));
     }
 
@@ -77,27 +76,6 @@ public final class RestoreValidator {
         return readPrefixManifest(prefixes);
     }
 
-    private List<String> missingRedisPrefixes(BackupScope scope, Path backupRoot) {
-        Set<String> declaredPrefixes = readRedisPrefixes(backupRoot);
-        var missing = new ArrayList<String>();
-        for (String prefix : scope.redisKeyPrefixes()) {
-            if (!declaredPrefixes.contains(prefix)) {
-                missing.add(prefix);
-            }
-        }
-        return missing;
-    }
-
-    private Set<String> readRedisPrefixes(Path backupRoot) {
-        Path redisRoot = backupRoot.resolve("redis").normalize();
-        Path prefixes = Files.isRegularFile(redisRoot.resolve("prefixes.txt"))
-                ? redisRoot.resolve("prefixes.txt")
-                : redisRoot.resolve("manifest.txt");
-        if (!Files.isRegularFile(prefixes)) return Set.of();
-
-        return readPrefixManifest(prefixes);
-    }
-
     private Set<String> readPrefixManifest(Path prefixes) {
         if (!Files.isRegularFile(prefixes)) return Set.of();
         try {
@@ -132,13 +110,11 @@ public final class RestoreValidator {
             BackupVerifier.VerificationResult filesystem,
             List<String> missingMongoCollections,
             List<String> missingMongoCollectionPrefixes,
-            List<String> missingRedisPrefixes,
             List<Path> emptyRequiredFiles) {
 
         public RestoreValidationResult {
             missingMongoCollections = List.copyOf(missingMongoCollections);
             missingMongoCollectionPrefixes = List.copyOf(missingMongoCollectionPrefixes);
-            missingRedisPrefixes = List.copyOf(missingRedisPrefixes);
             emptyRequiredFiles = List.copyOf(emptyRequiredFiles);
         }
 
@@ -146,7 +122,6 @@ public final class RestoreValidator {
             return filesystem.valid()
                     && missingMongoCollections.isEmpty()
                     && missingMongoCollectionPrefixes.isEmpty()
-                    && missingRedisPrefixes.isEmpty()
                     && emptyRequiredFiles.isEmpty();
         }
     }

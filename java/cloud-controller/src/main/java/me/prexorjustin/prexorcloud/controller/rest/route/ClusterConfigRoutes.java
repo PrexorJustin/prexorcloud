@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
  *       to an earlier one ({@code {targetVersion, reason?}})</li>
  * </ul>
  *
- * <p>Reads are masked: fields like {@code security.jwtSecret}, {@code redis.uri},
+ * <p>Reads are masked: fields like {@code security.jwtSecret}
  * and SMTP credentials are replaced with {@code "***"} unless the caller passes
  * {@code ?reveal=true} <em>and</em> holds {@link Permission#CLUSTER_MANAGE}.
  * Writes are <em>never</em> masked — operators submit cleartext values.
@@ -57,7 +57,6 @@ public final class ClusterConfigRoutes {
             "security.jwtSecret",
             "security.jwtPreviousSecrets",
             "database.uri",
-            "redis.uri",
             "share.smtpPassword",
             "share.pasteApiKey",
             "modules.signing.trustRoot");

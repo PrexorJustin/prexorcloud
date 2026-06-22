@@ -43,12 +43,11 @@ class SseEventTest {
     @Test
     @Order(2)
     void reconnectAfterControllerRestart_replaysRedisBackedEvents() throws Exception {
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis test dependency is not reachable");
 
         if (cluster != null) {
             cluster.close();
         }
-        cluster = TestCluster.startWithRedis();
+        cluster = TestCluster.start();
         admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
 
         long baselineSequence;
@@ -101,10 +100,9 @@ class SseEventTest {
     @Test
     @Order(3)
     void reconnectAfterTemporaryDisconnect_replaysMissedRedisEvents() throws Exception {
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis test dependency is not reachable");
 
         if (cluster == null) {
-            cluster = TestCluster.startWithRedis();
+            cluster = TestCluster.start();
             admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
         }
 

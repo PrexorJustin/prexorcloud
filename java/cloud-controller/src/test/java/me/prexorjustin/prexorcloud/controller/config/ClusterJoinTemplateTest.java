@@ -49,8 +49,7 @@ class ClusterJoinTemplateTest {
                 new MaintenanceConfig(false, null),
                 new DashboardConfig(),
                 new BackupConfig(),
-                new ShareConfig(),
-                new RedisConfig("redis://10.0.0.50:6379"));
+                new ShareConfig());
     }
 
     @Test
@@ -75,7 +74,6 @@ class ClusterJoinTemplateTest {
         assertTrue(shared.containsKey("http"), "http subset (cors only) is shared");
         assertTrue(shared.containsKey("network"), "network subset (allowedSubnets only) is shared");
         assertTrue(shared.containsKey("database"));
-        assertTrue(shared.containsKey("redis"));
         assertTrue(shared.containsKey("backup"));
         assertTrue(shared.containsKey("security"));
         assertTrue(shared.containsKey("metrics"));
@@ -139,33 +137,6 @@ class ClusterJoinTemplateTest {
     }
 
     @Test
-    @DisplayName("redis omitted when null (development without redis)")
-    void redisOmittedWhenNull() {
-        ControllerConfig devConfig = new ControllerConfig(
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                new RuntimeConfig(RuntimeConfig.DEVELOPMENT),
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null /* redis */);
-
-        Map<String, Object> shared = ClusterJoinTemplate.buildSharedMap(devConfig);
-        assertNull(shared.get("redis"));
-    }
-
-    @Test
     @DisplayName("cluster.id surfaces when set; absent when null")
     @SuppressWarnings("unchecked")
     void clusterIdProjectsWhenSet() {
@@ -179,7 +150,6 @@ class ClusterJoinTemplateTest {
                 null,
                 null,
                 new RuntimeConfig(RuntimeConfig.DEVELOPMENT),
-                null,
                 null,
                 null,
                 null,

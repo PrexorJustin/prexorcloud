@@ -28,8 +28,9 @@ import org.slf4j.LoggerFactory;
  * a {@link SequenceWindowStore}, replay protection runs against a local
  * {@code ConcurrentHashMap} only. This is fine for single-node development
  * but is <em>not</em> valid for HA — a captured {@code (token, sequence)} pair
- * could be replayed against a different controller. Production (per ADR 4)
- * requires Valkey, which provides a shared {@code SequenceWindowStore}.
+ * could be replayed against a different controller. Production wires the
+ * Mongo-backed {@code WorkloadTokenStore} (a {@code SequenceWindowStore}), so the
+ * sequence window is shared and durable across controllers.
  */
 public final class WorkloadIdentityRegistry {
 
@@ -84,8 +85,8 @@ public final class WorkloadIdentityRegistry {
         if (sequenceWindowStore == null) {
             logger.warn("WorkloadIdentityRegistry constructed without SequenceWindowStore — "
                     + "workload-token replay protection runs against a local map only. This is "
-                    + "fine for development; HA / production must wire a Valkey-backed store "
-                    + "(per ADR 4) so the sequence window is shared across controllers.");
+                    + "fine for development; HA / production must wire the Mongo-backed "
+                    + "WorkloadTokenStore so the sequence window is shared across controllers.");
         }
     }
 
@@ -207,7 +208,7 @@ public final class WorkloadIdentityRegistry {
     public void unregisterPluginTokens(String instanceId) {
         pluginTokens.entrySet().removeIf(e -> e.getValue().instanceId().equals(instanceId));
         lastAcceptedSequenceByInstance.remove(instanceId);
-        // Clear the (Valkey-backed) replay window too. Instance ids are reused
+        // Clear the (Mongo-backed) replay window too. Instance ids are reused
         // across restarts/rescale; leaving a stale high watermark would reject
         // the restarted plugin's sequence (which restarts at 1) until the TTL
         // expired -- a self-inflicted permanent 401 on every sequenced call.

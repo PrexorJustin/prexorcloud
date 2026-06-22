@@ -28,7 +28,6 @@ public record ControllerConfig(
         @JsonProperty("share") ShareConfig share,
         @JsonProperty("networks") List<NetworkComposition> networks,
         @JsonProperty("events") List<EventChoreography> events,
-        @JsonProperty("redis") RedisConfig redis,
         @JsonProperty("cluster") ClusterConfig cluster,
         @JsonProperty("raft") RaftConfig raft,
         @JsonProperty("telemetry") TelemetryConfig telemetry) {
@@ -56,7 +55,6 @@ public record ControllerConfig(
         if (share == null) share = new ShareConfig();
         if (networks == null) networks = List.of();
         if (events == null) events = List.of();
-        // redis is intentionally nullable — null means Redis is disabled
     }
 
     /** Convenience constructor that defaults {@code networks} and {@code events} to empty lists. */
@@ -77,8 +75,7 @@ public record ControllerConfig(
             MaintenanceConfig maintenance,
             DashboardConfig dashboard,
             BackupConfig backup,
-            ShareConfig share,
-            RedisConfig redis) {
+            ShareConfig share) {
         this(
                 uuid,
                 http,
@@ -99,7 +96,6 @@ public record ControllerConfig(
                 share,
                 List.of(),
                 List.of(),
-                redis,
                 null,
                 null,
                 new TelemetryConfig());
@@ -129,7 +125,6 @@ public record ControllerConfig(
             ShareConfig share,
             List<NetworkComposition> networks,
             List<EventChoreography> events,
-            RedisConfig redis,
             ClusterConfig cluster,
             RaftConfig raft) {
         this(
@@ -152,7 +147,6 @@ public record ControllerConfig(
                 share,
                 networks,
                 events,
-                redis,
                 cluster,
                 raft,
                 new TelemetryConfig());

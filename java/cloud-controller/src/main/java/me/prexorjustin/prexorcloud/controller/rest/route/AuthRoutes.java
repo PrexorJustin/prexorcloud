@@ -97,7 +97,7 @@ public final class AuthRoutes {
             operationId = "logoutUser",
             summary = "Logout (revoke token)",
             description =
-                    "Revoke the bearer token used on this request by adding its JTI to the Redis-backed JWT revocation store until the token's natural expiry. Returns 501 when the controller has no Redis configured.",
+                    "Revoke the bearer token used on this request by adding its JTI to the JWT revocation store until the token's natural expiry. Returns 501 when no revocation store is configured.",
             tags = {"Auth"},
             security = {@OpenApiSecurity(name = "bearerAuth")},
             responses = {
@@ -111,14 +111,14 @@ public final class AuthRoutes {
                         content = {@OpenApiContent(from = ErrorResponse.class)}),
                 @OpenApiResponse(
                         status = "501",
-                        description = "JWT revocation requires Redis to be configured",
+                        description = "JWT revocation store is not configured",
                         content = {@OpenApiContent(from = ErrorResponse.class)})
             })
     private void logoutUser(Context ctx) {
         var revocationStore = controller.revocationStore();
         if (revocationStore == null) {
             ctx.status(501);
-            ctx.json(errorResponse("NOT_IMPLEMENTED", "JWT revocation requires Redis to be configured", 501));
+            ctx.json(errorResponse("NOT_IMPLEMENTED", "JWT revocation store is not configured", 501));
             return;
         }
         String header = ctx.header("Authorization");

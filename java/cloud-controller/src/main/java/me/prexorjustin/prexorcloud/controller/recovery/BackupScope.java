@@ -12,7 +12,6 @@ public record BackupScope(
         String mongoDatabase,
         List<String> mongoCollections,
         List<String> mongoCollectionPrefixes,
-        List<String> redisKeyPrefixes,
         List<Path> files,
         List<Path> directories) {
 
@@ -36,10 +35,6 @@ public record BackupScope(
 
     private static final List<String> MONGO_COLLECTION_PREFIXES = List.of("platform_");
 
-    // The single-writer control plane keeps no Redis keyspace, so backups are Mongo + filesystem
-    // only. The field and accessor remain (empty) until the Redis teardown removes them wholesale.
-    private static final List<String> REDIS_KEY_PREFIXES = List.of();
-
     private static final List<Path> SECURITY_FILES = List.of(
             Path.of("config", "controller.yml"),
             Path.of("config", "security", "ca.p12"),
@@ -62,7 +57,6 @@ public record BackupScope(
                 config.database().database(),
                 MONGO_COLLECTIONS,
                 MONGO_COLLECTION_PREFIXES,
-                REDIS_KEY_PREFIXES,
                 SECURITY_FILES,
                 List.of(
                         Path.of("templates"),
@@ -70,16 +64,11 @@ public record BackupScope(
                         Path.of(config.modules().dataDirectory())));
     }
 
-    public static List<String> defaultRedisKeyPrefixes() {
-        return REDIS_KEY_PREFIXES;
-    }
-
     public BackupScope(
             String mongoDatabase,
             List<String> mongoCollections,
-            List<String> redisKeyPrefixes,
             List<Path> files,
             List<Path> directories) {
-        this(mongoDatabase, mongoCollections, List.of(), redisKeyPrefixes, files, directories);
+        this(mongoDatabase, mongoCollections, List.of(), files, directories);
     }
 }

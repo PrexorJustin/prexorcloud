@@ -71,13 +71,6 @@ public final class ConfigValidator {
         if (config.database().uri() == null || config.database().uri().isBlank()) {
             errors.add("database.uri must be configured");
         }
-        if (config.redis() != null
-                && (config.redis().uri() == null || config.redis().uri().isBlank())) {
-            errors.add("redis.uri must not be blank when redis is configured");
-        }
-        if (config.runtime().production() && config.redis() == null) {
-            errors.add("redis.uri must be configured when runtime.profile=production");
-        }
 
         // Module signing policy
         var signing = config.modules().signing();

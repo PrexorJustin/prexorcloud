@@ -17,7 +17,6 @@ javapoet = "1.13.0"
 jjwt = "0.13.0"
 # Testing
 junit = "5.12.1"
-lettuce = "7.5.1.RELEASE"
 logback = "1.5.32"
 micrometer = "1.14.5"
 mockito = "5.23.0"
@@ -80,7 +79,6 @@ jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 # Testing
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
-lettuce-core = { module = "io.lettuce:lettuce-core", version.ref = "lettuce" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 # Metrics
 micrometer-core = { module = "io.micrometer:micrometer-core", version.ref = "micrometer" }

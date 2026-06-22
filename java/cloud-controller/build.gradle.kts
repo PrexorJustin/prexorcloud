@@ -43,7 +43,6 @@ dependencies {
     implementation(libs.opentelemetry.sdk)
     implementation(libs.opentelemetry.exporter.otlp)
     implementation(libs.commons.compress)
-    implementation(libs.lettuce.core)
     implementation(libs.jakarta.mail.api)
     implementation(libs.jakarta.activation.api)
     runtimeOnly(libs.angus.mail)

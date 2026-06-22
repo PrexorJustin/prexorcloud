@@ -125,8 +125,7 @@ class RecoveryTest {
     @Test
     void standbyControllerPreservesPersistedCompositionPlan() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
 
             admin.post(
@@ -190,8 +189,7 @@ class RecoveryTest {
     @Test
     void standbyControllerConvergesDesiredStatePlacementAfterFailover() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
             String groupName = "ha-placement-lobby";
 
@@ -310,8 +308,7 @@ class RecoveryTest {
     @Test
     void controllerRestartContinuesPersistedDeploymentThroughRedisRecovery() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
-        try (TestCluster cluster = TestCluster.startWithRedis(1)) {
+        try (TestCluster cluster = TestCluster.start(1)) {
             String nodeId = "test-node-1";
             cluster.controller()
                     .clusterState()
@@ -383,8 +380,7 @@ class RecoveryTest {
     @Test
     void standbyControllerFailoverRecoversPersistedNodeDrainAfterDaemonReconnect() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
             String nodeId = "test-node-1";
             String instanceId = "failover-drain-1";
@@ -433,8 +429,7 @@ class RecoveryTest {
     @Test
     void standbyControllerFailoverContinuesPersistedDeploymentAfterDaemonReconnect() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             String nodeId = "test-node-1";
             cluster.controller()
                     .clusterState()
@@ -506,12 +501,11 @@ class RecoveryTest {
     @Test
     void standbyControllerRedispatchesRecoverableStartAfterFailover() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
         Assumptions.assumeTrue(
                 ToolProvider.getSystemJavaCompiler() != null,
                 "A full JDK is required for recoverable start harness tests");
 
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
             String nodeId = "test-node-1";
             String groupName = "ha-recover-start";
@@ -606,12 +600,11 @@ class RecoveryTest {
     @Test
     void controllerRestartRedispatchesRecoverableStartAfterDaemonReconnect() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
         Assumptions.assumeTrue(
                 ToolProvider.getSystemJavaCompiler() != null,
                 "A full JDK is required for recoverable start harness tests");
 
-        try (TestCluster cluster = TestCluster.startWithRedis(1)) {
+        try (TestCluster cluster = TestCluster.start(1)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
             String nodeId = "test-node-1";
             String groupName = "recover-start";
@@ -706,8 +699,7 @@ class RecoveryTest {
     @Test
     void controllerRestartReconcilesStaleRunningInstanceWhenDaemonReconnects() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
-        try (TestCluster cluster = TestCluster.startWithRedis(1)) {
+        try (TestCluster cluster = TestCluster.start(1)) {
             String nodeId = "test-node-1";
             String instanceId = "reconnect-stale-1";
 
@@ -810,9 +802,8 @@ class RecoveryTest {
     @Test
     void rollingRestartResumesAfterControllerFailoverWithoutDuplicateRestarts() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
 
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             String nodeId = "test-node-1";
             String groupName = "ha-rolling-restart";
 
@@ -901,9 +892,8 @@ class RecoveryTest {
     @Test
     void standbyPromotionResumesPlacementAfterMidPlacementFailover() throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
 
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
             String nodeId = "test-node-1";
             String groupName = "ha-placement-transfer";
@@ -1003,9 +993,8 @@ class RecoveryTest {
     void standbyPromotionResumesModuleUpgradeAfterMidLoadFailover(@org.junit.jupiter.api.io.TempDir Path tempDir)
             throws Exception {
         Assumptions.assumeTrue(TestCluster.mongoAvailable(), "MongoDB is required for recovery harness tests");
-        Assumptions.assumeTrue(TestCluster.redisAvailable(), "Redis is required for HA recovery harness tests");
 
-        try (TestCluster cluster = TestCluster.startWithRedisHa(1, 2)) {
+        try (TestCluster cluster = TestCluster.startHa(1, 2)) {
             RestClient admin = new RestClient(cluster.restBaseUrl(), cluster.adminJwtToken());
 
             Path providerV1Jar = PlatformModuleTestJarFactory.createProviderV1Jar(tempDir.resolve("profile-v1.jar"));

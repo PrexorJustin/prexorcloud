@@ -108,7 +108,6 @@ public final class BackupRoutes {
                 bundle,
                 services.workingDirectory(),
                 services.mongoDatabase(),
-                null,
                 controller.config().uuid(),
                 VersionInfo.get().version());
         audit(
@@ -199,7 +198,6 @@ public final class BackupRoutes {
                                 .toList(),
                 "missingMongoCollections", validation.missingMongoCollections(),
                 "missingMongoCollectionPrefixes", validation.missingMongoCollectionPrefixes(),
-                "missingRedisPrefixes", validation.missingRedisPrefixes(),
                 "emptyRequiredFiles",
                         validation.emptyRequiredFiles().stream()
                                 .map(Path::toString)
@@ -285,14 +283,13 @@ public final class BackupRoutes {
             }
             if (datastores) {
                 DataRestoreReport report =
-                        executor.restoreDatastores(scope, bundle, services.mongoDatabase(), null, mode);
+                        executor.restoreDatastores(scope, bundle, services.mongoDatabase(), mode);
                 response.put(
                         "datastores",
                         Map.of(
                                 "applied", report.applied(),
                                 "mongoCollections", report.mongoImports().size(),
-                                "mongoPrefixGroups", report.mongoPrefixImports().size(),
-                                "redisPrefixes", report.redisImports().size()));
+                                "mongoPrefixGroups", report.mongoPrefixImports().size()));
             }
             audit(
                     ctx,
