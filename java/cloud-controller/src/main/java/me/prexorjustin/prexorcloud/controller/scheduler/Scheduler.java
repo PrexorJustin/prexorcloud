@@ -272,7 +272,10 @@ public final class Scheduler implements LeaseGate {
                 // and idempotent recovery above are unaffected — only scaling is deferred.
                 ConvergenceGate gate = convergenceGate;
                 if (gate != null && !gate.canScaleReconcile()) {
-                    logger.info("Scheduler: in convergence observation phase — deferring scale-reconcile this tick");
+                    // DEBUG, not INFO: fires every scheduler tick for the whole observation window
+                    // (~15s) on each leadership change. The one-shot ConvergenceGate INFO at takeover
+                    // plus the prexorcloud.convergence.observing gauge already cover this.
+                    logger.debug("Scheduler: in convergence observation phase — deferring scale-reconcile this tick");
                     success = true;
                 } else {
                     var tiers = desiredStatePlanner.planEvaluationOrder(groupManager.getAll());

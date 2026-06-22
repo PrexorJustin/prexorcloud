@@ -296,14 +296,19 @@ public final class PaperBootstrapCache {
 
             Path classListPath = versionDir.resolve(CDS_CLASS_LIST_NAME);
             if (!Files.exists(classListPath)) {
-                logger.warn(
+                // DEBUG: CDS is an optional startup optimization; a missing class list just means we
+                // skip it. Instances start fine without CDS, so this is not a WARN-worthy condition.
+                logger.debug(
                         "No class list found for CDS regeneration -- skipping (delete cache to force full rebuild)");
                 return;
             }
 
             regenerateCds(versionDir, jarPath, classListPath);
         } catch (Exception e) {
-            logger.warn("CDS regeneration failed: {} -- instances will start without CDS", e.getMessage());
+            // DEBUG, not WARN: CDS is an optional startup optimization and the failure is non-fatal —
+            // instances start (a touch slower) without it. In some environments regeneration fails on
+            // every start, so a WARN here just floods the log without indicating a real fault.
+            logger.debug("CDS regeneration failed: {} -- instances will start without CDS", e.getMessage());
         }
     }
 

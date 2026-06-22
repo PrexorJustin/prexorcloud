@@ -697,7 +697,10 @@ public final class ClusterState {
         if (InstanceTransitionValidator.isValid(existing.state(), nextState)) {
             return true;
         }
-        logger.warn("Rejected invalid instance transition for {}: {} -> {}", instanceId, existing.state(), nextState);
+        // DEBUG, not WARN: the common case is a benign idempotency guard — a daemon re-announcing a
+        // RUNNING instance as STARTING after a reconnect/adoption. The transition is harmlessly
+        // rejected (we keep the existing state); it does not indicate a fault.
+        logger.debug("Rejected invalid instance transition for {}: {} -> {}", instanceId, existing.state(), nextState);
         return false;
     }
 
