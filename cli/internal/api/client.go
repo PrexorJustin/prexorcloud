@@ -119,6 +119,53 @@ func (e *APIError) ExitCode() int {
 	}
 }
 
+// parseAPIError builds an APIError from a >=400 response. It decodes the
+// {code,message} envelope when present, and otherwise falls back to a trimmed
+// snippet of the raw body so the operator sees *why* a request failed instead
+// of a bare "HTTP 500". Closing the body stays the caller's responsibility.
+func parseAPIError(resp *http.Response) *APIError {
+	apiErr := &APIError{StatusCode: resp.StatusCode}
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	if len(raw) == 0 {
+		return apiErr
+	}
+
+	// The controller is not perfectly consistent in its error envelope: some
+	// handlers return {code,message}, some nest it under {error:{...}}, and the
+	// validation layer uses RFC 7807 {title,detail,status}. Probe all of them so
+	// the operator sees a real message instead of a raw JSON blob.
+	var env struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Title   string `json:"title"`
+		Detail  string `json:"detail"`
+		Error   struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(raw, &env)
+	switch {
+	case env.Message != "":
+		apiErr.Message, apiErr.Code = env.Message, env.Code
+	case env.Error.Message != "":
+		apiErr.Message, apiErr.Code = env.Error.Message, env.Error.Code
+	case env.Detail != "":
+		apiErr.Message = env.Detail
+	case env.Title != "":
+		apiErr.Message = env.Title
+	default:
+		// Unrecognized shape — surface a trimmed snippet of the raw body.
+		msg := strings.TrimSpace(string(raw))
+		const max = 200
+		if len(msg) > max {
+			msg = msg[:max] + "…"
+		}
+		apiErr.Message = msg
+	}
+	return apiErr
+}
+
 func (c *Client) do(method, path string, body any, result any) error {
 	return c.doCtx(context.Background(), method, path, body, result)
 }
@@ -163,9 +210,9 @@ func (c *Client) doCtx(ctx context.Context, method, path string, body any, resul
 
 		if c.Verbose {
 			if attempt == 1 {
-				fmt.Printf("→ %s %s\n", method, u)
+				fmt.Fprintf(os.Stderr, "→ %s %s\n", method, u)
 			} else {
-				fmt.Printf("→ %s %s (retry %d/%d)\n", method, u, attempt-1, maxAttempts-1)
+				fmt.Fprintf(os.Stderr, "→ %s %s (retry %d/%d)\n", method, u, attempt-1, maxAttempts-1)
 			}
 		}
 
@@ -182,7 +229,7 @@ func (c *Client) doCtx(ctx context.Context, method, path string, body any, resul
 		}
 
 		if c.Verbose {
-			fmt.Printf("← %d %s\n", resp.StatusCode, resp.Status)
+			fmt.Fprintf(os.Stderr, "← %d %s\n", resp.StatusCode, resp.Status)
 		}
 
 		// Success path — decode and return.
@@ -197,11 +244,10 @@ func (c *Client) doCtx(ctx context.Context, method, path string, body any, resul
 			return nil
 		}
 
-		// Error path — decode the APIError envelope. Drain + close before
-		// the next attempt so the connection can be reused from the pool.
-		apiErr := &APIError{StatusCode: resp.StatusCode}
-		_ = json.NewDecoder(resp.Body).Decode(apiErr)
-		_, _ = io.Copy(io.Discard, resp.Body)
+		// Error path — decode the APIError envelope (falling back to the raw
+		// body snippet). Close before the next attempt so the connection can be
+		// reused from the pool.
+		apiErr := parseAPIError(resp)
 		resp.Body.Close()
 
 		if retry && attempt < maxAttempts && shouldRetryStatus(resp.StatusCode) {
@@ -321,7 +367,7 @@ func (c *Client) UploadBytes(path, fieldName, fileName string, payload []byte, r
 	}
 
 	if c.Verbose {
-		fmt.Printf("→ POST %s (multipart bytes upload, %d bytes)\n", u, len(payload))
+		fmt.Fprintf(os.Stderr, "→ POST %s (multipart bytes upload, %d bytes)\n", u, len(payload))
 	}
 
 	resp, err := c.HTTPClient.Do(req)
@@ -331,15 +377,11 @@ func (c *Client) UploadBytes(path, fieldName, fileName string, payload []byte, r
 	defer resp.Body.Close()
 
 	if c.Verbose {
-		fmt.Printf("← %d %s\n", resp.StatusCode, resp.Status)
+		fmt.Fprintf(os.Stderr, "← %d %s\n", resp.StatusCode, resp.Status)
 	}
 
 	if resp.StatusCode >= 400 {
-		apiErr := &APIError{StatusCode: resp.StatusCode}
-		if decErr := json.NewDecoder(resp.Body).Decode(apiErr); decErr != nil {
-			return apiErr
-		}
-		return apiErr
+		return parseAPIError(resp)
 	}
 
 	if result != nil {
@@ -396,7 +438,7 @@ func (c *Client) UploadWithSignature(path string, filePath string, sigPath strin
 	}
 
 	if c.Verbose {
-		fmt.Printf("→ POST %s (multipart upload)\n", u)
+		fmt.Fprintf(os.Stderr, "→ POST %s (multipart upload)\n", u)
 	}
 
 	resp, err := c.HTTPClient.Do(req)
@@ -406,15 +448,11 @@ func (c *Client) UploadWithSignature(path string, filePath string, sigPath strin
 	defer resp.Body.Close()
 
 	if c.Verbose {
-		fmt.Printf("← %d %s\n", resp.StatusCode, resp.Status)
+		fmt.Fprintf(os.Stderr, "← %d %s\n", resp.StatusCode, resp.Status)
 	}
 
 	if resp.StatusCode >= 400 {
-		apiErr := &APIError{StatusCode: resp.StatusCode}
-		if decErr := json.NewDecoder(resp.Body).Decode(apiErr); decErr != nil {
-			return apiErr
-		}
-		return apiErr
+		return parseAPIError(resp)
 	}
 
 	if result != nil {
@@ -467,11 +505,7 @@ func (c *Client) SSEStreamWithTicket(
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		apiErr := &APIError{StatusCode: resp.StatusCode}
-		if decErr := json.NewDecoder(resp.Body).Decode(apiErr); decErr != nil {
-			return apiErr
-		}
-		return apiErr
+		return parseAPIError(resp)
 	}
 
 	buf := make([]byte, 0, 4096)
@@ -539,11 +573,7 @@ func (c *Client) createSSETicketAt(ctx context.Context, ticketPath string) (stri
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		apiErr := &APIError{StatusCode: resp.StatusCode}
-		if decErr := json.NewDecoder(resp.Body).Decode(apiErr); decErr != nil {
-			return "", apiErr
-		}
-		return "", apiErr
+		return "", parseAPIError(resp)
 	}
 
 	var body struct {

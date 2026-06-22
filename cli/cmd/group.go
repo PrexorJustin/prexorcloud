@@ -532,6 +532,13 @@ func runGroupInfo(ctx context.Context, client *api.Client, name string, group ma
 		{"parent", theme.StyleDim().Render(strOrDash(str(group, "parent")))},
 	}
 
+	// Without a TTY (piped output, CI, `| cat`) the interactive dashboard can't
+	// open /dev/tty. Fall back to a static render of the same data instead of
+	// failing. `--json` is handled earlier by the caller.
+	if !interactive() {
+		return printGroupInfoStatic(name, typ, status, cfgKV, scalingKV, templKV, insts)
+	}
+
 	m := tui.NewGroupInfo(tui.GroupInfoConfig{
 		Name:      name,
 		Type:      typ,
@@ -562,6 +569,39 @@ func runGroupInfo(ctx context.Context, client *api.Client, name string, group ma
 	if attachID != "" {
 		return attachConsole(ctx, client, attachID)
 	}
+	return nil
+}
+
+// printGroupInfoStatic renders group details as plain sections for
+// non-interactive contexts (no TTY), mirroring the interactive dashboard's
+// data without the bubbletea event loop.
+func printGroupInfoStatic(name, typ, status string, cfgKV, scalingKV, templKV [][2]string, insts []tui.GroupInstance) error {
+	fmt.Println()
+	fmt.Println(theme.Heading("Group " + name))
+	fmt.Println(theme.Subtitle(typ + " " + theme.Glyph("·", "-") + " " + status))
+
+	section := func(title string, kv [][2]string) {
+		fmt.Println()
+		fmt.Println(theme.StyleMute().Render(title))
+		for _, row := range kv {
+			fmt.Println("  " + kvLine(row[0], row[1]))
+		}
+	}
+	section("CONFIG", cfgKV)
+	section("SCALING", scalingKV)
+	section("TEMPLATES", templKV)
+
+	fmt.Println()
+	fmt.Println(theme.StyleMute().Render("INSTANCES"))
+	if len(insts) == 0 {
+		fmt.Println("  " + theme.StyleDim().Render("no running instances"))
+	} else {
+		for _, in := range insts {
+			fmt.Printf("  %s  %s  %s  players=%s  uptime=%s\n",
+				in.Name, in.Node, in.Status, in.Players, in.Uptime)
+		}
+	}
+	fmt.Println()
 	return nil
 }
 

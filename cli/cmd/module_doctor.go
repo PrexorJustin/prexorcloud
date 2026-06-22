@@ -31,6 +31,8 @@ Exit codes are CI-friendly:
   2   errors (controller would reject)`,
 	Args: cobra.ExactArgs(1),
 	RunE: runModuleDoctor,
+	// Validates a local jar offline; never contacts a controller.
+	Annotations: map[string]string{"local-only": "true"},
 }
 
 var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)

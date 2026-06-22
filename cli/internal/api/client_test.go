@@ -82,6 +82,46 @@ func TestGet_APIError(t *testing.T) {
 	}
 }
 
+// TestGet_APIError_AlternateEnvelopes locks in parseAPIError's tolerance for the
+// controller's inconsistent error shapes: nested {error:{...}}, RFC 7807
+// {title/detail}, and a non-JSON body, none of which used to surface a message.
+func TestGet_APIError_AlternateEnvelopes(t *testing.T) {
+	cases := []struct {
+		name string
+		code int
+		body string
+		want string
+	}{
+		{"nested error object", 500, `{"error":{"message":"boom","code":"INTERNAL_ERROR"}}`, "boom"},
+		{"problem json detail", 422, `{"title":"Unprocessable","detail":"bad field x","status":422}`, "bad field x"},
+		{"problem json title only", 403, `{"title":"Insufficient permissions","status":403}`, "Insufficient permissions"},
+		{"plain text body", 502, `upstream unavailable`, "upstream unavailable"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.code)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+
+			c := New(server.URL, "token", false)
+			var result any
+			err := c.Get("/x", &result)
+			apiErr, ok := err.(*APIError)
+			if !ok {
+				t.Fatalf("expected *APIError, got %T (%v)", err, err)
+			}
+			if apiErr.StatusCode != tc.code {
+				t.Errorf("StatusCode = %d, want %d", apiErr.StatusCode, tc.code)
+			}
+			if apiErr.Message != tc.want {
+				t.Errorf("Message = %q, want %q", apiErr.Message, tc.want)
+			}
+		})
+	}
+}
+
 func TestPost_SendsJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {

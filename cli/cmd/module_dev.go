@@ -381,6 +381,8 @@ var moduleTestCmd = &cobra.Command{
 	Long: `Wrapper for ` + "`./gradlew :cloud-modules:<name>:test`" + `. Runs from
 the repo's java/ directory and forwards stdout/stderr.`,
 	Args: cobra.ExactArgs(1),
+	// Runs gradle locally against repo sources; never contacts a controller.
+	Annotations: map[string]string{"local-only": "true"},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		root := moduleTestRepoRoot
 		if root == "" {

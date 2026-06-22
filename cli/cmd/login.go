@@ -18,23 +18,20 @@ var loginCmd = &cobra.Command{
 		username := ""
 		password := ""
 
-		// Build the form dynamically: include controller URL only if not configured.
+		// Always offer the controller URL, pre-filled with the resolved value so
+		// the user can accept the default or point at a different controller.
 		var fields []huh.Field
-		if controller == "" {
-			fields = append(fields,
-				huh.NewInput().
-					Title("Controller URL").
-					Placeholder("http://localhost:8080").
-					Value(&controller).
-					Validate(func(s string) error {
-						if s == "" {
-							return fmt.Errorf("controller URL is required")
-						}
-						return nil
-					}),
-			)
-		}
 		fields = append(fields,
+			huh.NewInput().
+				Title("Controller URL").
+				Placeholder("http://localhost:8080").
+				Value(&controller).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("controller URL is required")
+					}
+					return nil
+				}),
 			huh.NewInput().
 				Title("Username").
 				Value(&username).

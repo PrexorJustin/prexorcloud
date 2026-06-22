@@ -23,6 +23,9 @@ behaviour on one platform; pick "module" (prexorctl module new) when you need
 cluster-wide state, REST endpoints, dashboard UI, or coordination across nodes.
 
 See https://prexor.cloud/concepts/plugins/ for the full plugin vs module decision guide.`,
+	// Scaffolding writes only local files and never contacts a controller, so it
+	// must work before this CLI has been linked to a cluster.
+	Annotations: map[string]string{"local-only": "true"},
 }
 
 var (
