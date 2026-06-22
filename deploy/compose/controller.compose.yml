@@ -23,9 +23,6 @@ database:
   uri: "mongodb://mongo:27017"
   database: "prexorcloud"
 
-redis:
-  uri: "redis://redis:6379"
-
 logging:
   level: "INFO"
   format: "HUMAN"
@@ -46,7 +43,6 @@ security:
   rateLimiting:
     perIpPerMinute: 100
     perUserPerMinute: 300
-    failOpenOnRedisError: false
 
 crashes:
   ringBufferSize: 500

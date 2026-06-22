@@ -34,9 +34,6 @@ database:
   uri: "mongodb://mongo:27017"
   database: "prexorcloud"
 
-redis:
-  uri: "redis://valkey:6379"
-
 logging:
   level: "INFO"
   format: "JSON"
@@ -60,7 +57,6 @@ security:
   rateLimiting:
     perIpPerMinute: 100
     perUserPerMinute: 300
-    failOpenOnRedisError: false
 
 crashes:
   ringBufferSize: 500

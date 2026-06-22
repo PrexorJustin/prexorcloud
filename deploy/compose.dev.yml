@@ -7,14 +7,6 @@ services:
       - mongo-data:/data/db
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-
   controller:
     build:
       context: ./java
@@ -29,7 +21,6 @@ services:
       - controller-certs:/app/certs
     depends_on:
       - mongo
-      - redis
     restart: unless-stopped
 
   daemon:
@@ -58,7 +49,6 @@ services:
 
 volumes:
   mongo-data:
-  redis-data:
   controller-data:
   controller-templates:
   controller-certs:

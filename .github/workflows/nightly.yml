@@ -42,16 +42,6 @@ jobs:
   dr-drill:
     name: Nightly DR Drill
     runs-on: ubuntu-latest
-    services:
-      valkey:
-        image: valkey/valkey:8-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 10s
-          --health-timeout 3s
-          --health-retries 6
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-java-gradle
@@ -70,12 +60,10 @@ jobs:
             sleep 1
           done
           docker exec mongo mongosh --quiet --eval 'print("replica-set ready, setName=" + db.hello().setName)'
-      # Valkey stays a health-gated service container, so Actions already waits for it to be ready.
       - run: ./gradlew :cloud-test-harness:drDrill
         working-directory: java
         env:
           PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
-          PREXOR_TEST_REDIS_URI: redis://127.0.0.1:6379
       - name: Upload DR drill reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,13 +78,6 @@ jobs:
     # never gates merges, so we keep it on the nightly cadence instead of
     # adding a second cron entrypoint.
     runs-on: ubuntu-latest
-    services:
-      redis:
-        image: valkey/valkey:8-alpine
-        ports: [6379:6379]
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-java-gradle
@@ -118,7 +99,6 @@ jobs:
       - name: Run perf-baseline harness
         env:
           PREXOR_TEST_MONGO_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
-          PREXOR_TEST_REDIS_URI: redis://127.0.0.1:6379
         run: ./gradlew :cloud-test-harness:perfBaselines --no-daemon
         working-directory: java
       - name: Compare against committed baseline

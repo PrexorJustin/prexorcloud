@@ -1,8 +1,8 @@
 # PrexorCloud — production reference compose stack.
 #
 # Differs from deploy/compose.dev.yml (a dev convenience that
-# exposes Mongo/Redis on the host and uses fixed defaults). This stack:
-#   - keeps Mongo + Valkey on a private network (no host ports)
+# exposes Mongo on the host and uses fixed defaults). This stack:
+#   - keeps Mongo on a private network (no host ports)
 #   - mounts controller.yml / daemon.yml from this directory
 #   - reads secrets via .env (see .env.example)
 #   - adds healthchecks so `depends_on` actually waits
@@ -34,28 +34,11 @@ services:
     networks:
       - prexor-internal
 
-  valkey:
-    image: valkey/valkey:8-alpine
-    restart: unless-stopped
-    command: ["valkey-server", "--appendonly", "yes", "--save", "60", "1000"]
-    volumes:
-      - valkey-data:/data
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 6
-      start_period: 10s
-    networks:
-      - prexor-internal
-
   controller:
     image: ${PREXORCLOUD_CONTROLLER_IMAGE:-ghcr.io/prexorjustin/prexorcloud-controller:latest}
     restart: unless-stopped
     depends_on:
       mongo:
-        condition: service_healthy
-      valkey:
         condition: service_healthy
     environment:
       - JAVA_TOOL_OPTIONS=-Xms256m -Xmx${PREXORCLOUD_CONTROLLER_HEAP:-1g}
@@ -116,7 +99,6 @@ services:
 
 volumes:
   mongo-data:
-  valkey-data:
   controller-data:
   controller-templates:
   controller-modules:
@@ -128,7 +110,7 @@ volumes:
   daemon-logs:
 
 networks:
-  # Mongo + Valkey live here; never exposed to the host.
+  # Mongo lives here; never exposed to the host.
   prexor-internal:
     driver: bridge
     internal: true

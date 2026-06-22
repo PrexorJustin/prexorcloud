@@ -3,7 +3,7 @@
 Reference Docker Compose v2 stack for a single-host PrexorCloud install.
 Different from `deploy/compose.dev.yml`, which is a developer
 convenience that exposes datastore ports on the host. This one keeps
-Mongo + Valkey on a private network and reads its config from the files
+Mongo on a private network and reads its config from the files
 in this directory.
 
 ## How it fits
@@ -20,10 +20,10 @@ only the controller's HTTP/gRPC and the dashboard cross onto `prexor-public`.
                       │   │ gRPC (mTLS)
             ┌─────────┘   └─────────┐
             │ prexor-internal       │
-        ┌───┴───┐               ┌───┴────┐         ┌────────┐
-        │ mongo │               │ valkey │   ◄──   │ daemon │  (in-stack, one)
-        └───────┘               └────────┘         └────────┘
-       durable state           coordination     spawns instances
+        ┌───┴───┐               ┌───┴────┐
+        │ mongo │               │ daemon │  (in-stack, one)
+        └───────┘               └────────┘
+       durable state          spawns instances
 ```
 
 Multi-host installs add more daemons on other machines via
@@ -32,8 +32,7 @@ gRPC port, not the internal datastore network.
 
 ## What you get
 
-- `mongo` (durable state) and `valkey` (coordination store) on
-  `prexor-internal`, **not exposed to the host**.
+- `mongo` (durable state) on `prexor-internal`, **not exposed to the host**.
 - `controller` reachable via `prexor-public` on the host ports declared
   in `.env`. mTLS is enforced on gRPC; HTTP is plaintext and should sit
   behind a TLS-terminating reverse proxy.

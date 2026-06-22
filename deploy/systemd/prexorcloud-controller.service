@@ -20,9 +20,9 @@ Description=PrexorCloud Controller
 Documentation=https://github.com/prexorjustin/prexorcloud
 After=network-online.target
 Wants=network-online.target
-# Uncomment if Mongo/Valkey run on this host:
-# Requires=mongod.service valkey.service
-# After=mongod.service valkey.service
+# Uncomment if Mongo runs on this host:
+# Requires=mongod.service
+# After=mongod.service
 
 [Service]
 Type=simple

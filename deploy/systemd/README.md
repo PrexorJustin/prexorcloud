@@ -4,7 +4,7 @@ Reference unit files for running the controller and daemon directly on
 the host (no containers). Useful for:
 
 - Multi-host clusters where one daemon runs per machine.
-- Operators who already have Mongo / Valkey under systemd and prefer to
+- Operators who already have Mongo under systemd and prefer to
   keep the orchestrator next to them.
 - Air-gapped installs where pulling images is harder than dropping a jar.
 
