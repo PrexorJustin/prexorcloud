@@ -1196,6 +1196,14 @@ public final class PrexorCloudBootstrap {
                     public void onLost() {
                         convergenceGate.reset();
                         changeStreams.stop();
+                        // Drop daemon streams so any daemon still attached to this (now-demoted)
+                        // controller reconnects and gets redirected to the new leader. Without this a
+                        // failover where our daemon streams never broke (controller isolated from Mongo
+                        // but not from its daemons) strands daemons here and the new leader sees them OFFLINE.
+                        var sessions = controller.sessionManager();
+                        if (sessions != null) {
+                            sessions.disconnectAll("leadership lost — reconnect to new leader");
+                        }
                     }
                 },
                 System::nanoTime);

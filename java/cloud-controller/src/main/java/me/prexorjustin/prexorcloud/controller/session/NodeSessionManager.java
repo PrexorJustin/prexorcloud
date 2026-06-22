@@ -53,6 +53,25 @@ public final class NodeSessionManager {
         return Collections.unmodifiableCollection(sessionsBySessionId.values());
     }
 
+    /**
+     * Forcibly close every active daemon stream so each daemon reconnects and re-handshakes — a
+     * now-follower controller then redirects them to the current leader. Wired into the leadership
+     * {@code onLost} hook: without it, a failover where our daemon streams never broke (e.g. a
+     * controller isolated from Mongo but not from its daemons) strands daemons on the ex-leader and
+     * the new leader never sees them. The stream cancellation drives the normal disconnect cleanup;
+     * the session map is left to that path / the daemon's reconnect to replace. Returns the count closed.
+     */
+    public int disconnectAll(String reason) {
+        var sessions = List.copyOf(sessionsBySessionId.values());
+        for (NodeSession session : sessions) {
+            session.disconnect(reason);
+        }
+        if (!sessions.isEmpty()) {
+            logger.info("Closed {} daemon session(s) — {}", sessions.size(), reason);
+        }
+        return sessions.size();
+    }
+
     public int sessionCount() {
         return sessionsBySessionId.size();
     }

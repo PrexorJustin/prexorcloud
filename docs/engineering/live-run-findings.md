@@ -585,3 +585,57 @@ quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #1
 - **Repro:** running Paper instance (new plugin) → `docker stop`/kill the leader → watch the instance `latest.log`
   for the `BaseControllerClient … HTTP 401` burst that ends exactly at the daemon's `Connected to controller` + the
   leader's `adopting running instance` line.
+
+---
+
+## Rewrite branch — 2026-06-22 Phase-6 (Redis/Valkey removed) HA validation
+
+### Daemon stranded on the demoted ex-leader after a *Mongo-partition* failover — **FIXED + validated live (uncommitted)**
+- **Found:** running the Gate-E partition split-brain test on the Redis-free fleet — isolate the **leader** from
+  **Mongo only** (`iptables ... -d <mongo>:27017 -j DROP`), leaving its daemon gRPC streams intact.
+- **Symptom:** the ex-leader self-fences correctly (`prexorcloud.leadership.is_leader → 0` within `ttl − safetyMargin`,
+  local guard, no Mongo round-trip) and a successor elects (epoch bumps), **but the daemon stays glued to the demoted
+  ex-leader** because its TCP stream never broke. The daemon only redirects on a *handshake*, and a live stream
+  doesn't re-handshake. Result: the daemon keeps heartbeating a **follower**, the **real leader sees the node
+  `OFFLINE`/`DISCONNECTED`** and its service list is empty — the node is unmanaged by the control plane (the game
+  keeps running locally, but the leader can't observe or command it).
+- **Why it surfaced now:** Phase-6 deleted the cross-controller relay (`RedisEventBridge`, slice `3e-G`) — a follower
+  can no longer relay commands for a daemon attached to it. Pre-Phase-6 the relay masked this; post-Phase-6 the daemon
+  MUST be on the leader. Contrast the **crash** failover (`docker stop` leader): the stream closes immediately → daemon
+  redirects in ~3 s (works). And the **GC-pause** case (SIGSTOP): the stream eventually times out (~30–40 s) → daemon
+  redirects (works, just slow). Only the **partition** case (ex-leader JVM healthy, only Mongo cut) strands the daemon
+  indefinitely, because nothing ever breaks the stream.
+- **Root cause:** on leadership loss (`MongoLeaderElector` `onLost` / step-down) the controller does **not** close /
+  reset its daemon sessions. A demoted leader should drop its `NodeSession`s so each daemon reconnects → handshakes →
+  gets `leader_grpc_addr` for the new leader.
+- **Fix (done, jar `b49ed08b`):** the leadership-lost hook now closes all daemon streams.
+  `NodeSession.disconnect(reason)` terminates the stream with `UNAVAILABLE` (synchronized on the same monitor as
+  `send`); `NodeSessionManager.disconnectAll(reason)` closes every active session; bootstrap's `onLost()` calls it.
+  The elector already calls `demote()` (→ `onLost`) eagerly once the local guard trips (or on the renew rejection
+  when the partition heals), so the streams get released on demotion — daemons then reconnect, re-handshake, and the
+  now-follower redirects them to the new leader. Makes partition-failover behave like crash-failover for daemons.
+  Unit tests: `NodeSessionManagerTest.disconnectAllTerminatesEveryStream` / `...OnEmptyManagerIsNoOp`.
+- **Validated live (2026-06-22):** partition the leader (ctrl-1) from Mongo > TTL → successor ctrl-3 elects (ep15);
+  on heal ctrl-1 logs `Relinquished leadership` then `NodeSessionManager - Closed 1 daemon session(s) — leadership
+  lost`; the daemon receives `UNAVAILABLE: leadership lost — reconnect to new leader`, reconnects, is redirected
+  `to leader at 10.0.0.7`, and lands on ctrl-3 in ~6s — **no manual restart**. New leader then shows the node
+  `ONLINE` and lobby-2 `RUNNING`. Game PID untouched throughout.
+- **Timing caveat (not fixed, low priority):** under a pure black-hole partition (iptables DROP, no RST) the
+  leader's blocked Mongo renew doesn't throw until the partition heals, so `demote()`/`onLost` (and thus the stream
+  close) fires on *heal*, not at the ~`ttl−safetyMargin` guard trip. Recovery is automatic either way; to also redirect
+  *during* a long black-hole, give the elector's lease collection a CSOT `withTimeout(...)` (~renewInterval) so the
+  renew fails fast and the existing eager-demote path runs — deferred (needs tuning/soak to avoid spurious demotes on
+  normal Mongo latency blips). A connection-reset partition or Mongo failover throws promptly and recovers at the guard.
+- **Earlier manual recovery (pre-fix, for the record):** restart the follower the daemon was stuck on → stream breaks
+  → daemon redirects to the leader. No longer needed.
+
+### Things that PASSED this session (for the record)
+- **Phase-6 with Valkey *stopped*:** control plane fully healthy with `prexor-data-valkey-1` down (Mongo-only) —
+  leadership stable, 0 errors, game RUNNING, **0×401** plugin-token validation (leader-memory + Mongo read-through).
+- **Crash failover (Gate E):** kill leader → successor elects (epoch++), daemon redirects via a follower's
+  `leader_grpc_addr`, re-adopts the game, 0×401; controller failover leaves the game PID untouched.
+- **GC-pause fence:** SIGSTOP the leader past its lease → successor elects; on SIGCONT the zombie self-fences
+  (`Lease renew rejected — lost leadership`) and does not reclaim — single leader throughout.
+- **Local monotonic guard (split-brain safety):** under a Mongo partition the leader reports `is_leader 0` at
+  `renew_age ≈ 14.6 s` (> `ttl − safetyMargin`) **before** the lease TTL (15 s) lets a successor in → no two-leader
+  window. Epoch was strictly monotonic (9→13) with a single holder at every step across 5 leadership changes.
