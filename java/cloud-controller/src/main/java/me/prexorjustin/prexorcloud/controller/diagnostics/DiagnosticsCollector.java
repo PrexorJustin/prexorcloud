@@ -73,9 +73,6 @@ public final class DiagnosticsCollector {
                 controller.config().telemetry().enabled(),
                 controller.config().telemetry().traceUiTemplate());
 
-        // The control plane keeps no Redis keyspace after the single-writer rewrite.
-        Object redisKeyspace = Map.of("enabled", false);
-
         ControllerLogBuffer logs = controller.logBuffer();
         Map<String, Object> logBufferStats = logs == null
                 ? Map.of("size", 0, "capacity", 0)
@@ -89,7 +86,6 @@ public final class DiagnosticsCollector {
                 .put("overview", overview)
                 .put("settings", settings)
                 .put("redactedConfig", ControllerConfigRedactor.redact(controller.config()))
-                .put("redisKeyspace", redisKeyspace)
                 .put("logBuffer", logBufferStats)
                 .put("nodes", controller.clusterState().getAllNodes())
                 .put("instances", controller.clusterState().getAllInstances())

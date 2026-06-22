@@ -13,7 +13,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
 import org.slf4j.Logger;
@@ -36,7 +35,7 @@ public final class WorkloadIdentityRegistry {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkloadIdentityRegistry.class);
 
-    private static final Duration DEFAULT_TOKEN_TTL = RedisKeys.defaultPluginTokenTtl();
+    private static final Duration DEFAULT_TOKEN_TTL = Duration.ofMinutes(15);
     private static final String TOKEN_PREFIX = "ptk_";
     private static final int RANDOM_BYTES = 32;
 

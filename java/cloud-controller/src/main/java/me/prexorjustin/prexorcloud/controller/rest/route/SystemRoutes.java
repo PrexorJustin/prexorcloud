@@ -13,8 +13,6 @@ import me.prexorjustin.prexorcloud.controller.auth.Permission;
 import me.prexorjustin.prexorcloud.controller.health.ControllerReadinessProbe;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerLogBuffer;
 import me.prexorjustin.prexorcloud.controller.observability.ControllerLogBuffer.LogFilter;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeys;
-import me.prexorjustin.prexorcloud.controller.redis.RedisKeyspaceInspector;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ShareLogRequestDto;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ShareRequestDto;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ShareResultDto;
@@ -64,8 +62,6 @@ public final class SystemRoutes {
             get("/ready", this::getSystemReady);
             get("/version", this::getSystemVersion);
             get("/settings", this::getSystemSettings);
-            get("/redis/keyspace", this::getRedisKeyspace);
-            get("/redis/schema", this::getRedisSchema);
             get("/logs", this::getSystemLogs);
             post("/logs/share", this::shareControllerLogs);
             post("/logs/ticket", this::createSystemLogTicket);
@@ -184,41 +180,6 @@ public final class SystemRoutes {
                 controller.config().telemetry().traceUiTemplate()));
     }
 
-    @OpenApi(
-            path = "/api/v1/system/redis/keyspace",
-            methods = {HttpMethod.GET},
-            operationId = "getRedisKeyspace",
-            summary = "Redis keyspace report",
-            tags = {"System"},
-            security = {@OpenApiSecurity(name = "bearerAuth")},
-            responses = {
-                @OpenApiResponse(status = "200", description = "Keyspace report"),
-                @OpenApiResponse(status = "401", description = "Unauthorized"),
-                @OpenApiResponse(status = "403", description = "Forbidden")
-            })
-    private void getRedisKeyspace(Context ctx) {
-        JwtAuthMiddleware.requirePermission(ctx, Permission.SYSTEM_SETTINGS);
-        // The single-writer control plane keeps no Redis keyspace; the endpoint is retained
-        // (always-empty) until the Redis teardown removes it.
-        ctx.json(new RedisKeyspaceInspector.KeyspaceReport(false, 0, java.util.List.of(), "redis removed"));
-    }
-
-    @OpenApi(
-            path = "/api/v1/system/redis/schema",
-            methods = {HttpMethod.GET},
-            operationId = "getRedisSchema",
-            summary = "Redis key policies",
-            tags = {"System"},
-            security = {@OpenApiSecurity(name = "bearerAuth")},
-            responses = {
-                @OpenApiResponse(status = "200", description = "Key policies"),
-                @OpenApiResponse(status = "401", description = "Unauthorized"),
-                @OpenApiResponse(status = "403", description = "Forbidden")
-            })
-    private void getRedisSchema(Context ctx) {
-        JwtAuthMiddleware.requirePermission(ctx, Permission.SYSTEM_SETTINGS);
-        ctx.json(RedisKeys.keyPolicies());
-    }
 
     @OpenApi(
             path = "/api/v1/system/logs",
@@ -421,7 +382,7 @@ public final class SystemRoutes {
             operationId = "getDiagnostics",
             summary = "Aggregated diagnostics document",
             description =
-                    "Pulls together version, readiness, settings, redacted config, redis keyspace summary, lease snapshot, and cluster overview behind a single ADMIN-gated read so `prexorctl diagnostics bundle` doesn't fan out separate calls.",
+                    "Pulls together version, readiness, settings, redacted config, lease snapshot, and cluster overview behind a single ADMIN-gated read so `prexorctl diagnostics bundle` doesn't fan out separate calls.",
             tags = {"System"},
             security = {@OpenApiSecurity(name = "bearerAuth")},
             responses = {
