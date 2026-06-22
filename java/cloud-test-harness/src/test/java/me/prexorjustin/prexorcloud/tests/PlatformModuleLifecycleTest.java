@@ -247,15 +247,13 @@ class PlatformModuleLifecycleTest {
             assertEquals(201, betaInstall.status(), betaInstall.body());
 
             storageCluster.waitForCondition(
-                    "storage-alpha boot 1",
+                    "storage-alpha load 1",
                     15_000,
-                    () -> hasEventWithFragments(
-                            tempDir, "storage-alpha.log", "mongo=storage-alpha", "redis=storage-alpha", "boot=1"));
+                    () -> hasEventWithFragments(tempDir, "storage-alpha.log", "mongo=storage-alpha"));
             storageCluster.waitForCondition(
-                    "storage-beta boot 1",
+                    "storage-beta load 1",
                     15_000,
-                    () -> hasEventWithFragments(
-                            tempDir, "storage-beta.log", "mongo=storage-beta", "redis=storage-beta", "boot=1"));
+                    () -> hasEventWithFragments(tempDir, "storage-beta.log", "mongo=storage-beta"));
 
             var alphaSnapshot = storageCluster
                     .controller()
@@ -270,15 +268,10 @@ class PlatformModuleLifecycleTest {
                     .snapshot("storage-beta")
                     .orElseThrow();
             assertTrue(alphaSnapshot.storage().mongoAvailable());
-            assertTrue(alphaSnapshot.storage().redisAvailable());
             assertTrue(betaSnapshot.storage().mongoAvailable());
-            assertTrue(betaSnapshot.storage().redisAvailable());
             assertNotEquals(
                     alphaSnapshot.storage().mongoCollectionPrefix(),
                     betaSnapshot.storage().mongoCollectionPrefix());
-            assertNotEquals(
-                    alphaSnapshot.storage().redisKeyPrefix(),
-                    betaSnapshot.storage().redisKeyPrefix());
 
             assertTrue(PlatformModuleTestJarFactory.readEvents(tempDir, "storage-alpha.log").stream()
                     .allMatch(line -> line.contains("storage-alpha") && !line.contains("storage-beta")));
@@ -288,15 +281,9 @@ class PlatformModuleLifecycleTest {
             storageCluster.restartController();
 
             storageCluster.waitForCondition(
-                    "storage-alpha boot 2",
-                    15_000,
-                    () -> hasEventWithFragments(
-                            tempDir, "storage-alpha.log", "mongo=storage-alpha", "redis=storage-alpha", "boot=2"));
+                    "storage-alpha reloaded after restart", 15_000, () -> loadEventCount(tempDir, "storage-alpha.log") >= 2);
             storageCluster.waitForCondition(
-                    "storage-beta boot 2",
-                    15_000,
-                    () -> hasEventWithFragments(
-                            tempDir, "storage-beta.log", "mongo=storage-beta", "redis=storage-beta", "boot=2"));
+                    "storage-beta reloaded after restart", 15_000, () -> loadEventCount(tempDir, "storage-beta.log") >= 2);
         } finally {
             System.clearProperty(PlatformModuleTestJarFactory.EVENT_DIR_PROPERTY);
         }
@@ -537,6 +524,16 @@ class PlatformModuleLifecycleTest {
         try {
             return PlatformModuleTestJarFactory.readEvents(eventsDir, fileName).stream()
                     .anyMatch(line -> java.util.Arrays.stream(fragments).allMatch(line::contains));
+        } catch (IOException e) {
+            throw new IllegalStateException("failed to read platform module events", e);
+        }
+    }
+
+    private static long loadEventCount(Path eventsDir, String fileName) {
+        try {
+            return PlatformModuleTestJarFactory.readEvents(eventsDir, fileName).stream()
+                    .filter(line -> line.startsWith("load:"))
+                    .count();
         } catch (IOException e) {
             throw new IllegalStateException("failed to read platform module events", e);
         }

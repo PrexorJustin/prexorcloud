@@ -792,7 +792,7 @@ class PlatformModuleRoutesTest {
                         ModuleStorageRequest.NONE,
                         extensions),
                 new PlatformModuleStorageManager.StorageAllocation(
-                        moduleId, false, false, null, null, 0, false, false, null, 0),
+                        moduleId, false, false, null, null, 0),
                 ModuleLifecycleManager.ModuleState.ACTIVE,
                 null,
                 unresolvedRequirements);

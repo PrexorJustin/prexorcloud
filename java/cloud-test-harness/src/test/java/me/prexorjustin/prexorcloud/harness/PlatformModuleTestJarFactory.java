@@ -79,7 +79,6 @@ public final class PlatformModuleTestJarFactory {
                   entrypoint: me.prexorjustin.prexorcloud.harness.PlatformModuleTestJarFactory$StorageProbeModule
                 storage:
                   mongo: true
-                  redis: true
                 """.formatted(moduleId), StorageProbeModule.class);
     }
 
@@ -390,7 +389,6 @@ public final class PlatformModuleTestJarFactory {
         public void onLoad(ModuleContext context) {
             String moduleId = context.manifest().id();
             var mongo = context.requireMongoStorage();
-            var redis = context.requireRedisStorage();
 
             mongo.ensureCollection("state");
             var ownerDocument = mongo.findOne("state", Query.where("key").eq("owner"), Map.class);
@@ -404,19 +402,10 @@ public final class PlatformModuleTestJarFactory {
 
             String mongoOwner =
                     Objects.toString(ownerDocument.orElse(Map.of()).getOrDefault("value", "missing"), "missing");
-            String redisOwner = redis.get("owner").orElseGet(() -> {
-                redis.set("owner", moduleId);
-                return moduleId;
-            });
-            long boot = redis.increment("boot-count");
 
             appendEvent(
                     moduleId + ".log",
-                    "load:mongo=" + mongoOwner
-                            + ",redis=" + redisOwner
-                            + ",boot=" + boot
-                            + ",mongoPrefix=" + mongo.collectionPrefix()
-                            + ",redisPrefix=" + redis.keyPrefix());
+                    "load:mongo=" + mongoOwner + ",mongoPrefix=" + mongo.collectionPrefix());
         }
     }
 }

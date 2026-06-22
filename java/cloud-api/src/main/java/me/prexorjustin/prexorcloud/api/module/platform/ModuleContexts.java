@@ -133,16 +133,6 @@ public final class ModuleContexts {
         }
 
         @Override
-        public Optional<PlatformRedisStorage> findRedisStorage() {
-            return storage.redis();
-        }
-
-        @Override
-        public PlatformRedisStorage requireRedisStorage() {
-            return storage.requireRedis();
-        }
-
-        @Override
         public EventBus events() {
             return NOOP_BUS;
         }

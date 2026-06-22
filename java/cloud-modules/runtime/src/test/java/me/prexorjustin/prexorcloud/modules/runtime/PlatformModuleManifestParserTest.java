@@ -32,10 +32,8 @@ class PlatformModuleManifestParserTest {
                   versionRange: "[1.0,2.0)"
             storage:
               mongo: true
-              redis: true
               limits:
                 mongoDocuments: 1000
-                redisKeys: 200
             extensions:
               - id: matchmaking-paper
                 target: server/paper
@@ -94,9 +92,7 @@ class PlatformModuleManifestParserTest {
                 "player-profile", manifest.capabilities().requires().getFirst().id());
         assertEquals("[1.0,2.0)", manifest.capabilities().requires().getFirst().versionRange());
         assertTrue(manifest.storage().mongo());
-        assertTrue(manifest.storage().redis());
         assertEquals(1000, manifest.storage().limits().mongoDocuments());
-        assertEquals(200, manifest.storage().limits().redisKeys());
         assertEquals(2, manifest.extensions().size());
         assertEquals("matchmaking-paper", manifest.extensions().get(0).id());
         assertEquals(

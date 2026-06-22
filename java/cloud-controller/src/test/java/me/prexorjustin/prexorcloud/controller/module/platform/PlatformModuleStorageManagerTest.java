@@ -32,33 +32,17 @@ class PlatformModuleStorageManagerTest {
     }
 
     @Test
-    @DisplayName("describes a stable Mongo prefix; Redis storage is no longer assignable")
+    @DisplayName("describes a stable Mongo prefix")
     void describesStablePrefixes() {
         MongoDatabase mongoDatabase = mock(MongoDatabase.class);
         when(mongoDatabase.getName()).thenReturn("prexorcloud");
         PlatformModuleStorageManager storageManager = managerFor(mongoDatabase);
 
         PlatformModuleStorageManager.StorageAllocation allocation =
-                storageManager.describe("Match-Making", new ModuleStorageRequest(true, true));
+                storageManager.describe("Match-Making", new ModuleStorageRequest(true));
 
         assertEquals("platform_match_making_", allocation.mongoCollectionPrefix());
         assertTrue(allocation.mongoAssigned());
-        assertFalse(allocation.redisAssigned());
-        assertNull(allocation.redisKeyPrefix());
-    }
-
-    @Test
-    @DisplayName("rejects a module that still requests Redis storage")
-    void rejectsRequestedRedisStorage() {
-        MongoDatabase mongoDatabase = mock(MongoDatabase.class);
-        when(mongoDatabase.getName()).thenReturn("prexorcloud");
-        PlatformModuleStorageManager storageManager = managerFor(mongoDatabase);
-
-        IllegalStateException thrown = assertThrows(
-                IllegalStateException.class,
-                () -> storageManager.resolve(manifest("chat", new ModuleStorageRequest(false, true))));
-
-        assertTrue(thrown.getMessage().contains("Redis"));
     }
 
     @Test
@@ -78,7 +62,7 @@ class PlatformModuleStorageManagerTest {
 
         PlatformModuleStorageManager storageManager = managerFor(mongoDatabase);
         var storage = storageManager.resolve(
-                manifest("chat", new ModuleStorageRequest(true, false, new ModuleStorageRequest.StorageLimits(3, 0))));
+                manifest("chat", new ModuleStorageRequest(true, new ModuleStorageRequest.StorageLimits(3))));
 
         StorageQuotaExceededException thrown = assertThrows(
                 StorageQuotaExceededException.class,
@@ -101,7 +85,7 @@ class PlatformModuleStorageManagerTest {
 
         PlatformModuleStorageManager storageManager = managerFor(mongoDatabase);
         var storage = storageManager.resolve(
-                manifest("chat", new ModuleStorageRequest(true, false, new ModuleStorageRequest.StorageLimits(3, 0))));
+                manifest("chat", new ModuleStorageRequest(true, new ModuleStorageRequest.StorageLimits(3))));
 
         StorageQuotaExceededException thrown = assertThrows(
                 StorageQuotaExceededException.class,
@@ -123,7 +107,6 @@ class PlatformModuleStorageManagerTest {
         PlatformModuleStorageManager.StorageDropResult dropped = storageManager.drop("chat");
 
         assertEquals(2, dropped.mongoCollectionsDropped());
-        assertEquals(0, dropped.redisKeysDropped());
         verify(mongoDatabase).getCollection("platform_chat_users");
         verify(mongoDatabase).getCollection("platform_chat_stats");
     }

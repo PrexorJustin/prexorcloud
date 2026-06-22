@@ -56,8 +56,6 @@ public final class ModuleDtoMapper {
                 "moduleId",
                 dropped.moduleId(),
                 "mongoCollectionsDropped",
-                dropped.mongoCollectionsDropped(),
-                "redisKeysDropped",
-                dropped.redisKeysDropped());
+                dropped.mongoCollectionsDropped());
     }
 }

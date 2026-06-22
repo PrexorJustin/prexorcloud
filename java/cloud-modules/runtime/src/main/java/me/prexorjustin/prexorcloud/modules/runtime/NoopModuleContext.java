@@ -23,7 +23,6 @@ import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleHost;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleStorage;
-import me.prexorjustin.prexorcloud.api.module.platform.PlatformRedisStorage;
 import me.prexorjustin.prexorcloud.api.module.scheduling.TaskScheduler;
 import me.prexorjustin.prexorcloud.common.io.HttpClients;
 import me.prexorjustin.prexorcloud.common.io.ObjectMappers;
@@ -115,16 +114,6 @@ final class NoopModuleContext implements ModuleContext {
     @Override
     public ModuleDataStore requireMongoStorage() {
         return storage.requireMongo();
-    }
-
-    @Override
-    public Optional<PlatformRedisStorage> findRedisStorage() {
-        return storage.redis();
-    }
-
-    @Override
-    public PlatformRedisStorage requireRedisStorage() {
-        return storage.requireRedis();
     }
 
     @Override

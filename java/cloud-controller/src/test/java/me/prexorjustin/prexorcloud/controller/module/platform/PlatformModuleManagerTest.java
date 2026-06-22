@@ -272,7 +272,6 @@ class PlatformModuleManagerTest {
         manager.uninstall("queue");
         PlatformModuleStorageManager.StorageDropResult dropped = manager.dropStorage("queue");
         assertEquals(0, dropped.mongoCollectionsDropped());
-        assertEquals(0, dropped.redisKeysDropped());
     }
 
     @Test

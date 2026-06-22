@@ -13,9 +13,7 @@ public record PlatformModuleStorage(
         ModuleStorageRequest request,
         String mongoDatabaseName,
         String mongoCollectionPrefix,
-        String redisKeyPrefix,
-        ModuleDataStore mongoDataStore,
-        PlatformRedisStorage redisStorage) {
+        ModuleDataStore mongoDataStore) {
 
     public PlatformModuleStorage {
         if (moduleId == null || moduleId.isBlank()) {
@@ -25,11 +23,11 @@ public record PlatformModuleStorage(
     }
 
     public static PlatformModuleStorage none(String moduleId, ModuleStorageRequest request) {
-        return new PlatformModuleStorage(moduleId, request, null, null, null, null, null);
+        return new PlatformModuleStorage(moduleId, request, null, null, null);
     }
 
     public boolean hasStorage() {
-        return mongoDataStore != null || redisStorage != null;
+        return mongoDataStore != null;
     }
 
     public Optional<ModuleDataStore> mongo() {
@@ -41,20 +39,7 @@ public record PlatformModuleStorage(
                 new IllegalStateException("mongo storage is not available for module '" + moduleId + "'"));
     }
 
-    public Optional<PlatformRedisStorage> redis() {
-        return Optional.ofNullable(redisStorage);
-    }
-
-    public PlatformRedisStorage requireRedis() {
-        return redis().orElseThrow(() ->
-                new IllegalStateException("redis storage is not available for module '" + moduleId + "'"));
-    }
-
     public String requireMongoCollectionPrefix() {
         return Objects.requireNonNull(mongoCollectionPrefix, "mongoCollectionPrefix");
-    }
-
-    public String requireRedisKeyPrefix() {
-        return Objects.requireNonNull(redisKeyPrefix, "redisKeyPrefix");
     }
 }

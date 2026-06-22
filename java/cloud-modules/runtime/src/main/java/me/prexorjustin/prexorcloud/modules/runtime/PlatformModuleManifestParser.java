@@ -59,8 +59,8 @@ public final class PlatformModuleManifestParser {
     private static final Set<String> CAPABILITY_PROVIDES_FIELDS_V2 =
             Set.of("id", "version", "deprecatedSince", "removedIn");
     private static final Set<String> CAPABILITY_REQUIRES_FIELDS = Set.of("id", "versionRange");
-    private static final Set<String> STORAGE_FIELDS = Set.of("mongo", "redis", "limits");
-    private static final Set<String> STORAGE_LIMIT_FIELDS = Set.of("mongoDocuments", "redisKeys");
+    private static final Set<String> STORAGE_FIELDS = Set.of("mongo", "limits");
+    private static final Set<String> STORAGE_LIMIT_FIELDS = Set.of("mongoDocuments");
     private static final Pattern SEMVER_PATTERN = Pattern.compile("^\\d+\\.\\d+\\.\\d+(?:[-+].*)?$");
     private static final Set<String> VARIANT_FIELDS =
             Set.of("id", "mcVersionRange", "runtimeApiVersion", "artifact", "sha256", "installPath");
@@ -494,17 +494,12 @@ public final class PlatformModuleManifestParser {
         }
         rejectUnknownFields(node, STORAGE_FIELDS, "storage", source);
         boolean mongo = optionalBoolean(node, "mongo", source);
-        boolean redis = optionalBoolean(node, "redis", source);
         ModuleStorageRequest.StorageLimits limits = parseStorageLimits(node.get("limits"), source);
         if (!mongo && limits.hasMongoDocumentLimit()) {
             throw new PlatformModuleManifestException(
                     source, "'storage.limits.mongoDocuments' requires 'storage.mongo: true'");
         }
-        if (!redis && limits.hasRedisKeyLimit()) {
-            throw new PlatformModuleManifestException(
-                    source, "'storage.limits.redisKeys' requires 'storage.redis: true'");
-        }
-        return new ModuleStorageRequest(mongo, redis, limits);
+        return new ModuleStorageRequest(mongo, limits);
     }
 
     private static ModuleStorageRequest.StorageLimits parseStorageLimits(JsonNode node, String source) {
@@ -516,8 +511,7 @@ public final class PlatformModuleManifestParser {
         }
         rejectUnknownFields(node, STORAGE_LIMIT_FIELDS, "storage.limits", source);
         return new ModuleStorageRequest.StorageLimits(
-                optionalPositiveLong(node, "mongoDocuments", "storage.limits", source),
-                optionalPositiveLong(node, "redisKeys", "storage.limits", source));
+                optionalPositiveLong(node, "mongoDocuments", "storage.limits", source));
     }
 
     private static boolean optionalBoolean(JsonNode node, String field, String source) {

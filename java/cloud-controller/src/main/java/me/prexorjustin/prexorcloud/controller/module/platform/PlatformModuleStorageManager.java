@@ -21,8 +21,7 @@ import com.mongodb.client.MongoDatabase;
  * modules.
  *
  * <p>Module storage is Mongo-only: the Redis/Valkey backend was retired with the
- * single-store control-plane rewrite. A module that still requests Redis storage
- * fails fast at {@link #resolve} — there is no Redis to provision against.
+ * single-store control-plane rewrite.
  */
 public final class PlatformModuleStorageManager {
 
@@ -32,22 +31,14 @@ public final class PlatformModuleStorageManager {
             boolean mongoAvailable,
             String mongoDatabaseName,
             String mongoCollectionPrefix,
-            long mongoDocumentLimit,
-            boolean redisRequested,
-            boolean redisAvailable,
-            String redisKeyPrefix,
-            long redisKeyLimit) {
+            long mongoDocumentLimit) {
 
         public boolean mongoAssigned() {
             return mongoRequested && mongoAvailable;
         }
-
-        public boolean redisAssigned() {
-            return redisRequested && redisAvailable;
-        }
     }
 
-    public record StorageDropResult(String moduleId, int mongoCollectionsDropped, int redisKeysDropped) {}
+    public record StorageDropResult(String moduleId, int mongoCollectionsDropped) {}
 
     private final MongoDatabase mongoDatabase;
     private final MongoClient mongoClient;
@@ -71,11 +62,6 @@ public final class PlatformModuleStorageManager {
             throw new IllegalStateException(
                     "module '" + manifest.id() + "' requested Mongo storage but Mongo is not configured");
         }
-        if (allocation.redisRequested() && !allocation.redisAvailable()) {
-            throw new IllegalStateException("module '"
-                    + manifest.id()
-                    + "' requested Redis storage, which is no longer supported — migrate the module to Mongo storage");
-        }
 
         ModuleDataStore mongoDataStore = allocation.mongoAssigned()
                 ? quotaEnforcedMongoDataStore(
@@ -89,9 +75,7 @@ public final class PlatformModuleStorageManager {
                 manifest.storage(),
                 allocation.mongoDatabaseName(),
                 allocation.mongoCollectionPrefix(),
-                null,
-                mongoDataStore,
-                null);
+                mongoDataStore);
     }
 
     public StorageAllocation describe(String moduleId, ModuleStorageRequest request) {
@@ -104,11 +88,7 @@ public final class PlatformModuleStorageManager {
                 mongoDatabase != null && mongoClient != null,
                 mongoDatabase != null ? mongoDatabase.getName() : null,
                 effectiveRequest.mongo() ? "platform_" + sanitized + "_" : null,
-                effectiveRequest.limits().mongoDocuments(),
-                effectiveRequest.redis(),
-                false,
-                null,
-                effectiveRequest.limits().redisKeys());
+                effectiveRequest.limits().mongoDocuments());
     }
 
     public StorageDropResult drop(String moduleId) {
@@ -126,7 +106,7 @@ public final class PlatformModuleStorageManager {
             }
         }
 
-        return new StorageDropResult(moduleId, droppedCollections, 0);
+        return new StorageDropResult(moduleId, droppedCollections);
     }
 
     private static String sanitizeModuleId(String moduleId) {

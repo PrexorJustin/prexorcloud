@@ -66,7 +66,7 @@ class ExamplePlatformModuleTest {
     }
 
     private ModuleContext context() {
-        ModuleStorageRequest storageRequest = new ModuleStorageRequest(true, false);
+        ModuleStorageRequest storageRequest = new ModuleStorageRequest(true);
         PlatformModuleManifest manifest = new PlatformModuleManifest(
                 PlatformModuleManifest.CURRENT_MANIFEST_VERSION,
                 "example-playtime",
@@ -79,7 +79,7 @@ class ExamplePlatformModuleTest {
                 storageRequest,
                 List.of());
         PlatformModuleStorage storage = new PlatformModuleStorage(
-                "example-playtime", storageRequest, "prexorcloud", "mod_example_playtime_", null, store, null);
+                "example-playtime", storageRequest, "prexorcloud", "mod_example_playtime_", store);
         return ModuleContexts.forTest(manifest, Path.of("example-playtime.jar"), null, java.util.Map.of(), storage);
     }
 }

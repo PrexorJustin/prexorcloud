@@ -749,14 +749,10 @@ public final class ModuleRoutes {
                                         .toList()));
         Map<String, Object> storage = new LinkedHashMap<>();
         storage.put("mongo", manifest.storage().mongo());
-        storage.put("redis", manifest.storage().redis());
         storage.put("mongoDocumentLimit", module.storage().mongoDocumentLimit());
-        storage.put("redisKeyLimit", module.storage().redisKeyLimit());
         storage.put("mongoAvailable", module.storage().mongoAvailable());
-        storage.put("redisAvailable", module.storage().redisAvailable());
         storage.put("mongoDatabase", module.storage().mongoDatabaseName());
         storage.put("mongoCollectionPrefix", module.storage().mongoCollectionPrefix());
-        storage.put("redisKeyPrefix", module.storage().redisKeyPrefix());
         out.put("storage", storage);
         out.put(
                 "extensions",

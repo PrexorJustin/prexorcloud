@@ -54,7 +54,7 @@ class ModuleDtoMapperTest {
         List<?> plugins = assertInstanceOf(List.class, dto.get("plugins"));
         assertEquals(List.of(), plugins);
         assertEquals(
-                Map.of("moduleId", "queue", "mongoCollectionsDropped", 2, "redisKeysDropped", 5),
-                ModuleDtoMapper.storageDropResponse(new PlatformModuleStorageManager.StorageDropResult("queue", 2, 5)));
+                Map.of("moduleId", "queue", "mongoCollectionsDropped", 2),
+                ModuleDtoMapper.storageDropResponse(new PlatformModuleStorageManager.StorageDropResult("queue", 2)));
     }
 }

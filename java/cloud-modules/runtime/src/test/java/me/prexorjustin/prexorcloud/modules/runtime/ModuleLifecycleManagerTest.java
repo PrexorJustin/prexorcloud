@@ -13,7 +13,6 @@ import me.prexorjustin.prexorcloud.api.module.platform.ModuleHealth;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModule;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleStorage;
-import me.prexorjustin.prexorcloud.api.module.platform.PlatformRedisStorage;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -195,16 +194,12 @@ class ModuleLifecycleManagerTest {
     void injectsResolvedStorageHandles() {
         var mongoStore = Mockito.mock(me.prexorjustin.prexorcloud.api.module.data.ModuleDataStore.class);
         Mockito.when(mongoStore.collectionPrefix()).thenReturn("platform_chat_");
-        String redisPrefix = "prexor:1:platform:chat:";
-        PlatformRedisStorage redisStorage = new InMemoryRedisStorage(redisPrefix);
         PlatformModuleStorage storage = new PlatformModuleStorage(
                 "chat",
-                new me.prexorjustin.prexorcloud.api.module.platform.ModuleStorageRequest(true, true),
+                new me.prexorjustin.prexorcloud.api.module.platform.ModuleStorageRequest(true),
                 "prexorcloud",
                 "platform_chat_",
-                redisPrefix,
-                mongoStore,
-                redisStorage);
+                mongoStore);
         ModuleLifecycleManager manager = new ModuleLifecycleManager(manifest -> true, manifest -> storage);
         RecordingModule module = new RecordingModule();
 
@@ -212,7 +207,6 @@ class ModuleLifecycleManagerTest {
 
         assertEquals(
                 "platform_chat_", module.startContext().requireMongoStorage().collectionPrefix());
-        assertEquals(redisPrefix, module.startContext().requireRedisStorage().keyPrefix());
     }
 
     @Test
@@ -372,54 +366,4 @@ class ModuleLifecycleManagerTest {
         }
     }
 
-    private static final class InMemoryRedisStorage implements PlatformRedisStorage {
-
-        private final String keyPrefix;
-        private final java.util.Map<String, String> values = new java.util.HashMap<>();
-
-        private InMemoryRedisStorage(String keyPrefix) {
-            this.keyPrefix = keyPrefix;
-        }
-
-        @Override
-        public String keyPrefix() {
-            return keyPrefix;
-        }
-
-        @Override
-        public java.util.Optional<String> get(String key) {
-            return java.util.Optional.ofNullable(values.get(qualify(key)));
-        }
-
-        @Override
-        public void set(String key, String value) {
-            values.put(qualify(key), value);
-        }
-
-        @Override
-        public void set(String key, String value, java.time.Duration ttl) {
-            values.put(qualify(key), value);
-        }
-
-        @Override
-        public long increment(String key) {
-            String qualified = qualify(key);
-            long next = Long.parseLong(values.getOrDefault(qualified, "0")) + 1;
-            values.put(qualified, Long.toString(next));
-            return next;
-        }
-
-        @Override
-        public long decrement(String key) {
-            String qualified = qualify(key);
-            long next = Long.parseLong(values.getOrDefault(qualified, "0")) - 1;
-            values.put(qualified, Long.toString(next));
-            return next;
-        }
-
-        @Override
-        public boolean delete(String key) {
-            return values.remove(qualify(key)) != null;
-        }
-    }
 }

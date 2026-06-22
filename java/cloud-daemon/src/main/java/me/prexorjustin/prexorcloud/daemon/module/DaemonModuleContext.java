@@ -12,7 +12,6 @@ import me.prexorjustin.prexorcloud.api.module.platform.CapabilityHandleResolver;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleContext;
 import me.prexorjustin.prexorcloud.api.module.platform.ModuleHost;
 import me.prexorjustin.prexorcloud.api.module.platform.PlatformModuleManifest;
-import me.prexorjustin.prexorcloud.api.module.platform.PlatformRedisStorage;
 import me.prexorjustin.prexorcloud.api.module.scheduling.TaskScheduler;
 import me.prexorjustin.prexorcloud.common.io.HttpClients;
 import me.prexorjustin.prexorcloud.common.io.ObjectMappers;
@@ -104,16 +103,6 @@ public final class DaemonModuleContext implements ModuleContext {
     @Override
     public ModuleDataStore requireMongoStorage() {
         throw new IllegalStateException("daemon modules have no Mongo storage");
-    }
-
-    @Override
-    public Optional<PlatformRedisStorage> findRedisStorage() {
-        return Optional.empty();
-    }
-
-    @Override
-    public PlatformRedisStorage requireRedisStorage() {
-        throw new IllegalStateException("daemon modules have no Redis storage");
     }
 
     @Override

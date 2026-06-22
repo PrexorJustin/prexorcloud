@@ -67,10 +67,6 @@ public interface ModuleContext {
 
     ModuleDataStore requireMongoStorage();
 
-    Optional<PlatformRedisStorage> findRedisStorage();
-
-    PlatformRedisStorage requireRedisStorage();
-
     // ── Symmetric cross-cutting primitives (mirror CloudPluginContext) ──────
 
     /**
