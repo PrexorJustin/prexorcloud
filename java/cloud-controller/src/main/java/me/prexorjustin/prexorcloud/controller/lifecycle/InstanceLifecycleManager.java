@@ -37,6 +37,12 @@ public final class InstanceLifecycleManager {
     private static final long STOPPED_CLEANUP_DELAY_SECONDS = 60;
     private static final long CRASHED_CLEANUP_DELAY_SECONDS = 300;
     private static final long HEALING_RECONCILE_INTERVAL_SECONDS = 5;
+    // Grace before a disconnected node's instances are marked CRASHED. The daemon is the ground truth
+    // that its server processes are alive; a stream drop is not proof they died (transient blip, GC
+    // pause, leader redirect, brief network loss). On reconnect the handshake re-announces
+    // running_instances and re-adopts them, so we wait this long for that to happen before declaring a
+    // crash — avoiding a needless CRASHED -> heal/reschedule churn for instances that never stopped.
+    private static final long NODE_DISCONNECT_GRACE_SECONDS = 20;
 
     private final ClusterState clusterState;
     private final GroupManager groupManager;
@@ -123,14 +129,50 @@ public final class InstanceLifecycleManager {
         if (!leadership.isLeader()) {
             return;
         }
-        var orphaned = clusterState.getInstancesByNode(event.nodeId());
-        for (InstanceInfo instance : orphaned) {
+        // Don't crash the node's instances on the stream drop itself — defer, and only crash them if
+        // the node hasn't reconnected by the time the grace expires. A brief blip thus leaves the
+        // (still-running) instances untouched instead of flapping RUNNING -> CRASHED -> re-adopt.
+        String nodeId = event.nodeId();
+        logger.info(
+                "Node {} disconnected ({}); deferring CRASHED marking for {}s to allow reconnect",
+                nodeId,
+                event.reason(),
+                NODE_DISCONNECT_GRACE_SECONDS);
+        cleanupExecutor.schedule(
+                () -> markNodeInstancesCrashedIfStillGone(nodeId), NODE_DISCONNECT_GRACE_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Grace-expiry check: if the node reconnected (it's back in {@link ClusterState}, having re-adopted
+     * its running instances on handshake) we leave everything alone; otherwise the node is genuinely
+     * gone and its still-live instance records are marked CRASHED (which triggers healing). Re-checks
+     * leadership too — a failover during the grace hands ownership to the new leader. Package-private
+     * for the lifecycle test.
+     */
+    void markNodeInstancesCrashedIfStillGone(String nodeId) {
+        if (!leadership.isLeader()) {
+            return;
+        }
+        if (clusterState.getNode(nodeId).isPresent()) {
+            logger.info("Node {} reconnected within grace — leaving its instances running", nodeId);
+            return;
+        }
+        int crashed = 0;
+        for (InstanceInfo instance : clusterState.getInstancesByNode(nodeId)) {
             if (instance.state() != me.prexorjustin.prexorcloud.protocol.InstanceState.STOPPED
                     && instance.state() != me.prexorjustin.prexorcloud.protocol.InstanceState.CRASHED) {
-                logger.warn("Node {} disconnected -- marking instance {} as CRASHED", event.nodeId(), instance.id());
+                logger.warn(
+                        "Node {} still gone after {}s grace -- marking instance {} as CRASHED",
+                        nodeId,
+                        NODE_DISCONNECT_GRACE_SECONDS,
+                        instance.id());
                 clusterState.updateInstanceState(
                         instance.id(), me.prexorjustin.prexorcloud.protocol.InstanceState.CRASHED);
+                crashed++;
             }
+        }
+        if (crashed > 0) {
+            logger.info("Marked {} instance(s) CRASHED on node {} after disconnect grace", crashed, nodeId);
         }
     }
 

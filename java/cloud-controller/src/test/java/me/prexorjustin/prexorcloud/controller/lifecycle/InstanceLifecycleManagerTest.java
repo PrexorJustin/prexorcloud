@@ -1,5 +1,6 @@
 package me.prexorjustin.prexorcloud.controller.lifecycle;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import me.prexorjustin.prexorcloud.api.event.events.NodeDisconnectedEvent;
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.console.ConsoleBuffer;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
@@ -95,6 +97,41 @@ class InstanceLifecycleManagerTest {
         Thread.sleep(200);
 
         assertTrue(consoleBuffer.getLines("lobby-1").isEmpty());
+    }
+
+    @Test
+    void nodeDisconnectDoesNotCrashInstancesImmediately() throws InterruptedException {
+        // The stream drop must NOT crash the (still-running) instance synchronously — it defers.
+        eventBus.publish(new NodeDisconnectedEvent("node-1", "stream error", Instant.now()));
+        Thread.sleep(200);
+
+        assertEquals(
+                InstanceState.RUNNING,
+                clusterState.getInstance("lobby-1").orElseThrow().state(),
+                "instance must stay RUNNING during the disconnect grace, not flap to CRASHED");
+    }
+
+    @Test
+    void graceExpiryLeavesInstancesRunningWhenNodeReconnected() {
+        // node-1 is still present in ClusterState (i.e. it reconnected and re-adopted on handshake).
+        lifecycleManager.markNodeInstancesCrashedIfStillGone("node-1");
+
+        assertEquals(
+                InstanceState.RUNNING,
+                clusterState.getInstance("lobby-1").orElseThrow().state(),
+                "a reconnected node's instances must be left running");
+    }
+
+    @Test
+    void graceExpiryMarksCrashedWhenNodeStillGone() {
+        clusterState.removeNode("node-1", "disconnected");
+
+        lifecycleManager.markNodeInstancesCrashedIfStillGone("node-1");
+
+        assertEquals(
+                InstanceState.CRASHED,
+                clusterState.getInstance("lobby-1").orElseThrow().state(),
+                "a node still gone after the grace has its instances marked CRASHED");
     }
 
     @Test

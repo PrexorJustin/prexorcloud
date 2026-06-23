@@ -680,13 +680,21 @@ Drove a live DYNAMIC scale-down test on the Redis-free fleet (ctrl-1 leader, sin
   Scale-up to 3 was also clean (no cancels). ⚠️ **Deployed jar is UNCOMMITTED on the fleet** until the next rebuilt
   daemon jar is rolled (only node-frankenstein-1 carries it; node-fra-2 is on the old jar).
 
-### Secondary (OPEN, not fixed): a brief control-stream blip marks **all** of a node's instances CRASHED
-- `InstanceLifecycleManager` marks every instance on a node CRASHED the instant its gRPC session drops, with no grace
-  window. A ~2–3 s reconnect (transient stream error, leader redirect, brief network blip) therefore crashes healthy,
-  still-running instances; they recover via re-adopt/re-place, but it's needless churn and was the amplifier that
-  turned the `trySend` cancel into a sustained flap. Preventing the spurious cancel (above) removes the trigger, but
-  the over-aggressive "mark-all-CRASHED on any disconnect" remains a sharp edge — consider a short grace window (the
-  daemon is ground truth; on reconnect it re-announces `running_instances`, so a brief blip need not crash anything).
+### Secondary — a brief control-stream blip marked **all** of a node's instances CRASHED — **FIXED + validated live**
+- `InstanceLifecycleManager` marked every instance on a node CRASHED the instant its gRPC session dropped, with no
+  grace. A ~2–3 s reconnect (transient stream error, leader redirect, brief network blip) therefore crashed healthy,
+  still-running instances; they recovered via re-adopt/re-place, but it was needless churn and the amplifier that
+  turned the `trySend` cancel into a sustained flap.
+- **Fix:** `onNodeDisconnected` no longer crashes synchronously — it defers `NODE_DISCONNECT_GRACE_SECONDS` (20 s) via
+  the existing `cleanupExecutor`, then `markNodeInstancesCrashedIfStillGone` re-checks: if the node is back in
+  `ClusterState` (it re-registers + re-adopts its `running_instances` on handshake) the instances are left running;
+  only if the node is *still* gone are they marked CRASHED (→ healing). Re-checks leadership at fire time (a failover
+  during the grace hands ownership to the new leader). Tests: `InstanceLifecycleManagerTest` (defer / reconnect-skip /
+  still-gone-crash). The daemon is ground truth that the process is alive, so a blip no longer fakes a crash.
+- **Validated live (2026-06-23):** `ss -K` reset the daemon→leader gRPC socket → controller logged
+  `deferring CRASHED marking for 20s`, the daemon reconnected in ~5 s, and at +20 s `reconnected within grace —
+  leaving its instances running` fired — **zero** `marking … CRASHED`, the instance stayed RUNNING, game PID
+  unchanged. (A node that stays down past the grace is still correctly crashed + healed.)
 
 ### 2026-06-23 (later) — deep gRPC hardening: single guarded writer + flow control + keepalive — **DONE + validated live**
 A full audit of the gRPC layer (not just the known-weak daemon send) found the same defect class still live on the
