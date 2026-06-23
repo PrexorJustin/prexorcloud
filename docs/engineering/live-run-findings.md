@@ -687,3 +687,33 @@ Drove a live DYNAMIC scale-down test on the Redis-free fleet (ctrl-1 leader, sin
   turned the `trySend` cancel into a sustained flap. Preventing the spurious cancel (above) removes the trigger, but
   the over-aggressive "mark-all-CRASHED on any disconnect" remains a sharp edge — consider a short grace window (the
   daemon is ground truth; on reconnect it re-announces `running_instances`, so a brief blip need not crash anything).
+
+### 2026-06-23 (later) — deep gRPC hardening: single guarded writer + flow control + keepalive — **DONE + validated live**
+A full audit of the gRPC layer (not just the known-weak daemon send) found the same defect class still live on the
+controller, plus two transport-config gaps. All fixed via one shared component and validated live.
+- **Controller had the same concurrent-`onNext` race.** `NodeSession.send` synchronized the daemon stream, but
+  `DaemonConnectionLifecycle` (handshake ack / pre-warm) and `DaemonTemplateRequestHandler` (template chunks, on their
+  **own virtual thread**) wrote the same `responseObserver` directly, bypassing that lock. A template response racing a
+  `StartInstance` command (both happen during provisioning) corrupts the frame → the identical CANCELLED/flap. The
+  "single outbound chokepoint" premise of fix #10 was simply false.
+- **Fix — `GuardedStreamWriter<T>` (cloud-protocol).** One wrapper owns the raw observer privately, so a concurrent
+  `onNext` is impossible to reintroduce at any call site. It also adds **gRPC flow control**: writes only while the
+  transport `isReady()`, otherwise a **bounded queue** (`STREAM_WRITER_QUEUE_CAPACITY`, drains on the on-ready
+  callback) — best-effort console is shed under backpressure, commands/status never. Broadened the catch to cover
+  `IllegalStateException` (half-closed call), not just `StatusRuntimeException`. Wired on both sides: controller wraps
+  the observer once in `DaemonServiceImpl.connect` (handshake/pre-warm/template/NodeSession all route through it);
+  daemon restructured to `ClientResponseObserver.beforeStart` to obtain a flow-controlled `ClientCallStreamObserver`,
+  console via `offer` (droppable), everything else via `send`. Unit tests: `GuardedStreamWriterTest` (6 — concurrency,
+  flow-control gating, drop policy, terminal/failure, plain-observer degrade) + `DaemonGrpcClientSendSerializationTest`.
+- **Keepalive gaps.** Server set `keepAliveTime`/`permitKeepAliveWithoutCalls` but **not `permitKeepAliveTime`** —
+  default minimum is 5 min, so the daemon's 30s pings were only spared a `GOAWAY too_many_pings` because data frames
+  kept resetting the counter (a quiet, instance-less node would eventually be culled). Added
+  `permitKeepAliveTime(15s)`. Daemon channel added `keepAliveWithoutCalls(true)` so a frozen/black-holed leader is
+  detected on the keepalive (~40s) rather than the OS TCP timeout. (`MAX_MESSAGE_SIZE`=100 MB and the bootstrap unary
+  deadline were already fine.)
+- **Validated live (2026-06-23):** rolled the new controller jar to all 3 (followers→leader; clean failover
+  ctrl-1→ctrl-2 epoch16→17) and the new daemon jar to node-frankenstein-1 (handshake via the writer, heartbeats
+  flowing). Ran a provisioning storm (scale 1→3 = concurrent template-fetch + command writes) then scale-down
+  (3→1, console burst): both clean, instances reached RUNNING / drained gracefully, and the controller log had
+  **zero** `client cancelled` / `Failed to stream` / `disconnected -- marking CRASHED` across the whole window.
+  ⚠️ node-fra-2 still on the old daemon jar (one managed node validated); roll it when reactivated.

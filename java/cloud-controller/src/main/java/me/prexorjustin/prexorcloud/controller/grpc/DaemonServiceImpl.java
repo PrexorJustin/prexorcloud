@@ -22,6 +22,7 @@ import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.controller.template.TemplateManager;
 import me.prexorjustin.prexorcloud.controller.template.TemplateMerger;
 import me.prexorjustin.prexorcloud.protocol.*;
+import me.prexorjustin.prexorcloud.protocol.stream.GuardedStreamWriter;
 
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
@@ -183,6 +184,13 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
 
     @Override
     public StreamObserver<DaemonMessage> connect(StreamObserver<ControllerMessage> responseObserver) {
+        // Every controller->daemon write goes through one guarded, flow-controlled writer. gRPC's
+        // StreamObserver.onNext is not thread-safe, and this stream is written from the inbound-handler
+        // thread (handshake ack, pre-warm), the template-fetch virtual thread, AND scheduler/placement
+        // threads via NodeSession.send. Wrapping the observer once here makes a concurrent onNext
+        // impossible to reintroduce at any call site, and bounds heap when the daemon reads slowly.
+        var outbound = new GuardedStreamWriter<>(
+                responseObserver, ProtocolConstants.STREAM_WRITER_QUEUE_CAPACITY, "controller->daemon");
         return new StreamObserver<>() {
 
             private String sessionId;
@@ -198,7 +206,7 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
                     }
                     if (message.getPayloadCase() == DaemonMessage.PayloadCase.HANDSHAKE) {
                         connectionLifecycle
-                                .handleHandshake(message.getHandshake(), responseObserver, handshakeComplete)
+                                .handleHandshake(message.getHandshake(), outbound, handshakeComplete)
                                 .ifPresent(result -> {
                                     sessionId = result.sessionId();
                                     nodeId = result.nodeId();
@@ -219,7 +227,7 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
                         case PONG -> handlePong(message.getPong());
                         case TEMPLATE_REQUEST ->
                             templateRequestHandler.handleTemplateRequest(
-                                    nodeId, message.getTemplateRequest(), responseObserver);
+                                    nodeId, message.getTemplateRequest(), outbound);
                         case CACHE_STATUS -> cacheStatusReceiver.handleCacheStatus(nodeId, message.getCacheStatus());
                         case ERROR_REPORT -> crashEventReceiver.handleErrorReport(nodeId, message.getErrorReport());
                         case SHUTDOWN_NODE_ACK ->
@@ -252,7 +260,7 @@ public final class DaemonServiceImpl extends DaemonServiceGrpc.DaemonServiceImpl
             public void onCompleted() {
                 logger.info("Stream completed from node {}", nodeId);
                 connectionLifecycle.cleanup(sessionId, nodeId, "stream completed");
-                responseObserver.onCompleted();
+                outbound.onCompleted();
             }
 
             private boolean verifyNodeOwnership(String instanceId, String handlerName) {

@@ -17,11 +17,13 @@ import me.prexorjustin.prexorcloud.daemon.config.ControllerEndpoint;
 import me.prexorjustin.prexorcloud.daemon.resource.HostInfoCollector;
 import me.prexorjustin.prexorcloud.daemon.resource.ResourceMonitor;
 import me.prexorjustin.prexorcloud.protocol.*;
+import me.prexorjustin.prexorcloud.protocol.stream.GuardedStreamWriter;
 
 import io.grpc.ManagedChannel;
-import io.grpc.StatusRuntimeException;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
+import io.grpc.stub.ClientCallStreamObserver;
+import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,7 +80,10 @@ public final class DaemonGrpcClient {
     // ignored so our own teardown does not schedule a phantom reconnect (which otherwise kills the
     // freshly-connected channel in a ~1/s loop after a leader redirect).
     private volatile long connectGeneration;
-    private volatile StreamObserver<DaemonMessage> requestStream;
+    // Single guarded writer for the outbound (request) stream — serializes onNext across the console,
+    // heartbeat, status and crash-report threads, with flow control + a bounded queue (console is shed
+    // under backpressure, commands/status are not). Replaced per connect; null while disconnected.
+    private volatile GuardedStreamWriter<DaemonMessage> writer;
     private ScheduledExecutorService statusScheduler;
     private volatile String controllerApiUrl = "";
     private volatile int controllerApiPort = 0;
@@ -218,6 +223,10 @@ public final class DaemonGrpcClient {
                     .maxInboundMessageSize(ProtocolConstants.MAX_MESSAGE_SIZE)
                     .keepAliveTime(30, TimeUnit.SECONDS)
                     .keepAliveTimeout(10, TimeUnit.SECONDS)
+                    // Keep pinging even with no active RPC so a frozen/black-holed leader is detected
+                    // (~keepAliveTime+timeout) instead of waiting on the OS TCP timeout. The server
+                    // permits this cadence (permitKeepAliveTime/WithoutCalls), so no GOAWAY.
+                    .keepAliveWithoutCalls(true)
                     .idleTimeout(300, TimeUnit.SECONDS);
             if (sslContext != null) {
                 builder.sslContext(sslContext);
@@ -228,7 +237,24 @@ public final class DaemonGrpcClient {
 
             var stub = DaemonServiceGrpc.newStub(channel);
 
-            requestStream = stub.connect(new StreamObserver<>() {
+            // ClientResponseObserver.beforeStart hands us the request stream BEFORE the call starts, the
+            // only point at which setOnReadyHandler may be installed — so the outbound writer gets real
+            // flow control (push only while the transport isReady(), bounded queue otherwise).
+            stub.connect(new ClientResponseObserver<DaemonMessage, ControllerMessage>() {
+
+                @Override
+                public void beforeStart(ClientCallStreamObserver<DaemonMessage> requestStream) {
+                    var w = new GuardedStreamWriter<>(
+                            requestStream, ProtocolConstants.STREAM_WRITER_QUEUE_CAPACITY, "daemon->controller");
+                    w.onSendFailure(t -> {
+                        if (gen != connectGeneration) {
+                            return; // our own teardown of a superseded channel
+                        }
+                        logger.warn("Outbound stream failed ({}), marking disconnected", t.getMessage());
+                        handleDisconnect();
+                    });
+                    writer = w;
+                }
 
                 @Override
                 public void onNext(ControllerMessage message) {
@@ -263,7 +289,7 @@ public final class DaemonGrpcClient {
             });
 
             // Send handshake with currently running instances for state reconciliation
-            requestStream.onNext(DaemonMessage.newBuilder()
+            writer.send(DaemonMessage.newBuilder()
                     .setHandshake(Handshake.newBuilder()
                             .setNodeId(nodeId)
                             .setAdvertiseAddress(advertiseAddress)
@@ -355,7 +381,7 @@ public final class DaemonGrpcClient {
         if (state != State.CONNECTED) {
             advanceOnNextConnect = true;
         }
-        requestStream = null;
+        writer = null;
         state = State.DISCONNECTED;
         stopStatusReporting();
         if (reconnectManager != null) {
@@ -381,29 +407,26 @@ public final class DaemonGrpcClient {
         trySend(message);
     }
 
-    /** Send a message, returning whether it was actually written to the stream. */
+    /**
+     * Hand a critical message (pong/status/crash/handshake) to the guarded writer. Returns whether it
+     * was accepted (true) or dropped because we're disconnected (false) — crash reports buffer on false.
+     * The writer serializes onNext across all sender threads, applies flow control, and routes a write
+     * failure to {@link #handleDisconnect} via its onSendFailure hook, so no per-call try/catch is needed.
+     */
     private boolean trySend(DaemonMessage message) {
-        var stream = requestStream;
-        if (stream == null || state != State.CONNECTED) {
+        var w = writer;
+        if (w == null || state != State.CONNECTED || w.isTerminated()) {
             return false;
         }
-        try {
-            // gRPC StreamObserver is not thread-safe for concurrent onNext. Console capture (a
-            // per-instance virtual thread), heartbeat/pong, instance-status, and crash reports all
-            // send through this single chokepoint from different threads; concurrent onNext interleaves
-            // and corrupts the outbound frame ("Failed to stream message" -> CANCELLED), tearing down
-            // the control stream. A stop's shutdown-console burst reliably triggers it, which then
-            // marks every co-located instance CRASHED on the controller. Serialize per stream — the
-            // daemon-side mirror of the controller's NodeSession.send fix. Synchronize on the stream
-            // object so a reconnect's fresh stream gets its own monitor.
-            synchronized (stream) {
-                stream.onNext(message);
-            }
-            return true;
-        } catch (StatusRuntimeException e) {
-            logger.warn("Failed to send message ({}), marking disconnected", e.getStatus());
-            handleDisconnect();
-            return false;
+        w.send(message);
+        return true;
+    }
+
+    /** Best-effort console output — dropped under sustained backpressure rather than buffered unbounded. */
+    private void offerConsole(DaemonMessage message) {
+        var w = writer;
+        if (w != null && state == State.CONNECTED && !w.isTerminated()) {
+            w.offer(message);
         }
     }
 
@@ -418,7 +441,7 @@ public final class DaemonGrpcClient {
     }
 
     public void sendConsoleOutput(String instanceId, String line) {
-        sendMessage(DaemonMessage.newBuilder()
+        offerConsole(DaemonMessage.newBuilder()
                 .setConsoleOutput(ConsoleOutput.newBuilder()
                         .setInstanceId(instanceId)
                         .setLine(line)

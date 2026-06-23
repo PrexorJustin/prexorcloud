@@ -14,41 +14,40 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import me.prexorjustin.prexorcloud.protocol.DaemonMessage;
+import me.prexorjustin.prexorcloud.protocol.stream.GuardedStreamWriter;
 
 import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.Test;
 
 /**
- * The daemon's outbound gRPC stream is a single chokepoint shared by console-capture (a per-instance
- * virtual thread), heartbeat/pong, instance-status, and crash-report threads. A gRPC
- * {@link StreamObserver} is not thread-safe for concurrent {@code onNext}: interleaved calls corrupt
- * the outbound frame ("Failed to stream message" -> CANCELLED), which tears down the control stream
- * and makes the controller mark every co-located instance CRASHED. {@code trySend} must serialize
- * {@code onNext} per stream (the daemon-side mirror of the controller's {@code NodeSession.send} fix).
+ * The daemon's outbound senders — console capture (a per-instance virtual thread), heartbeat/pong,
+ * instance-status, crash reports — must all funnel through the single {@link GuardedStreamWriter} so a
+ * concurrent {@code onNext} (which corrupts the frame → CANCELLED → the controller crashes every
+ * co-located instance) is impossible. This verifies the client routes through the writer rather than
+ * touching the raw stream; the writer's own serialization/flow-control is covered in cloud-protocol.
  */
 final class DaemonGrpcClientSendSerializationTest {
 
     @Test
-    void concurrentSendsDoNotInterleaveOnNext() throws Exception {
+    void allSenderPathsRouteThroughTheGuardedWriterWithoutInterleaving() throws Exception {
         var client = new DaemonGrpcClient("ctrl-a", 9090, "node-1", "", 1024, Map.of(), null, null, null);
 
-        var sawConcurrentEntry = new AtomicBoolean(false);
-        var inFlight = new AtomicInteger(0);
-        var delivered = new AtomicInteger(0);
+        var sawConcurrent = new AtomicBoolean(false);
+        var inFlight = new AtomicInteger();
+        var delivered = new AtomicInteger();
         StreamObserver<DaemonMessage> detector = new StreamObserver<>() {
             @Override
             public void onNext(DaemonMessage value) {
                 if (inFlight.incrementAndGet() != 1) {
-                    sawConcurrentEntry.set(true);
+                    sawConcurrent.set(true);
                 }
-                // Widen the race window so an unsynchronized onNext is reliably caught.
                 try {
                     Thread.sleep(0, 50_000);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
                 if (inFlight.get() != 1) {
-                    sawConcurrentEntry.set(true);
+                    sawConcurrent.set(true);
                 }
                 delivered.incrementAndGet();
                 inFlight.decrementAndGet();
@@ -61,8 +60,8 @@ final class DaemonGrpcClientSendSerializationTest {
             public void onCompleted() {}
         };
 
-        // Put the client into the steady-state CONNECTED path with our detector as the live stream.
-        setField(client, "requestStream", detector);
+        // Put the client into the CONNECTED steady state with a writer wrapping our detector.
+        setField(client, "writer", new GuardedStreamWriter<>(detector, 100_000, "test"));
         setField(client, "state", DaemonGrpcClient.State.CONNECTED);
 
         int threads = 8;
@@ -71,11 +70,18 @@ final class DaemonGrpcClientSendSerializationTest {
         var start = new CountDownLatch(1);
         var done = new CountDownLatch(threads);
         for (int t = 0; t < threads; t++) {
+            final int id = t;
             pool.submit(() -> {
                 try {
                     start.await();
                     for (int i = 0; i < perThread; i++) {
-                        client.sendConsoleOutput("i-1", "line " + i);
+                        // Mix the droppable console path and the critical pong/message path, like a
+                        // running node: console capture + heartbeat firing from different threads.
+                        if ((id + i) % 2 == 0) {
+                            client.sendConsoleOutput("i-1", "line " + i);
+                        } else {
+                            client.sendPong(i);
+                        }
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -88,8 +94,8 @@ final class DaemonGrpcClientSendSerializationTest {
         assertTrue(done.await(20, TimeUnit.SECONDS), "all sender threads finished");
         pool.shutdownNow();
 
-        assertFalse(sawConcurrentEntry.get(), "onNext must never run concurrently on a single stream");
-        assertEquals(threads * perThread, delivered.get(), "every message reached the stream exactly once");
+        assertFalse(sawConcurrent.get(), "onNext must never run concurrently on the outbound stream");
+        assertEquals(threads * perThread, delivered.get(), "every message routed through the writer reached the stream");
     }
 
     private static void setField(Object target, String name, Object value) throws Exception {

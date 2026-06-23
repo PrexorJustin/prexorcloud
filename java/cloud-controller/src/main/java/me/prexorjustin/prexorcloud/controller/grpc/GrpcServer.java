@@ -46,7 +46,12 @@ public final class GrpcServer {
                 .maxInboundMessageSize(ProtocolConstants.MAX_MESSAGE_SIZE)
                 .keepAliveTime(30, TimeUnit.SECONDS)
                 .keepAliveTimeout(10, TimeUnit.SECONDS)
-                .permitKeepAliveWithoutCalls(true);
+                .permitKeepAliveWithoutCalls(true)
+                // The daemon pings every 30s. Without an explicit floor the server's default minimum is
+                // 5 min, so it would send GOAWAY "too_many_pings" and kill the connection — today only
+                // averted because the daemon also sends data frames often enough to reset the counter.
+                // Permit pings as frequent as 15s so a quiet node (0 instances, ping-only) is never culled.
+                .permitKeepAliveTime(15, TimeUnit.SECONDS);
 
         if (sslContext != null) {
             builder.sslContext(sslContext);
