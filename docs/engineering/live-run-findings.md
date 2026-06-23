@@ -639,3 +639,51 @@ quorum, so partition-safety is off). A 3-node RS does **not** subsume finding #1
 - **Local monotonic guard (split-brain safety):** under a Mongo partition the leader reports `is_leader 0` at
   `renew_age ≈ 14.6 s` (> `ttl − safetyMargin`) **before** the lease TTL (15 s) lets a successor in → no two-leader
   window. Epoch was strictly monotonic (9→13) with a single holder at every step across 5 leadership changes.
+
+---
+
+## 2026-06-23 — DYNAMIC scale-down live test: daemon outbound-stream not serialized — **FIXED + validated live**
+
+Drove a live DYNAMIC scale-down test on the Redis-free fleet (ctrl-1 leader, single daemon node-frankenstein-1).
+
+### Correction: the suspected "scale-down gates on uptimeMs which is always 0" bug does **not** exist
+- A prior session concluded DYNAMIC scale-down was permanently broken because `ScalingEvaluator.evaluateScaleDown`
+  gates on `InstanceInfo.uptimeMs / 1000 > scaleDownAfterSeconds` and the instances reported `uptimeMs:0`.
+- **Re-verified live: `InstanceInfo.uptimeMs` populates correctly** (a freshly scaled-up instance read `291363` ms,
+  matching its ~5 min age; a long-runner read ~9.2 h matching its process `etime`). The earlier `uptimeMs:0` was a
+  **greedy-regex parse artifact** against the list endpoint, compounded by a ~60 s warmup (the in-server plugin's
+  first metrics carrying non-zero uptime hadn't arrived yet). **Scale-down works**: dropping `min` reaped down to
+  `min` exactly as designed. No code change for this — it was a measurement error.
+
+### The real bug: daemon's outbound gRPC stream (`DaemonGrpcClient.trySend`) is not serialized — **FIXED + validated live**
+- **Symptom:** every scale-down `StopInstance` was followed ~2 s later by `DaemonGrpcClient - Connection error:
+  CANCELLED: Failed to stream message` (daemon side) / `DaemonServiceImpl - Stream error … CANCELLED: client
+  cancelled` (controller side). The controller then marked **every** instance on that node CRASHED (collateral — not
+  just the one being stopped), the daemon reconnected (~3 s, same PID — process never died), `RecoveryOrchestrator`
+  re-placed the reaped instance, and DYNAMIC scale-down trimmed it again → a **60 s flap** that never converged.
+- **Root cause:** `DaemonGrpcClient.trySend` calls `stream.onNext(message)` with **no synchronization**
+  (`cloud-daemon/.../grpc/DaemonGrpcClient.java:385`). Every sender funnels through it from independent threads —
+  `sendConsoleOutput` (a per-instance console-capture virtual thread), `sendInstanceStatus`, `sendPong` (heartbeat),
+  `sendCrashReport`. A gRPC `StreamObserver` is **not** thread-safe for concurrent `onNext`; an instance stop fires a
+  burst of concurrent sends (shutdown-console spam + status + heartbeat) that interleave and corrupt the outbound
+  frame → `CANCELLED` → control stream torn down. This is the **exact daemon-side mirror of committed controller fix
+  #10** (`NodeSession.send` per-stream `synchronized`), which was never applied to the daemon.
+- **Fix:** wrap `stream.onNext(message)` in `synchronized (stream)` inside `trySend` (synchronize on the stream object
+  so a reconnect's fresh stream gets its own monitor). The handshake send in `connect()` is left as-is — it runs
+  before `state == CONNECTED`, and `trySend` short-circuits while not CONNECTED, so no steady-state sender races it.
+  Unit test `DaemonGrpcClientSendSerializationTest.concurrentSendsDoNotInterleaveOnNext` (8 threads × 40 sends through
+  a concurrency-detecting `StreamObserver`); confirmed it **fails without** the fix and passes with it.
+- **Validated live (2026-06-23):** built + deployed the fixed daemon jar (`md5 a0734787`) to node-frankenstein-1
+  (stop→swap→start), scaled lobby to 3, then `min=1`. Scale-down reaped **3→1 gracefully** (RUNNING→STOPPING→STOPPED),
+  settled at exactly 1 and stayed there. Controller log showed only the two intended `Scaling down … stopping …`
+  lines — **zero** `client cancelled`, **zero** `disconnected -- marking … CRASHED`, **zero** re-adopt/flap.
+  Scale-up to 3 was also clean (no cancels). ⚠️ **Deployed jar is UNCOMMITTED on the fleet** until the next rebuilt
+  daemon jar is rolled (only node-frankenstein-1 carries it; node-fra-2 is on the old jar).
+
+### Secondary (OPEN, not fixed): a brief control-stream blip marks **all** of a node's instances CRASHED
+- `InstanceLifecycleManager` marks every instance on a node CRASHED the instant its gRPC session drops, with no grace
+  window. A ~2–3 s reconnect (transient stream error, leader redirect, brief network blip) therefore crashes healthy,
+  still-running instances; they recover via re-adopt/re-place, but it's needless churn and was the amplifier that
+  turned the `trySend` cancel into a sustained flap. Preventing the spurious cancel (above) removes the trigger, but
+  the over-aggressive "mark-all-CRASHED on any disconnect" remains a sharp edge — consider a short grace window (the
+  daemon is ground truth; on reconnect it re-announces `running_instances`, so a brief blip need not crash anything).

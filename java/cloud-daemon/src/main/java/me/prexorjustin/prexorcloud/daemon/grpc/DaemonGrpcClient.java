@@ -388,7 +388,17 @@ public final class DaemonGrpcClient {
             return false;
         }
         try {
-            stream.onNext(message);
+            // gRPC StreamObserver is not thread-safe for concurrent onNext. Console capture (a
+            // per-instance virtual thread), heartbeat/pong, instance-status, and crash reports all
+            // send through this single chokepoint from different threads; concurrent onNext interleaves
+            // and corrupts the outbound frame ("Failed to stream message" -> CANCELLED), tearing down
+            // the control stream. A stop's shutdown-console burst reliably triggers it, which then
+            // marks every co-located instance CRASHED on the controller. Serialize per stream — the
+            // daemon-side mirror of the controller's NodeSession.send fix. Synchronize on the stream
+            // object so a reconnect's fresh stream gets its own monitor.
+            synchronized (stream) {
+                stream.onNext(message);
+            }
             return true;
         } catch (StatusRuntimeException e) {
             logger.warn("Failed to send message ({}), marking disconnected", e.getStatus());
