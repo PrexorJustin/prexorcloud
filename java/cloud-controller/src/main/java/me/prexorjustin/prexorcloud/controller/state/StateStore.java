@@ -34,6 +34,16 @@ public interface StateStore {
     default void setEpochSource(java.util.function.LongSupplier epochSource) {}
 
     /**
+     * Count of authority-sensitive writes dropped by the epoch fence because a strictly-higher epoch
+     * already won (i.e. a deposed leader's stale write). Monotonic for the controller's lifetime;
+     * surfaced as a Prometheus counter so a nonzero value flags a real deposed-leader event. 0 for
+     * stores that don't fence.
+     */
+    default long fencedWriteRejections() {
+        return 0L;
+    }
+
+    /**
      * Execute a group of operations atomically within a single database
      * transaction. If the action throws, the transaction is rolled back.
      */

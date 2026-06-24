@@ -324,6 +324,19 @@ public final class MetricsCollector {
                 .register(registry);
     }
 
+    /**
+     * Surface the single-writer epoch fence. A nonzero, growing counter means a deposed leader's
+     * stale write was actually rejected at the store (the #12 fence firing in anger) — an alarm-worthy
+     * signal that until now was only a WARN log line. Wired in bootstrap once the state store exists.
+     */
+    public void registerStateStoreFenceMetrics(me.prexorjustin.prexorcloud.controller.state.StateStore stateStore) {
+        if (stateStore == null) return;
+        retainedGaugeProbes.add(stateStore);
+        FunctionCounter.builder("prexorcloud.statestore.fenced_write_rejections", stateStore, s -> s.fencedWriteRejections())
+                .description("Authority-sensitive writes dropped by the epoch fence (deposed-leader stale writes)")
+                .register(registry);
+    }
+
     public void recordHttpRequest(String method, int status, Duration duration) {
         String statusClass = httpStatusClass(status);
         Tags tags = Tags.of("method", normalizeTag(method), "status_class", statusClass);

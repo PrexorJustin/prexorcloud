@@ -23,6 +23,7 @@ import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.HealingActionIntent;
 import me.prexorjustin.prexorcloud.controller.state.NodeDrainIntent;
 import me.prexorjustin.prexorcloud.controller.state.StartRetryIntent;
+import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.controller.state.WorkflowStateStore;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -80,6 +81,24 @@ class MetricsCollectorTest {
                 1.0,
                 registry.find("prexorcloud.composition.planning.failures")
                         .counter()
+                        .count());
+    }
+
+    @Test
+    @DisplayName("exports the state-store epoch fence rejection counter")
+    void exportsStateStoreFenceCounter() {
+        MetricsCollector collector = new MetricsCollector(
+                new ClusterState(new EventBus(), null), new GroupManager(null), new CrashStore(10));
+        StateStore stateStore = org.mockito.Mockito.mock(StateStore.class);
+        org.mockito.Mockito.when(stateStore.fencedWriteRejections()).thenReturn(3L);
+
+        collector.registerStateStoreFenceMetrics(stateStore);
+
+        assertEquals(
+                3.0,
+                collector.registry()
+                        .find("prexorcloud.statestore.fenced_write_rejections")
+                        .functionCounter()
                         .count());
     }
 

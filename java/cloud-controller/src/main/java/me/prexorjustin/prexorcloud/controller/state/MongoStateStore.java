@@ -102,6 +102,7 @@ public final class MongoStateStore implements StateStore {
     }
 
     /** Count of fenced writes dropped because a strictly-higher epoch already won (observability). */
+    @Override
     public long fencedWriteRejections() {
         return fencedWriteRejections.get();
     }

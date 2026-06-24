@@ -240,6 +240,9 @@ public final class PrexorCloudBootstrap {
             // controller's fencing epoch so a deposed leader's stale write can't clobber the live
             // leader's state. Single-controller installs (no elector) leave it disabled.
             store.setEpochSource(leaderElector::currentEpoch);
+            if (controller.metricsCollector() != null) {
+                controller.metricsCollector().registerStateStoreFenceMetrics(store);
+            }
         }
         lifecycleManager.attachHealingWorkflow(controller.workflowStateStore(), scheduler);
         initGrpc(controller, security.caPassword());
