@@ -61,6 +61,10 @@ public final class InstanceRegistry {
                 instanceId, (ignored, existing) -> existing.withStatus(state, playerCount, uptimeMs));
     }
 
+    public void updateTps(String instanceId, double tps1m) {
+        instances.computeIfPresent(instanceId, (ignored, existing) -> existing.withTps(tps1m));
+    }
+
     public void updateMetrics(InstanceMetrics metrics) {
         instanceMetrics.put(metrics.instanceId(), metrics);
     }

@@ -152,9 +152,10 @@ Pluggable signals (TPS first-class), aggregation policy, scale-by-N, warm pool, 
 - ✅ **Aggregate-load scale-up + scale-by-N** in `ScalingEvaluator`: triggers on mean fleet utilisation vs the target (a single quiet instance no longer suppresses scale-up), and adds enough instances in one step to bring load back to target instead of a flat +1 (capped at `maxInstances`). Behaviour-compatible on every existing test; 3 new tests prove the divergent cases.
 - ✅ **Cooldown → Mongo** (failover-safe). A small dedicated `ScaleActionStore` (interface + `MongoScaleActionStore` against a `scale_actions` collection) instead of growing `StateStore` — chosen partly to avoid entangling with the uncommitted #12 epoch-fence WIP that already touches `StateStore`/`MongoStateStore`. `ScalingEvaluator` keeps the in-memory fast path and seeds it lazily from the store (incl. a negative EPOCH entry) so steady-state checks never hit Mongo; a new leader reads the persisted cooldown. New `cooldownSurvivesFailover` test proves it. Full `:cloud-controller:test` green (ScaleUp 10 / ScaleDown 5 / Cooldown 4 / wiring 2).
 
-**This lever's controller-only scope is done.** Deferred (need wire/lifecycle decisions, operator to choose):
-- **TPS signal** — additive heartbeat proto + plugin/daemon plumbing.
-- **Warm pool** — new PREPARED-not-serving lifecycle.
+- ✅ **TPS-aware scale-up.** Turned out to need **no** proto/plugin/daemon change: plugins already compute TPS (`PaperMetricsCollector.getTPS()`/`getAverageTickTime()`) and report it via REST `POST /api/plugin/metrics` into `InstanceMetrics`. The only gap was the last mile — `InstanceMetrics.tps1m` was never threaded into `InstanceInfo`. Added `tps1m` to `InstanceInfo` (+ `withTps`, `InstanceRegistry.updateTps`, threaded in `ClusterState.updateInstanceMetrics`), and `ScalingEvaluator` now scales up one instance when any running server is tick-starved (`tps1m` in `(0, 18.0)`) even at low player load. `tps==0` (no data / not a game server) is ignored, so all prior behaviour is unchanged. 3 new tests; full `:cloud-controller:test` green (ScaleUp 13). The `18.0` floor is a constant for now → becomes a per-group `ScalingPolicy` signal threshold when v2 `GroupSpec.scaling.signals` are wired into the engine.
+
+Deferred (needs a lifecycle decision, operator to choose):
+- **Warm pool** — new PREPARED-not-serving lifecycle for instant join.
 
 ### Phase 2 (P0) — Variable system v2
 Typed/validated defs, unified resolution, secrets SPI, surfaced in CLI + Dashboard.

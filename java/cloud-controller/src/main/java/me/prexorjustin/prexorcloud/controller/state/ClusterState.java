@@ -596,6 +596,7 @@ public final class ClusterState {
         var instance = instanceRegistry.get(metrics.instanceId()).orElse(null);
         if (instance != null) {
             updateInstanceStatus(metrics.instanceId(), instance.state(), metrics.playerCount(), metrics.uptimeMs());
+            instanceRegistry.updateTps(metrics.instanceId(), metrics.tps1m());
             List<InstanceMetricsUpdatedEvent.WorldSnapshot> worlds = metrics.worlds() == null
                     ? List.of()
                     : metrics.worlds().stream()

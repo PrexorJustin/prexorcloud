@@ -87,8 +87,13 @@ class ScalingEvaluatorTest {
     }
 
     private void addInstance(String id, String groupName, InstanceState state, int playerCount, long uptimeMs) {
-        clusterState.addInstance(
-                new InstanceInfo(id, groupName, "node-1", state, 30000, playerCount, uptimeMs, Instant.now()));
+        addInstance(id, groupName, state, playerCount, uptimeMs, 0.0);
+    }
+
+    private void addInstance(
+            String id, String groupName, InstanceState state, int playerCount, long uptimeMs, double tps1m) {
+        clusterState.addInstance(new InstanceInfo(
+                id, groupName, "node-1", state, 30000, playerCount, uptimeMs, Instant.now(), 0, tps1m));
     }
 
     @Nested
@@ -197,6 +202,35 @@ class ScalingEvaluatorTest {
             }
 
             assertEquals(1, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Scales up when a running instance is tick-starved even if player load is low")
+        void tpsDegradedTriggersScaleUp() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            // 10/100 = 0.10 load, far below the 0.8 target -> player load alone would not scale.
+            // TPS 12.0 is below the 18.0 floor, so the server is overloaded -> add one instance.
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000, 12.0);
+
+            assertEquals(1, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Healthy TPS at low player load does not scale up")
+        void healthyTpsNoScaleUp() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000, 19.5);
+
+            assertEquals(0, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Zero TPS (no data / not a game server) is ignored, not treated as degraded")
+        void zeroTpsIgnored() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000, 0.0);
+
+            assertEquals(0, evaluator.evaluateScaleUp(cfg));
         }
     }
 

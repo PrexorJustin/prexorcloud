@@ -22,6 +22,11 @@ public final class ScalingEvaluator {
 
     private static final Logger logger = LoggerFactory.getLogger(ScalingEvaluator.class);
 
+    // TPS at/below which a running game server is treated as tick-starved (overloaded) and warrants
+    // extra capacity regardless of player load. A constant for now; becomes a per-group ScalingPolicy
+    // signal threshold once the v2 GroupSpec.scaling.signals are wired into the engine.
+    private static final double TPS_DEGRADED_FLOOR = 18.0;
+
     private final ClusterState clusterState;
     private final long defaultCooldownSeconds;
     private final ScaleActionStore scaleActionStore;
@@ -85,12 +90,27 @@ public final class ScalingEvaluator {
 
         // Mean per-instance load across the running fleet = totalPlayers / (runningCount * maxPlayers).
         double utilization = (double) totalPlayers / ((long) runningCount * maxPlayers);
-        if (utilization < target) return 0;
+        boolean loadHigh = utilization >= target;
 
-        // Scale by N: add enough instances so the aggregate falls back to/under the target, instead of
-        // a flat +1. desiredRunning is the instance count at which mean load would sit at the target.
-        int desiredRunning = (int) Math.ceil(totalPlayers / (target * maxPlayers));
-        int additional = Math.max(1, desiredRunning - runningCount);
+        // Tick health: a server starved below the TPS floor is overloaded even at moderate player
+        // load -- add capacity so the proxy can route new players to a healthy instance. Only count
+        // instances that actually report TPS (> 0); 0 means "no data yet / not a game server".
+        boolean tpsDegraded = running.stream()
+                .map(InstanceInfo::tps1m)
+                .anyMatch(tps -> tps > 0.0 && tps < TPS_DEGRADED_FLOOR);
+
+        if (!loadHigh && !tpsDegraded) return 0;
+
+        int additional;
+        if (loadHigh) {
+            // Scale by N: add enough instances so the aggregate falls back to/under the target,
+            // instead of a flat +1. desiredRunning is the count at which mean load sits at the target.
+            int desiredRunning = (int) Math.ceil(totalPlayers / (target * maxPlayers));
+            additional = Math.max(1, desiredRunning - runningCount);
+        } else {
+            // TPS relief only: one instance to shed load off the tick-starved server(s).
+            additional = 1;
+        }
 
         // Never exceed the ceiling, counting in-flight (active, not-yet-running) starts.
         int headroom = group.maxInstances() - currentCount;
@@ -98,11 +118,13 @@ public final class ScalingEvaluator {
 
         if (toAdd > 0) {
             logger.debug(
-                    "Group {} aggregate load {}% >= target {}%, scaling up by {}",
+                    "Group {} scaling up by {} (load {}% vs target {}%, loadHigh={}, tpsDegraded={})",
                     group.name(),
+                    toAdd,
                     (int) (utilization * 100),
                     (int) (target * 100),
-                    toAdd);
+                    loadHigh,
+                    tpsDegraded);
             return toAdd;
         }
 
