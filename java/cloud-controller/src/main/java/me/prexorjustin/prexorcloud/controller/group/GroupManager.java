@@ -205,7 +205,8 @@ public final class GroupManager {
                 child.enabledExtensions().isEmpty() ? parent.enabledExtensions() : child.enabledExtensions(),
                 child.disabledExtensions().isEmpty() ? parent.disabledExtensions() : child.disabledExtensions(),
                 Map.copyOf(mergedConfigPatches),
-                child.bedrockProxyGroup().isEmpty() ? parent.bedrockProxyGroup() : child.bedrockProxyGroup());
+                child.bedrockProxyGroup().isEmpty() ? parent.bedrockProxyGroup() : child.bedrockProxyGroup(),
+                child.warmPoolMinPrepared());
     }
 
     private static GroupConfig mergePatch(
@@ -281,7 +282,8 @@ public final class GroupManager {
                 sentFields.contains("enabledExtensions") ? update.enabledExtensions() : existing.enabledExtensions(),
                 sentFields.contains("disabledExtensions") ? update.disabledExtensions() : existing.disabledExtensions(),
                 sentFields.contains("configPatches") ? update.configPatches() : existing.configPatches(),
-                sentFields.contains("bedrockProxyGroup") ? update.bedrockProxyGroup() : existing.bedrockProxyGroup());
+                sentFields.contains("bedrockProxyGroup") ? update.bedrockProxyGroup() : existing.bedrockProxyGroup(),
+                sentFields.contains("warmPoolMinPrepared") ? update.warmPoolMinPrepared() : existing.warmPoolMinPrepared());
     }
 
     private void validate(GroupConfig config) {

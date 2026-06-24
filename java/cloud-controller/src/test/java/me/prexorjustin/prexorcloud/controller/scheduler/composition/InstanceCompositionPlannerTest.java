@@ -1412,7 +1412,8 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 List.of(),
                 Map.of(),
-                bedrockProxyGroup);
+                bedrockProxyGroup,
+                0);
     }
 
     private static void createTemplate(Path templatesRoot, TemplateManager templateManager, String name)

@@ -81,7 +81,8 @@ public record GroupConfig(
         // Bedrock: for a Geyser (GEYSER platform) group, the proxy group it fronts. The controller
         // resolves a live instance of this group and injects its host:port as Geyser's remote at
         // provision time. Empty for non-Geyser groups.
-        @JsonProperty("bedrockProxyGroup") String bedrockProxyGroup) {
+        @JsonProperty("bedrockProxyGroup") String bedrockProxyGroup,
+        @JsonProperty("warmPoolMinPrepared") int warmPoolMinPrepared) {
 
     public GroupConfig {
         if (name == null) name = "";
@@ -135,6 +136,7 @@ public record GroupConfig(
                             entry -> entry.getValue() == null ? Map.of() : Map.copyOf(entry.getValue())));
         }
         if (bedrockProxyGroup == null) bedrockProxyGroup = "";
+        if (warmPoolMinPrepared < 0) warmPoolMinPrepared = 0;
     }
 
     public GroupConfig(
@@ -242,7 +244,8 @@ public record GroupConfig(
                 enabledExtensions,
                 disabledExtensions,
                 configPatches,
-                "");
+                "",
+                0);
     }
 
     public GroupConfig(
@@ -453,7 +456,8 @@ public record GroupConfig(
                 enabledExtensions,
                 disabledExtensions,
                 configPatches,
-                "");
+                "",
+                0);
     }
 
     public GroupRuntimeTarget runtimeTarget() {

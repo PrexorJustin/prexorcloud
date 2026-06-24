@@ -9435,6 +9435,10 @@
           },
           "bedrockProxyGroup": {
             "type": "string"
+          },
+          "warmPoolMinPrepared": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "required": [
@@ -9461,7 +9465,8 @@
           "memoryMb",
           "cpuReservation",
           "diskReservationMb",
-          "motdIntervalSeconds"
+          "motdIntervalSeconds",
+          "warmPoolMinPrepared"
         ]
       },
       "GroupRuntimeFamily": {
