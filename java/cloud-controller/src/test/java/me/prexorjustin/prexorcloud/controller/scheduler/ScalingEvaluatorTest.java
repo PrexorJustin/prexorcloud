@@ -96,6 +96,12 @@ class ScalingEvaluatorTest {
                 id, groupName, "node-1", state, 30000, playerCount, uptimeMs, Instant.now(), 0, tps1m));
     }
 
+    private void addWarmInstance(String id, String groupName, int playerCount, long uptimeMs) {
+        clusterState.addInstance(new InstanceInfo(
+                        id, groupName, "node-1", InstanceState.RUNNING, 30000, playerCount, uptimeMs, Instant.now())
+                .withWarm(true));
+    }
+
     @Nested
     @DisplayName("Scale-up evaluation")
     class ScaleUp {
@@ -231,6 +237,27 @@ class ScalingEvaluatorTest {
             addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000, 0.0);
 
             assertEquals(0, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Warm instances are not counted as serving capacity (do not dilute utilisation)")
+        void warmInstancesNotServingCapacity() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 90, 60000); // serving at 0.9 load
+            addWarmInstance("lobby-warm", "lobby", 0, 60000); // warm, empty
+            // If the warm instance were counted, mean load = 90/200 = 0.45 < 0.8 and nothing scales.
+            // Warm is excluded, so serving load stays 0.9 >= 0.8 and the group scales up.
+            assertEquals(1, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Warm instances do not satisfy the minimum serving floor")
+        void warmInstancesDoNotCountTowardMinimum() {
+            var cfg = group("lobby", 2, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000); // 1 serving
+            addWarmInstance("lobby-warm", "lobby", 0, 60000); // warm does not count toward the floor
+            // serving count = 1 < min 2 -> one more serving instance is needed.
+            assertEquals(1, evaluator.evaluateScaleUp(cfg));
         }
     }
 

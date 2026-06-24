@@ -189,7 +189,10 @@ public final class ScalingEvaluator {
         return clusterState.getInstancesByGroup(group).stream()
                 .filter(i -> i.state() != InstanceState.STOPPED
                         && i.state() != InstanceState.CRASHED
-                        && i.state() != InstanceState.DRAINING)
+                        && i.state() != InstanceState.DRAINING
+                        // Warm-pool members are pre-started capacity, not serving instances: they must
+                        // not count toward min/max or dilute the player-load utilisation.
+                        && !i.warm())
                 .toList();
     }
 }

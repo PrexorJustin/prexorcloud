@@ -342,6 +342,11 @@ public final class Scheduler implements LeaseGate {
         }
 
         for (int i = 0; i < plan.dynamicPlacementsToAdd(); i++) {
+            // Prefer promoting a pre-warmed instance (instant capacity) over a cold start.
+            if (clusterState.promoteWarmInstance(resolved.name()).isPresent()) {
+                logger.info("Group {}: promoted a warm instance to serving (no cold start)", resolved.name());
+                continue;
+            }
             if (!placeResolvedInstance(resolved)) {
                 logger.warn(
                         "No eligible node for group {} ({} of {} placed)",
@@ -356,6 +361,17 @@ public final class Scheduler implements LeaseGate {
             stopInstance(plan.scaleDownInstanceId(), false);
             scalingEvaluator.recordScaleAction(resolved.name());
             logger.info("Scaling down group {}: stopping {}", resolved.name(), plan.scaleDownInstanceId());
+        }
+
+        // Keep the warm pool topped up to its target (promotions above may have drawn from it).
+        if (plan.warmPoolTarget() > 0) {
+            long warmNow = clusterState.warmInstanceCount(resolved.name());
+            for (long i = warmNow; i < plan.warmPoolTarget(); i++) {
+                if (!placeWarmInstance(resolved)) {
+                    logger.warn("No eligible node to refill warm pool for group {}", resolved.name());
+                    break;
+                }
+            }
         }
     }
 
@@ -374,6 +390,20 @@ public final class Scheduler implements LeaseGate {
 
         return placementCoordinator.placeResolvedInstance(
                 resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+    }
+
+    /** Place a new instance and hold it in the warm pool (non-serving until promoted). */
+    private boolean placeWarmInstance(GroupConfig resolved) {
+        Set<String> existingIds = new HashSet<>(
+                clusterState.getAllInstances().stream().map(InstanceInfo::id).toList());
+        String instanceId = InstanceIdGenerator.generateDynamic(resolved.name(), existingIds);
+
+        boolean placed = placementCoordinator.placeResolvedInstance(
+                resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+        if (placed) {
+            clusterState.markInstanceWarm(instanceId);
+        }
+        return placed;
     }
 
     /**

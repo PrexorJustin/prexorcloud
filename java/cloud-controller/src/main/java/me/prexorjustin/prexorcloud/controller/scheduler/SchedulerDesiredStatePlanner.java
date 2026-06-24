@@ -30,7 +30,9 @@ public final class SchedulerDesiredStatePlanner {
             List<String> staticInstanceIdsToPlace,
             int dynamicPlacementsToAdd,
             String scaleDownInstanceId,
-            String skipReason) {
+            String skipReason,
+            // Desired number of warm (pre-started, non-serving) instances to keep for this group.
+            int warmPoolTarget) {
 
         public boolean skipped() {
             return skipReason != null;
@@ -164,7 +166,7 @@ public final class SchedulerDesiredStatePlanner {
                     .collect(Collectors.toSet());
             List<String> missingIds =
                     expectedIds.stream().filter(id -> !activeIds.contains(id)).toList();
-            return new GroupPlan(group, resolved, missingIds, 0, null, null);
+            return new GroupPlan(group, resolved, missingIds, 0, null, null, 0);
         }
 
         return new GroupPlan(
@@ -173,7 +175,8 @@ public final class SchedulerDesiredStatePlanner {
                 List.of(),
                 scalingEvaluator.evaluateScaleUp(choreographed),
                 scalingEvaluator.evaluateScaleDown(choreographed),
-                null);
+                null,
+                resolved.warmPoolMinPrepared());
     }
 
     private GroupConfig applyChoreography(GroupConfig source, java.time.Instant now) {
@@ -182,6 +185,6 @@ public final class SchedulerDesiredStatePlanner {
     }
 
     private static GroupPlan skipped(GroupConfig group, String reason) {
-        return new GroupPlan(group, group, List.of(), 0, null, reason);
+        return new GroupPlan(group, group, List.of(), 0, null, reason, 0);
     }
 }
