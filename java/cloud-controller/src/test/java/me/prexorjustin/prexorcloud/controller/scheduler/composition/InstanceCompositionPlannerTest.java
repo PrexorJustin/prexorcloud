@@ -185,6 +185,17 @@ class InstanceCompositionPlannerTest {
         // The seed list tracks live membership and MUST NOT feed the plan hash, or a controller
         // joining/leaving would churn re-composition of every running instance.
         assertEquals(plan.planHash(), seeded.planHash(), "controller membership changes must not alter the plan hash");
+
+        // --- Frozen seam: planHash golden value (Group/Template v2, Phase 0) ---
+        // planHash is the idempotency + daemon-dedup key for instance dispatch. The self-consistency
+        // assertions above (same inputs -> same hash) cannot catch a serialization change that drifts
+        // both sides together; this golden constant can. A refactor that alters how ANY plan component
+        // serializes will break this -- that is the point. If you change the hash inputs deliberately,
+        // update this value and expect a fleet-wide re-roll. See ADR 35 / group-template-v2-plan.md.
+        assertEquals(
+                "5996131c66c0c1777d899439dd60328f803bfc85c28275bf2629d5eb24e4e993",
+                plan.planHash(),
+                "planHash must stay byte-stable across refactors (frozen seam, ADR 35)");
     }
 
     @Test
