@@ -9,6 +9,7 @@ import java.util.Map;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
+import me.prexorjustin.prexorcloud.controller.state.InMemoryScaleActionStore;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
@@ -21,12 +22,14 @@ import org.junit.jupiter.api.Test;
 class ScalingEvaluatorTest {
 
     private ClusterState clusterState;
+    private InMemoryScaleActionStore scaleActionStore;
     private ScalingEvaluator evaluator;
 
     @BeforeEach
     void setUp() {
         clusterState = new ClusterState(new EventBus());
-        evaluator = new ScalingEvaluator(clusterState, 30);
+        scaleActionStore = new InMemoryScaleActionStore();
+        evaluator = new ScalingEvaluator(clusterState, 30, scaleActionStore);
     }
 
     private GroupConfig group(String name, int min, int max, boolean isStatic, int maxPlayers) {
@@ -158,6 +161,43 @@ class ScalingEvaluatorTest {
 
             assertEquals(1, evaluator.evaluateScaleUp(cfg));
         }
+
+        @Test
+        @DisplayName("Scales on aggregate load even when one instance is quiet (old all-or-nothing would not)")
+        void aggregateScaleUpWithQuietInstance() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            // Mean load = (100 + 70) / 200 = 0.85 >= 0.8 target. Instance-2 alone (0.70) is below
+            // threshold, so the old "every instance saturated" rule returned 0; the aggregate rule scales.
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 100, 60000);
+            addInstance("lobby-2", "lobby", InstanceState.RUNNING, 70, 60000);
+
+            assertEquals(1, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Adds multiple instances at once when load far exceeds the target (scale-by-N)")
+        void scalesByMultipleWhenLoadFarExceedsTarget() {
+            var cfg = group("lobby", 1, 10, false, 100);
+            // 5 instances each full (500 players). To bring mean load to the 0.8 target needs
+            // ceil(500 / (0.8*100)) = 7 running, i.e. +2 in a single evaluation rather than a flat +1.
+            for (int i = 1; i <= 5; i++) {
+                addInstance("lobby-" + i, "lobby", InstanceState.RUNNING, 100, 60000);
+            }
+
+            assertEquals(2, evaluator.evaluateScaleUp(cfg));
+        }
+
+        @Test
+        @DisplayName("Scale-by-N never exceeds maxInstances")
+        void scaleByNRespectsMaxInstances() {
+            var cfg = group("lobby", 1, 6, false, 100);
+            // Same saturated fleet wants +2, but only one slot remains under maxInstances=6.
+            for (int i = 1; i <= 5; i++) {
+                addInstance("lobby-" + i, "lobby", InstanceState.RUNNING, 100, 60000);
+            }
+
+            assertEquals(1, evaluator.evaluateScaleUp(cfg));
+        }
     }
 
     @Nested
@@ -251,6 +291,21 @@ class ScalingEvaluatorTest {
             evaluator.recordScaleAction("lobby");
 
             assertNull(evaluator.evaluateScaleDown(cfg));
+        }
+
+        @Test
+        @DisplayName("Cooldown survives failover: a fresh evaluator reads the last scale time from the store")
+        void cooldownSurvivesFailover() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 90, 60000);
+
+            // Old leader scaled just now and persisted it to the shared store.
+            scaleActionStore.recordScaleAction("lobby", Instant.now());
+
+            // New leader starts cold (empty in-memory map) but shares the store. Without the store
+            // read it would scale up (90/100 >= 0.8); the persisted cooldown must block it.
+            var freshLeader = new ScalingEvaluator(clusterState, 30, scaleActionStore);
+            assertEquals(0, freshLeader.evaluateScaleUp(cfg));
         }
     }
 }

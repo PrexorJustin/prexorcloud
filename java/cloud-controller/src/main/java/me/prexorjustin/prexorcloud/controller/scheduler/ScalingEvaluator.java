@@ -8,6 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
 import me.prexorjustin.prexorcloud.controller.state.InstanceInfo;
+import me.prexorjustin.prexorcloud.controller.state.ScaleActionStore;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
 import org.slf4j.Logger;
@@ -23,11 +24,15 @@ public final class ScalingEvaluator {
 
     private final ClusterState clusterState;
     private final long defaultCooldownSeconds;
+    private final ScaleActionStore scaleActionStore;
+    // In-memory fast path for the current leader; seeded lazily from the store (incl. a negative
+    // EPOCH entry) so steady-state cooldown checks never hit Mongo.
     private final Map<String, Instant> lastScaleAction = new ConcurrentHashMap<>();
 
-    public ScalingEvaluator(ClusterState clusterState, long defaultCooldownSeconds) {
+    public ScalingEvaluator(ClusterState clusterState, long defaultCooldownSeconds, ScaleActionStore scaleActionStore) {
         this.clusterState = clusterState;
         this.defaultCooldownSeconds = defaultCooldownSeconds;
+        this.scaleActionStore = scaleActionStore;
     }
 
     /**
@@ -63,23 +68,42 @@ public final class ScalingEvaluator {
         long cooldown = group.scaleCooldownSeconds() > 0 ? group.scaleCooldownSeconds() : defaultCooldownSeconds;
         if (isOnCooldown(group.name(), cooldown)) return 0;
 
-        // Dynamic scaling: if all running instances are above threshold capacity
+        // Dynamic scaling on AGGREGATE player load across the running fleet (Group/Template v2,
+        // Phase 1). The old rule scaled only when *every* running instance was saturated -- a single
+        // quiet instance suppressed scale-up while the rest overflowed -- and always added exactly one.
+        // Now we trigger on mean utilisation and scale by N toward the target in one step.
         List<InstanceInfo> running = instances.stream()
                 .filter(i -> i.state() == InstanceState.RUNNING)
                 .toList();
 
         if (running.isEmpty()) return 0;
 
-        double threshold = group.scaleUpThreshold();
-        boolean allAboveThreshold = running.stream().allMatch(i -> {
-            double ratio = (double) i.playerCount() / group.maxPlayers();
-            return ratio >= threshold;
-        });
+        double target = group.scaleUpThreshold();
+        int maxPlayers = group.maxPlayers();
+        int runningCount = running.size();
+        long totalPlayers = running.stream().mapToLong(InstanceInfo::playerCount).sum();
 
-        if (allAboveThreshold) {
+        // Mean per-instance load across the running fleet = totalPlayers / (runningCount * maxPlayers).
+        double utilization = (double) totalPlayers / ((long) runningCount * maxPlayers);
+        if (utilization < target) return 0;
+
+        // Scale by N: add enough instances so the aggregate falls back to/under the target, instead of
+        // a flat +1. desiredRunning is the instance count at which mean load would sit at the target.
+        int desiredRunning = (int) Math.ceil(totalPlayers / (target * maxPlayers));
+        int additional = Math.max(1, desiredRunning - runningCount);
+
+        // Never exceed the ceiling, counting in-flight (active, not-yet-running) starts.
+        int headroom = group.maxInstances() - currentCount;
+        int toAdd = Math.min(additional, headroom);
+
+        if (toAdd > 0) {
             logger.debug(
-                    "Group {} all instances above {}% capacity, scaling up", group.name(), (int) (threshold * 100));
-            return 1;
+                    "Group {} aggregate load {}% >= target {}%, scaling up by {}",
+                    group.name(),
+                    (int) (utilization * 100),
+                    (int) (target * 100),
+                    toAdd);
+            return toAdd;
         }
 
         return 0;
@@ -116,10 +140,12 @@ public final class ScalingEvaluator {
     }
 
     public void recordScaleAction(String group, long cooldownSeconds) {
-        // Leader-memory cooldown: only the leader runs the scheduler, so the local map is
-        // authoritative. A leadership change resets the window — at worst a group scales one
-        // step early on the new leader, which the next evaluation pass corrects.
-        lastScaleAction.put(group, Instant.now());
+        // Only the leader runs the scheduler, so there is a single writer. The in-memory map is the
+        // fast path; the store makes the cooldown survive a failover so a new leader does not scale a
+        // group one step early.
+        Instant now = Instant.now();
+        lastScaleAction.put(group, now);
+        scaleActionStore.recordScaleAction(group, now);
     }
 
     public void recordScaleAction(String group) {
@@ -128,7 +154,12 @@ public final class ScalingEvaluator {
 
     private boolean isOnCooldown(String group, long cooldownSeconds) {
         Instant last = lastScaleAction.get(group);
-        if (last == null) return false;
+        if (last == null) {
+            // First check on this leader (e.g. after a failover): consult the store once and cache the
+            // result -- including "none" as EPOCH -- so subsequent ticks stay on the in-memory path.
+            last = scaleActionStore.getLastScaleAction(group).orElse(Instant.EPOCH);
+            lastScaleAction.put(group, last);
+        }
         return Instant.now().isBefore(last.plusSeconds(cooldownSeconds));
     }
 

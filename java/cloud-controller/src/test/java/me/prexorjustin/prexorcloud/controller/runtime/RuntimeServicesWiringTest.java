@@ -97,7 +97,8 @@ class RuntimeServicesWiringTest {
             graph.add(runtime);
             graph.add(clusterState);
             graph.add(new RateLimitMiddleware(new RateLimitingConfig(60, 600)));
-            graph.add(new ScalingEvaluator(clusterState, 30L));
+            graph.add(new ScalingEvaluator(
+                    clusterState, 30L, new me.prexorjustin.prexorcloud.controller.state.InMemoryScaleActionStore()));
             graph.add(new PlatformModuleStorageManager(null, null, runtime, new ObjectMapper()));
             return graph;
         }

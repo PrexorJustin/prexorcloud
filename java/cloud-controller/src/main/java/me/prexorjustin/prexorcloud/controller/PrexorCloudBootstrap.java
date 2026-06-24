@@ -1463,7 +1463,9 @@ public final class PrexorCloudBootstrap {
                 + config.http().port();
         var nodeSelector = new WeightedNodeSelector();
         var scalingEvaluator = new ScalingEvaluator(
-                controller.clusterState(), config.scheduler().scalingCooldownSeconds());
+                controller.clusterState(),
+                config.scheduler().scalingCooldownSeconds(),
+                new me.prexorjustin.prexorcloud.controller.state.MongoScaleActionStore(mongoDatabase));
         nodeMessageDispatcher = new NodeMessageDispatcher(controller.sessionManager());
         if (controller.metricsCollector() != null) {
             nodeMessageDispatcher.attachMetricsCollector(controller.metricsCollector());
