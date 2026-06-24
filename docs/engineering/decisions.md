@@ -600,3 +600,29 @@ When enabled, spans are batch-exported over OTLP to any compatible collector (Ja
 
 **Status.** Ratis is deleted and the cluster control plane is Mongo-authoritative as of the single-writer rewrite (branch `rewrite/single-writer-control-plane`): the `cluster/raft/` package, the gRPC join handshake, the dual-write migration scaffolding, and the Apache Ratis dependency are gone; leadership, membership, identity, versioned config, join tokens, and the cluster CA all live in Mongo, with the reactive reconcile on change streams. The final Valkey removal (re-homing the ~29 coordination uses per the table above) lands as the closing phase; until it ships, Valkey is still present but no longer carries any control-plane consensus role.
 
+---
+
+## ADR 35: Group & Template v2 — targeted re-architecture, not a rewrite
+
+> Companion plan: [`group-template-v2-plan.md`](group-template-v2-plan.md). This decision settles the question "do we rewrite the Group/Template subsystems from scratch, or evolve them?" — the operator explicitly offered a from-scratch rewrite of both.
+
+**Decision.** The Group and Template subsystems are re-architected in place, behind their proven seams, on new v2 authoring contracts (`GroupSpec`, `TemplateSpec`). The four deficient layers — scaling intelligence, the variable system, config patching, and template storage transport — are rebuilt; the engine that makes the system correct is kept. There is **no from-scratch rewrite.**
+
+**Why not a from-scratch rewrite.**
+- The expensive, correctness-critical machinery is already built and proven on the live fleet across many sessions: content-addressed SHA-256 template versioning + history + rollback, `planHash` idempotency (failover-replayable dispatch), the Mongo single-writer + fenced lease + change-stream reconcile, group inheritance resolution, weighted multi-signal placement with affinity/anti-affinity/spread, dependency tiers, and the crash-loop detector. None of these is where the system is weak. A rewrite re-risks all of them — the exact failure modes the single-writer rewrite (ADR 34) and the live runs spent months hardening — to gain nothing they are responsible for.
+- The real deficits are peripheral and replaceable: scaling reads only player count (no TPS/CPU, all-or-nothing, +1-only, no warm pool); variables are untyped/unvalidated with two syntaxes; config patching is per-platform hardcoded; template snapshots are full tar.gz per version with no dedup/delta and a single local-FS backend. Each sits behind a stable interface and can be swapped without touching the engine.
+- "Open to a rewrite" is a removal of constraint, not a mandate. The operator's intent — the most modern, most comprehensive system possible — is served better by spending the budget on the four weak layers and clean v2 contracts than on re-deriving consensus, idempotency, and versioning that already work.
+
+**What is genuinely rebuilt (so this is not a timid "leave it alone").**
+- A pluggable scaling engine (TPS/CPU/custom signals, aggregation, scale-by-N, warm pool, Mongo cooldown).
+- A typed/validated variable system with one resolution pipeline and a secrets backend.
+- A data-driven config patcher (path/wildcard/regex), with platform knowledge as data, not Java.
+- Chunked, deduplicated, delta-synced template storage with a pluggable backend and signing.
+- New `GroupSpec`/`TemplateSpec` authoring contracts with a one-shot v1→v2 migration, replacing the flat 52-field positional record and deleting its dead fields and test-only legacy constructors.
+
+**The frozen seams.** v2 models resolve **down** to the existing `InstanceCompositionPlanner` input, so `planHash` determinism is preserved; proto stays at `PROTOCOL_VERSION = 1` with additive fields only; the public `cloud-api` contract (`GroupManager`/`GroupCreateRequest`/`GroupUpdateRequest`/`GroupView`) and the plugin wire contract (`GroupDto`/`GroupView`/`ServerGroupMotd`, `NetworkComposition` routing) evolve additively; StateStore collection schemas and the `ownerEpoch` fence are unchanged.
+
+**Trade-off.** Carrying an adapter from `GroupSpec` v2 to the legacy planner input for the life of the migration, and additive-only discipline on three contracts (proto, cloud-api, plugin DTO) instead of a clean-slate redesign of each. We accept that for the ability to ship each layer independently and fleet-validate it — the same incremental, live-proven cadence the rest of the control plane was built on — rather than a big-bang rewrite with one terminal validation.
+
+**Status.** Proposed (2026-06-24). Phasing and the full touchpoint inventory live in the companion plan. Supersedes nothing; refines the Group/Template internals left implicit by [ADR 34](#adr-34-single-writer-mongo-authoritative-control-plane).
+
