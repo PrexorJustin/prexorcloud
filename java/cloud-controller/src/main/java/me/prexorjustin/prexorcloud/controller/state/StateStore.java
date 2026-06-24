@@ -26,6 +26,14 @@ public interface StateStore {
     void close();
 
     /**
+     * Wire the leadership fencing epoch used to guard authority-sensitive writes (single-writer
+     * correctness). The supplier returns the writing controller's current fencing epoch; a value
+     * {@code <= 0} disables the fence (single-controller installs). No-op by default for stores that
+     * don't fence.
+     */
+    default void setEpochSource(java.util.function.LongSupplier epochSource) {}
+
+    /**
      * Execute a group of operations atomically within a single database
      * transaction. If the action throws, the transaction is rolled back.
      */

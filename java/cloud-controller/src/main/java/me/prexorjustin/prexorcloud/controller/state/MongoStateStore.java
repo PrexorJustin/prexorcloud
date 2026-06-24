@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
 import me.prexorjustin.prexorcloud.controller.crash.CrashCauseExtractor;
 import me.prexorjustin.prexorcloud.controller.crash.CrashRecord;
@@ -21,6 +23,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.mongodb.ErrorCategory;
+import com.mongodb.MongoWriteException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -49,6 +53,23 @@ public final class MongoStateStore implements StateStore {
     private final MongoClient client;
     private final MongoDatabase db;
 
+    /**
+     * Field stamped on every fenced write with the writing leader's fencing epoch. A write is applied
+     * only when the stored value is absent (legacy / first write) or {@code <= myEpoch}; a deposed
+     * leader's stale-epoch write is dropped (see {@link #fencedReplace}).
+     */
+    private static final String OWNER_EPOCH = "ownerEpoch";
+
+    /**
+     * Current leadership fencing epoch. {@code <= 0} disables the fence entirely (single-controller
+     * installs, and the bootstrap window before {@link #setEpochSource} is wired) so writes behave
+     * exactly as before. Wired in production to {@code MongoLeaderElector::currentEpoch}.
+     */
+    private volatile LongSupplier epochSource = () -> 0L;
+
+    /** Count of fenced writes dropped because a strictly-higher epoch already won (observability). */
+    private final AtomicLong fencedWriteRejections = new AtomicLong();
+
     private MongoCollection<Document> templates;
     private MongoCollection<Document> deployments;
     private MongoCollection<Document> crashes;
@@ -73,6 +94,16 @@ public final class MongoStateStore implements StateStore {
     public MongoStateStore(MongoClient client, MongoDatabase db) {
         this.client = client;
         this.db = db;
+    }
+
+    @Override
+    public void setEpochSource(LongSupplier epochSource) {
+        this.epochSource = epochSource == null ? () -> 0L : epochSource;
+    }
+
+    /** Count of fenced writes dropped because a strictly-higher epoch already won (observability). */
+    public long fencedWriteRejections() {
+        return fencedWriteRejections.get();
     }
 
     // --- Lifecycle ---
@@ -329,12 +360,12 @@ public final class MongoStateStore implements StateStore {
         if (List.of("COMPLETED", "FAILED", "ROLLED_BACK").contains(state)) {
             updates.add(Updates.set("completedAt", new Date()));
         }
-        deployments.updateOne(Filters.eq("seqId", id), Updates.combine(updates));
+        fencedUpdate(deployments, Filters.eq("seqId", id), Updates.combine(updates));
     }
 
     @Override
     public void updateDeploymentProgress(int id, int updatedInstances) {
-        deployments.updateOne(Filters.eq("seqId", id), Updates.set("updatedInstances", updatedInstances));
+        fencedUpdate(deployments, Filters.eq("seqId", id), Updates.set("updatedInstances", updatedInstances));
     }
 
     @Override
@@ -621,7 +652,7 @@ public final class MongoStateStore implements StateStore {
     public void registerNode(String nodeId) {
         var now = new Date();
         var doc = new Document("_id", nodeId).append("firstSeen", now).append("lastSeen", now);
-        nodes.replaceOne(Filters.eq("_id", nodeId), doc, UPSERT);
+        fencedReplace(nodes, nodeId, doc);
     }
 
     @Override
@@ -646,7 +677,7 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public void deleteRegisteredNode(String nodeId) {
-        nodes.deleteOne(Filters.eq("_id", nodeId));
+        fencedDelete(nodes, nodeId);
     }
 
     // --- Workflow Intent ---
@@ -657,7 +688,7 @@ public final class MongoStateStore implements StateStore {
                 .append("playerUuid", intent.playerUuid().toString())
                 .append("targetInstanceId", intent.targetInstanceId())
                 .append("createdAt", Date.from(intent.createdAt()));
-        workflowTransfers.replaceOne(Filters.eq("_id", intent.playerUuid().toString()), doc, UPSERT);
+        fencedReplace(workflowTransfers, intent.playerUuid().toString(), doc);
     }
 
     @Override
@@ -674,7 +705,7 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public void deleteTransferIntent(java.util.UUID playerUuid) {
-        workflowTransfers.deleteOne(Filters.eq("_id", playerUuid.toString()));
+        fencedDelete(workflowTransfers, playerUuid.toString());
     }
 
     @Override
@@ -688,7 +719,7 @@ public final class MongoStateStore implements StateStore {
                 .append(
                         "drainingInstanceIds",
                         intent.drainingInstanceIds().stream().sorted().toList());
-        workflowDrains.replaceOne(Filters.eq("_id", intent.nodeId()), doc, UPSERT);
+        fencedReplace(workflowDrains, intent.nodeId(), doc);
     }
 
     @Override
@@ -710,7 +741,7 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public void deleteNodeDrainIntent(String nodeId) {
-        workflowDrains.deleteOne(Filters.eq("_id", nodeId));
+        fencedDelete(workflowDrains, nodeId);
     }
 
     @Override
@@ -720,7 +751,7 @@ public final class MongoStateStore implements StateStore {
                 .append("groupName", intent.groupName())
                 .append("reason", intent.reason())
                 .append("createdAt", Date.from(intent.createdAt()));
-        workflowHealing.replaceOne(Filters.eq("_id", intent.instanceId()), doc, UPSERT);
+        fencedReplace(workflowHealing, intent.instanceId(), doc);
     }
 
     @Override
@@ -738,7 +769,7 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public void deleteHealingActionIntent(String instanceId) {
-        workflowHealing.deleteOne(Filters.eq("_id", instanceId));
+        fencedDelete(workflowHealing, instanceId);
     }
 
     @Override
@@ -752,7 +783,7 @@ public final class MongoStateStore implements StateStore {
                 .append("attempt", intent.attempt())
                 .append("retryAt", Date.from(intent.retryAt()))
                 .append("createdAt", Date.from(intent.createdAt()));
-        workflowStartRetries.replaceOne(Filters.eq("_id", intent.instanceId()), doc, UPSERT);
+        fencedReplace(workflowStartRetries, intent.instanceId(), doc);
     }
 
     @Override
@@ -774,7 +805,7 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public void deleteStartRetryIntent(String instanceId) {
-        workflowStartRetries.deleteOne(Filters.eq("_id", instanceId));
+        fencedDelete(workflowStartRetries, instanceId);
     }
 
     // --- Instance Composition Plans ---
@@ -787,7 +818,7 @@ public final class MongoStateStore implements StateStore {
                 .append("planHash", plan.planHash())
                 .append("createdAt", Date.from(plan.createdAt()))
                 .append("payload", toJson(plan));
-        instanceCompositionPlans.replaceOne(Filters.eq("_id", plan.instanceId()), doc, UPSERT);
+        fencedReplace(instanceCompositionPlans, plan.instanceId(), doc);
     }
 
     @Override
@@ -801,7 +832,7 @@ public final class MongoStateStore implements StateStore {
 
     @Override
     public void deleteInstanceCompositionPlan(String instanceId) {
-        instanceCompositionPlans.deleteOne(Filters.eq("_id", instanceId));
+        fencedDelete(instanceCompositionPlans, instanceId);
     }
 
     // --- Console Scrollback ---
@@ -849,6 +880,102 @@ public final class MongoStateStore implements StateStore {
     @Override
     public void dropClusterMeta() {
         clusterMeta.drop();
+    }
+
+    // --- Epoch fencing (single-writer correctness) ---
+
+    /**
+     * Epoch-fenced upsert keyed on {@code _id}. Stamps {@link #OWNER_EPOCH} with the current leadership
+     * epoch and applies the replacement iff no doc with a strictly-higher epoch already exists — so a
+     * deposed leader's stale-epoch write can never clobber the live leader's state. Atomic on the
+     * unique {@code _id}: the conditional replace and the absent-doc insert resolve concurrency through
+     * the index, not a read-modify-write.
+     *
+     * <p>Fail-soft by design: a rejected write is logged + counted, never thrown, and {@code epoch <= 0}
+     * disables the fence (plain upsert) so single-controller installs and the bootstrap window are
+     * unchanged. The {@code <=} comparison lets the same leader (and the fixed-epoch single-controller
+     * {@code alwaysLeader}) re-write its own docs. {@code doc} must not already carry {@code _id}-foreign
+     * state; the helper appends {@link #OWNER_EPOCH} in place.
+     *
+     * @return {@code true} if the write was applied (or the fence is disabled); {@code false} if dropped.
+     */
+    private boolean fencedReplace(MongoCollection<Document> coll, String id, Document doc) {
+        long me = epochSource.getAsLong();
+        if (me <= 0L) {
+            coll.replaceOne(Filters.eq("_id", id), doc, UPSERT);
+            return true;
+        }
+        doc.append(OWNER_EPOCH, me);
+        var result = coll.replaceOne(
+                Filters.and(
+                        Filters.eq("_id", id),
+                        Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me))),
+                doc);
+        if (result.getMatchedCount() > 0) {
+            return true; // replaced an absent-epoch / same-or-lower-epoch doc
+        }
+        // No match: the doc is absent (insert it) or a strictly-higher-epoch doc exists (fence it).
+        try {
+            coll.insertOne(doc);
+            return true;
+        } catch (MongoWriteException e) {
+            if (e.getError().getCategory() == ErrorCategory.DUPLICATE_KEY) {
+                return rejectFencedWrite(coll, id, me);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Epoch-fenced in-place update. Narrows {@code idFilter} so it matches only when the stored epoch
+     * is absent or {@code <= myEpoch}, and stamps {@link #OWNER_EPOCH}. A 0-match (target absent — an
+     * in-place update is already a no-op there — or fenced) returns {@code false} without throwing.
+     */
+    private boolean fencedUpdate(MongoCollection<Document> coll, org.bson.conversions.Bson idFilter, org.bson.conversions.Bson update) {
+        long me = epochSource.getAsLong();
+        if (me <= 0L) {
+            coll.updateOne(idFilter, update);
+            return true;
+        }
+        var fenced = Filters.and(
+                idFilter, Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me)));
+        var result = coll.updateOne(fenced, Updates.combine(update, Updates.set(OWNER_EPOCH, me)));
+        if (result.getMatchedCount() > 0) {
+            return true;
+        }
+        // Absent (no-op) or fenced; can't cheaply distinguish, so this is a debug-level signal only.
+        logger.debug(
+                "Fenced update matched 0 docs in {} (myEpoch={}) — target absent or out-epoched",
+                coll.getNamespace().getCollectionName(),
+                me);
+        return false;
+    }
+
+    /**
+     * Epoch-fenced delete keyed on {@code _id}. A deposed leader can't delete a doc the live leader has
+     * already recreated at a higher epoch — the delete simply matches nothing. Fail-soft (no throw).
+     */
+    private boolean fencedDelete(MongoCollection<Document> coll, String id) {
+        long me = epochSource.getAsLong();
+        if (me <= 0L) {
+            coll.deleteOne(Filters.eq("_id", id));
+            return true;
+        }
+        var result = coll.deleteOne(Filters.and(
+                Filters.eq("_id", id),
+                Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me))));
+        return result.getDeletedCount() > 0;
+    }
+
+    private boolean rejectFencedWrite(MongoCollection<Document> coll, String id, long myEpoch) {
+        fencedWriteRejections.incrementAndGet();
+        logger.warn(
+                "Fenced write rejected in {} (_id={}, myEpoch={}): a higher-epoch write already won — "
+                        + "this controller is likely deposed; dropping the stale write",
+                coll.getNamespace().getCollectionName(),
+                id,
+                myEpoch);
+        return false;
     }
 
     // --- Helpers ---
