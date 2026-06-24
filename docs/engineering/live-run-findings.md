@@ -725,3 +725,43 @@ controller, plus two transport-config gaps. All fixed via one shared component a
   (3→1, console burst): both clean, instances reached RUNNING / drained gracefully, and the controller log had
   **zero** `client cancelled` / `Failed to stream` / `disconnected -- marking CRASHED` across the whole window.
   ⚠️ node-fra-2 still on the old daemon jar (one managed node validated); roll it when reactivated.
+
+### 2026-06-24 — finding #12: Tier-1 epoch fence on authority-sensitive Mongo writes — **DONE + validated live**
+The single-writer store relied on the leadership lease + local monotonic guard alone; a deposed leader that hadn't
+yet noticed it lost the lease could still issue a last-writer-wins Mongo write and clobber the new leader's state.
+This adds a storage-layer fencing token as defense-in-depth behind the (already-live) local guard.
+- **Mechanism (`MongoStateStore`).** Every authority-sensitive write is stamped with the writing leader's fencing
+  `ownerEpoch` (`= leadership.currentEpoch()`, wired in bootstrap to `MongoLeaderElector::currentEpoch`) and applied
+  only when the stored doc carries no epoch (legacy / first write) or `ownerEpoch <= mine`. Three helpers —
+  `fencedReplace` (conditional replace; on no-match either insert-if-absent or drop-if-out-epoched via the unique
+  `_id`), `fencedUpdate` (in-place, narrowed filter + stamp), `fencedDelete`. **Fail-soft**: a rejected write is
+  logged + counted (`fencedWriteRejections`), never thrown, and `epoch <= 0` disables the fence entirely
+  (single-controller / bootstrap window / `alwaysLeader`'s fixed `1L` all pass via `<=`). The live leader always holds
+  the highest epoch, so it never rejects its own writes — no wedge.
+- **Scope (the reconciler's durable work-queue).** Workflow intents (transfer/drain/healing/start-retry + deletes),
+  composition plans (+delete), deployment FSM (`updateDeploymentState`/`Progress`), node registry
+  (`registerNode`/`deleteRegisteredNode`). **Left plain:** audit, console, crashes, templates, shares, prefs,
+  `updateNodeLastSeen` (heartbeat), `createDeployment` (unique-indexed insert). Instance RUNNING/CRASHED state isn't in
+  this store (in-memory + daemon-authoritative), so it's out of scope by design. `ownerEpoch` is additive metadata —
+  no reader touches it, no migration needed (legacy unstamped docs are writable).
+- **Footgun handled.** The epoch source (`cluster_leadership`) is a `cluster_*` collection the backup excludes, so a
+  restore could reset the epoch below stamped state docs. Fail-soft turns that into *visible skipped writes + a loud
+  WARN*, not a frozen control plane (operational follow-up: restore must also advance the lease epoch past the restored
+  `ownerEpoch` high-water).
+- **Tests.** `MongoStateStoreFenceIT` (4 — replace/delete/update fence, fence-disabled + legacy + insert paths). Skips
+  without a local Mongo; **ran 4/4 against a throwaway `mongo:8` on data-1** before deploy (validates the real-MongoDB
+  semantics: `matchedCount==0`→insert→dup-key, `exists(false)` legacy match). `:cloud-controller:test` green.
+- **Committed** `a899943`. Bundled the **3-seed Mongo URI**
+  (`mongodb://10.0.0.2:27017,10.0.0.6:27017,10.0.0.7:27017/prexorcloud?replicaSet=rs0`) into the controller deploy so a
+  cold controller restart can bootstrap off any RS member (driver already auto-discovered for failover; this fixes the
+  cold-start single-seed gap).
+- **Validated live (2026-06-24):** rolled jar `a899943` to all 3 controllers (followers→leader). Fence **armed +
+  stamping** — the deployed leader stamped `nodes.ownerEpoch` on daemon re-enroll; **zero spurious rejections** in
+  steady state; the running lobby instance (PID 1533327) was **adopted, never cycled**, through the whole rolling
+  deploy. Forced the reject path through a **real failover**: pre-stamped the node doc `ownerEpoch=9999`, bounced the
+  leader → ctrl-3 acquired epoch 19 → its `registerNode` (epoch 19) was **fenced** (`Fenced write rejected in nodes
+  ... myEpoch=19 ... dropping the stale write`) while the **same enroll still adopted lobby-2** — fail-soft proven
+  end-to-end. Restored the node doc to `ownerEpoch=19`. Fleet left: leader **ctrl-3 epoch 19**, RS 3-member healthy,
+  all controllers on `a899943`.
+- ⚠️ Tier-2 (transactional fence for destructive multi-doc writes via `runInTransaction`) deferred — Tier-1 covers the
+  clobber class. node-fra-2 still on the old daemon jar (unaffected by this controller-only change).
