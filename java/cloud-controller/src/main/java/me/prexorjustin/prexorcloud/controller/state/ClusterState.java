@@ -630,6 +630,40 @@ public final class ClusterState {
         return instanceRegistry.getMetrics(instanceId);
     }
 
+    // --- Warm pool (Group/Template v2, Phase 1) ---
+
+    /** RUNNING instances of a group that are actually serving players (not held in the warm pool). */
+    public List<InstanceInfo> servingInstances(String group) {
+        return instanceRegistry.getByGroup(group).stream()
+                .filter(i -> i.state() == InstanceState.RUNNING && !i.warm())
+                .toList();
+    }
+
+    /** Warm instances of a group that exist or are still coming up (excludes terminal states). */
+    public long warmInstanceCount(String group) {
+        return instanceRegistry.getByGroup(group).stream()
+                .filter(i -> i.warm()
+                        && i.state() != InstanceState.STOPPED
+                        && i.state() != InstanceState.CRASHED)
+                .count();
+    }
+
+    /** Promote one RUNNING warm instance to serving (instant capacity, no cold start). */
+    public Optional<InstanceInfo> promoteWarmInstance(String group) {
+        return instanceRegistry.getByGroup(group).stream()
+                .filter(i -> i.state() == InstanceState.RUNNING && i.warm())
+                .findFirst()
+                .map(i -> {
+                    instanceRegistry.updateWarm(i.id(), false);
+                    return i.withWarm(false);
+                });
+    }
+
+    /** Mark a freshly-placed instance as a warm-pool member (held back from routing until promoted). */
+    public void markInstanceWarm(String instanceId) {
+        instanceRegistry.updateWarm(instanceId, true);
+    }
+
     // --- Proxy Metrics ---
 
     public void updateProxyMetrics(ProxyMetrics metrics) {

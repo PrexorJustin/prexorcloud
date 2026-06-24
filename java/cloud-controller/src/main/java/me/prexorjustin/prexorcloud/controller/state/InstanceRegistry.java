@@ -65,6 +65,10 @@ public final class InstanceRegistry {
         instances.computeIfPresent(instanceId, (ignored, existing) -> existing.withTps(tps1m));
     }
 
+    public void updateWarm(String instanceId, boolean warm) {
+        instances.computeIfPresent(instanceId, (ignored, existing) -> existing.withWarm(warm));
+    }
+
     public void updateMetrics(InstanceMetrics metrics) {
         instanceMetrics.put(metrics.instanceId(), metrics);
     }
