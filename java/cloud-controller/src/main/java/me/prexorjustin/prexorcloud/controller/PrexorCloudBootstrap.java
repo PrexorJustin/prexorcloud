@@ -701,6 +701,10 @@ public final class PrexorCloudBootstrap {
         for (var entry : catalogStore.getAll()) {
             baseTemplateGenerator.ensurePlatformTemplate(entry.platform(), entry.category(), entry.configFormat());
         }
+        // Existing base templates baked their bundled control-plugin jar in at first generation; an
+        // upgraded controller jar must propagate the new plugin into them so instances stop loading
+        // the stale one. Touches only the jar (never the per-controller forwarding secret/config).
+        baseTemplateGenerator.refreshBundledPlugins();
 
         var templateMerger = new TemplateMerger(templateManager, stateStore);
 

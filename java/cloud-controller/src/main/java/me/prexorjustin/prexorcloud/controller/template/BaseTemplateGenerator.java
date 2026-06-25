@@ -7,8 +7,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,6 +63,16 @@ public final class BaseTemplateGenerator {
     // Where each format's bundled jar is installed inside the instance. Geyser loads its integration
     // as an Extension from extensions/; the Bukkit/proxy families load from plugins/ (the default).
     private static final Map<String, String> BUNDLED_PLUGIN_DIRS = Map.of("geyser", "extensions");
+
+    // Every first-party jar name we ship, used to recognise a bundled plugin already installed in a
+    // template (regardless of its install dir) when refreshing it after a controller upgrade.
+    private static final Set<String> ALL_BUNDLED_JARS;
+
+    static {
+        Set<String> jars = new HashSet<>(BUNDLED_PLUGINS.values());
+        jars.addAll(BUNDLED_PLUGINS_BY_PLATFORM.values());
+        ALL_BUNDLED_JARS = Set.copyOf(jars);
+    }
 
     /**
      * Ensure the root base template exists. Called on startup.
@@ -141,6 +155,77 @@ public final class BaseTemplateGenerator {
             });
         } finally {
             templateManager.unsuppressWatcher(templateName);
+        }
+    }
+
+    /**
+     * Refresh the bundled control-plugin jars in already-existing {@code base-*}
+     * templates against the controller's classpath copy. Called on startup after the
+     * ensure-loop.
+     *
+     * <p>The bundled plugins are first-party and version-locked to the controller, so a
+     * controller upgrade must reach provisioned instances. But {@link
+     * #ensurePlatformTemplate} skips templates that already exist and {@link
+     * #installBundledPlugin} skips an existing jar file, so without this an upgraded jar
+     * would never replace the one baked into a template at first generation — instances
+     * keep loading the stale plugin (the daemon {@code TemplateCache} only re-fetches on a
+     * template-hash change).
+     *
+     * <p>Only the bundled jar is touched: compared by content and overwritten in place,
+     * never the proxy/server config or the forwarding secret (which is generated
+     * per-controller and must not be rewritten). Template files are stored locally per
+     * controller, so this only acts on templates whose files are materialised on
+     * <em>this</em> controller — the controller that owns a template's files is the one
+     * that refreshes it. Overwriting the jar rehashes the template, which is what makes
+     * daemons re-fetch it.
+     */
+    public void refreshBundledPlugins() {
+        for (TemplateConfig cfg : templateManager.getAll()) {
+            String name = cfg.name();
+            if (!name.startsWith("base-")) continue;
+            try {
+                refreshTemplateBundledPlugin(name);
+            } catch (IOException e) {
+                logger.warn("Failed to refresh bundled plugin in template {}: {}", name, e.getMessage());
+            }
+        }
+    }
+
+    private void refreshTemplateBundledPlugin(String name) throws IOException {
+        Path filesDir = templateManager.getTemplateFilesDir(name);
+        if (!Files.isDirectory(filesDir)) return; // not materialised on this controller -- leave to its owner
+
+        List<Path> bundledJars;
+        try (Stream<Path> walk = Files.walk(filesDir)) {
+            bundledJars = walk.filter(Files::isRegularFile)
+                    .filter(p -> ALL_BUNDLED_JARS.contains(p.getFileName().toString()))
+                    .toList();
+        }
+        if (bundledJars.isEmpty()) return;
+
+        boolean changed = false;
+        templateManager.suppressWatcher(name);
+        try {
+            for (Path jar : bundledJars) {
+                byte[] bundled = readBundledJar(jar.getFileName().toString());
+                if (bundled == null) continue;
+                if (Arrays.equals(bundled, Files.readAllBytes(jar))) continue;
+                Files.write(jar, bundled);
+                changed = true;
+                logger.info(
+                        "Refreshed bundled plugin {} in template {} (controller copy changed)",
+                        jar.getFileName(),
+                        name);
+            }
+            if (changed) templateManager.rehash(name);
+        } finally {
+            templateManager.unsuppressWatcher(name);
+        }
+    }
+
+    private byte[] readBundledJar(String jarName) throws IOException {
+        try (InputStream in = getClass().getResourceAsStream("/bundled-plugins/" + jarName)) {
+            return in == null ? null : in.readAllBytes();
         }
     }
 
@@ -254,13 +339,12 @@ public final class BaseTemplateGenerator {
         Path target = pluginsDir.resolve(jarName);
         if (Files.exists(target)) return;
 
-        try (InputStream in = getClass().getResourceAsStream("/bundled-plugins/" + jarName)) {
-            if (in == null) {
-                logger.warn("Bundled plugin {} not found on classpath -- skipping", jarName);
-                return;
-            }
-            Files.copy(in, target);
-            logger.debug("Installed bundled plugin {} into template {}", jarName, templateName);
+        byte[] bundled = readBundledJar(jarName);
+        if (bundled == null) {
+            logger.warn("Bundled plugin {} not found on classpath -- skipping", jarName);
+            return;
         }
+        Files.write(target, bundled);
+        logger.debug("Installed bundled plugin {} into template {}", jarName, templateName);
     }
 }
