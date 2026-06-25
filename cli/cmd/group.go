@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -379,6 +380,156 @@ var groupScaleCmd = &cobra.Command{
 	},
 }
 
+var groupStartCmd = &cobra.Command{
+	Use:   "start [name]",
+	Short: "Start instances in a group",
+	Long: "Start one or more instances in a group, optionally injecting per-instance " +
+		"variable values. Each --var supplies a KEY=VALUE override validated against " +
+		"the group's typed variable definitions; an invalid value is rejected by the " +
+		"controller.",
+	Args: cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group start <name>`)",
+			func() (string, error) { return pickGroup(client, "Select a group to start") })
+		if err != nil {
+			return err
+		}
+
+		flags := cmd.Flags()
+		count, _ := flags.GetInt("count")
+		varPairs, _ := flags.GetStringArray("var")
+		vars, err := parseKeyVals(varPairs)
+		if err != nil {
+			return err
+		}
+
+		body := map[string]any{"count": count, "variables": vars}
+
+		var result map[string]any
+		if err := client.Post("/api/v1/groups/"+name+"/start", body, &result); err != nil {
+			return err
+		}
+
+		if flagJSON {
+			return theme.PrintJSON(result)
+		}
+		theme.PrintSuccess(fmt.Sprintf("Started %d instance(s) in group '%s'", count, name))
+		return nil
+	},
+}
+
+var groupVarCmd = &cobra.Command{
+	Use:   "var",
+	Short: "Manage a group's variable values",
+}
+
+var groupVarListCmd = &cobra.Command{
+	Use:   "list [name]",
+	Short: "List a group's variable values",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+
+		name, err := resolveArg(args, "group name required (e.g. `prexorctl group var list <name>`)",
+			func() (string, error) { return pickGroup(client, "Select a group") })
+		if err != nil {
+			return err
+		}
+
+		var group map[string]any
+		if err := client.Get("/api/v1/groups/"+name, &group); err != nil {
+			return err
+		}
+
+		values, _ := group["variableValues"].(map[string]any)
+
+		if flagJSON {
+			if values == nil {
+				values = map[string]any{}
+			}
+			return theme.PrintJSON(values)
+		}
+
+		keys := make([]string, 0, len(values))
+		for k := range values {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
+		headers := []string{"KEY", "VALUE"}
+		rows := make([][]string, 0, len(values))
+		for _, k := range keys {
+			rows = append(rows, []string{
+				theme.Code(k),
+				theme.StyleMute().Render(fmt.Sprintf("%v", values[k])),
+			})
+		}
+		fmt.Println(tui.SimpleListHeader(fmt.Sprintf("Variables of group %s", theme.Code(name)),
+			shortHost(cfg.Resolve(flagController, flagContext))))
+		fmt.Println()
+		tui.PrintTable(headers, rows)
+		fmt.Println(tui.ListFooter("variables", len(values)))
+		return nil
+	},
+}
+
+var groupVarSetCmd = &cobra.Command{
+	Use:   "set <name> KEY=VALUE [KEY=VALUE...]",
+	Short: "Set variable values on a group (merged per key)",
+	Long: "Merge one or more KEY=VALUE variable values into a group. Existing keys not " +
+		"listed are left untouched (values cannot be deleted). A value that violates " +
+		"the template's typed definition is rejected by the controller.",
+	Args: cobra.MinimumNArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+
+		name := args[0]
+		values, err := parseKeyVals(args[1:])
+		if err != nil {
+			return err
+		}
+
+		body := map[string]any{"variableValues": values}
+
+		var result map[string]any
+		if err := client.Patch("/api/v1/groups/"+name, body, &result); err != nil {
+			return err
+		}
+
+		if flagJSON {
+			return theme.PrintJSON(result)
+		}
+		theme.PrintSuccess(fmt.Sprintf("Set %d variable(s) on group '%s'", len(values), name))
+		return nil
+	},
+}
+
+// parseKeyVals turns a slice of "key=value" strings into a map. The value may
+// itself contain '=' (only the first separator splits); an empty key or a
+// pair without '=' is an error.
+func parseKeyVals(pairs []string) (map[string]string, error) {
+	out := make(map[string]string, len(pairs))
+	for _, p := range pairs {
+		k, v, ok := strings.Cut(p, "=")
+		if !ok || k == "" {
+			return nil, fmt.Errorf("invalid KEY=VALUE pair %q (expected key=value)", p)
+		}
+		out[k] = v
+	}
+	return out, nil
+}
+
 func init() {
 	groupCreateCmd.Flags().String("name", "", "Group name (required)")
 	groupCreateCmd.Flags().String("platform", "", "Platform (e.g., paper, velocity)")
@@ -404,7 +555,12 @@ func init() {
 	groupListCmd.Flags().StringVar(&groupListSort, "sort", "name", "Sort by: name, players, instances")
 	groupListCmd.Flags().BoolVar(&groupListWatch, "watch", false, "Re-render every 2s")
 
-	groupCmd.AddCommand(groupListCmd, groupInfoCmd, groupCreateCmd, groupUpdateCmd, groupScaleCmd, groupDeleteCmd, groupMaintenanceCmd)
+	groupStartCmd.Flags().Int("count", 1, "Number of instances to start")
+	groupStartCmd.Flags().StringArray("var", nil, "Per-instance variable KEY=VALUE (repeatable)")
+
+	groupVarCmd.AddCommand(groupVarListCmd, groupVarSetCmd)
+
+	groupCmd.AddCommand(groupListCmd, groupInfoCmd, groupCreateCmd, groupUpdateCmd, groupScaleCmd, groupStartCmd, groupDeleteCmd, groupMaintenanceCmd, groupVarCmd)
 }
 
 // filterAndSortGroups applies --filter and --sort to a group list.
