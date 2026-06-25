@@ -765,3 +765,29 @@ This adds a storage-layer fencing token as defense-in-depth behind the (already-
   all controllers on `a899943`.
 - ⚠️ Tier-2 (transactional fence for destructive multi-doc writes via `runInTransaction`) deferred — Tier-1 covers the
   clobber class. node-fra-2 still on the old daemon jar (unaffected by this controller-only change).
+
+---
+
+## Finding: stale bundled plugin jars in `base-*` templates after a controller rebuild (deployment gotcha)
+
+**2026-06-25 · DONE (worked around live) · product follow-up OPEN**
+
+`BaseTemplateGenerator` writes the bundled plugin jars (`/bundled-plugins/*.jar`) into each `base-<platform>`
+template **once** — it returns early if the template already exists (`templateManager.exists(name)`), and
+`writePlugin` skips if the target file already exists. The daemon `TemplateCache` then keys its on-disk cache by the
+controller's **template hash** and only re-fetches on a hash change. Net effect: **rebuilding/redeploying the
+controller with an updated plugin jar does NOT reach running instances** — the stored `base-*` template (in Mongo,
+archive bytes under `cluster_files`) keeps the OLD jar, its hash is unchanged, and the daemon serves its cached copy.
+This silently bit the warm-pool "full proxy invisibility" live test: a freshly-provisioned Velocity proxy loaded the
+**old** `PrexorCloudVelocityPlugin.jar` (md5 `08cf4669`, 4326880 B) even though all 3 controllers ran the new
+controller jar bundling `671ebc5f` (4340037 B).
+
+**Work-around used (reliable):** re-upload the new plugin jar into the base template, which rehashes it →
+daemon re-fetches on next provision:
+`POST /api/v1/templates/base-velocity/files/upload?path=plugins` (multipart `file=@…;filename=PrexorCloudVelocityPlugin.jar`).
+Confirmed the template hash flipped `9fa4a6f…`→`cee91f8…` (size→4340037) and the next edge instance deployed `671ebc5f`.
+
+**Product follow-up (OPEN):** on controller startup, re-inject a bundled plugin into the `base-*` templates when its
+bytes differ from the stored copy (compare a content hash of `/bundled-plugins/<jar>` vs the template's file), instead
+of the current exists-only skip. Same staleness applies to **every** `base-*` template carrying a bundled jar
+(`base-paper`, `base-bungeecord`, `base-folia`, `base-spigot`, `base-geyser`), not just `base-velocity`.
