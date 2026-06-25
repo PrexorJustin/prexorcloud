@@ -26,6 +26,11 @@ import java.time.Instant;
  *            milliseconds since the instance reached RUNNING state
  * @param startedAt
  *            timestamp when the instance reached RUNNING state
+ * @param warm
+ *            whether this instance is a warm-pool member — RUNNING but held
+ *            back from automatic routing until promoted, so a join never pays a
+ *            JVM cold start. Routing logic skips warm instances; explicit
+ *            transfers by id may still target them.
  */
 public record InstanceView(
         String instanceId,
@@ -36,4 +41,24 @@ public record InstanceView(
         int port,
         int playerCount,
         long uptimeMs,
-        Instant startedAt) {}
+        Instant startedAt,
+        boolean warm) {
+
+    /** Copy with a new lifecycle {@code state}, preserving every other field. */
+    public InstanceView withState(InstanceState state) {
+        return new InstanceView(
+                instanceId, group, nodeId, nodeAddress, state, port, playerCount, uptimeMs, startedAt, warm);
+    }
+
+    /** Copy with a new {@code playerCount}, preserving every other field. */
+    public InstanceView withPlayerCount(int playerCount) {
+        return new InstanceView(
+                instanceId, group, nodeId, nodeAddress, state, port, playerCount, uptimeMs, startedAt, warm);
+    }
+
+    /** Copy with a new warm-pool {@code warm} flag, preserving every other field. */
+    public InstanceView withWarm(boolean warm) {
+        return new InstanceView(
+                instanceId, group, nodeId, nodeAddress, state, port, playerCount, uptimeMs, startedAt, warm);
+    }
+}

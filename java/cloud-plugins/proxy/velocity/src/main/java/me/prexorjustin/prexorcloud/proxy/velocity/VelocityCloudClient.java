@@ -53,7 +53,7 @@ final class VelocityCloudClient implements CloudClient {
     public CompletableFuture<TransferResult> transferPlayer(UUID playerId, String targetGroup) {
         return CompletableFuture.supplyAsync(() -> {
             Optional<InstanceView> target = stateCache.getInstancesByGroup(targetGroup).stream()
-                    .filter(i -> i.state() == InstanceState.RUNNING)
+                    .filter(i -> i.state() == InstanceState.RUNNING && !i.warm())
                     .min((a, b) -> Integer.compare(a.playerCount(), b.playerCount()));
             if (target.isEmpty()) {
                 return TransferResult.failure("No running instance in group: " + targetGroup);

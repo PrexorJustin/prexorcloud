@@ -69,7 +69,7 @@ public final class VelocityCloudPlayer implements CloudPlayer {
     public CompletableFuture<Boolean> transfer(String targetGroup) {
         return CompletableFuture.supplyAsync(() -> {
             stateCache.getInstancesByGroup(targetGroup).stream()
-                    .filter(i -> i.state() == InstanceState.RUNNING)
+                    .filter(i -> i.state() == InstanceState.RUNNING && !i.warm())
                     .min(Comparator.comparingInt(i -> i.playerCount()))
                     .ifPresent(i -> connectTo(i.instanceId(), i.nodeAddress(), i.port()));
             return true;

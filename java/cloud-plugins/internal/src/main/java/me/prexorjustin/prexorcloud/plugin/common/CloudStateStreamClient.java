@@ -140,6 +140,7 @@ final class CloudStateStreamClient {
     private void applyEvent(String type, Map<String, Object> data) {
         switch (type) {
             case "INSTANCE_STATE_CHANGED" -> applyInstanceStateChanged(data);
+            case "INSTANCE_WARM_CHANGED" -> applyInstanceWarmChanged(data);
             case "INSTANCE_CRASHED" -> applyInstanceCrashed(data);
             case "INSTANCE_METRICS" -> applyInstanceMetrics(data);
             case "GROUP_CREATED", "GROUP_UPDATED" -> cache.refreshGroupsNow();
@@ -157,6 +158,14 @@ final class CloudStateStreamClient {
         String instanceId = asString(data.get("instanceId"));
         String newState = asString(data.get("newState"));
         if (instanceId == null || newState == null || !cache.applyInstanceStateDelta(instanceId, newState)) {
+            cache.refreshInstancesNow();
+        }
+    }
+
+    private void applyInstanceWarmChanged(Map<String, Object> data) {
+        String instanceId = asString(data.get("instanceId"));
+        Object warm = data.get("warm");
+        if (instanceId == null || !(warm instanceof Boolean flag) || !cache.applyInstanceWarmDelta(instanceId, flag)) {
             cache.refreshInstancesNow();
         }
     }

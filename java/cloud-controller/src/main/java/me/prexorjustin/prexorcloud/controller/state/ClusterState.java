@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import me.prexorjustin.prexorcloud.api.event.events.GroupAggregatesUpdatedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.InstanceMetricsUpdatedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.InstanceStateChangedEvent;
+import me.prexorjustin.prexorcloud.api.event.events.InstanceWarmChangedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeCacheStatusUpdatedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeConnectedEvent;
 import me.prexorjustin.prexorcloud.api.event.events.NodeDisconnectedEvent;
@@ -655,13 +656,19 @@ public final class ClusterState {
                 .findFirst()
                 .map(i -> {
                     instanceRegistry.updateWarm(i.id(), false);
+                    // No state change fires for a RUNNING->RUNNING warm flip, so broadcast the
+                    // promotion explicitly — proxies need it to start routing to this instance.
+                    eventBus.publish(new InstanceWarmChangedEvent(i.id(), i.group(), i.nodeId(), false));
                     return i.withWarm(false);
                 });
     }
 
     /** Mark a freshly-placed instance as a warm-pool member (held back from routing until promoted). */
     public void markInstanceWarm(String instanceId) {
+        InstanceInfo existing = instanceRegistry.get(instanceId).orElse(null);
+        if (existing == null || existing.warm()) return;
         instanceRegistry.updateWarm(instanceId, true);
+        eventBus.publish(new InstanceWarmChangedEvent(instanceId, existing.group(), existing.nodeId(), true));
     }
 
     // --- Proxy Metrics ---

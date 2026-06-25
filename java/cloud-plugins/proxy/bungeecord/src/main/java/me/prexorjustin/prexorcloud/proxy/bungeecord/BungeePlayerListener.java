@@ -107,7 +107,7 @@ public final class BungeePlayerListener implements Listener {
     private Optional<ServerInfo> pickFromChain(List<String> groups) {
         for (String group : groups) {
             for (InstanceView instance : stateCache.getInstancesByGroup(group)) {
-                if (instance.state() != InstanceState.RUNNING) continue;
+                if (instance.state() != InstanceState.RUNNING || instance.warm()) continue;
                 ServerInfo server = proxyServer.getServerInfo(instance.instanceId());
                 if (server != null) {
                     return Optional.of(server);

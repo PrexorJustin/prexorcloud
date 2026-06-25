@@ -15,4 +15,5 @@ public record InstanceDto(
         @JsonProperty("port") int port,
         @JsonProperty("playerCount") int playerCount,
         @JsonProperty("uptimeMs") long uptimeMs,
-        @JsonProperty("startedAt") Instant startedAt) {}
+        @JsonProperty("startedAt") Instant startedAt,
+        @JsonProperty("warm") boolean warm) {}

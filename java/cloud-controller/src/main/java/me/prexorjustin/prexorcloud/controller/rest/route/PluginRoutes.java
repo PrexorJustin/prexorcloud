@@ -417,7 +417,7 @@ public final class PluginRoutes {
         }
 
         var target = controller.clusterState().getAllInstances().stream()
-                .filter(i -> i.group().equals(req.group()) && i.state() == InstanceState.RUNNING)
+                .filter(i -> i.group().equals(req.group()) && i.state() == InstanceState.RUNNING && !i.warm())
                 .min(Comparator.comparingInt(i -> i.playerCount()));
 
         if (target.isEmpty()) {

@@ -133,17 +133,7 @@ public final class CloudStateCache {
         if (current == null) {
             return false;
         }
-        InstanceView updated = new InstanceView(
-                current.instanceId(),
-                current.group(),
-                current.nodeId(),
-                current.nodeAddress(),
-                parseState(state),
-                current.port(),
-                current.playerCount(),
-                current.uptimeMs(),
-                current.startedAt());
-        return replaceInstance(current, updated);
+        return replaceInstance(current, current.withState(parseState(state)));
     }
 
     boolean applyInstancePlayerCount(String instanceId, int playerCount) {
@@ -151,17 +141,15 @@ public final class CloudStateCache {
         if (current == null) {
             return false;
         }
-        InstanceView updated = new InstanceView(
-                current.instanceId(),
-                current.group(),
-                current.nodeId(),
-                current.nodeAddress(),
-                current.state(),
-                current.port(),
-                Math.max(0, playerCount),
-                current.uptimeMs(),
-                current.startedAt());
-        return replaceInstance(current, updated);
+        return replaceInstance(current, current.withPlayerCount(Math.max(0, playerCount)));
+    }
+
+    boolean applyInstanceWarmDelta(String instanceId, boolean warm) {
+        InstanceView current = instances.get(instanceId);
+        if (current == null) {
+            return false;
+        }
+        return replaceInstance(current, current.withWarm(warm));
     }
 
     boolean applyInstancePlayerDelta(String instanceId, int delta) {
@@ -311,7 +299,8 @@ public final class CloudStateCache {
                 dto.port(),
                 dto.playerCount(),
                 dto.uptimeMs(),
-                dto.startedAt() != null ? dto.startedAt() : Instant.EPOCH);
+                dto.startedAt() != null ? dto.startedAt() : Instant.EPOCH,
+                dto.warm());
     }
 
     private static GroupView toGroupView(GroupDto dto) {

@@ -100,7 +100,7 @@ public final class VelocityPlayerListener {
     private Optional<RegisteredServer> pickFromChain(List<String> groups) {
         for (String group : groups) {
             for (InstanceView instance : stateCache.getInstancesByGroup(group)) {
-                if (instance.state() != InstanceState.RUNNING) continue;
+                if (instance.state() != InstanceState.RUNNING || instance.warm()) continue;
                 Optional<RegisteredServer> server = proxyServer.getServer(instance.instanceId());
                 if (server.isPresent()) {
                     return server;

@@ -39,6 +39,7 @@ public final class WorkloadDtoMapper {
         dto.put("port", instance.port());
         dto.put("playerCount", instance.playerCount());
         dto.put("uptimeMs", instance.uptimeMs());
+        dto.put("warm", instance.warm());
         return dto;
     }
 

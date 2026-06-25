@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.plugin.common;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
@@ -79,6 +80,35 @@ final class CloudStateStreamClientTest {
     }
 
     @Test
+    void appliesWarmDeltaAndPreservesItAcrossLaterDeltas() {
+        var client = new FakeControllerClient();
+        var cache = new CloudStateCache(client, 0);
+        var stream = new CloudStateStreamClient(client, cache);
+        cache.applyInstanceSnapshot(List.of(instance("lobby-1", "lobby", "RUNNING", 0)));
+
+        // Controller marks the instance warm (held back from routing) — no state change.
+        stream.handleFrame(new CloudStateStreamClient.SseFrame("message", "5", """
+                {"type":"INSTANCE_WARM_CHANGED","instanceId":"lobby-1","warm":true,"sequence":5}
+                """));
+        assertTrue(cache.getInstance("lobby-1").orElseThrow().warm());
+
+        // A later player-count delta must not silently drop the warm flag (wither preserves it).
+        stream.handleFrame(new CloudStateStreamClient.SseFrame("message", "6", """
+                {"type":"INSTANCE_METRICS","instanceId":"lobby-1","playerCount":4,"sequence":6}
+                """));
+        assertTrue(cache.getInstance("lobby-1").orElseThrow().warm());
+        assertEquals(4, cache.getInstance("lobby-1").orElseThrow().playerCount());
+
+        // Promotion flips it back to routable.
+        stream.handleFrame(new CloudStateStreamClient.SseFrame("message", "7", """
+                {"type":"INSTANCE_WARM_CHANGED","instanceId":"lobby-1","warm":false,"sequence":7}
+                """));
+        assertFalse(cache.getInstance("lobby-1").orElseThrow().warm());
+        assertEquals(7, stream.lastSequence());
+        cache.stop();
+    }
+
+    @Test
     void resyncRequiredRefreshesSnapshotsAndAdvancesSequence() {
         var client = new FakeControllerClient();
         client.instances = List.of(instance("fresh-1", "fresh", "RUNNING", 3));
@@ -142,7 +172,7 @@ final class CloudStateStreamClientTest {
     }
 
     private static InstanceDto instance(String id, String group, String state, int playerCount) {
-        return new InstanceDto(id, group, "node-1", "127.0.0.1", state, 25565, playerCount, 0, STARTED_AT);
+        return new InstanceDto(id, group, "node-1", "127.0.0.1", state, 25565, playerCount, 0, STARTED_AT, false);
     }
 
     private static GroupDto group(String name, int onlineCount) {

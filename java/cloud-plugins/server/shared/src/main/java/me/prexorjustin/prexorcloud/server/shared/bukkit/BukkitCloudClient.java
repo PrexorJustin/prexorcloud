@@ -75,7 +75,8 @@ public final class BukkitCloudClient implements CloudClient {
                                 dto.port(),
                                 dto.playerCount(),
                                 dto.uptimeMs(),
-                                dto.startedAt() != null ? dto.startedAt() : Instant.EPOCH);
+                                dto.startedAt() != null ? dto.startedAt() : Instant.EPOCH,
+                                dto.warm());
                     })
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException("Instance not found: " + instanceId));

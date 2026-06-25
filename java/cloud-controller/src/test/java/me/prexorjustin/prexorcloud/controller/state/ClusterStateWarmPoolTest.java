@@ -3,7 +3,10 @@ package me.prexorjustin.prexorcloud.controller.state;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.time.Instant;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
+import me.prexorjustin.prexorcloud.api.event.events.InstanceWarmChangedEvent;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
@@ -15,10 +18,13 @@ import org.junit.jupiter.api.Test;
 class ClusterStateWarmPoolTest {
 
     private ClusterState clusterState;
+    private final CopyOnWriteArrayList<InstanceWarmChangedEvent> warmEvents = new CopyOnWriteArrayList<>();
 
     @BeforeEach
     void setUp() {
-        clusterState = new ClusterState(new EventBus());
+        EventBus eventBus = new EventBus();
+        eventBus.subscribe(InstanceWarmChangedEvent.class, warmEvents::add);
+        clusterState = new ClusterState(eventBus);
     }
 
     private void add(String id, InstanceState state, boolean warm) {
@@ -62,5 +68,32 @@ class ClusterStateWarmPoolTest {
 
         assertEquals(0, clusterState.servingInstances("lobby").size());
         assertEquals(1, clusterState.warmInstanceCount("lobby"));
+    }
+
+    @Test
+    @DisplayName("broadcasts a warm-flag change on promote and mark so proxies update routing")
+    void broadcastsWarmFlagChanges() throws InterruptedException {
+        add("lobby-1", InstanceState.RUNNING, false);
+        warmEvents.clear(); // addInstance does not touch warm
+
+        clusterState.markInstanceWarm("lobby-1");
+        clusterState.markInstanceWarm("lobby-1"); // already warm — must not re-broadcast
+        clusterState.promoteWarmInstance("lobby");
+
+        waitForCount(2); // one mark + one promote (async EventBus)
+        Thread.sleep(100); // settle so a spurious 3rd event from the redundant mark would surface
+
+        assertEquals(2, warmEvents.size(), "redundant mark must not re-broadcast");
+        assertTrue(warmEvents.get(0).warm(), "mark broadcasts warm=true");
+        assertEquals("lobby-1", warmEvents.get(0).instanceId());
+        assertFalse(warmEvents.get(1).warm(), "promote broadcasts warm=false");
+    }
+
+    private void waitForCount(int min) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (warmEvents.size() < min && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertTrue(warmEvents.size() >= min, "expected at least " + min + " warm events, got " + warmEvents.size());
     }
 }
