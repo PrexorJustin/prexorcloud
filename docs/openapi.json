@@ -9439,6 +9439,12 @@
           "warmPoolMinPrepared": {
             "type": "integer",
             "format": "int32"
+          },
+          "variableValues": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [

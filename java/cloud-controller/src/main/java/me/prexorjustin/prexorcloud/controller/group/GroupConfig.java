@@ -82,7 +82,11 @@ public record GroupConfig(
         // resolves a live instance of this group and injects its host:port as Geyser's remote at
         // provision time. Empty for non-Geyser groups.
         @JsonProperty("bedrockProxyGroup") String bedrockProxyGroup,
-        @JsonProperty("warmPoolMinPrepared") int warmPoolMinPrepared) {
+        @JsonProperty("warmPoolMinPrepared") int warmPoolMinPrepared,
+        // Variable system v2: group-scope variable values keyed by VariableDef.key. Layered over the
+        // template's typed defaults and under any per-instance override by VariableResolver when the
+        // controller builds an instance's start spec.
+        @JsonProperty("variableValues") Map<String, String> variableValues) {
 
     public GroupConfig {
         if (name == null) name = "";
@@ -137,6 +141,7 @@ public record GroupConfig(
         }
         if (bedrockProxyGroup == null) bedrockProxyGroup = "";
         if (warmPoolMinPrepared < 0) warmPoolMinPrepared = 0;
+        if (variableValues == null) variableValues = Map.of();
     }
 
     public GroupConfig(
@@ -245,7 +250,8 @@ public record GroupConfig(
                 disabledExtensions,
                 configPatches,
                 "",
-                0);
+                0,
+                Map.of());
     }
 
     public GroupConfig(
@@ -457,7 +463,8 @@ public record GroupConfig(
                 disabledExtensions,
                 configPatches,
                 "",
-                0);
+                0,
+                Map.of());
     }
 
     public GroupRuntimeTarget runtimeTarget() {

@@ -141,6 +141,8 @@ public final class GroupManager {
         // merged
         var mergedEnv = new HashMap<>(parent.env());
         mergedEnv.putAll(child.env());
+        var mergedVariableValues = new HashMap<>(parent.variableValues());
+        mergedVariableValues.putAll(child.variableValues());
         var mergedConfigPatches = new LinkedHashMap<String, Map<String, String>>();
         parent.configPatches().forEach((file, patches) -> mergedConfigPatches.put(file, new LinkedHashMap<>(patches)));
         child.configPatches().forEach((file, patches) -> {
@@ -206,7 +208,8 @@ public final class GroupManager {
                 child.disabledExtensions().isEmpty() ? parent.disabledExtensions() : child.disabledExtensions(),
                 Map.copyOf(mergedConfigPatches),
                 child.bedrockProxyGroup().isEmpty() ? parent.bedrockProxyGroup() : child.bedrockProxyGroup(),
-                child.warmPoolMinPrepared());
+                child.warmPoolMinPrepared(),
+                Map.copyOf(mergedVariableValues));
     }
 
     private static GroupConfig mergePatch(
@@ -214,6 +217,10 @@ public final class GroupManager {
         var mergedEnv = new HashMap<>(existing.env());
         if (sentFields.contains("env") && !update.env().isEmpty()) {
             mergedEnv.putAll(update.env());
+        }
+        var mergedVariableValues = new HashMap<>(existing.variableValues());
+        if (sentFields.contains("variableValues") && !update.variableValues().isEmpty()) {
+            mergedVariableValues.putAll(update.variableValues());
         }
 
         return new GroupConfig(
@@ -283,7 +290,10 @@ public final class GroupManager {
                 sentFields.contains("disabledExtensions") ? update.disabledExtensions() : existing.disabledExtensions(),
                 sentFields.contains("configPatches") ? update.configPatches() : existing.configPatches(),
                 sentFields.contains("bedrockProxyGroup") ? update.bedrockProxyGroup() : existing.bedrockProxyGroup(),
-                sentFields.contains("warmPoolMinPrepared") ? update.warmPoolMinPrepared() : existing.warmPoolMinPrepared());
+                sentFields.contains("warmPoolMinPrepared")
+                        ? update.warmPoolMinPrepared()
+                        : existing.warmPoolMinPrepared(),
+                Map.copyOf(mergedVariableValues));
     }
 
     private void validate(GroupConfig config) {

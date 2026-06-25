@@ -79,6 +79,7 @@ public final class GroupDtoMapper {
         dto.put("disabledExtensions", group.disabledExtensions());
         dto.put("configPatches", group.configPatches());
         dto.put("bedrockProxyGroup", group.bedrockProxyGroup());
+        dto.put("variableValues", group.variableValues());
         dto.put("runningInstances", clusterState.runningInstanceCount(group.name()));
         dto.put("totalPlayers", totalPlayers);
         return dto;

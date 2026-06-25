@@ -595,7 +595,7 @@ export interface paths {
         put?: never;
         /**
          * Logout (revoke token)
-         * @description Revoke the bearer token used on this request by adding its JTI to the Redis-backed JWT revocation store until the token's natural expiry. Returns 501 when the controller has no Redis configured.
+         * @description Revoke the bearer token used on this request by adding its JTI to the JWT revocation store until the token's natural expiry. Returns 501 when no revocation store is configured.
          */
         post: operations["logoutUser"];
         delete?: never;
@@ -1894,6 +1894,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/nodes/{id}/shutdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Immediately stop a node's daemon
+         * @description Sends a ShutdownNode command straight to the daemon — no drain. The daemon stops its running instances and exits; the scheduler reschedules them onto other nodes if capacity allows. Use `node drain` instead for a graceful, instance-preserving stop.
+         */
+        post: operations["shutdownNode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/nodes/{id}/uncordon": {
         parameters: {
             query?: never;
@@ -2449,7 +2469,7 @@ export interface paths {
         };
         /**
          * Aggregated diagnostics document
-         * @description Pulls together version, readiness, settings, redacted config, redis keyspace summary, lease snapshot, and cluster overview behind a single ADMIN-gated read so `prexorctl diagnostics bundle` doesn't fan out separate calls.
+         * @description Pulls together version, readiness, settings, redacted config, lease snapshot, and cluster overview behind a single ADMIN-gated read so `prexorctl diagnostics bundle` doesn't fan out separate calls.
          */
         get: operations["getDiagnostics"];
         put?: never;
@@ -2594,40 +2614,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/system/redis/keyspace": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Redis keyspace report */
-        get: operations["getRedisKeyspace"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/system/redis/schema": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Redis key policies */
-        get: operations["getRedisSchema"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/system/settings": {
         parameters: {
             query?: never;
@@ -2639,6 +2625,26 @@ export interface paths {
         get: operations["getSystemSettings"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/shutdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Shut down this controller
+         * @description Gracefully stops the controller process this request is served by. Responds 202 first, then exits shortly after so the response can flush. In an HA cluster this stops only the targeted controller; the remaining peers re-elect a leader. ADMIN-only.
+         */
+        post: operations["shutdownController"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3304,6 +3310,11 @@ export interface components {
                 };
             };
             bedrockProxyGroup?: string;
+            /** Format: int32 */
+            warmPoolMinPrepared: number;
+            variableValues?: {
+                [key: string]: string;
+            };
         };
         /** @enum {string} */
         GroupRuntimeFamily: "SERVER" | "PROXY" | "UNKNOWN";
@@ -3321,15 +3332,12 @@ export interface components {
             mongoDatabase?: string;
             mongoCollections?: string[];
             mongoCollectionPrefixes?: string[];
-            redisKeyPrefixes?: string[];
             files?: string[];
             directories?: string[];
             /** Format: int64 */
             sizeBytes: number;
             /** Format: int64 */
             mongoDocumentCount: number;
-            /** Format: int64 */
-            redisKeyCount: number;
             /** Format: int64 */
             fileCount: number;
         };
@@ -4769,7 +4777,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description JWT revocation requires Redis to be configured */
+            /** @description JWT revocation store is not configured */
             501: {
                 headers: {
                     [name: string]: unknown;
@@ -7590,6 +7598,40 @@ export interface operations {
             };
         };
     };
+    shutdownNode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shutdown command sent */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Node not currently connected */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     uncordonNode: {
         parameters: {
             query?: never;
@@ -9295,70 +9337,6 @@ export interface operations {
             };
         };
     };
-    getRedisKeyspace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Keyspace report */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    getRedisSchema: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Key policies */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Unauthorized */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Forbidden */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
     getSystemSettings: {
         parameters: {
             query?: never;
@@ -9384,6 +9362,24 @@ export interface operations {
             };
             /** @description Forbidden */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    shutdownController: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Shutdown initiated */
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -81,7 +81,8 @@ class EventChoreographerTest {
                 List.of(), // disabledExtensions
                 Map.of(), // configPatches
                 "", // bedrockProxyGroup
-                0); // warmPoolMinPrepared
+                0, // warmPoolMinPrepared
+                Map.of()); // variableValues
     }
 
     private static EventChoreography overlay(

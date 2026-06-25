@@ -271,7 +271,8 @@ public final class EventChoreographer {
                 source.disabledExtensions(),
                 source.configPatches(),
                 source.bedrockProxyGroup(),
-                source.warmPoolMinPrepared());
+                source.warmPoolMinPrepared(),
+                source.variableValues());
     }
 
     /** A currently-active overlay snapshot. */
