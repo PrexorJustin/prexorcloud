@@ -83,10 +83,12 @@ class ClusterStateWarmPoolTest {
         waitForCount(2); // one mark + one promote (async EventBus)
         Thread.sleep(100); // settle so a spurious 3rd event from the redundant mark would surface
 
+        // The EventBus delivers asynchronously, so mark (warm=true) and promote (warm=false) can
+        // land in either order; assert on the multiset, not positions.
         assertEquals(2, warmEvents.size(), "redundant mark must not re-broadcast");
-        assertTrue(warmEvents.get(0).warm(), "mark broadcasts warm=true");
-        assertEquals("lobby-1", warmEvents.get(0).instanceId());
-        assertFalse(warmEvents.get(1).warm(), "promote broadcasts warm=false");
+        assertEquals(1, warmEvents.stream().filter(InstanceWarmChangedEvent::warm).count(), "mark broadcasts warm=true once");
+        assertEquals(1, warmEvents.stream().filter(e -> !e.warm()).count(), "promote broadcasts warm=false once");
+        assertTrue(warmEvents.stream().allMatch(e -> e.instanceId().equals("lobby-1")));
     }
 
     private void waitForCount(int min) throws InterruptedException {

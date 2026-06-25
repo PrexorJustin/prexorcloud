@@ -186,16 +186,23 @@ public final class CloudStateCache {
         removed.removeAll(newKeys);
 
         Set<String> becameRunning = new HashSet<>();
+        boolean warmChanged = false;
         for (Map.Entry<String, InstanceView> entry : newCache.entrySet()) {
+            InstanceView old = oldCache.get(entry.getKey());
+            // A warm-pool promotion (warm true -> false) or hold-back (false -> true) keeps the
+            // instance RUNNING, so it produces no add/remove/becameRunning signal. Detect the flip
+            // explicitly so proxies re-run backend sync and (un)register the instance right then.
+            if (old != null && old.warm() != entry.getValue().warm()) {
+                warmChanged = true;
+            }
             if (entry.getValue().state() != InstanceState.RUNNING) continue;
             if (added.contains(entry.getKey())) continue;
-            InstanceView old = oldCache.get(entry.getKey());
             if (old != null && old.state() != InstanceState.RUNNING) {
                 becameRunning.add(entry.getKey());
             }
         }
 
-        if (!added.isEmpty() || !removed.isEmpty() || !becameRunning.isEmpty()) {
+        if (!added.isEmpty() || !removed.isEmpty() || !becameRunning.isEmpty() || warmChanged) {
             for (InstanceChangeListener listener : listeners) {
                 try {
                     listener.onInstancesChanged(newCache.values(), added, removed, becameRunning);

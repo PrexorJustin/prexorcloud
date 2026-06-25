@@ -59,6 +59,15 @@ public abstract class AbstractProxyCloudPlugin {
             for (InstanceView instance : current) {
                 String instanceId = instance.instanceId();
                 if (instanceId.equals(PluginEnv.instanceId())) continue;
+                // Warm-pool instances are RUNNING but deliberately held back from serving.
+                // Keep them invisible to players: never register one, and unregister an
+                // instance that flips to warm, until the scheduler promotes it (warm -> false).
+                if (instance.warm()) {
+                    if (registeredBackends.remove(instanceId) != null) {
+                        unregisterBackend(instanceId);
+                    }
+                    continue;
+                }
                 if (instance.state() != InstanceState.RUNNING) continue;
                 String endpoint = instance.nodeAddress() + ":" + instance.port();
                 if (endpoint.equals(registeredBackends.get(instanceId))) continue;
