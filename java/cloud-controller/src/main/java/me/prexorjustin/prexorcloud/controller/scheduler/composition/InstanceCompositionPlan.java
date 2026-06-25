@@ -22,6 +22,7 @@ public record InstanceCompositionPlan(
         ResolvedRuntime runtime,
         List<ResolvedExtension> extensions,
         List<ResolvedConfigPatch> configPatches,
+        Map<String, String> variableOverrides,
         String planHash,
         Instant createdAt) {
 
@@ -33,6 +34,7 @@ public record InstanceCompositionPlan(
         templates = templates == null ? List.of() : List.copyOf(templates);
         extensions = extensions == null ? List.of() : List.copyOf(extensions);
         configPatches = configPatches == null ? List.of() : List.copyOf(configPatches);
+        variableOverrides = variableOverrides == null ? Map.of() : Map.copyOf(variableOverrides);
     }
 
     public record ResolvedTemplate(String name, String hash, String source) {}

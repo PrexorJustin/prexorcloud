@@ -7,10 +7,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
 
 import me.prexorjustin.prexorcloud.common.util.HashUtil;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableResolver;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -50,9 +50,13 @@ public final class TemplateMerger {
             logger.debug("Created missing files directory for template {}", templateName);
         }
 
-        // Load variables for resolution
-        Map<String, String> variables = stateStore.getTemplateVariables(templateName).stream()
-                .collect(Collectors.toMap(v -> v.key(), v -> v.value(), (a, _) -> a));
+        // Build-time {{var}} substitution draws from the one typed variable model: the template's
+        // declared defaults, validated. This is the template-shared binding time (the archive is
+        // group-agnostic and cached by content hash), so only template-scoped defaults resolve here;
+        // group/instance values land later per-instance via the daemon's %VAR% pass.
+        Map<String, String> variables = VariableResolver.resolve(
+                        stateStore.getTemplateVariableDefs(templateName), Map.of(), Map.of())
+                .resolved();
 
         byte[] tarGz = packageTarGz(filesDir, variables);
         String hash = HashUtil.sha256(tarGz);

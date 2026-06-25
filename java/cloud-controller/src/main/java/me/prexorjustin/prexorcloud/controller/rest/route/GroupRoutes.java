@@ -21,6 +21,7 @@ import me.prexorjustin.prexorcloud.controller.rest.dto.GroupDtoMapper;
 import me.prexorjustin.prexorcloud.controller.rest.dto.StartGroupRequest;
 import me.prexorjustin.prexorcloud.controller.rest.dto.StatusCountResponse;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
+import me.prexorjustin.prexorcloud.controller.scheduler.composition.GroupVariableResolver;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -294,11 +295,15 @@ public final class GroupRoutes {
         requireFound(controller.groupManager().get(name), "Group", name);
 
         Integer bodyCount = null;
+        Map<String, String> variables = Map.of();
         String body = ctx.body();
         if (body != null && !body.isBlank()) {
             try {
                 var parsed = ctx.bodyAsClass(StartGroupRequest.class);
-                if (parsed != null) bodyCount = parsed.count();
+                if (parsed != null) {
+                    bodyCount = parsed.count();
+                    if (parsed.variables() != null) variables = parsed.variables();
+                }
             } catch (Exception ignored) {
                 // Tolerate malformed JSON: fall through to query-param path.
             }
@@ -312,8 +317,20 @@ public final class GroupRoutes {
         }
         int count = Math.clamp(bodyCount != null ? bodyCount : (queryCount != null ? queryCount : 1), 1, 50);
 
+        // Validate per-instance variable overrides against the group's typed defs before scheduling, so
+        // a typo or a forbidden scope is a 422 here rather than a silently-dropped value at apply time.
+        if (!variables.isEmpty()) {
+            var resolved = controller.groupManager().resolveGroup(name);
+            var validation = GroupVariableResolver.resolve(
+                    resolved, controller.stateStore(), resolved.variableValues(), variables);
+            if (!validation.ok()) {
+                throw new IllegalArgumentException(
+                        "Invalid instance variables: " + String.join("; ", validation.errors()));
+            }
+        }
+
         for (int i = 0; i < count; i++) {
-            controller.scheduler().scheduleOne(name);
+            controller.scheduler().scheduleOne(name, variables);
         }
         ctx.json(ActionDtoMapper.statusCountResponse("scheduled", count));
     }

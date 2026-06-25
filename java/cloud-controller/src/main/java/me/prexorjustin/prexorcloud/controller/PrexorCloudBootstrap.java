@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -56,6 +57,7 @@ import me.prexorjustin.prexorcloud.controller.scheduler.ScalingEvaluator;
 import me.prexorjustin.prexorcloud.controller.scheduler.Scheduler;
 import me.prexorjustin.prexorcloud.controller.scheduler.WeightedNodeSelector;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.ClusterStateBedrockRemoteResolver;
+import me.prexorjustin.prexorcloud.controller.scheduler.composition.GroupVariableResolver;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
 import me.prexorjustin.prexorcloud.controller.security.CertificateRotationTask;
 import me.prexorjustin.prexorcloud.controller.security.TlsMaterialWatcher;
@@ -717,6 +719,13 @@ public final class PrexorCloudBootstrap {
                 logger.warn("Failed to load group '{}': {}", group.name(), e.getMessage());
             }
         }
+
+        // Wire the typed-variable validator AFTER loading persisted groups (which ran with the no-op
+        // default), so existing data is never rejected. Runtime create/update now validate a group's
+        // variableValues against its template defs and surface any problem as a 422.
+        groupManager.setVariableValidator(
+                config -> GroupVariableResolver.resolve(config, stateStore, config.variableValues(), Map.of())
+                        .errors());
 
         return new PrexorController.TemplateServices(
                 templateManager, templateMerger, groupStore, groupManager, catalogStore, baseTemplateGenerator);

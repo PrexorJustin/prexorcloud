@@ -10,18 +10,18 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 import me.prexorjustin.prexorcloud.controller.PrexorController;
 import me.prexorjustin.prexorcloud.controller.auth.Permission;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableValidator;
 import me.prexorjustin.prexorcloud.controller.rest.ApiResponse;
 import me.prexorjustin.prexorcloud.controller.rest.dto.ErrorResponse;
 import me.prexorjustin.prexorcloud.controller.rest.dto.TemplateDtoMapper;
 import me.prexorjustin.prexorcloud.controller.rest.middleware.JwtAuthMiddleware;
-import me.prexorjustin.prexorcloud.controller.state.TemplateVariable;
 import me.prexorjustin.prexorcloud.controller.template.TemplateConfig;
 import me.prexorjustin.prexorcloud.controller.template.TemplateVariableProcessor;
 import me.prexorjustin.prexorcloud.controller.template.ops.ArchiveSearcher;
@@ -44,8 +44,6 @@ public final class TemplateRoutes {
     public record RenameRequest(String from, String to) {}
 
     public record SaveContentRequest(String content) {}
-
-    public record VariableEntry(String key, String value, String description) {}
 
     public record RollbackRequest(String hash) {}
 
@@ -871,11 +869,16 @@ public final class TemplateRoutes {
             path = "/api/v1/templates/{name}/variables",
             methods = {HttpMethod.GET},
             operationId = "getTemplateVariables",
-            summary = "Get template variables",
+            summary = "Get template variable definitions (typed)",
             tags = {"Templates"},
             security = {@OpenApiSecurity(name = "bearerAuth")},
             pathParams = {@OpenApiParam(name = "name", required = true)},
-            responses = {@OpenApiResponse(status = "200", description = "Variables")})
+            responses = {
+                @OpenApiResponse(
+                        status = "200",
+                        description = "Variable definitions",
+                        content = {@OpenApiContent(from = VariableDef[].class)})
+            })
     private void getTemplateVariables(Context ctx) throws Exception {
         JwtAuthMiddleware.requirePermission(ctx, Permission.TEMPLATES_VIEW);
         String name = ctx.pathParam("name");
@@ -884,18 +887,22 @@ public final class TemplateRoutes {
             ctx.json(errorResponse("NOT_FOUND", "Template not found: " + name, 404));
             return;
         }
-        ctx.json(controller.stateStore().getTemplateVariables(name));
+        ctx.json(controller.stateStore().getTemplateVariableDefs(name));
     }
 
     @OpenApi(
             path = "/api/v1/templates/{name}/variables",
             methods = {HttpMethod.PUT},
             operationId = "updateTemplateVariables",
-            summary = "Replace template variables",
+            summary = "Replace template variable definitions (typed, validate-on-set)",
             tags = {"Templates"},
             security = {@OpenApiSecurity(name = "bearerAuth")},
             pathParams = {@OpenApiParam(name = "name", required = true)},
-            responses = {@OpenApiResponse(status = "200", description = "Saved")})
+            requestBody = @OpenApiRequestBody(content = {@OpenApiContent(from = VariableDef[].class)}),
+            responses = {
+                @OpenApiResponse(status = "200", description = "Saved"),
+                @OpenApiResponse(status = "422", description = "Invalid variable definition")
+            })
     private void updateTemplateVariables(Context ctx) throws Exception {
         JwtAuthMiddleware.requirePermission(ctx, Permission.TEMPLATES_UPDATE);
         String name = ctx.pathParam("name");
@@ -904,11 +911,14 @@ public final class TemplateRoutes {
             ctx.json(errorResponse("NOT_FOUND", "Template not found: " + name, 404));
             return;
         }
-        var body = ctx.bodyAsClass(VariableEntry[].class);
-        var vars = Arrays.stream(body)
-                .map(v -> new TemplateVariable(v.key(), v.value(), v.description()))
-                .toList();
-        controller.stateStore().saveTemplateVariables(name, vars);
+        var defs = List.of(ctx.bodyAsClass(VariableDef[].class));
+        var errors = VariableValidator.validateDefinitions(defs);
+        if (!errors.isEmpty()) {
+            ctx.status(422);
+            ctx.json(errorResponse("VARIABLE_DEFINITION_INVALID", String.join("; ", errors), 422));
+            return;
+        }
+        controller.stateStore().saveTemplateVariableDefs(name, defs);
         audit(ctx, controller.stateStore(), "template.variables.update", "template", name);
         ctx.json(TemplateDtoMapper.statusResponse("saved"));
     }

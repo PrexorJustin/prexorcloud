@@ -72,11 +72,12 @@ class VariableValidatorTest {
     @Test
     @DisplayName("ENUM accepts only listed values")
     void enumType() {
-        var defs = List.of(def("MODE", VarType.ENUM, null, true,
-                new Validation(null, null, null, List.of("survival", "creative"))));
+        var defs = List.of(def(
+                "MODE", VarType.ENUM, null, true, new Validation(null, null, null, List.of("survival", "creative"))));
 
         assertTrue(VariableValidator.validate(defs, Map.of("MODE", "creative")).ok());
-        assertFalse(VariableValidator.validate(defs, Map.of("MODE", "spectator")).ok());
+        assertFalse(
+                VariableValidator.validate(defs, Map.of("MODE", "spectator")).ok());
     }
 
     @Test
@@ -96,5 +97,38 @@ class VariableValidatorTest {
 
         assertTrue(result.ok());
         assertEquals("vault://x", result.resolved().get("TOKEN"));
+    }
+
+    @Test
+    @DisplayName("validateDefinitions: well-formed definitions pass; a required var may omit its default")
+    void definitionsValid() {
+        var defs = List.of(
+                def("MOTD", VarType.STRING, "Welcome", false, null),
+                def("WORLD", VarType.STRING, null, true, null), // required, no default — value supplied later
+                def(
+                        "MODE",
+                        VarType.ENUM,
+                        "survival",
+                        false,
+                        new Validation(null, null, null, List.of("survival", "creative"))));
+
+        assertEquals(List.of(), VariableValidator.validateDefinitions(defs));
+    }
+
+    @Test
+    @DisplayName("validateDefinitions: rejects duplicate keys, ENUM without values, and bad defaults")
+    void definitionsRejected() {
+        var defs = List.of(
+                def("SLOTS", VarType.INT, "abc", false, null), // default is not an integer
+                def("MODE", VarType.ENUM, null, false, null), // ENUM declares no enumValues
+                def("MOTD", VarType.STRING, "a", false, null),
+                def("MOTD", VarType.STRING, "b", false, null)); // duplicate key
+
+        var errors = VariableValidator.validateDefinitions(defs);
+
+        assertEquals(3, errors.size(), errors::toString);
+        assertTrue(errors.stream().anyMatch(e -> e.contains("SLOTS")), errors::toString);
+        assertTrue(errors.stream().anyMatch(e -> e.contains("MODE") && e.contains("enumValues")), errors::toString);
+        assertTrue(errors.stream().anyMatch(e -> e.contains("duplicate") && e.contains("MOTD")), errors::toString);
     }
 }

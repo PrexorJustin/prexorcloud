@@ -8082,7 +8082,7 @@
         "tags": [
           "Templates"
         ],
-        "summary": "Get template variables",
+        "summary": "Get template variable definitions (typed)",
         "operationId": "getTemplateVariables",
         "parameters": [
           {
@@ -8098,7 +8098,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Variables"
+            "description": "Variable definitions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VariableDef"
+                  }
+                }
+              }
+            }
           }
         },
         "deprecated": false,
@@ -8112,7 +8122,7 @@
         "tags": [
           "Templates"
         ],
-        "summary": "Replace template variables",
+        "summary": "Replace template variable definitions (typed, validate-on-set)",
         "operationId": "updateTemplateVariables",
         "parameters": [
           {
@@ -8126,9 +8136,25 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/VariableDef"
+                }
+              }
+            }
+          },
+          "required": false
+        },
         "responses": {
           "200": {
             "description": "Saved"
+          },
+          "422": {
+            "description": "Invalid variable definition"
           }
         },
         "deprecated": false,
@@ -9498,6 +9524,87 @@
           }
         }
       },
+      "VariableDef": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/VarType"
+          },
+          "defaultValue": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/Validation"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "required"
+        ]
+      },
+      "Scope": {
+        "type": "string",
+        "enum": [
+          "TEMPLATE",
+          "GROUP",
+          "INSTANCE"
+        ]
+      },
+      "Validation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "regex": {
+            "type": "string"
+          },
+          "min": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "max": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enumValues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "VarType": {
+        "type": "string",
+        "enum": [
+          "STRING",
+          "INT",
+          "BOOL",
+          "ENUM",
+          "SECRET"
+        ]
+      },
+      "Visibility": {
+        "type": "string",
+        "enum": [
+          "ADMIN",
+          "OPERATOR"
+        ]
+      },
       "BackupManifest": {
         "type": "object",
         "additionalProperties": false,
@@ -10568,6 +10675,12 @@
           "count": {
             "type": "integer",
             "format": "int32"
+          },
+          "variables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         }
       },

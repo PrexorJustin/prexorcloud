@@ -1,9 +1,11 @@
 package me.prexorjustin.prexorcloud.controller.group.spec;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Validates and resolves user-supplied variable values against their typed {@link VariableDef}s
@@ -49,6 +51,40 @@ public final class VariableValidator {
         }
 
         return new Result(Map.copyOf(resolved), List.copyOf(errors));
+    }
+
+    /**
+     * Validate typed variable DEFINITIONS at set time (the definitions themselves, not supplied
+     * values): every key is present and unique, an {@code ENUM} declares its allowed values, and any
+     * declared default itself satisfies the declared type/validation. A {@code required} variable with
+     * no default is allowed here — its value is supplied later at group or instance scope.
+     */
+    public static List<String> validateDefinitions(List<VariableDef> defs) {
+        List<String> errors = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (VariableDef def : defs) {
+            if (def.key() == null || def.key().isBlank()) {
+                errors.add("variable key must not be blank");
+                continue;
+            }
+            if (!seen.add(def.key())) {
+                errors.add("duplicate variable '" + def.key() + "'");
+            }
+            if (def.type() == VariableDef.VarType.ENUM
+                    && (def.validation() == null
+                            || def.validation().enumValues() == null
+                            || def.validation().enumValues().isEmpty())) {
+                errors.add("variable '" + def.key() + "' is ENUM but declares no enumValues");
+            }
+            String defaultValue = def.defaultValue();
+            if (defaultValue != null && !defaultValue.isBlank()) {
+                String typeError = checkType(def, defaultValue);
+                if (typeError != null) {
+                    errors.add("variable '" + def.key() + "' default: " + typeError);
+                }
+            }
+        }
+        return List.copyOf(errors);
     }
 
     private static String checkType(VariableDef def, String value) {

@@ -17,8 +17,8 @@ import org.bson.Document;
  * fields ({@code type/required/scope/visibility/validation}) are optional and a legacy document with
  * only the three original keys reads as a {@code STRING}, {@code INSTANCE}-scoped, {@code OPERATOR}
  * variable whose {@code defaultValue} is the stored {@code value}. The {@code value} key is kept as the
- * persisted name for {@code defaultValue} so the legacy {@code getTemplateVariables} read path (and the
- * {@code {{var}}} substitution it feeds) keeps working unchanged.
+ * persisted name for {@code defaultValue} so the build-time {@code {{var}}} substitution (which reads
+ * each template variable's default) keeps working unchanged for templates authored before v2.
  */
 final class VariableDefCodec {
 
@@ -59,7 +59,13 @@ final class VariableDefCodec {
         }
 
         return new VariableDef(
-                d.getString("key"), type, d.getString("value"), required, validation, scope, visibility,
+                d.getString("key"),
+                type,
+                d.getString("value"),
+                required,
+                validation,
+                scope,
+                visibility,
                 d.getString("description"));
     }
 

@@ -98,13 +98,18 @@ public final class InstanceCompositionPlanner {
     }
 
     public InstanceCompositionPlan plan(
-            GroupConfig group, String instanceId, String nodeId, int port, String controllerHttpUrl) {
+            GroupConfig group,
+            String instanceId,
+            String nodeId,
+            int port,
+            String controllerHttpUrl,
+            Map<String, String> variableOverrides) {
         try (var ignored = CorrelationContext.open(Map.of(
                 "groupName", group.name(),
                 "instanceId", instanceId,
                 "nodeId", nodeId))) {
             try {
-                return planWithContext(group, instanceId, nodeId, port, controllerHttpUrl);
+                return planWithContext(group, instanceId, nodeId, port, controllerHttpUrl, variableOverrides);
             } catch (RuntimeException e) {
                 if (metricsCollector != null) {
                     metricsCollector.recordCompositionPlanningFailure();
@@ -115,7 +120,12 @@ public final class InstanceCompositionPlanner {
     }
 
     private InstanceCompositionPlan planWithContext(
-            GroupConfig group, String instanceId, String nodeId, int port, String controllerHttpUrl) {
+            GroupConfig group,
+            String instanceId,
+            String nodeId,
+            int port,
+            String controllerHttpUrl,
+            Map<String, String> variableOverrides) {
         InstanceCompositionPlan.ResolvedRuntime resolvedRuntime = resolveRuntime(group);
         List<InstanceCompositionPlan.ResolvedTemplate> templates = resolveTemplates(group, resolvedRuntime);
         List<InstanceCompositionPlan.ResolvedExtension> extensions =
@@ -186,6 +196,7 @@ public final class InstanceCompositionPlanner {
                 resolvedRuntime,
                 extensions,
                 configPatches,
+                variableOverrides,
                 planHash,
                 createdAt);
     }
@@ -194,15 +205,32 @@ public final class InstanceCompositionPlanner {
             GroupConfig group, InstanceCompositionPlan.ResolvedRuntime resolvedRuntime) {
         List<InstanceCompositionPlan.ResolvedTemplate> templates = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-
-        addTemplate(templates, seen, "base", "base");
-        addTemplate(templates, seen, "base-" + group.platform().toLowerCase(Locale.ROOT), "platform-base");
-        addTemplate(templates, seen, group.name(), "group");
-        for (String templateName : group.templates()) {
-            addTemplate(templates, seen, templateName, "user");
+        for (String name : templateChainNames(group)) {
+            addTemplate(templates, seen, name, sourceFor(name, group));
         }
-
         return List.copyOf(templates);
+    }
+
+    /**
+     * The ordered, de-duplicated template chain a group composes from: the shared {@code base}, the
+     * platform base {@code base-<platform>}, the group's own template, then any user templates. The
+     * single source of truth for "which templates back a group" — used both for composition here and
+     * for resolving a group's typed variable definitions (so the two never drift apart).
+     */
+    public static List<String> templateChainNames(GroupConfig group) {
+        Set<String> names = new LinkedHashSet<>();
+        names.add("base");
+        names.add("base-" + group.platform().toLowerCase(Locale.ROOT));
+        names.add(group.name());
+        names.addAll(group.templates());
+        return List.copyOf(names);
+    }
+
+    private static String sourceFor(String name, GroupConfig group) {
+        if (name.equals("base")) return "base";
+        if (name.equals("base-" + group.platform().toLowerCase(Locale.ROOT))) return "platform-base";
+        if (name.equals(group.name())) return "group";
+        return "user";
     }
 
     private void addTemplate(

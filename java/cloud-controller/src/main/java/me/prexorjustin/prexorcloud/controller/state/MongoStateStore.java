@@ -276,24 +276,6 @@ public final class MongoStateStore implements StateStore {
     // --- Template Variables ---
 
     @Override
-    public List<TemplateVariable> getTemplateVariables(String templateName) {
-        var doc = templates.find(Filters.eq("_id", templateName)).first();
-        if (doc == null) return List.of();
-        return doc.getList("variables", Document.class, List.of()).stream()
-                .map(d -> new TemplateVariable(d.getString("key"), d.getString("value"), d.getString("description")))
-                .toList();
-    }
-
-    @Override
-    public void saveTemplateVariables(String templateName, List<TemplateVariable> variables) {
-        var varDocs = variables.stream()
-                .map(v ->
-                        new Document("key", v.key()).append("value", v.value()).append("description", v.description()))
-                .toList();
-        templates.updateOne(Filters.eq("_id", templateName), Updates.set("variables", varDocs));
-    }
-
-    @Override
     public List<VariableDef> getTemplateVariableDefs(String templateName) {
         var doc = templates.find(Filters.eq("_id", templateName)).first();
         if (doc == null) return List.of();
@@ -948,14 +930,15 @@ public final class MongoStateStore implements StateStore {
      * is absent or {@code <= myEpoch}, and stamps {@link #OWNER_EPOCH}. A 0-match (target absent — an
      * in-place update is already a no-op there — or fenced) returns {@code false} without throwing.
      */
-    private boolean fencedUpdate(MongoCollection<Document> coll, org.bson.conversions.Bson idFilter, org.bson.conversions.Bson update) {
+    private boolean fencedUpdate(
+            MongoCollection<Document> coll, org.bson.conversions.Bson idFilter, org.bson.conversions.Bson update) {
         long me = epochSource.getAsLong();
         if (me <= 0L) {
             coll.updateOne(idFilter, update);
             return true;
         }
-        var fenced = Filters.and(
-                idFilter, Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me)));
+        var fenced =
+                Filters.and(idFilter, Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me)));
         var result = coll.updateOne(fenced, Updates.combine(update, Updates.set(OWNER_EPOCH, me)));
         if (result.getMatchedCount() > 0) {
             return true;
@@ -979,8 +962,7 @@ public final class MongoStateStore implements StateStore {
             return true;
         }
         var result = coll.deleteOne(Filters.and(
-                Filters.eq("_id", id),
-                Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me))));
+                Filters.eq("_id", id), Filters.or(Filters.exists(OWNER_EPOCH, false), Filters.lte(OWNER_EPOCH, me))));
         return result.getDeletedCount() > 0;
     }
 

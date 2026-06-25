@@ -30,6 +30,23 @@ class GroupManagerTest {
         manager = new GroupManager(templateManager);
     }
 
+    @Test
+    @DisplayName("create rejects a group whose typed variables fail validation (the 422 write-path gate)")
+    void createRejectsInvalidVariables() {
+        manager.setVariableValidator(config -> List.of("variable 'x' is invalid"));
+
+        var ex = assertThrows(IllegalArgumentException.class, () -> manager.create(minimal("lobby")));
+        assertTrue(ex.getMessage().contains("Invalid group variables"), ex::getMessage);
+    }
+
+    @Test
+    @DisplayName("create accepts a group when the variable validator reports no problems")
+    void createAcceptsValidVariables() {
+        manager.setVariableValidator(config -> List.of());
+
+        assertDoesNotThrow(() -> manager.create(minimal("lobby")));
+    }
+
     /**
      * Build a minimal GroupConfig with the given name, no parent, and empty
      * template list.

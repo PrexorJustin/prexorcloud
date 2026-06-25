@@ -93,7 +93,13 @@ class InstancePlacementCoordinatorTest {
 
         var group = stubGroup("lobby");
         var compositionPlan = compositionPlan("lobby-1");
-        when(compositionPlanner.plan(eq(group), eq("lobby-1"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
+        when(compositionPlanner.plan(
+                        eq(group),
+                        eq("lobby-1"),
+                        eq("node-1"),
+                        eq(30000),
+                        eq("http://localhost:8080"),
+                        eq(java.util.Map.of())))
                 .thenReturn(compositionPlan);
         var clearedRetries = new CopyOnWriteArrayList<String>();
 
@@ -155,7 +161,13 @@ class InstancePlacementCoordinatorTest {
 
         var group = stubGroup("lobby");
         var compositionPlan = compositionPlan("lobby-1");
-        when(compositionPlanner.plan(eq(group), eq("lobby-1"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
+        when(compositionPlanner.plan(
+                        eq(group),
+                        eq("lobby-1"),
+                        eq("node-1"),
+                        eq(30000),
+                        eq("http://localhost:8080"),
+                        eq(java.util.Map.of())))
                 .thenReturn(compositionPlan);
 
         boolean placed = coordinator.placeResolvedInstance(group, "lobby-1", (groupName, action) -> true, retry -> {});
@@ -170,7 +182,13 @@ class InstancePlacementCoordinatorTest {
     @Test
     void placeResolvedInstanceRollsBackWhenPlanningFails() {
         var group = stubGroup("lobby");
-        when(compositionPlanner.plan(eq(group), eq("lobby-2"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
+        when(compositionPlanner.plan(
+                        eq(group),
+                        eq("lobby-2"),
+                        eq("node-1"),
+                        eq(30000),
+                        eq("http://localhost:8080"),
+                        eq(java.util.Map.of())))
                 .thenThrow(new IllegalStateException("boom"));
         var clearedRetries = new CopyOnWriteArrayList<String>();
 
@@ -191,7 +209,13 @@ class InstancePlacementCoordinatorTest {
     void placeResolvedInstancePreservesRecoverablePlacementWhenStartDispatchFails() {
         var group = stubGroup("lobby");
         var compositionPlan = compositionPlan("lobby-3");
-        when(compositionPlanner.plan(eq(group), eq("lobby-3"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
+        when(compositionPlanner.plan(
+                        eq(group),
+                        eq("lobby-3"),
+                        eq("node-1"),
+                        eq(30000),
+                        eq("http://localhost:8080"),
+                        eq(java.util.Map.of())))
                 .thenReturn(compositionPlan);
         var clearedRetries = new CopyOnWriteArrayList<String>();
 
@@ -212,7 +236,13 @@ class InstancePlacementCoordinatorTest {
     void placeResolvedInstancePreservesRecoverablePlacementWhenLeadershipLostAfterPlanning() {
         var group = stubGroup("lobby");
         var compositionPlan = compositionPlan("lobby-4");
-        when(compositionPlanner.plan(eq(group), eq("lobby-4"), eq("node-1"), eq(30000), eq("http://localhost:8080")))
+        when(compositionPlanner.plan(
+                        eq(group),
+                        eq("lobby-4"),
+                        eq("node-1"),
+                        eq(30000),
+                        eq("http://localhost:8080"),
+                        eq(java.util.Map.of())))
                 .thenReturn(compositionPlan);
         var clearedRetries = new CopyOnWriteArrayList<String>();
         var fenceChecks = new java.util.concurrent.atomic.AtomicInteger();
@@ -260,6 +290,7 @@ class InstancePlacementCoordinatorTest {
                         "paper:1.21.4"),
                 List.of(),
                 List.of(),
+                Map.of(),
                 "plan-hash-123",
                 Instant.now());
     }

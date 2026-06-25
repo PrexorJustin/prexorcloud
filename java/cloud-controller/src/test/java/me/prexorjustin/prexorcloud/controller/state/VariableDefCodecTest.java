@@ -38,7 +38,13 @@ class VariableDefCodecTest {
     @DisplayName("round-trips a typed INT def with min/max validation")
     void roundTripsIntWithRange() {
         VariableDef def = new VariableDef(
-                "maxp", VarType.INT, "20", true, new Validation(null, 1L, 100L, null), Scope.GROUP, Visibility.ADMIN,
+                "maxp",
+                VarType.INT,
+                "20",
+                true,
+                new Validation(null, 1L, 100L, null),
+                Scope.GROUP,
+                Visibility.ADMIN,
                 "max players");
 
         VariableDef back = VariableDefCodec.fromDocument(VariableDefCodec.toDocument(def));
@@ -65,7 +71,7 @@ class VariableDefCodecTest {
     }
 
     @Test
-    @DisplayName("keeps the legacy 'value' key so getTemplateVariables still reads the default")
+    @DisplayName("keeps the 'value' key so the build-time {{}} default still reads")
     void writesValueKeyForLegacyReadPath() {
         VariableDef def = new VariableDef(
                 "brand", VarType.STRING, "Prexor", false, null, Scope.TEMPLATE, Visibility.OPERATOR, "brand");

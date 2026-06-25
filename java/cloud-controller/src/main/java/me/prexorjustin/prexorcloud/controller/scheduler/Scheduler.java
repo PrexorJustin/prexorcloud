@@ -380,16 +380,25 @@ public final class Scheduler implements LeaseGate {
      * generation.
      */
     public boolean placeInstance(GroupConfig group) {
-        return placeResolvedInstance(groupManager.resolveGroup(group.name()));
+        return placeInstance(group, Map.of());
+    }
+
+    /** As above, with per-instance variable overrides applied to the placed instance. */
+    public boolean placeInstance(GroupConfig group, Map<String, String> variableOverrides) {
+        return placeResolvedInstance(groupManager.resolveGroup(group.name()), variableOverrides);
     }
 
     private boolean placeResolvedInstance(GroupConfig resolved) {
+        return placeResolvedInstance(resolved, Map.of());
+    }
+
+    private boolean placeResolvedInstance(GroupConfig resolved, Map<String, String> variableOverrides) {
         Set<String> existingIds = new HashSet<>(
                 clusterState.getAllInstances().stream().map(InstanceInfo::id).toList());
         String instanceId = InstanceIdGenerator.generateDynamic(resolved.name(), existingIds);
 
         return placementCoordinator.placeResolvedInstance(
-                resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+                resolved, instanceId, variableOverrides, this::ensureLeaseCurrent, this::clearStartRetryBudget);
     }
 
     /** Place a new instance and hold it in the warm pool (non-serving until promoted). */
@@ -475,6 +484,11 @@ public final class Scheduler implements LeaseGate {
      * gap-filling ID generation.
      */
     public void scheduleOne(String groupName) {
+        scheduleOne(groupName, Map.of());
+    }
+
+    /** As above, with per-instance variable overrides applied to the started instance. */
+    public void scheduleOne(String groupName, Map<String, String> variableOverrides) {
         var group = groupManager
                 .get(groupName)
                 .orElseThrow(() -> new IllegalArgumentException("Group not found: " + groupName));
@@ -494,14 +508,14 @@ public final class Scheduler implements LeaseGate {
                     .orElseThrow(() -> new IllegalStateException(
                             "All static instances for group " + groupName + " are already running"));
             placementCoordinator.placeResolvedInstance(
-                    resolved, missingId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
+                    resolved, missingId, variableOverrides, this::ensureLeaseCurrent, this::clearStartRetryBudget);
         } else {
             int current = clusterState.getInstancesByGroup(groupName).size();
             if (current >= group.maxInstances()) {
                 throw new IllegalStateException(
                         "Group " + groupName + " already at max instances (" + group.maxInstances() + ")");
             }
-            placeInstance(group);
+            placeInstance(group, variableOverrides);
         }
     }
 

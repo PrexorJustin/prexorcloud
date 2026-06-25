@@ -3,6 +3,7 @@ package me.prexorjustin.prexorcloud.controller.group;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 import me.prexorjustin.prexorcloud.controller.template.TemplateConfig;
 import me.prexorjustin.prexorcloud.controller.template.TemplateManager;
@@ -25,6 +26,10 @@ public final class GroupManager {
     private final Map<String, GroupConfig> groups = new ConcurrentHashMap<>();
     private final TemplateManager templateManager;
     private volatile GroupStore groupStore;
+    // Validates a group's typed variableValues against its template defs; returns the list of problems
+    // (empty = ok). Default is a no-op so boot-time group loading never validates persisted data; the
+    // real validator is wired post-load, so runtime create/update reject bad variable values with 422.
+    private volatile Function<GroupConfig, List<String>> variableValidator = config -> List.of();
 
     public GroupManager(TemplateManager templateManager) {
         this.templateManager = templateManager;
@@ -32,6 +37,12 @@ public final class GroupManager {
 
     public void setGroupStore(GroupStore groupStore) {
         this.groupStore = groupStore;
+    }
+
+    public void setVariableValidator(Function<GroupConfig, List<String>> variableValidator) {
+        if (variableValidator != null) {
+            this.variableValidator = variableValidator;
+        }
     }
 
     public void create(GroupConfig config) {
@@ -445,6 +456,10 @@ public final class GroupManager {
                             "configPatches for '" + fileEntry.getKey() + "' must not contain blank keys");
                 }
             }
+        }
+        var variableErrors = variableValidator.apply(config);
+        if (!variableErrors.isEmpty()) {
+            throw new IllegalArgumentException("Invalid group variables: " + String.join("; ", variableErrors));
         }
     }
 

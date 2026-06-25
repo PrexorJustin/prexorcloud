@@ -11,10 +11,9 @@ import java.util.function.Consumer;
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
-import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
-import me.prexorjustin.prexorcloud.controller.group.spec.VariableResolver;
 import me.prexorjustin.prexorcloud.controller.group.spec.VariableValidator;
 import me.prexorjustin.prexorcloud.controller.grpc.DaemonServiceImpl;
+import me.prexorjustin.prexorcloud.controller.scheduler.composition.GroupVariableResolver;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
 import me.prexorjustin.prexorcloud.controller.state.ClusterState;
@@ -94,14 +93,29 @@ public final class InstancePlacementCoordinator {
 
     public boolean placeResolvedInstance(
             GroupConfig resolved, String instanceId, LeaseGuard leaseGuard, Consumer<String> clearStartRetryBudget) {
+        return placeResolvedInstance(resolved, instanceId, Map.of(), leaseGuard, clearStartRetryBudget);
+    }
+
+    /** As above, with per-instance variable overrides applied at the {@code INSTANCE} resolution layer. */
+    public boolean placeResolvedInstance(
+            GroupConfig resolved,
+            String instanceId,
+            Map<String, String> variableOverrides,
+            LeaseGuard leaseGuard,
+            Consumer<String> clearStartRetryBudget) {
         return me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.call(
                 tracer,
                 "placement.evaluate",
-                () -> doPlaceResolvedInstance(resolved, instanceId, leaseGuard, clearStartRetryBudget));
+                () -> doPlaceResolvedInstance(
+                        resolved, instanceId, variableOverrides, leaseGuard, clearStartRetryBudget));
     }
 
     private boolean doPlaceResolvedInstance(
-            GroupConfig resolved, String instanceId, LeaseGuard leaseGuard, Consumer<String> clearStartRetryBudget) {
+            GroupConfig resolved,
+            String instanceId,
+            Map<String, String> variableOverrides,
+            LeaseGuard leaseGuard,
+            Consumer<String> clearStartRetryBudget) {
         if (!leaseGuard.ensureLeaseCurrent(resolved.name(), "schedule instance " + instanceId)) {
             return false;
         }
@@ -203,7 +217,8 @@ public final class InstancePlacementCoordinator {
 
         final InstanceCompositionPlan compositionPlan;
         try {
-            compositionPlan = compositionPlanner.plan(resolved, instanceId, node.nodeId(), port, controllerHttpUrl);
+            compositionPlan = compositionPlanner.plan(
+                    resolved, instanceId, node.nodeId(), port, controllerHttpUrl, variableOverrides);
             stateStore.saveInstanceCompositionPlan(compositionPlan);
         } catch (Exception e) {
             rollbackScheduledPlacement(node.nodeId(), resolved.memoryMb(), port, instanceId, clearStartRetryBudget);
@@ -318,21 +333,16 @@ public final class InstancePlacementCoordinator {
 
     /**
      * Resolve the typed v2 variable map threaded to the daemon for {@code %KEY%} substitution. Layers
-     * the template chain's declared defaults under the group's {@code variableValues}; per-instance
-     * overrides are an additive layer wired in a later increment. Validation/scope problems are logged
-     * and the valid subset is applied rather than blocking placement — a typo'd variable must never
-     * wedge a start. Empty when no template declares a typed variable and the group sets none.
+     * the template chain's declared defaults under the group's {@code variableValues}, with the plan's
+     * persisted per-instance {@code variableOverrides} as the top layer — so the override survives
+     * recovery/retry/restart because it travels with the durable composition plan. Validation/scope
+     * problems are logged and the valid subset is applied rather than blocking placement — a typo'd
+     * variable must never wedge a start. Empty when no template declares a typed variable and nothing
+     * is set.
      */
     private Map<String, String> resolveInstanceVariables(GroupConfig group, InstanceCompositionPlan plan) {
-        List<VariableDef> defs = new ArrayList<>();
-        for (InstanceCompositionPlan.ResolvedTemplate template : plan.templates()) {
-            defs.addAll(stateStore.getTemplateVariableDefs(template.name()));
-        }
-        if (defs.isEmpty() && group.variableValues().isEmpty()) {
-            return Map.of();
-        }
         VariableValidator.Result result =
-                VariableResolver.resolve(VariableResolver.mergeChain(defs), group.variableValues(), Map.of());
+                GroupVariableResolver.resolve(group, stateStore, group.variableValues(), plan.variableOverrides());
         if (!result.ok()) {
             logger.warn(
                     "Variable resolution for group {} produced {} issue(s); applying the valid subset: {}",

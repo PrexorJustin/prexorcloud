@@ -72,10 +72,6 @@ public interface StateStore {
 
     // --- Template Variables ---
 
-    List<TemplateVariable> getTemplateVariables(String templateName);
-
-    void saveTemplateVariables(String templateName, List<TemplateVariable> variables);
-
     /** Typed v2 variable definitions for a template (back-compat read of legacy untyped variables). */
     List<VariableDef> getTemplateVariableDefs(String templateName);
 

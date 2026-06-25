@@ -383,6 +383,7 @@ class SchedulerStartRetryTest {
                         "paper:1.21.4"),
                 List.of(),
                 List.of(),
+                Map.of(),
                 "plan-hash-123",
                 Instant.now());
     }

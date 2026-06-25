@@ -28,7 +28,6 @@ import me.prexorjustin.prexorcloud.controller.state.HealingActionIntent;
 import me.prexorjustin.prexorcloud.controller.state.NodeDrainIntent;
 import me.prexorjustin.prexorcloud.controller.state.StartRetryIntent;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
-import me.prexorjustin.prexorcloud.controller.state.TemplateVariable;
 import me.prexorjustin.prexorcloud.controller.state.TemplateVersion;
 import me.prexorjustin.prexorcloud.controller.state.TransferIntent;
 import me.prexorjustin.prexorcloud.controller.template.TemplateConfig;
@@ -141,7 +140,8 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 Map.of());
 
-        InstanceCompositionPlan plan = planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+        InstanceCompositionPlan plan =
+                planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
 
         assertEquals(
                 List.of("base", "base-paper", "lobby", "motd"),
@@ -176,7 +176,8 @@ class InstanceCompositionPlannerTest {
 
         // Wire a two-controller membership view and re-plan the same instance.
         planner.setControllerSeedSupplier(() -> List.of("http://10.0.0.3:8080", "http://10.0.0.6:8080"));
-        InstanceCompositionPlan seeded = planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+        InstanceCompositionPlan seeded =
+                planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
 
         assertEquals(
                 "http://10.0.0.3:8080,http://10.0.0.6:8080",
@@ -304,7 +305,8 @@ class InstanceCompositionPlannerTest {
                 List.of("proxy-default"),
                 Map.of("velocity.toml", Map.of("show-max-players", "250")));
 
-        InstanceCompositionPlan plan = planner.plan(group, "proxy-1", "node-a", 30100, "http://controller:8080");
+        InstanceCompositionPlan plan =
+                planner.plan(group, "proxy-1", "node-a", 30100, "http://controller:8080", Map.of());
 
         assertEquals(
                 List.of("proxy-explicit"),
@@ -481,9 +483,9 @@ class InstanceCompositionPlannerTest {
                 Map.of());
 
         InstanceCompositionPlan plan1201 =
-                planner.plan(paper1201, "lobby-1201-1", "node-a", 30001, "http://controller:8080");
+                planner.plan(paper1201, "lobby-1201-1", "node-a", 30001, "http://controller:8080", Map.of());
         InstanceCompositionPlan plan1204 =
-                planner.plan(paper1204, "lobby-1204-1", "node-a", 30002, "http://controller:8080");
+                planner.plan(paper1204, "lobby-1204-1", "node-a", 30002, "http://controller:8080", Map.of());
 
         assertEquals("1.20.1", plan1201.runtime().platformVersion());
         assertEquals(
@@ -637,7 +639,8 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 Map.of());
 
-        InstanceCompositionPlan plan = planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+        InstanceCompositionPlan plan =
+                planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
 
         assertEquals(
                 List.of("chat-explicit", "motd-default"),
@@ -744,7 +747,7 @@ class InstanceCompositionPlannerTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> planner.plan(group, "proxy-1", "node-a", 30100, "http://controller:8080"));
+                () -> planner.plan(group, "proxy-1", "node-a", 30100, "http://controller:8080", Map.of()));
         assertTrue(exception.getMessage().contains("both attaches and disables"));
     }
 
@@ -824,7 +827,8 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 Map.of());
 
-        InstanceCompositionPlan plan = planner.plan(group, "proxy-bungee-1", "node-a", 30100, "http://controller:8080");
+        InstanceCompositionPlan plan =
+                planner.plan(group, "proxy-bungee-1", "node-a", 30100, "http://controller:8080", Map.of());
 
         assertEquals("BUNGEECORD", plan.runtime().configFormat());
         assertEquals(
@@ -941,9 +945,10 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 Map.of());
 
-        InstanceCompositionPlan first = firstPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+        InstanceCompositionPlan first =
+                firstPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
         InstanceCompositionPlan second =
-                secondPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+                secondPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
 
         assertEquals("1.21.4", first.runtime().platformVersion());
         assertEquals("https://example.invalid/paper-1.21.4.jar", first.runtime().downloadUrl());
@@ -1049,7 +1054,7 @@ class InstanceCompositionPlannerTest {
 
         IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
-                () -> planner.plan(group, "proxy-1", "node-a", 30100, "http://controller:8080"));
+                () -> planner.plan(group, "proxy-1", "node-a", 30100, "http://controller:8080", Map.of()));
         assertTrue(exception.getMessage().contains("enables unknown or incompatible"));
     }
 
@@ -1189,9 +1194,10 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 Map.of());
 
-        InstanceCompositionPlan first = firstPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+        InstanceCompositionPlan first =
+                firstPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
         InstanceCompositionPlan second =
-                secondPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+                secondPlanner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
 
         assertEquals(
                 List.of("alpha-extension"),
@@ -1278,8 +1284,10 @@ class InstanceCompositionPlannerTest {
                 List.of(),
                 Map.of());
 
-        InstanceCompositionPlan first = planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
-        InstanceCompositionPlan second = planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080");
+        InstanceCompositionPlan first =
+                planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
+        InstanceCompositionPlan second =
+                planner.plan(group, "lobby-1", "node-a", 30001, "http://controller:8080", Map.of());
 
         assertEquals(first.planHash(), second.planHash());
         assertEquals(first.templates(), second.templates());
@@ -1306,7 +1314,8 @@ class InstanceCompositionPlannerTest {
                         : Optional.empty());
 
         GroupConfig group = geyserGroup("bedrock", "proxy-velocity");
-        InstanceCompositionPlan plan = planner.plan(group, "bedrock-1", "node-a", 19132, "http://controller:8080");
+        InstanceCompositionPlan plan =
+                planner.plan(group, "bedrock-1", "node-a", 19132, "http://controller:8080", Map.of());
 
         assertEquals("GEYSER", plan.runtime().configFormat());
         assertEquals(
@@ -1332,7 +1341,8 @@ class InstanceCompositionPlannerTest {
                 proxyGroup -> Optional.empty());
 
         GroupConfig group = geyserGroup("bedrock", "proxy-velocity");
-        InstanceCompositionPlan plan = planner.plan(group, "bedrock-1", "node-a", 19132, "http://controller:8080");
+        InstanceCompositionPlan plan =
+                planner.plan(group, "bedrock-1", "node-a", 19132, "http://controller:8080", Map.of());
 
         assertEquals(List.of(), plan.configPatches());
     }
@@ -1525,14 +1535,6 @@ class InstanceCompositionPlannerTest {
 
         @Override
         public void deleteTemplateVersion(String templateName, String hash) {}
-
-        @Override
-        public List<TemplateVariable> getTemplateVariables(String templateName) {
-            return List.of();
-        }
-
-        @Override
-        public void saveTemplateVariables(String templateName, List<TemplateVariable> variables) {}
 
         @Override
         public List<me.prexorjustin.prexorcloud.controller.group.spec.VariableDef> getTemplateVariableDefs(

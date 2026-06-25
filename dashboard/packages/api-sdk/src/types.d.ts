@@ -2941,9 +2941,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get template variables */
+        /** Get template variable definitions (typed) */
         get: operations["getTemplateVariables"];
-        /** Replace template variables */
+        /** Replace template variable definitions (typed, validate-on-set) */
         put: operations["updateTemplateVariables"];
         post?: never;
         delete?: never;
@@ -3323,6 +3323,30 @@ export interface components {
             platformVersion?: string;
             family?: components["schemas"]["GroupRuntimeFamily"];
         };
+        VariableDef: {
+            key?: string;
+            type?: components["schemas"]["VarType"];
+            defaultValue?: string;
+            required: boolean;
+            validation?: components["schemas"]["Validation"];
+            scope?: components["schemas"]["Scope"];
+            visibility?: components["schemas"]["Visibility"];
+            description?: string;
+        };
+        /** @enum {string} */
+        Scope: "TEMPLATE" | "GROUP" | "INSTANCE";
+        Validation: {
+            regex?: string;
+            /** Format: int64 */
+            min?: number;
+            /** Format: int64 */
+            max?: number;
+            enumValues?: string[];
+        };
+        /** @enum {string} */
+        VarType: "STRING" | "INT" | "BOOL" | "ENUM" | "SECRET";
+        /** @enum {string} */
+        Visibility: "ADMIN" | "OPERATOR";
         BackupManifest: {
             id?: string;
             /** Format: int64 */
@@ -3671,6 +3695,9 @@ export interface components {
         StartGroupRequest: {
             /** Format: int32 */
             count?: number;
+            variables?: {
+                [key: string]: string;
+            };
         };
         StatusCountResponse: {
             status?: string;
@@ -9979,12 +10006,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Variables */
+            /** @description Variable definitions */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["VariableDef"][];
+                };
             };
         };
     };
@@ -9997,10 +10026,21 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["VariableDef"][];
+            };
+        };
         responses: {
             /** @description Saved */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid variable definition */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
