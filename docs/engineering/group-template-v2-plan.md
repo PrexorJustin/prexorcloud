@@ -160,7 +160,23 @@ Pluggable signals (TPS first-class), aggregation policy, scale-by-N, warm pool, 
   3. ✅ **Full proxy invisibility (Increment 2b, `7a26c88`).** Superseded the "stay registered" decision: a warm instance is now **never registered** as a proxy backend, so it's invisible/unjoinable (absent from `/server`) — not merely skipped by auto-routing. `AbstractProxyCloudPlugin` backend sync skips `instance.warm()` and unregisters one that flips to warm; `CloudStateCache.notifyInstanceListeners` now also fires on a warm-flag flip (a RUNNING→RUNNING promote/hold-back produces no add/remove/state signal) so promotion still registers the backend **instantly** via the existing `INSTANCE_WARM_CHANGED` SSE delta. `ClusterStateWarmPoolTest.broadcastsWarmFlagChanges` made order-independent (async `EventBus` doesn't preserve cross-publish order). **Live-validated on the Hetzner fleet 2026-06-25** via a real Velocity `edge` proxy: warm instance excluded at proxy startup; raising `min` promoted it and the proxy registered it instantly; a freshly-spawned warm instance was never registered. ⚠️ **Deployment gotcha found:** `BaseTemplateGenerator` bakes the bundled plugin jar into each `base-*` template **once** (skips if the template exists) and the daemon `TemplateCache` keys by template hash — so rebuilding the controller with an updated plugin does **not** propagate to instances. Work-around used: re-upload the new plugin jar via `POST /api/v1/templates/base-velocity/files/upload?path=plugins` (rehashes the template → daemon re-fetches). Candidate follow-up: on startup, re-inject a bundled plugin whose bytes differ from the stored template copy.
 
 ### Phase 2 (P0) — Variable system v2
-Typed/validated defs, unified resolution, secrets SPI, surfaced in CLI + Dashboard.
+Typed/validated defs, unified resolution, secrets SPI, surfaced in CLI + Dashboard. Builds on the
+committed foundation (`VariableDef` typed/validated/scoped/visibility, `VariableValidator`,
+`TemplateSpec.variables`). Today's system is two binding-time passes kept for back-compat: controller
+`{{var}}` resolved in `TemplateMerger` from untyped `TemplateVariable{key,value,description}`, and
+daemon `%VAR%` (7 builtins: PORT/INSTANCE_ID/INSTANCE_NAME/GROUP/NODE_ID/MEMORY/MAX_PLAYERS) in
+`TemplatePreparation`. Increments:
+1. ✅ **Scope-aware unified resolver** (`VariableResolver`) — layers template-default → group →
+   instance, enforces each var's declared `Scope` (TEMPLATE fixed, GROUP group-only, INSTANCE either),
+   rejects forbidden-scope and undeclared keys, then type-validates via `VariableValidator`. Pure logic
+   + `VariableResolverTest` (8 cases). No persistence/wire change yet.
+2. **Persist typed defs + validate-on-set** — upgrade the template's existing Mongo `variables` field
+   from untyped `TemplateVariable` to typed `VariableDef`; reject invalid values at the REST boundary
+   (422); feed the resolved map into `TemplateMerger` (keeps `{{}}`/`%%` substitution mechanics).
+3. **Secrets SPI** — `SecretBackend` interface + default impl; `SECRET` vars resolved at apply time,
+   never serialized into a plan/snapshot/audit record.
+4. **CLI + REST surface** — declare defs, set/get values with validation.
+5. **Dashboard UI** — typed inputs, secret masking, version-aware.
 
 ### Phase 3 (P1) — Config model v2
 Data-driven parser rules; platform-as-data; deprecate hardcoded `ServerConfigPatcher`.
