@@ -30,5 +30,6 @@ class InstanceDtoMapperTest {
         assertEquals(654321L, dto.get("uptimeMs"));
         assertEquals(startedAt, dto.get("startedAt"));
         assertEquals(7, dto.get("deploymentRevision"));
+        assertEquals(false, dto.get("warm"));
     }
 }

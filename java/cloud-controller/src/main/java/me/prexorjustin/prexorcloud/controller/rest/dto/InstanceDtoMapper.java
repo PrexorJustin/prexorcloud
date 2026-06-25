@@ -27,6 +27,8 @@ public final class InstanceDtoMapper {
                 "startedAt",
                 instance.startedAt(),
                 "deploymentRevision",
-                instance.deploymentRevision());
+                instance.deploymentRevision(),
+                "warm",
+                instance.warm());
     }
 }
