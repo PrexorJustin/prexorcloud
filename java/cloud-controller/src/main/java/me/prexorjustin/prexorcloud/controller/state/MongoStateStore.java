@@ -14,6 +14,7 @@ import me.prexorjustin.prexorcloud.controller.crash.CrashCauseExtractor;
 import me.prexorjustin.prexorcloud.controller.crash.CrashRecord;
 import me.prexorjustin.prexorcloud.controller.crash.CrashTrendPoint;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
 import me.prexorjustin.prexorcloud.controller.share.ShareKind;
 import me.prexorjustin.prexorcloud.controller.share.ShareRecord;
@@ -289,6 +290,21 @@ public final class MongoStateStore implements StateStore {
                 .map(v ->
                         new Document("key", v.key()).append("value", v.value()).append("description", v.description()))
                 .toList();
+        templates.updateOne(Filters.eq("_id", templateName), Updates.set("variables", varDocs));
+    }
+
+    @Override
+    public List<VariableDef> getTemplateVariableDefs(String templateName) {
+        var doc = templates.find(Filters.eq("_id", templateName)).first();
+        if (doc == null) return List.of();
+        return doc.getList("variables", Document.class, List.of()).stream()
+                .map(VariableDefCodec::fromDocument)
+                .toList();
+    }
+
+    @Override
+    public void saveTemplateVariableDefs(String templateName, List<VariableDef> defs) {
+        var varDocs = defs.stream().map(VariableDefCodec::toDocument).toList();
         templates.updateOne(Filters.eq("_id", templateName), Updates.set("variables", varDocs));
     }
 

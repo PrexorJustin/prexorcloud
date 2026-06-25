@@ -8,6 +8,7 @@ import java.util.UUID;
 import me.prexorjustin.prexorcloud.controller.crash.CrashRecord;
 import me.prexorjustin.prexorcloud.controller.crash.CrashTrendPoint;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
 import me.prexorjustin.prexorcloud.controller.share.ShareKind;
 import me.prexorjustin.prexorcloud.controller.share.ShareRecord;
@@ -74,6 +75,12 @@ public interface StateStore {
     List<TemplateVariable> getTemplateVariables(String templateName);
 
     void saveTemplateVariables(String templateName, List<TemplateVariable> variables);
+
+    /** Typed v2 variable definitions for a template (back-compat read of legacy untyped variables). */
+    List<VariableDef> getTemplateVariableDefs(String templateName);
+
+    /** Persist typed v2 variable definitions; the legacy {@code value/description} fields stay readable. */
+    void saveTemplateVariableDefs(String templateName, List<VariableDef> defs);
 
     // --- Deployments ---
 

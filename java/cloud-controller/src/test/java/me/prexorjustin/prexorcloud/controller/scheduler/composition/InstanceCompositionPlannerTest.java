@@ -1534,6 +1534,16 @@ class InstanceCompositionPlannerTest {
         public void saveTemplateVariables(String templateName, List<TemplateVariable> variables) {}
 
         @Override
+        public List<me.prexorjustin.prexorcloud.controller.group.spec.VariableDef> getTemplateVariableDefs(
+                String templateName) {
+            return List.of();
+        }
+
+        @Override
+        public void saveTemplateVariableDefs(
+                String templateName, List<me.prexorjustin.prexorcloud.controller.group.spec.VariableDef> defs) {}
+
+        @Override
         public DeploymentRecord createDeployment(DeploymentRecord record) {
             return record;
         }
