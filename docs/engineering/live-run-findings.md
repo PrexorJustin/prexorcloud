@@ -787,7 +787,32 @@ daemon re-fetches on next provision:
 `POST /api/v1/templates/base-velocity/files/upload?path=plugins` (multipart `file=@…;filename=PrexorCloudVelocityPlugin.jar`).
 Confirmed the template hash flipped `9fa4a6f…`→`cee91f8…` (size→4340037) and the next edge instance deployed `671ebc5f`.
 
-**Product follow-up (OPEN):** on controller startup, re-inject a bundled plugin into the `base-*` templates when its
-bytes differ from the stored copy (compare a content hash of `/bundled-plugins/<jar>` vs the template's file), instead
-of the current exists-only skip. Same staleness applies to **every** `base-*` template carrying a bundled jar
-(`base-paper`, `base-bungeecord`, `base-folia`, `base-spigot`, `base-geyser`), not just `base-velocity`.
+**Product fix (DONE — committed `d37abd9`):** `BaseTemplateGenerator.refreshBundledPlugins()` runs on startup after the
+ensure-loop (wired in `PrexorCloudBootstrap.initTemplates`). For each existing `base-*` template it walks the
+materialised files dir, and for any first-party bundled jar whose bytes differ from the controller's classpath copy it
+overwrites the jar in place and rehashes (which changes the template hash → daemons re-fetch). It touches **only** the
+jar — never `velocity.toml`/`server.properties` or the per-controller `forwarding.secret` (a full regenerate would mint
+a fresh secret and break modern forwarding, since the secret is `UUID.randomUUID()` in a local file, **not** synced
+across controllers). Verified live: ctrl-1's restart logged `Refreshed bundled plugin … in template base-{velocity,
+geyser,paper,spigot,folia}` and Mongo `base-velocity` went to the complete `562c6ac2…` (velocity.toml 427 +
+forwarding.secret 32 + new jar 4340037 = 4340496 B). Unit tests: `BaseTemplateGeneratorTest.refreshReplacesStaleBundledJar`
++ `refreshLeavesCurrentJarUntouched`.
+
+**⚠️ Limitation — cross-controller template replication (separate, pre-existing).** Template files live on **local disk
+per controller** (`getTemplateFilesDir` = a plain local path, no Mongo materialisation) and are scattered: only the
+controller that first generated a base template has its files. So `refreshBundledPlugins` only fixes a template on the
+controller that **owns** its files; and the daemon-facing `DaemonTemplateRequestHandler` packages from the leader's
+**local** files and reports the leader's **in-memory** hash. Consequences seen live:
+- A leader that doesn't own a template's files serves a stale/empty copy (the daemon fast-paths on a matching hash and
+  keeps its cache). Forcing the file-owner (ctrl-1) to be leader fixed it.
+- `TemplateManager.scanAndHash()` on startup writes a controller's **local** hash back to Mongo when it differs — so a
+  controller whose local copy is stale/empty **reverts** Mongo on restart (ctrl-3 reverted `562c6ac2…`→`cee91f8…` jar-only).
+- The robust live fix was to make all three controllers' local `base-velocity` byte-identical to the correct copy
+  (push `velocity.toml`+`forwarding.secret`+new jar), after which the watcher rehashed each to `562c6ac2…` and Mongo
+  converged and stayed. **Broader product follow-up (OPEN):** replicate base-template files from the authoritative store
+  (Mongo `cluster_files`) to every controller, or serve archives from the cluster store rather than leader-local files,
+  so `refreshBundledPlugins` (and any template edit) propagates regardless of which controller is leader.
+
+The `forwarding.secret` being a per-controller random local file (not cluster-shared) is its own latent fragility: two
+base templates only interoperate for modern forwarding if generated on the same controller. Worth unifying via the
+Mongo cluster store like the cluster CA already is.
