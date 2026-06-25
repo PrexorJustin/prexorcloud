@@ -274,6 +274,7 @@ message StartInstance {
   ConfigFormat config_format = 23;      // Config template set to apply
   CompositionPlan composition_plan = 24; // Controller-resolved runtime/templates/extensions plan
   RuntimeIsolation isolation = 25;      // Runtime isolation hints for daemon-local enforcement hooks
+  map<string, string> resolved_variables = 26; // Controller-resolved typed variable values, substituted as %KEY% alongside the daemon builtins
 }
 
 message StopInstance {

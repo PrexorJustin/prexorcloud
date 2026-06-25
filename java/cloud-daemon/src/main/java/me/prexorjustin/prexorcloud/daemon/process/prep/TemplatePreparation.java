@@ -5,6 +5,7 @@ import static me.prexorjustin.prexorcloud.daemon.process.prep.PreparationOps.wit
 
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -78,21 +79,16 @@ public final class TemplatePreparation {
      */
     public void applyVariableSubstitution(ResolvedStartSpec spec, Path instanceDir) throws StartPreparationException {
         try {
-            Map<String, String> vars = Map.of(
-                    "PORT",
-                    String.valueOf(spec.port()),
-                    "INSTANCE_ID",
-                    spec.instanceId(),
-                    "INSTANCE_NAME",
-                    spec.instanceId(),
-                    "GROUP",
-                    spec.group(),
-                    "NODE_ID",
-                    nodeId,
-                    "MEMORY",
-                    String.valueOf(spec.memoryMb()),
-                    "MAX_PLAYERS",
-                    String.valueOf(spec.maxPlayers() > 0 ? spec.maxPlayers() : 100));
+            // Controller-resolved operator variables go in first; the seven daemon builtins are layered
+            // on top so a declared variable can never shadow the real PORT/INSTANCE_ID/GROUP/etc.
+            Map<String, String> vars = new LinkedHashMap<>(spec.resolvedVariables());
+            vars.put("PORT", String.valueOf(spec.port()));
+            vars.put("INSTANCE_ID", spec.instanceId());
+            vars.put("INSTANCE_NAME", spec.instanceId());
+            vars.put("GROUP", spec.group());
+            vars.put("NODE_ID", nodeId);
+            vars.put("MEMORY", String.valueOf(spec.memoryMb()));
+            vars.put("MAX_PLAYERS", String.valueOf(spec.maxPlayers() > 0 ? spec.maxPlayers() : 100));
             VariableSubstitution.processDirectory(instanceDir, vars);
         } catch (Exception e) {
             throw stageFailure(

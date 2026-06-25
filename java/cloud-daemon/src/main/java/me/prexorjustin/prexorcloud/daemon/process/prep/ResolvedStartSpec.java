@@ -40,4 +40,5 @@ public record ResolvedStartSpec(
         List<TemplateRef> templates,
         List<ResolvedExtensionSpec> extensions,
         List<ServerConfigPatcher.ConfigPatch> configPatches,
-        String planHash) {}
+        String planHash,
+        Map<String, String> resolvedVariables) {}

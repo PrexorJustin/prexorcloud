@@ -400,7 +400,8 @@ public final class ProcessManager {
                 templates,
                 extensions,
                 configPatches,
-                planHash);
+                planHash,
+                Map.copyOf(start.getResolvedVariablesMap()));
     }
 
     private static double clampCpuReservation(double cpuReservation) {
@@ -730,7 +731,8 @@ public final class ProcessManager {
                 spec.templates(),
                 spec.extensions(),
                 spec.configPatches(),
-                spec.planHash());
+                spec.planHash(),
+                spec.resolvedVariables());
     }
 
     private void dispatchInstanceStarted(ServerProcess process) {

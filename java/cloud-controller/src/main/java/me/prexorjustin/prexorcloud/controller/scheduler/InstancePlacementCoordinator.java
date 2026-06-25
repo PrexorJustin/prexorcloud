@@ -11,6 +11,9 @@ import java.util.function.Consumer;
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableResolver;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableValidator;
 import me.prexorjustin.prexorcloud.controller.grpc.DaemonServiceImpl;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
@@ -308,8 +311,36 @@ public final class InstancePlacementCoordinator {
                 .addAllProtectedPaths(compositionPlan.protectedPaths())
                 .setMaxPlayers(resolved.maxPlayers())
                 .setIsolation(toWireIsolation(compositionPlan.isolation()))
-                .setCompositionPlan(toWirePlan(compositionPlan));
+                .setCompositionPlan(toWirePlan(compositionPlan))
+                .putAllResolvedVariables(resolveInstanceVariables(resolved, compositionPlan));
         return ControllerMessage.newBuilder().setStartInstance(startBuilder).build();
+    }
+
+    /**
+     * Resolve the typed v2 variable map threaded to the daemon for {@code %KEY%} substitution. Layers
+     * the template chain's declared defaults under the group's {@code variableValues}; per-instance
+     * overrides are an additive layer wired in a later increment. Validation/scope problems are logged
+     * and the valid subset is applied rather than blocking placement — a typo'd variable must never
+     * wedge a start. Empty when no template declares a typed variable and the group sets none.
+     */
+    private Map<String, String> resolveInstanceVariables(GroupConfig group, InstanceCompositionPlan plan) {
+        List<VariableDef> defs = new ArrayList<>();
+        for (InstanceCompositionPlan.ResolvedTemplate template : plan.templates()) {
+            defs.addAll(stateStore.getTemplateVariableDefs(template.name()));
+        }
+        if (defs.isEmpty() && group.variableValues().isEmpty()) {
+            return Map.of();
+        }
+        VariableValidator.Result result =
+                VariableResolver.resolve(VariableResolver.mergeChain(defs), group.variableValues(), Map.of());
+        if (!result.ok()) {
+            logger.warn(
+                    "Variable resolution for group {} produced {} issue(s); applying the valid subset: {}",
+                    group.name(),
+                    result.errors().size(),
+                    result.errors());
+        }
+        return result.resolved();
     }
 
     private void rollbackScheduledPlacement(

@@ -28,6 +28,20 @@ public final class VariableResolver {
     private VariableResolver() {}
 
     /**
+     * Collapse variable definitions gathered across a template inheritance chain (lowest-precedence
+     * template first, e.g. {@code base → base-platform → group → user}) into one definition per key,
+     * the most-specific (last) declaration winning. A later template may thus re-type or re-default a
+     * key an ancestor template already declared. Insertion order of first appearance is preserved.
+     */
+    public static List<VariableDef> mergeChain(List<VariableDef> defsInChainOrder) {
+        Map<String, VariableDef> byKey = new LinkedHashMap<>();
+        for (VariableDef def : defsInChainOrder) {
+            byKey.put(def.key(), def);
+        }
+        return List.copyOf(byKey.values());
+    }
+
+    /**
      * Resolve the effective value map for an instance from its template's declared variable
      * definitions and the group/instance value layers.
      *
@@ -59,8 +73,8 @@ public final class VariableResolver {
                 if (allowsOverrideAt(def, Scope.GROUP)) {
                     provided.put(key, group.get(key));
                 } else {
-                    errors.add("variable '" + key + "' cannot be set at GROUP scope (declared scope " + def.scope()
-                            + ")");
+                    errors.add(
+                            "variable '" + key + "' cannot be set at GROUP scope (declared scope " + def.scope() + ")");
                 }
             }
             if (instance.containsKey(key)) {

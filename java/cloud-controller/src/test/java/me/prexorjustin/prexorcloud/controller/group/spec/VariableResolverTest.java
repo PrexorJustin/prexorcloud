@@ -76,7 +76,8 @@ class VariableResolverTest {
     void unknownVariableRejected() {
         var r = VariableResolver.resolve(DEFS, Map.of("ghost", "1"), Map.of());
         assertFalse(r.ok());
-        assertTrue(r.errors().stream().anyMatch(e -> e.contains("unknown") && e.contains("ghost")), r.errors()::toString);
+        assertTrue(
+                r.errors().stream().anyMatch(e -> e.contains("unknown") && e.contains("ghost")), r.errors()::toString);
     }
 
     @Test
@@ -93,6 +94,24 @@ class VariableResolverTest {
         var token = def("token", VarType.STRING, null, true, null, Scope.GROUP);
         var r = VariableResolver.resolve(List.of(token), Map.of(), Map.of());
         assertFalse(r.ok());
-        assertTrue(r.errors().stream().anyMatch(e -> e.contains("token") && e.contains("required")), r.errors()::toString);
+        assertTrue(
+                r.errors().stream().anyMatch(e -> e.contains("token") && e.contains("required")), r.errors()::toString);
+    }
+
+    @Test
+    @DisplayName("mergeChain keeps the most-specific (last) declaration per key, first-appearance order")
+    void mergeChainPrefersLast() {
+        var baseBrand = def("brand", VarType.STRING, "Base", false, null, Scope.TEMPLATE);
+        var only = def("only", VarType.STRING, "x", false, null, Scope.GROUP);
+        var userBrand = def("brand", VarType.STRING, "User", false, null, Scope.GROUP);
+
+        var merged = VariableResolver.mergeChain(List.of(baseBrand, only, userBrand));
+
+        assertEquals(2, merged.size());
+        assertEquals("brand", merged.get(0).key(), "first appearance ordering is preserved");
+        assertEquals("only", merged.get(1).key());
+        var brand = merged.getFirst();
+        assertEquals("User", brand.defaultValue(), "the later template's declaration wins");
+        assertEquals(Scope.GROUP, brand.scope());
     }
 }
