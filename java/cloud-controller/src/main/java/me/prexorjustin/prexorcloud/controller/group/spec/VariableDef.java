@@ -24,6 +24,15 @@ public record VariableDef(
         Visibility visibility,
         String description) {
 
+    // Normalize the enum fields so a partial definition (e.g. JSON from a client that omitted them)
+    // never leaves a null type/scope/visibility — that would NPE the type checks. Mirrors the codec's
+    // back-compat defaulting so a VariableDef is well-formed however it was constructed.
+    public VariableDef {
+        if (type == null) type = VarType.STRING;
+        if (scope == null) scope = Scope.INSTANCE;
+        if (visibility == null) visibility = Visibility.OPERATOR;
+    }
+
     public enum VarType { STRING, INT, BOOL, ENUM, SECRET }
 
     /** Where a variable may be set/overridden. */
