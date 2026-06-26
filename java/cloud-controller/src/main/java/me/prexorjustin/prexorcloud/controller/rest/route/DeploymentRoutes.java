@@ -199,7 +199,8 @@ public final class DeploymentRoutes {
                 0,
                 Instant.now().toString(),
                 null,
-                null);
+                null,
+                me.prexorjustin.prexorcloud.controller.group.MongoGroupStore.toJson(group));
         var saved = controller.stateStore().createDeployment(record);
 
         Thread.ofVirtual()
@@ -264,7 +265,19 @@ public final class DeploymentRoutes {
                 @OpenApiResponse(status = "404", description = "Deployment not found")
             })
     private void rollbackDeployment(Context ctx) {
-        applyStateAction(ctx, "ROLLED_BACK", "rolled_back");
+        JwtAuthMiddleware.requirePermission(ctx, Permission.GROUPS_UPDATE);
+        String name = ctx.pathParam("name");
+        var revOpt = parseRevision(ctx);
+        if (revOpt.isEmpty()) return;
+        var deployment = requireFound(
+                controller.stateStore().getDeployment(name, revOpt.getAsInt()),
+                "Deployment",
+                name + "/" + revOpt.getAsInt());
+        // Mark this deployment rolled back, then actually revert: restore the previous COMPLETED config and
+        // re-deploy. If there is no prior good revision, the record stays ROLLED_BACK and nothing reverts.
+        controller.stateStore().updateDeploymentState(deployment.id(), "ROLLED_BACK");
+        boolean reverted = controller.deploymentRollbackService().rollback(deployment);
+        ctx.json(ActionDtoMapper.statusResponse(reverted ? "rolled_back" : "rolled_back_no_prior_config"));
     }
 
     private void applyStateAction(Context ctx, String newState, String statusKey) {

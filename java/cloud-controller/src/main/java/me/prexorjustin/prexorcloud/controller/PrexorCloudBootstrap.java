@@ -1533,6 +1533,17 @@ public final class PrexorCloudBootstrap {
             placementCoordinator.setTracer(tracer);
             deploymentReconciler.setTracer(tracer);
         }
+        var rollbackService = new me.prexorjustin.prexorcloud.controller.deployment.DeploymentRollbackService(
+                controller.stateStore(),
+                controller.groupManager(),
+                controller.groupStore(),
+                controller.clusterState(),
+                controller.eventBus(),
+                d -> Thread.ofVirtual()
+                        .name("rollback-redeploy-" + d.groupName() + "-r" + d.revision())
+                        .start(() -> scheduler.rollingRestart(d)));
+        controller.setDeploymentRollbackService(rollbackService);
+        deploymentReconciler.setRollbackAction(rollbackService::rollback);
         return scheduler;
     }
 

@@ -307,7 +307,8 @@ public final class MongoStateStore implements StateStore {
                 .append("updatedInstances", record.updatedInstances())
                 .append("createdAt", new Date())
                 .append("completedAt", null)
-                .append("rollbackOf", record.rollbackOf());
+                .append("rollbackOf", record.rollbackOf())
+                .append("groupSnapshot", record.groupSnapshot());
 
         deployments.insertOne(doc);
         return new DeploymentRecord(
@@ -323,7 +324,8 @@ public final class MongoStateStore implements StateStore {
                 record.updatedInstances(),
                 record.createdAt(),
                 record.completedAt(),
-                record.rollbackOf());
+                record.rollbackOf(),
+                record.groupSnapshot());
     }
 
     @Override
@@ -1034,7 +1036,8 @@ public final class MongoStateStore implements StateStore {
                 doc.getInteger("updatedInstances", 0),
                 formatDate(doc.getDate("createdAt")),
                 formatDate(doc.getDate("completedAt")),
-                doc.getInteger("rollbackOf"));
+                doc.getInteger("rollbackOf"),
+                doc.getString("groupSnapshot") == null ? "" : doc.getString("groupSnapshot"));
     }
 
     private static CrashRecord toCrashRecord(Document doc) {

@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.controller.deployment;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -581,5 +582,87 @@ class DeploymentReconcilerTest {
         assertEquals(1, stopped.size());
         verify(stateStore).updateDeploymentState(17, "FAILED");
         verify(stateStore, never()).updateDeploymentState(17, "COMPLETED");
+    }
+
+    @Test
+    void autoRollbackTriggersRollbackActionWithFailedDeployment() {
+        var deployment = new DeploymentRecord(
+                18,
+                "rollbackfire",
+                2,
+                "manual",
+                "ROLLING",
+                "IN_PROGRESS",
+                "{}",
+                "{\"group\":\"rollbackfire\",\"strategy\":\"ROLLING\",\"canaryInstances\":1,"
+                        + "\"healthGateEnabled\":true,\"autoRollbackOnFailure\":true,\"promotionTimeoutSeconds\":1}",
+                2,
+                0,
+                Instant.now().toString(),
+                null,
+                null);
+        clusterState.addInstance(new InstanceInfo(
+                "rollbackfire-1", "rollbackfire", "node-1", InstanceState.RUNNING, 25700, 0, 0, Instant.now(), 0));
+        clusterState.addInstance(new InstanceInfo(
+                "rollbackfire-2", "rollbackfire", "node-1", InstanceState.RUNNING, 25701, 0, 0, Instant.now(), 0));
+        when(stateStore.getDeployment("rollbackfire", 2)).thenReturn(Optional.of(deployment), Optional.of(deployment));
+
+        var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
+            clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
+            // Replacement comes up SCHEDULED but never RUNNING → the health gate times out.
+            Thread.startVirtualThread(() -> clusterState.addInstance(new InstanceInfo(
+                    "rollbackfire-repl", "rollbackfire", "node-1", InstanceState.SCHEDULED, 25702, 0, 0, Instant.now(),
+                    2)));
+            return true;
+        });
+        var rolledBack = new CopyOnWriteArrayList<DeploymentRecord>();
+        reconciler.setRollbackAction(rolledBack::add);
+
+        reconciler.rollingRestart(deployment);
+
+        verify(stateStore).updateDeploymentState(18, "ROLLED_BACK");
+        assertEquals(1, rolledBack.size());
+        assertEquals(2, rolledBack.getFirst().revision());
+    }
+
+    @Test
+    void rollbackDeploymentDoesNotAutoRollBackAgain() {
+        // A rollback deployment that fails its own health gate halts as FAILED (manual intervention) and
+        // must not trigger another rollback — otherwise a bad known-good config loops forever.
+        var deployment = new DeploymentRecord(
+                19,
+                "noloop",
+                2,
+                "rollback",
+                "ROLLING",
+                "IN_PROGRESS",
+                "{}",
+                "{\"group\":\"noloop\",\"strategy\":\"ROLLING\",\"canaryInstances\":1,"
+                        + "\"healthGateEnabled\":true,\"autoRollbackOnFailure\":true,\"promotionTimeoutSeconds\":1}",
+                2,
+                0,
+                Instant.now().toString(),
+                null,
+                1);
+        clusterState.addInstance(new InstanceInfo(
+                "noloop-1", "noloop", "node-1", InstanceState.RUNNING, 25710, 0, 0, Instant.now(), 0));
+        clusterState.addInstance(new InstanceInfo(
+                "noloop-2", "noloop", "node-1", InstanceState.RUNNING, 25711, 0, 0, Instant.now(), 0));
+        when(stateStore.getDeployment("noloop", 2)).thenReturn(Optional.of(deployment), Optional.of(deployment));
+
+        var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
+            clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
+            Thread.startVirtualThread(() -> clusterState.addInstance(new InstanceInfo(
+                    "noloop-repl", "noloop", "node-1", InstanceState.SCHEDULED, 25712, 0, 0, Instant.now(), 2)));
+            return true;
+        });
+        var rolledBack = new CopyOnWriteArrayList<DeploymentRecord>();
+        reconciler.setRollbackAction(rolledBack::add);
+
+        reconciler.rollingRestart(deployment);
+
+        verify(stateStore).updateDeploymentState(19, "FAILED");
+        verify(stateStore, never()).updateDeploymentState(19, "ROLLED_BACK");
+        assertTrue(rolledBack.isEmpty());
     }
 }

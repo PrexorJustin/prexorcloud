@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
@@ -72,5 +73,26 @@ public final class MongoGroupStore implements GroupStore {
         // Put name back from _id for deserialization
         doc.put("name", doc.getString("_id"));
         return MAPPER.convertValue(doc, GroupConfig.class);
+    }
+
+    /**
+     * Serialize a group config to a JSON string for snapshotting (e.g. into a deployment record). Uses the
+     * same tolerant mapper as persistence so a round-trip through {@link #fromJson} is config-faithful.
+     */
+    public static String toJson(GroupConfig config) {
+        try {
+            return MAPPER.writeValueAsString(config);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to serialize group config " + config.name(), e);
+        }
+    }
+
+    /** Inverse of {@link #toJson} — deserialize a snapshotted group config (unknown fields ignored). */
+    public static GroupConfig fromJson(String json) {
+        try {
+            return MAPPER.readValue(json, GroupConfig.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Failed to deserialize group config snapshot", e);
+        }
     }
 }

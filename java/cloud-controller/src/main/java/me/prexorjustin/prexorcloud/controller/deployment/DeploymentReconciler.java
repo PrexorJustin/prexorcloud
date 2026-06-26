@@ -27,6 +27,12 @@ public final class DeploymentReconciler {
         boolean allow(String action);
     }
 
+    /** Executes a real rollback of a failed deployment (restore previous config + re-deploy). */
+    @FunctionalInterface
+    public interface RollbackAction {
+        void rollback(DeploymentRecord failed);
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(DeploymentReconciler.class);
 
     private final ClusterState clusterState;
@@ -34,6 +40,9 @@ public final class DeploymentReconciler {
     private final EventBus eventBus;
     private final long evaluationIntervalSeconds;
     private final StopInstanceAction stopInstanceAction;
+    // Triggered when auto-rollback fires. No-op by default so tests and the pre-wiring window are safe;
+    // bootstrap injects the DeploymentRollbackService.
+    private volatile RollbackAction rollbackAction = failed -> {};
     // Tracer for the deployment.reconcile span (Track D.2); no-op default until bootstrap injects.
     private io.opentelemetry.api.trace.Tracer tracer =
             io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
@@ -62,6 +71,13 @@ public final class DeploymentReconciler {
                 : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
     }
 
+    /** Inject the rollback executor (bootstrap). Null leaves the no-op default. */
+    public void setRollbackAction(RollbackAction rollbackAction) {
+        if (rollbackAction != null) {
+            this.rollbackAction = rollbackAction;
+        }
+    }
+
     public void rollingRestart(DeploymentRecord deployment) {
         rollingRestart(deployment, action -> true);
     }
@@ -76,6 +92,9 @@ public final class DeploymentReconciler {
                 ? deployment.totalInstances()
                 : clusterState.getInstancesByGroup(deployment.groupName()).size();
         var rolloutConfig = DeploymentRolloutConfig.fromConfigSnapshot(deployment.configSnapshot(), total);
+        // A rollback deployment must not itself auto-roll-back: it restores known-good config, so if even
+        // that fails we halt as FAILED for manual intervention rather than loop rollback -> rollback.
+        boolean canAutoRollback = rolloutConfig.autoRollbackOnFailure() && !"rollback".equals(deployment.trigger());
         int updated = Math.max(
                 deployment.updatedInstances(), countUpdatedInstances(deployment.groupName(), deployment.revision()));
         if (updated > deployment.updatedInstances()) {
@@ -83,6 +102,7 @@ public final class DeploymentReconciler {
         }
 
         String haltedState = null;
+        boolean triggerRollback = false;
         while (updated < total) {
             var current = stateStore.getDeployment(deployment.groupName(), deployment.revision());
             if (current.isEmpty()) {
@@ -131,13 +151,15 @@ public final class DeploymentReconciler {
             if (replacement == ReplacementOutcome.FAILED) {
                 // The wave's replacement crashed or was never scheduled (e.g. no capacity). Halt rather than
                 // stop more instances into an outage — the old "continue anyway" was the footgun.
-                haltedState = rolloutConfig.autoRollbackOnFailure() ? "ROLLED_BACK" : "FAILED";
+                haltedState = canAutoRollback ? "ROLLED_BACK" : "FAILED";
+                triggerRollback = canAutoRollback;
                 break;
             }
             if (rolloutConfig.healthGateEnabled()
                     && !waitForHealthyUpdatedInstances(
                             deployment.groupName(), updated, deployment.revision(), rolloutConfig, stepGuard)) {
-                haltedState = rolloutConfig.autoRollbackOnFailure() ? "ROLLED_BACK" : "FAILED";
+                haltedState = canAutoRollback ? "ROLLED_BACK" : "FAILED";
+                triggerRollback = canAutoRollback;
                 break;
             }
         }
@@ -150,6 +172,9 @@ public final class DeploymentReconciler {
                 finalState.toLowerCase(),
                 updated,
                 total);
+        if (triggerRollback) {
+            rollbackAction.rollback(deployment);
+        }
     }
 
     private Optional<InstanceInfo> selectNextOutdatedInstance(String groupName, int revision) {

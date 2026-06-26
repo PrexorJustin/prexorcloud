@@ -128,6 +128,7 @@ public final class PrexorController {
     private final EventChoreographer eventChoreographer;
 
     private Scheduler scheduler;
+    private me.prexorjustin.prexorcloud.controller.deployment.DeploymentRollbackService deploymentRollbackService;
     private volatile me.prexorjustin.prexorcloud.controller.rest.middleware.CorsAllowList corsAllowList;
     private volatile me.prexorjustin.prexorcloud.controller.rest.middleware.AllowedSubnetsList allowedSubnetsList;
     private me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetManager passwordResetManager;
@@ -201,6 +202,19 @@ public final class PrexorController {
 
     public boolean hasScheduler() {
         return scheduler != null;
+    }
+
+    /** Set the deployment rollback executor after construction (depends on the scheduler). */
+    public void setDeploymentRollbackService(
+            me.prexorjustin.prexorcloud.controller.deployment.DeploymentRollbackService service) {
+        this.deploymentRollbackService = service;
+    }
+
+    public me.prexorjustin.prexorcloud.controller.deployment.DeploymentRollbackService deploymentRollbackService() {
+        if (deploymentRollbackService == null) {
+            throw new IllegalStateException("DeploymentRollbackService not initialized");
+        }
+        return deploymentRollbackService;
     }
 
     public void shutdown() {

@@ -389,7 +389,8 @@ public final class GroupRoutes {
                 0,
                 Instant.now().toString(),
                 null,
-                null);
+                null,
+                me.prexorjustin.prexorcloud.controller.group.MongoGroupStore.toJson(group));
         var saved = controller.stateStore().createDeployment(record);
 
         final DeploymentRecord deployment = saved;

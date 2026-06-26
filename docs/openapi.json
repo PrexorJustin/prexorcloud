@@ -9211,6 +9211,9 @@
           "rollbackOf": {
             "type": "integer",
             "format": "int32"
+          },
+          "groupSnapshot": {
+            "type": "string"
           }
         },
         "required": [
