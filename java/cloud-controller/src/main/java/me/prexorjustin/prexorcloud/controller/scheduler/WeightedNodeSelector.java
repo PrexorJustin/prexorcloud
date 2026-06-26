@@ -1,7 +1,9 @@
 package me.prexorjustin.prexorcloud.controller.scheduler;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import me.prexorjustin.prexorcloud.controller.state.NodeState;
@@ -39,24 +41,56 @@ public final class WeightedNodeSelector implements NodeSelector {
     }
 
     private boolean isEligible(NodeState node, InstanceRequest request) {
-        if (node.status() != NodeState.NodeStatus.ONLINE) return false;
-        if (!ResourceAccounting.project(node, request).fits()) return false;
+        return ineligibilityReason(node, request) == null;
+    }
+
+    /**
+     * The first reason this node cannot host the request, or {@code null} when it is eligible. Mirrors
+     * {@link #isEligible} check-for-check (it IS the implementation) so the diagnostics in
+     * {@link #explainIneligibility} can never diverge from the actual placement decision.
+     */
+    private String ineligibilityReason(NodeState node, InstanceRequest request) {
+        if (node.status() != NodeState.NodeStatus.ONLINE) {
+            return "not ONLINE (status=" + node.status() + ")";
+        }
+        ResourceAccounting.Projection projection = ResourceAccounting.project(node, request);
+        if (!projection.fits()) {
+            if (projection.memoryOvercommitted()) {
+                return "insufficient memory (need " + request.memoryMb() + "MB, " + node.freeMemoryMb()
+                        + "MB free of " + node.totalMemoryMb() + "MB)";
+            }
+            return "insufficient CPU (reservation " + request.cpuReservation() + " exceeds node headroom)";
+        }
         if (PortAllocator.allocate(request.portRangeStart(), request.portRangeEnd(), node.usedPorts())
                 .isEmpty()) {
-            return false;
+            return "no free port in range " + request.portRangeStart() + "-" + request.portRangeEnd() + " ("
+                    + node.usedPorts().size() + " in use)";
         }
-
         // Node affinity: all required labels must match
         for (String constraint : request.nodeAffinity()) {
-            if (!matchesLabel(node, constraint)) return false;
+            if (!matchesLabel(node, constraint)) {
+                return "missing required affinity label '" + constraint + "'";
+            }
         }
-
         // Node anti-affinity: none of the excluded labels may match
         for (String constraint : request.nodeAntiAffinity()) {
-            if (matchesLabel(node, constraint)) return false;
+            if (matchesLabel(node, constraint)) {
+                return "excluded by anti-affinity label '" + constraint + "'";
+            }
         }
+        return null;
+    }
 
-        return true;
+    @Override
+    public Map<String, String> explainIneligibility(InstanceRequest request, List<NodeState> available) {
+        Map<String, String> reasons = new LinkedHashMap<>();
+        for (NodeState node : available) {
+            String reason = ineligibilityReason(node, request);
+            if (reason != null) {
+                reasons.put(node.nodeId(), reason);
+            }
+        }
+        return reasons;
     }
 
     /**

@@ -193,8 +193,13 @@ daemon `%VAR%` (7 builtins: PORT/INSTANCE_ID/INSTANCE_NAME/GROUP/NODE_ID/MEMORY/
    validation + SECRET masking) on the template panel; per-group key→value override editor on the group
    detail page; controller 422 messages surfaced to the operator.
 
-### Phase 3 (P1) — Config model v2
+### Phase 3 (P1) — Config model v2 ✅ (shipped 2026-06-26, `e2ac967`+`7b1d2bd`)
 Data-driven parser rules; platform-as-data; deprecate hardcoded `ServerConfigPatcher`.
+- ✅ `ConfigRule` (file/format/path/`op`{SET,REPLACE,REGEX}/value) + `ConfigRuleResolver` (collapses the template chain's parser rules + group `configPatches` into one ordered set — SET last-wins per (file,path), REGEX/REPLACE order-preserved) + `ConfigRuleValidator`. `PlatformConfigDefaults` holds the per-format base-platform rules (paper velocity-secret, spigot bungeecord) **as data**.
+- ✅ Daemon `ServerConfigPatcher` rewritten as a **platform-agnostic (op,file,path,value) rule engine** — the per-platform `patchPaper/Spigot/Bungeecord/Geyser` methods are gone; Paper's cache-time velocity baking moved into `PaperBootstrapCache`; `%FORWARDING_SECRET%` resolved daemon-side from `forwarding.secret` (off-wire).
+- ✅ Per-instance scalars (port/max-players/MOTD) ride the shipped files' `%VAR%` placeholders (MOTD now a `%MOTD%` resolved variable), retiring the redundant `autoConfigPatches` (its bungeecord branch had been writing junk top-level keys).
+- ✅ proto `ConfigPatch` gains an additive `op` field (+ `ConfigPatchOp` enum); `java/cloud-protocol/contracts/proto-contracts.sha256` updated (gate = `:cloud-protocol:test`/`ProtoContractDriftTest`, **not** the repo-root copy); **planHash golden re-pinned** `5996131c…`→`9dea0a52…` (deliberate fleet re-roll). ADR 35 has a Phase-3 note. Controller+daemon+protocol suites green.
+- ✅ Live-validated 2026-06-26: the new `ServerConfigPatcher` ran against the real fleet `paper-global.yml` (secret nesting + `proxies.velocity` vs `proxies.bungee-cord` dotted-YAML disambiguation correct); all 3 controllers + node-fra-2 rolled to the new code.
 
 ### Phase 4 (P1) — Storage v2
 Chunked CAS + dedup + delta sync + S3 backend + template signing. Additive proto fields only.
@@ -204,6 +209,7 @@ CANARY + auto-rollback; fix the timeout footgun; deploy-back; rollback UX.
 
 ### Phase 6 (P2) — UX parity + observability
 Dashboard group-edit, variable UI, version diff, CLI template file-ops, per-group scaling metrics + "why (not) scaled" explainability.
+- ✅ **Placement explainability** (2026-06-26): `NodeSelector.explainIneligibility(request, nodes)` → per-node reason (not-ONLINE / insufficient memory / no free port in range / missing-affinity / anti-affinity), and the `No eligible node available for group X` log now lists the per-node reasons — turning an opaque scheduling stall into an actionable diagnostic. `WeightedNodeSelector`'s reasons mirror `isEligible` check-for-check (shared `ineligibilityReason`, so diagnostics can't drift from the decision). Tests in `WeightedNodeSelectorTest`. Motivated by a live node-fra-2 warm-placement stall whose cause the bare log didn't reveal.
 
 ## Risks & gates
 

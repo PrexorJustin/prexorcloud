@@ -261,4 +261,57 @@ class WeightedNodeSelectorTest {
             assertEquals("n1", result.get().nodeId());
         }
     }
+
+    @Nested
+    @DisplayName("explainIneligibility (placement diagnostics)")
+    class Explainability {
+
+        @Test
+        @DisplayName("reports a memory reason for an under-provisioned node")
+        void memoryReason() {
+            var lowMem = node("n1", NodeStatus.ONLINE, 0.1, 4096, 3800, 0, Set.of()); // 296 free < 512 needed
+            var reasons = selector.explainIneligibility(request, List.of(lowMem));
+            assertEquals(Set.of("n1"), reasons.keySet());
+            assertTrue(reasons.get("n1").contains("insufficient memory"), reasons.get("n1"));
+        }
+
+        @Test
+        @DisplayName("reports a port reason when the group's range is exhausted")
+        void portReason() {
+            Set<Integer> allPorts = Set.of(30000, 30001, 30002, 30003, 30004, 30005, 30006, 30007, 30008, 30009, 30010);
+            var noPort = node("n1", NodeStatus.ONLINE, 0.1, 4096, 0, 0, allPorts);
+            assertTrue(
+                    selector.explainIneligibility(request, List.of(noPort)).get("n1").contains("no free port"));
+        }
+
+        @Test
+        @DisplayName("reports a status reason for a non-ONLINE node")
+        void statusReason() {
+            var draining = node("n1", NodeStatus.DRAINING, 0.1, 4096, 0, 0, Set.of());
+            var reason = selector.explainIneligibility(request, List.of(draining)).get("n1");
+            assertTrue(reason.contains("not ONLINE") && reason.contains("DRAINING"), reason);
+        }
+
+        @Test
+        @DisplayName("reports anti-affinity exclusion and omits eligible nodes")
+        void antiAffinityReasonAndOmitsEligible() {
+            var tainted = new NodeState(
+                    "n1", "", NodeStatus.ONLINE, 0.2, 8192, 1000, 10000, 20000, 0, Set.of(),
+                    Map.of("zone", "edge"), Instant.now(), Instant.now(), null);
+            var good = node("n2", NodeStatus.ONLINE, 0.2, 8192, 1000, 0, Set.of());
+            var antiReq = new InstanceRequest(
+                    "lobby", 512, 0.0, 0, 30000, 30010, List.of(), List.of("zone=edge"), "", Map.of());
+
+            var reasons = selector.explainIneligibility(antiReq, List.of(tainted, good));
+            assertEquals(Set.of("n1"), reasons.keySet(), "eligible node n2 must be omitted");
+            assertTrue(reasons.get("n1").contains("anti-affinity"), reasons.get("n1"));
+        }
+
+        @Test
+        @DisplayName("an all-eligible node list yields an empty map")
+        void eligibleOmitted() {
+            var good = node("n1", NodeStatus.ONLINE, 0.2, 8192, 1000, 0, Set.of());
+            assertTrue(selector.explainIneligibility(request, List.of(good)).isEmpty());
+        }
+    }
 }

@@ -146,7 +146,11 @@ public final class InstancePlacementCoordinator {
 
         var selected = nodeSelector.select(request, nodes);
         if (selected.isEmpty()) {
-            logger.warn("No eligible node available for group {}", resolved.name());
+            logger.warn(
+                    "No eligible node available for group {} — evaluated {} node(s): {}",
+                    resolved.name(),
+                    nodes.size(),
+                    nodeSelector.explainIneligibility(request, nodes));
             return false;
         }
 
