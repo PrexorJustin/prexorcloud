@@ -12,7 +12,12 @@ public record DeploymentRolloutConfig(
         boolean healthGateEnabled,
         boolean autoRollbackOnFailure,
         long promotionTimeoutSeconds,
-        long minHealthySeconds) {
+        long minHealthySeconds,
+        // Max seconds to wait for a stopped instance's replacement to be (re)scheduled before treating the
+        // wave as failed. 0 → fall back to the reconciler's interval-derived default. Seeded from the
+        // group's startupTimeoutSeconds so a rollout that can't place a replacement (e.g. no capacity) halts
+        // instead of stopping more instances into an outage.
+        long replacementTimeoutSeconds) {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -21,10 +26,11 @@ public record DeploymentRolloutConfig(
         canaryInstances = Math.max(0, canaryInstances);
         promotionTimeoutSeconds = Math.max(0L, promotionTimeoutSeconds);
         minHealthySeconds = Math.max(0L, minHealthySeconds);
+        replacementTimeoutSeconds = Math.max(0L, replacementTimeoutSeconds);
     }
 
     public static DeploymentRolloutConfig defaults() {
-        return new DeploymentRolloutConfig(1, 0, false, false, 0, 0);
+        return new DeploymentRolloutConfig(1, 0, false, false, 0, 0, 0);
     }
 
     public static DeploymentRolloutConfig fromConfigSnapshot(String configSnapshot, int totalInstances) {
@@ -43,13 +49,15 @@ public record DeploymentRolloutConfig(
             boolean autoRollbackOnFailure = booleanValue(root.get("autoRollbackOnFailure"), false);
             long promotionTimeoutSeconds = positiveLong(root.get("promotionTimeoutSeconds"), 0L);
             long minHealthySeconds = positiveLong(root.get("minHealthySeconds"), 0L);
+            long replacementTimeoutSeconds = positiveLong(root.get("replacementTimeoutSeconds"), 0L);
             return new DeploymentRolloutConfig(
                     batchSize,
                     canaryInstances,
                     healthGateEnabled,
                     autoRollbackOnFailure,
                     promotionTimeoutSeconds,
-                    minHealthySeconds);
+                    minHealthySeconds,
+                    replacementTimeoutSeconds);
         } catch (Exception _) {
             return defaults();
         }

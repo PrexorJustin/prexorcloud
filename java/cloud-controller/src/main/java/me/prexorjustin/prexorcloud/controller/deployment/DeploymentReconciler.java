@@ -123,8 +123,16 @@ public final class DeploymentReconciler {
                 stateStore.updateDeploymentProgress(deployment.id(), updated);
             }
 
-            if (!waitForReplacement(deployment.groupName(), updated, deployment.revision(), rolloutConfig, stepGuard)) {
+            ReplacementOutcome replacement = waitForReplacement(
+                    deployment.groupName(), updated, deployment.revision(), rolloutConfig, stepGuard);
+            if (replacement == ReplacementOutcome.RETRY) {
                 return;
+            }
+            if (replacement == ReplacementOutcome.FAILED) {
+                // The wave's replacement crashed or was never scheduled (e.g. no capacity). Halt rather than
+                // stop more instances into an outage — the old "continue anyway" was the footgun.
+                haltedState = rolloutConfig.autoRollbackOnFailure() ? "ROLLED_BACK" : "FAILED";
+                break;
             }
             if (rolloutConfig.healthGateEnabled()
                     && !waitForHealthyUpdatedInstances(
@@ -182,33 +190,55 @@ public final class DeploymentReconciler {
                 .count();
     }
 
-    private boolean waitForReplacement(
+    /** Outcome of waiting for a wave's stopped instances to be replaced. */
+    private enum ReplacementOutcome {
+        /** Replacements reached the new revision — proceed to the health gate / next wave. */
+        READY,
+        /** Step guard denied or the thread was interrupted — abandon this pass, retry on the next tick. */
+        RETRY,
+        /** A replacement crashed, or none was scheduled within the timeout — halt the rollout. */
+        FAILED
+    }
+
+    private ReplacementOutcome waitForReplacement(
             String groupName,
             int expectedUpdated,
             int revision,
             DeploymentRolloutConfig rolloutConfig,
             StepGuard stepGuard) {
-        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(evaluationIntervalSeconds * 2);
+        long timeoutSeconds = rolloutConfig.replacementTimeoutSeconds() > 0
+                ? rolloutConfig.replacementTimeoutSeconds()
+                : evaluationIntervalSeconds * 2;
+        long deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds);
         while (System.nanoTime() < deadlineNanos) {
             if (!stepGuard.allow("wait for replacement in group " + groupName)) {
-                return false;
+                return ReplacementOutcome.RETRY;
+            }
+            // A replacement that crashed on boot is a definitive wave failure — catch it here even when the
+            // health gate is off, so a crash-looping new revision never slips through to the next wave.
+            if (countFailedUpdatedInstances(groupName, revision) > 0) {
+                logger.warn(
+                        "Rolling restart: a replacement for group {} revision {} crashed before coming up",
+                        groupName,
+                        revision);
+                return ReplacementOutcome.FAILED;
             }
             if (countUpdatedInstances(groupName, revision) >= expectedUpdated) {
-                return true;
+                return ReplacementOutcome.READY;
             }
             try {
                 Thread.sleep(100);
             } catch (InterruptedException _) {
                 Thread.currentThread().interrupt();
-                return false;
+                return ReplacementOutcome.RETRY;
             }
         }
         logger.warn(
-                "Rolling restart: no replacement reached revision {} for group {} within {}s — continuing anyway",
+                "Rolling restart: no replacement reached revision {} for group {} within {}s — halting the rollout",
                 revision,
                 groupName,
-                evaluationIntervalSeconds * 2);
-        return true;
+                timeoutSeconds);
+        return ReplacementOutcome.FAILED;
     }
 
     private boolean waitForHealthyUpdatedInstances(

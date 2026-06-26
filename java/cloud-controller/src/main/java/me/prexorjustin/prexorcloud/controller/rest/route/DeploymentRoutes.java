@@ -193,6 +193,7 @@ public final class DeploymentRoutes {
                         triggerOptions.autoRollbackOnFailure(),
                         triggerOptions.promotionTimeoutSeconds(),
                         triggerOptions.minHealthySeconds(),
+                        group.startupTimeoutSeconds(),
                         runningCount),
                 runningCount,
                 0,
@@ -334,6 +335,7 @@ public final class DeploymentRoutes {
         dto.put("autoRollbackOnFailure", rollout.autoRollbackOnFailure());
         dto.put("promotionTimeoutSeconds", rollout.promotionTimeoutSeconds());
         dto.put("minHealthySeconds", rollout.minHealthySeconds());
+        dto.put("replacementTimeoutSeconds", rollout.replacementTimeoutSeconds());
         return dto;
     }
 
@@ -387,6 +389,7 @@ public final class DeploymentRoutes {
             Boolean autoRollbackOnFailure,
             Long promotionTimeoutSeconds,
             Long minHealthySeconds,
+            long replacementTimeoutSeconds,
             int totalInstances) {
         try {
             var snapshot = new LinkedHashMap<String, Object>();
@@ -414,6 +417,9 @@ public final class DeploymentRoutes {
             }
             if (minHealthySeconds != null) {
                 snapshot.put("minHealthySeconds", Math.max(0L, minHealthySeconds));
+            }
+            if (replacementTimeoutSeconds > 0) {
+                snapshot.put("replacementTimeoutSeconds", replacementTimeoutSeconds);
             }
             return new ObjectMapper().writeValueAsString(snapshot);
         } catch (JsonProcessingException _) {

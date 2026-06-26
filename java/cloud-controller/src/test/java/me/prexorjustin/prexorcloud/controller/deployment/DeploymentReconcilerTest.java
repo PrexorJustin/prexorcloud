@@ -66,17 +66,18 @@ class DeploymentReconcilerTest {
         var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
             stopped.add(instanceId);
             clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
-            if ("lobby-1".equals(instanceId)) {
-                Thread.startVirtualThread(() -> {
-                    try {
-                        Thread.sleep(50);
-                    } catch (InterruptedException _) {
-                        Thread.currentThread().interrupt();
-                    }
-                    clusterState.addInstance(new InstanceInfo(
-                            "lobby-3", "lobby", "node-1", InstanceState.SCHEDULED, 25567, 0, 0, Instant.now(), 2));
-                });
-            }
+            // Every stopped instance gets a new-revision replacement (as real placement would), so each
+            // wave reaches its expected updated count instead of relying on the old "continue anyway".
+            Thread.startVirtualThread(() -> {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException _) {
+                    Thread.currentThread().interrupt();
+                }
+                clusterState.addInstance(new InstanceInfo(
+                        instanceId + "-r2", "lobby", "node-1", InstanceState.SCHEDULED, 25600 + stopped.size(), 0, 0,
+                        Instant.now(), 2));
+            });
             return true;
         });
 
@@ -128,6 +129,11 @@ class DeploymentReconcilerTest {
         var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
             stopped.add(instanceId);
             clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
+            // The first wave's replacement comes up, so the pause is observed on the next loop iteration
+            // (revision 4 is the deployment under test) rather than being masked by a replacement timeout.
+            clusterState.addInstance(new InstanceInfo(
+                    instanceId + "-r4", "proxy", "node-1", InstanceState.SCHEDULED, 25600 + stopped.size(), 0, 0,
+                    Instant.now(), 4));
             return true;
         });
 
@@ -254,7 +260,7 @@ class DeploymentReconcilerTest {
                     Thread.currentThread().interrupt();
                 }
                 clusterState.addInstance(new InstanceInfo(
-                        "canary-repl-" + stopped.size(),
+                        instanceId + "-repl",
                         "canary",
                         "node-1",
                         InstanceState.SCHEDULED,
@@ -479,5 +485,101 @@ class DeploymentReconcilerTest {
         verify(stateStore).updateDeploymentProgress(14, 1);
         verify(stateStore).updateDeploymentState(14, "FAILED");
         verify(stateStore, never()).updateDeploymentState(14, "COMPLETED");
+    }
+
+    @Test
+    void rollingRestartHaltsWhenReplacementNeverArrives() {
+        // The footgun fix: a wave whose replacement is never scheduled (e.g. no capacity) must halt the
+        // rollout, not "continue anyway" and keep stopping instances into an outage.
+        var deployment = new DeploymentRecord(
+                16,
+                "stuck",
+                2,
+                "manual",
+                "ROLLING",
+                "IN_PROGRESS",
+                "{}",
+                "{\"group\":\"stuck\",\"strategy\":\"ROLLING\",\"replacementTimeoutSeconds\":1}",
+                2,
+                0,
+                Instant.now().toString(),
+                null,
+                null);
+        clusterState.addInstance(
+                new InstanceInfo("stuck-1", "stuck", "node-1", InstanceState.RUNNING, 25595, 0, 0, Instant.now(), 0));
+        clusterState.addInstance(
+                new InstanceInfo("stuck-2", "stuck", "node-1", InstanceState.RUNNING, 25596, 0, 0, Instant.now(), 0));
+        when(stateStore.getDeployment("stuck", 2)).thenReturn(Optional.of(deployment), Optional.of(deployment));
+
+        var stopped = new CopyOnWriteArrayList<String>();
+        // No replacement is ever scheduled — no new-revision instance appears.
+        var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
+            stopped.add(instanceId);
+            clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
+            return true;
+        });
+
+        reconciler.rollingRestart(deployment);
+
+        // Only one instance was stopped — the rollout halted instead of cascading into the second.
+        assertEquals(1, stopped.size());
+        verify(stateStore).updateDeploymentProgress(16, 1);
+        verify(stateStore).updateDeploymentState(16, "FAILED");
+        verify(stateStore, never()).updateDeploymentState(16, "COMPLETED");
+    }
+
+    @Test
+    void rollingRestartHaltsWhenReplacementCrashesEvenWithoutHealthGate() {
+        // A crashed replacement is now caught during the replacement wait itself, so a crash-looping new
+        // revision halts the rollout even when the (optional) health gate is disabled.
+        var deployment = new DeploymentRecord(
+                17,
+                "crashnogate",
+                2,
+                "manual",
+                "ROLLING",
+                "IN_PROGRESS",
+                "{}",
+                "{\"group\":\"crashnogate\",\"strategy\":\"ROLLING\",\"replacementTimeoutSeconds\":5}",
+                2,
+                0,
+                Instant.now().toString(),
+                null,
+                null);
+        clusterState.addInstance(new InstanceInfo(
+                "crashnogate-1", "crashnogate", "node-1", InstanceState.RUNNING, 25597, 0, 0, Instant.now(), 0));
+        clusterState.addInstance(new InstanceInfo(
+                "crashnogate-2", "crashnogate", "node-1", InstanceState.RUNNING, 25598, 0, 0, Instant.now(), 0));
+        when(stateStore.getDeployment("crashnogate", 2)).thenReturn(Optional.of(deployment), Optional.of(deployment));
+
+        var stopped = new CopyOnWriteArrayList<String>();
+        var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
+            stopped.add(instanceId);
+            clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
+            Thread.startVirtualThread(() -> {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException _) {
+                    Thread.currentThread().interrupt();
+                }
+                clusterState.addInstance(new InstanceInfo(
+                        "crashnogate-repl-1",
+                        "crashnogate",
+                        "node-1",
+                        InstanceState.CRASHED,
+                        25599,
+                        0,
+                        0,
+                        Instant.now(),
+                        2));
+            });
+            return true;
+        });
+
+        reconciler.rollingRestart(deployment);
+
+        assertEquals(1, stopped.size());
+        verify(stateStore).updateDeploymentState(17, "FAILED");
+        verify(stateStore, never()).updateDeploymentState(17, "COMPLETED");
     }
 }

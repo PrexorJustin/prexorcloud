@@ -82,7 +82,7 @@ class DeploymentRoutesTest {
     @DisplayName("builds config snapshot with rollout settings")
     void buildsConfigSnapshotWithRolloutSettings() {
         String snapshot =
-                DeploymentRoutes.buildConfigSnapshot("lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 8);
+                DeploymentRoutes.buildConfigSnapshot("lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 120L, 8);
 
         assertTrue(snapshot.contains("\"group\":\"lobby\""));
         assertTrue(snapshot.contains("\"strategy\":\"ROLLING\""));
@@ -93,6 +93,7 @@ class DeploymentRoutesTest {
         assertTrue(snapshot.contains("\"autoRollbackOnFailure\":true"));
         assertTrue(snapshot.contains("\"promotionTimeoutSeconds\":45"));
         assertTrue(snapshot.contains("\"minHealthySeconds\":30"));
+        assertTrue(snapshot.contains("\"replacementTimeoutSeconds\":120"));
     }
 
     @Test
@@ -106,7 +107,7 @@ class DeploymentRoutesTest {
                 "ROLLING",
                 "IN_PROGRESS",
                 "{}",
-                DeploymentRoutes.buildConfigSnapshot("lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 8),
+                DeploymentRoutes.buildConfigSnapshot("lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 120L, 8),
                 8,
                 2,
                 "2026-04-25T12:00:00Z",
