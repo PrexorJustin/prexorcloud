@@ -5,284 +5,245 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Patches server configuration files using line-level text edits that preserve
- * the original file format exactly. This is critical because Paper uses a
- * {@code _version} key to detect config changes — reformatting the file (e.g.
- * with a YAML serializer) causes Paper to regenerate it with defaults.
+ * Platform-agnostic config-rule applier (Group/Template v2, Phase 3). The daemon holds no per-platform
+ * knowledge: each {@link ConfigPatch} fully describes one edit -- a target file, a selector, an
+ * operation, and a value -- and this applier dispatches purely on the file's extension (its syntax) and
+ * the op. Line-level edits preserve the original formatting exactly, which matters because Paper keys a
+ * {@code _version} field off the file and regenerates it from defaults if it is reserialised.
  *
- * <p>
- * Runs after template unpacking and bootstrap cache application, right before
- * the process is launched. The bootstrap cache provides Paper's full generated
- * config with the correct {@code _version}, and this patcher ensures the
- * cloud-required values (velocity forwarding, secret, online-mode) are set.
+ * <p>Runs after template unpacking, {@code %VAR%} substitution, and bootstrap-cache application, right
+ * before launch. The per-platform forwarding / online-mode defaults that used to be hardcoded here are
+ * now data: the controller resolves them from {@code PlatformConfigDefaults}, and the bootstrap cache
+ * bakes Paper's velocity {@code enabled}/{@code online-mode}. The one daemon-local value is the
+ * forwarding secret, substituted into a rule's value from the instance's {@code forwarding.secret} so it
+ * never travels on the wire or through {@code planHash}.
  */
 public final class ServerConfigPatcher {
 
     private static final Logger logger = LoggerFactory.getLogger(ServerConfigPatcher.class);
 
-    public record ConfigPatch(String file, String key, String value) {}
+    /** Daemon-local placeholder, resolved from {@code forwarding.secret} at apply time. */
+    private static final String FORWARDING_SECRET_PLACEHOLDER = "%FORWARDING_SECRET%";
+
+    /**
+     * One resolved config edit. {@code path} is a dotted/flat key for {@link Op#SET}/{@link Op#REPLACE}
+     * (a YAML dotted path addresses a nested section, e.g. {@code proxies.velocity.secret}) or a regular
+     * expression for {@link Op#REGEX}.
+     */
+    public record ConfigPatch(String file, Op op, String path, String value) {
+
+        public enum Op {
+            SET,
+            REPLACE,
+            REGEX
+        }
+
+        public ConfigPatch {
+            if (op == null) op = Op.SET;
+        }
+    }
 
     private ServerConfigPatcher() {}
 
     /**
-     * Patches configuration files in the instance directory based on the config
-     * format.
+     * Apply every resolved config rule to the instance directory. Each rule is sandboxed to the instance
+     * dir, skipped (with a warning) if its target file is absent, and dispatched on the file extension
+     * plus op. A {@code %FORWARDING_SECRET%} placeholder in a rule's value is resolved from the instance's
+     * {@code forwarding.secret}; if that file is missing the rule is skipped rather than writing a broken
+     * secret.
      */
-    public static void patch(Path instanceDir, String configFormat) {
-        patch(instanceDir, configFormat, List.of());
-    }
+    public static void patch(Path instanceDir, List<ConfigPatch> patches) {
+        if (patches == null || patches.isEmpty()) return;
+        Path root = instanceDir.normalize();
+        String secret = null; // lazily loaded; "" once we know there is none
 
-    /**
-     * Applies controller-resolved patches after the runtime-specific baseline
-     * patching has completed.
-     */
-    public static void patch(Path instanceDir, String configFormat, List<ConfigPatch> configPatches) {
-        if (configFormat == null || configFormat.isBlank()) return;
+        for (ConfigPatch patch : patches) {
+            if (patch.file() == null
+                    || patch.file().isBlank()
+                    || patch.path() == null
+                    || patch.path().isBlank()) {
+                continue;
+            }
 
-        switch (configFormat.toLowerCase()) {
-            case "paper" -> {
-                patchPaperGlobalConfig(instanceDir);
-                patchServerProperties(instanceDir);
+            String value = patch.value() == null ? "" : patch.value();
+            if (value.contains(FORWARDING_SECRET_PLACEHOLDER)) {
+                if (secret == null) secret = readForwardingSecret(root);
+                if (secret.isEmpty()) {
+                    logger.warn(
+                            "forwarding.secret missing in {} -- skipping secret patch {} ({}); forwarding will fail",
+                            root,
+                            patch.path(),
+                            patch.file());
+                    continue;
+                }
+                value = value.replace(FORWARDING_SECRET_PLACEHOLDER, secret);
             }
-            case "spigot" -> {
-                patchSpigotConfig(instanceDir);
-                patchServerProperties(instanceDir);
+
+            Path target = root.resolve(patch.file()).normalize();
+            if (!target.startsWith(root)) {
+                throw new SecurityException("Config patch escapes instance dir: " + patch.file());
             }
-            case "bungeecord" -> patchBungeecordConfig(instanceDir);
-            case "geyser" -> {
-                // Geyser's config.yml nests duplicate leaf keys (bedrock.port and remote.port), which
-                // the flat resolved-patch applier can't disambiguate. Consume the patches here with a
-                // section-aware editor instead, then skip the generic pass.
-                patchGeyserConfig(instanceDir, configPatches);
-                return;
+            if (!Files.exists(target)) {
+                logger.warn("Config patch target does not exist: {}", patch.file());
+                continue;
+            }
+
+            try {
+                if (patch.op() == ConfigPatch.Op.REGEX) {
+                    applyRegexPatch(target, patch.path(), value);
+                } else {
+                    applyStructuredPatch(target, patch, value);
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to patch config file " + patch.file(), e);
             }
         }
-        applyResolvedPatches(instanceDir, configPatches);
+    }
+
+    private static String readForwardingSecret(Path instanceDir) {
+        Path secretFile = instanceDir.resolve("forwarding.secret");
+        if (!Files.exists(secretFile)) return "";
+        try {
+            return Files.readString(secretFile).trim();
+        } catch (IOException e) {
+            logger.warn("Failed to read forwarding.secret: {}", e.getMessage());
+            return "";
+        }
     }
 
     /**
-     * Patches the velocity forwarding section in {@code config/paper-global.yml}.
-     *
-     * <p>
-     * Sets three values in the {@code proxies.velocity} section:
-     * <ul>
-     * <li>{@code enabled: true} — activate Velocity modern forwarding</li>
-     * <li>{@code online-mode: false} — proxy handles authentication</li>
-     * <li>{@code secret: <value>} — the shared HMAC secret, read from
-     * {@code forwarding.secret} in the instance root</li>
-     * </ul>
-     *
-     * <p>
-     * Uses a state machine to locate the {@code velocity:} section and patch only
-     * the fields within it, preserving all other content byte-for-byte.
+     * {@code SET}/{@code REPLACE}: set a structured key by file syntax. A YAML dotted path addresses a
+     * nested section via {@link #setNestedYamlKey} (replace-only -- an absent nested key is left as-is
+     * rather than synthesised at a guessed nesting); a flat key (properties / toml / top-level yaml) is
+     * created when absent for {@code SET} and only rewritten (never created) for {@code REPLACE}.
      */
-    static void patchPaperGlobalConfig(Path instanceDir) {
-        patchPaperGlobalConfig(instanceDir, false);
+    private static void applyStructuredPatch(Path target, ConfigPatch patch, String value) throws IOException {
+        boolean createIfAbsent = patch.op() == ConfigPatch.Op.SET;
+        String name = target.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (name.endsWith(".properties")) {
+            applyPropertiesPatch(target, patch.path(), value, createIfAbsent);
+        } else if (name.endsWith(".toml")) {
+            applyTomlPatch(target, patch.path(), value, createIfAbsent);
+        } else if (name.endsWith(".yml") || name.endsWith(".yaml")) {
+            if (patch.path().contains(".")) {
+                applyNestedYamlPatch(target, patch.path(), value);
+            } else {
+                applyYamlPatch(target, patch.path(), value, createIfAbsent);
+            }
+        } else {
+            logger.warn("Unsupported structured config patch target: {}", patch.file());
+        }
     }
 
-    static void patchPaperGlobalConfig(Path instanceDir, boolean skipSecret) {
-        Path configFile = instanceDir.resolve("config").resolve("paper-global.yml");
-        if (!Files.exists(configFile)) {
-            logger.warn("paper-global.yml not found at {} -- cannot patch velocity forwarding", configFile);
+    /**
+     * {@code REGEX}: substitute every per-line match of {@code pattern} with {@code replacement}
+     * (Pterodactyl-style find/replace). Format-agnostic; the replacement may reference capture groups
+     * ({@code $1}). An uncompilable pattern is logged and skipped.
+     */
+    private static void applyRegexPatch(Path file, String pattern, String replacement) throws IOException {
+        Pattern compiled;
+        try {
+            compiled = Pattern.compile(pattern);
+        } catch (PatternSyntaxException e) {
+            logger.warn("Invalid REGEX config patch pattern '{}': {} -- skipping", pattern, e.getMessage());
             return;
         }
-
-        // Read the forwarding secret from the template-provided file
-        String secret = "";
-        if (!skipSecret) {
-            Path secretFile = instanceDir.resolve("forwarding.secret");
-            if (Files.exists(secretFile)) {
-                try {
-                    secret = Files.readString(secretFile).trim();
-                } catch (IOException e) {
-                    logger.warn("Failed to read forwarding.secret: {}", e.getMessage());
-                }
-            } else {
-                logger.warn("forwarding.secret not found in {} -- velocity forwarding will fail", instanceDir);
+        var lines = new ArrayList<>(Files.readAllLines(file));
+        boolean changed = false;
+        for (int i = 0; i < lines.size(); i++) {
+            String replaced = compiled.matcher(lines.get(i)).replaceAll(replacement);
+            if (!replaced.equals(lines.get(i))) {
+                lines.set(i, replaced);
+                changed = true;
             }
         }
-
-        try {
-            var lines = new ArrayList<>(Files.readAllLines(configFile));
-            boolean changed = false;
-            boolean inVelocitySection = false;
-            int velocityIndent = -1;
-
-            for (int i = 0; i < lines.size(); i++) {
-                String line = lines.get(i);
-                String trimmed = line.stripLeading();
-                int indent = line.length() - trimmed.length();
-
-                // Detect entering the velocity: section
-                if (trimmed.startsWith("velocity:") && !inVelocitySection) {
-                    inVelocitySection = true;
-                    velocityIndent = indent;
-                    continue;
-                }
-
-                // If we're in the velocity section, check if we've left it
-                // (a line with same or less indentation that isn't a velocity field)
-                if (inVelocitySection && !trimmed.isEmpty() && indent <= velocityIndent) {
-                    inVelocitySection = false;
-                    continue;
-                }
-
-                if (!inVelocitySection) continue;
-
-                // Patch fields within the velocity section
-                if (trimmed.startsWith("enabled:") && !trimmed.equals("enabled: true")) {
-                    String prefix = line.substring(0, indent);
-                    lines.set(i, prefix + "enabled: true");
-                    changed = true;
-                } else if (trimmed.startsWith("online-mode:") && !trimmed.equals("online-mode: false")) {
-                    String prefix = line.substring(0, indent);
-                    lines.set(i, prefix + "online-mode: false");
-                    changed = true;
-                } else if (trimmed.startsWith("secret:") && !secret.isEmpty()) {
-                    String expected = "secret: '" + secret + "'";
-                    if (!trimmed.equals(expected)) {
-                        String prefix = line.substring(0, indent);
-                        lines.set(i, prefix + expected);
-                        changed = true;
-                    }
-                }
-            }
-
-            if (changed) {
-                Files.write(configFile, lines);
-                logger.debug("Patched paper-global.yml: velocity forwarding enabled, secret set, online-mode=false");
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to patch paper-global.yml: {}", e.getMessage());
+        if (changed) {
+            Files.write(file, lines);
         }
     }
 
-    /**
-     * Enables BungeeCord forwarding in {@code spigot.yml}.
-     */
-    static void patchSpigotConfig(Path instanceDir) {
-        Path configFile = instanceDir.resolve("spigot.yml");
-        if (!Files.exists(configFile)) return;
-
-        try {
-            var lines = new ArrayList<>(Files.readAllLines(configFile));
-            boolean changed = false;
-            boolean inSettings = false;
-
-            for (int i = 0; i < lines.size(); i++) {
-                String trimmed = lines.get(i).stripLeading();
-
-                if (trimmed.startsWith("settings:")) {
-                    inSettings = true;
-                    continue;
-                }
-
-                if (inSettings && trimmed.startsWith("bungeecord:") && trimmed.contains("false")) {
-                    lines.set(i, lines.get(i).replace("false", "true"));
-                    changed = true;
-                    break;
-                }
+    private static void applyPropertiesPatch(Path file, String key, String value, boolean createIfAbsent)
+            throws IOException {
+        var lines = new ArrayList<>(Files.readAllLines(file));
+        boolean changed = false;
+        boolean found = false;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).trim().startsWith(key + "=")) {
+                lines.set(i, key + "=" + value);
+                found = true;
+                changed = true;
+                break;
             }
-
-            if (changed) {
-                Files.write(configFile, lines);
-                logger.debug("Patched spigot.yml: bungeecord forwarding enabled");
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to patch spigot.yml: {}", e.getMessage());
+        }
+        if (!found && createIfAbsent) {
+            lines.add(key + "=" + value);
+            changed = true;
+        }
+        if (changed) {
+            Files.write(file, lines);
         }
     }
 
-    /**
-     * Ensures {@code online-mode=false} in {@code server.properties}.
-     */
-    private static void patchServerProperties(Path instanceDir) {
-        Path propsFile = instanceDir.resolve("server.properties");
-        if (!Files.exists(propsFile)) return;
-
-        try {
-            var lines = new ArrayList<>(Files.readAllLines(propsFile));
-            boolean changed = false;
-
-            for (int i = 0; i < lines.size(); i++) {
-                if (lines.get(i).trim().startsWith("online-mode=")
-                        && !lines.get(i).trim().equals("online-mode=false")) {
-                    lines.set(i, "online-mode=false");
-                    changed = true;
-                    break;
-                }
+    private static void applyTomlPatch(Path file, String key, String value, boolean createIfAbsent) throws IOException {
+        var lines = new ArrayList<>(Files.readAllLines(file));
+        boolean changed = false;
+        boolean found = false;
+        String renderedValue = renderTomlValue(value);
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).trim().startsWith(key + " =")) {
+                lines.set(i, key + " = " + renderedValue);
+                found = true;
+                changed = true;
+                break;
             }
-
-            if (changed) {
-                Files.write(propsFile, lines);
-                logger.debug("Patched server.properties: online-mode=false");
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to patch server.properties: {}", e.getMessage());
+        }
+        if (!found && createIfAbsent) {
+            lines.add(key + " = " + renderedValue);
+            changed = true;
+        }
+        if (changed) {
+            Files.write(file, lines);
         }
     }
 
-    static void patchBungeecordConfig(Path instanceDir) {
-        Path configFile = instanceDir.resolve("config.yml");
-        if (!Files.exists(configFile)) return;
-
-        try {
-            var lines = new ArrayList<>(Files.readAllLines(configFile));
-            boolean changed = false;
-            for (int i = 0; i < lines.size(); i++) {
-                String trimmed = lines.get(i).stripLeading();
-                if (trimmed.startsWith("online_mode:") && !trimmed.equals("online_mode: false")) {
-                    String prefix = lines.get(i).substring(0, lines.get(i).length() - trimmed.length());
-                    lines.set(i, prefix + "online_mode: false");
-                    changed = true;
-                } else if (trimmed.startsWith("ip_forward:") && !trimmed.equals("ip_forward: true")) {
-                    String prefix = lines.get(i).substring(0, lines.get(i).length() - trimmed.length());
-                    lines.set(i, prefix + "ip_forward: true");
-                    changed = true;
-                }
+    private static void applyYamlPatch(Path file, String key, String value, boolean createIfAbsent) throws IOException {
+        var lines = new ArrayList<>(Files.readAllLines(file));
+        boolean changed = false;
+        boolean found = false;
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            String trimmed = line.stripLeading();
+            if (trimmed.startsWith(key + ":")) {
+                String prefix = line.substring(0, line.length() - trimmed.length());
+                lines.set(i, prefix + key + ": " + renderYamlValue(value));
+                found = true;
+                changed = true;
+                break;
             }
-            if (changed) {
-                Files.write(configFile, lines);
-                logger.debug("Patched bungeecord config.yml: online_mode=false, ip_forward=true");
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to patch bungeecord config.yml: {}", e.getMessage());
+        }
+        if (!found && createIfAbsent) {
+            lines.add(key + ": " + renderYamlValue(value));
+            changed = true;
+        }
+        if (changed) {
+            Files.write(file, lines);
         }
     }
 
-    /**
-     * Patches a standalone Geyser {@code config.yml}. Geyser nests duplicate leaf keys (e.g.
-     * {@code bedrock.port} and {@code remote.port}), so patches use dotted key paths and are applied
-     * with a section-aware editor that resolves the correct nesting. Line-level edits preserve the
-     * shipped file's comments and formatting. Keys that aren't present are skipped (Geyser fills its
-     * own defaults on boot) rather than blindly appended at the wrong nesting.
-     */
-    static void patchGeyserConfig(Path instanceDir, List<ConfigPatch> configPatches) {
-        Path configFile = instanceDir.resolve("config.yml");
-        if (!Files.exists(configFile)) return;
-
-        try {
-            var lines = new ArrayList<>(Files.readAllLines(configFile));
-            boolean changed = false;
-            for (ConfigPatch patch : configPatches) {
-                if (patch.file() == null || !patch.file().equalsIgnoreCase("config.yml")) continue;
-                if (setNestedYamlKey(lines, patch.key(), patch.value())) {
-                    changed = true;
-                } else {
-                    logger.warn("Geyser config key not found, skipping: {}", patch.key());
-                }
-            }
-            if (changed) {
-                Files.write(configFile, lines);
-                logger.debug("Patched geyser config.yml ({} patches)", configPatches.size());
-            }
-        } catch (IOException e) {
-            logger.warn("Failed to patch geyser config.yml: {}", e.getMessage());
+    private static void applyNestedYamlPatch(Path file, String dottedKey, String value) throws IOException {
+        var lines = new ArrayList<>(Files.readAllLines(file));
+        if (setNestedYamlKey(lines, dottedKey, value)) {
+            Files.write(file, lines);
+        } else {
+            logger.warn("Nested config key not found, skipping: {} in {}", dottedKey, file.getFileName());
         }
     }
 
@@ -337,105 +298,6 @@ public final class ServerConfigPatcher {
             }
         }
         return false;
-    }
-
-    private static void applyResolvedPatches(Path instanceDir, List<ConfigPatch> configPatches) {
-        for (ConfigPatch configPatch : configPatches) {
-            if (configPatch.file() == null || configPatch.file().isBlank()) {
-                continue;
-            }
-            Path target = instanceDir.resolve(configPatch.file()).normalize();
-            if (!target.startsWith(instanceDir.normalize())) {
-                throw new SecurityException("Config patch escapes instance dir: " + configPatch.file());
-            }
-            if (!Files.exists(target)) {
-                logger.warn("Config patch target does not exist: {}", configPatch.file());
-                continue;
-            }
-
-            String lowerName = target.getFileName().toString().toLowerCase();
-            try {
-                if (lowerName.endsWith(".properties")) {
-                    applyPropertiesPatch(target, configPatch.key(), configPatch.value());
-                } else if (lowerName.endsWith(".toml")) {
-                    applyTomlPatch(target, configPatch.key(), configPatch.value());
-                } else if (lowerName.endsWith(".yml") || lowerName.endsWith(".yaml")) {
-                    applyYamlPatch(target, configPatch.key(), configPatch.value());
-                } else {
-                    logger.warn("Unsupported config patch target: {}", configPatch.file());
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to patch config file " + configPatch.file(), e);
-            }
-        }
-    }
-
-    private static void applyPropertiesPatch(Path file, String key, String value) throws IOException {
-        var lines = new ArrayList<>(Files.readAllLines(file));
-        boolean changed = false;
-        boolean found = false;
-        for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).trim().startsWith(key + "=")) {
-                lines.set(i, key + "=" + value);
-                found = true;
-                changed = true;
-                break;
-            }
-        }
-        if (!found) {
-            lines.add(key + "=" + value);
-            changed = true;
-        }
-        if (changed) {
-            Files.write(file, lines);
-        }
-    }
-
-    private static void applyTomlPatch(Path file, String key, String value) throws IOException {
-        var lines = new ArrayList<>(Files.readAllLines(file));
-        boolean changed = false;
-        boolean found = false;
-        String renderedValue = renderTomlValue(value);
-        for (int i = 0; i < lines.size(); i++) {
-            String trimmed = lines.get(i).trim();
-            if (trimmed.startsWith(key + " =")) {
-                lines.set(i, key + " = " + renderedValue);
-                found = true;
-                changed = true;
-                break;
-            }
-        }
-        if (!found) {
-            lines.add(key + " = " + renderedValue);
-            changed = true;
-        }
-        if (changed) {
-            Files.write(file, lines);
-        }
-    }
-
-    private static void applyYamlPatch(Path file, String key, String value) throws IOException {
-        var lines = new ArrayList<>(Files.readAllLines(file));
-        boolean changed = false;
-        boolean found = false;
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-            String trimmed = line.stripLeading();
-            if (trimmed.startsWith(key + ":")) {
-                String prefix = line.substring(0, line.length() - trimmed.length());
-                lines.set(i, prefix + key + ": " + renderYamlValue(value));
-                found = true;
-                changed = true;
-                break;
-            }
-        }
-        if (!found) {
-            lines.add(key + ": " + renderYamlValue(value));
-            changed = true;
-        }
-        if (changed) {
-            Files.write(file, lines);
-        }
     }
 
     private static String renderTomlValue(String value) {

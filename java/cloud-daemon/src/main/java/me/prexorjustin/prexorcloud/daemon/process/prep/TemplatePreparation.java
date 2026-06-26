@@ -109,7 +109,7 @@ public final class TemplatePreparation {
     public void patchConfigs(ResolvedStartSpec spec, Path instanceDir) throws StartPreparationException {
         try {
             withPreparationRetries("config patching for " + spec.instanceId(), () -> {
-                ServerConfigPatcher.patch(instanceDir, spec.configFormat(), spec.configPatches());
+                ServerConfigPatcher.patch(instanceDir, spec.configPatches());
                 return null;
             });
         } catch (Exception e) {

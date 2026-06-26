@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import me.prexorjustin.prexorcloud.controller.group.spec.ConfigRule;
+
 /**
  * Controller-resolved instance composition plan.
  */
@@ -62,7 +64,17 @@ public record InstanceCompositionPlan(
             String sha256,
             String installPath) {}
 
-    public record ResolvedConfigPatch(String file, String key, String value) {}
+    /**
+     * One resolved, data-driven config edit dispatched to the daemon's platform-agnostic applier:
+     * {@code path} is the selector (dotted/flat key, or a regex for {@link ConfigRule.Op#REGEX}) and
+     * {@code op} the edit mode. {@code value} may carry the {@code %FORWARDING_SECRET%} placeholder the
+     * daemon resolves locally.
+     */
+    public record ResolvedConfigPatch(String file, String path, ConfigRule.Op op, String value) {
+        public ResolvedConfigPatch {
+            if (op == null) op = ConfigRule.Op.SET;
+        }
+    }
 
     public record RuntimeIsolation(double cpuReservation, long diskReservationMb) {
         RuntimeIsolation normalized() {

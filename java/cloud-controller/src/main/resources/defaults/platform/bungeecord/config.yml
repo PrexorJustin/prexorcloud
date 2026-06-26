@@ -1,6 +1,6 @@
 listeners:
   - host: 0.0.0.0:%PORT%
-    motd: "&bPrexorCloud Proxy"
+    motd: "%MOTD%"
     max_players: %MAX_PLAYERS%
     force_default_server: true
     tab_list: GLOBAL_PING

@@ -1,6 +1,6 @@
 config-version = "2.7"
 bind = "0.0.0.0:%PORT%"
-motd = "<aqua>PrexorCloud Proxy</aqua>"
+motd = "%MOTD%"
 show-max-players = %MAX_PLAYERS%
 online-mode = false
 player-info-forwarding-mode = "modern"

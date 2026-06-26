@@ -236,10 +236,30 @@ message ExtensionArtifact {
   string install_path = 7;
 }
 
+// One data-driven config edit applied by the daemon's platform-agnostic rule applier
+// (Group/Template v2, Phase 3). The daemon holds no per-platform knowledge: file + selector + op +
+// value fully describe the edit. The controller resolves these from the per-format default rule set
+// (PlatformConfigDefaults), dynamic lookups (e.g. Geyser remote), and the group's configPatches.
 message ConfigPatch {
   string file = 1;
+  // Selector into the file: a dotted/flat key path for SET/REPLACE (YAML dotted paths address nested
+  // sections, e.g. "proxies.velocity.secret"), or a regular expression for REGEX. (Field name kept for
+  // wire compatibility; semantically the rule's "path".)
   string key = 2;
+  // Replacement value. May carry the daemon-local "%FORWARDING_SECRET%" placeholder, resolved at apply
+  // time from the instance's forwarding.secret (the secret never travels on the wire / in planHash).
   string value = 3;
+  // Edit operation. Absent (proto default) == SET. Additive field (PROTOCOL_VERSION unchanged).
+  ConfigPatchOp op = 4;
+}
+
+// How a ConfigPatch mutates its target. SET creates-or-replaces a flat key (nested YAML paths are
+// replace-only since structure cannot be safely synthesised); REPLACE only rewrites an existing key;
+// REGEX substitutes every per-line match of `key` (the pattern) with `value`.
+enum ConfigPatchOp {
+  CONFIG_PATCH_OP_SET = 0;
+  CONFIG_PATCH_OP_REPLACE = 1;
+  CONFIG_PATCH_OP_REGEX = 2;
 }
 
 message RuntimeIsolation {

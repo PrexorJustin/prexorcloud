@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
+import me.prexorjustin.prexorcloud.controller.group.spec.ConfigRule;
 import me.prexorjustin.prexorcloud.controller.group.spec.VariableValidator;
 import me.prexorjustin.prexorcloud.controller.group.spec.secret.SecretResolver;
 import me.prexorjustin.prexorcloud.controller.grpc.DaemonServiceImpl;
@@ -23,6 +24,7 @@ import me.prexorjustin.prexorcloud.controller.state.NodeState;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
 import me.prexorjustin.prexorcloud.protocol.CompositionPlan;
 import me.prexorjustin.prexorcloud.protocol.ConfigPatch;
+import me.prexorjustin.prexorcloud.protocol.ConfigPatchOp;
 import me.prexorjustin.prexorcloud.protocol.ControllerMessage;
 import me.prexorjustin.prexorcloud.protocol.ExtensionArtifact;
 import me.prexorjustin.prexorcloud.protocol.InstanceState;
@@ -364,7 +366,13 @@ public final class InstancePlacementCoordinator {
                     result.errors().size(),
                     result.errors());
         }
-        return result.resolved();
+        // MOTD rides the same %VAR% substitution path as PORT/MAX_PLAYERS rather than a config patch:
+        // inject the group-selected MOTD (operator's first configured MOTD, else a group/instance default)
+        // unless an operator typed variable already defines it. The shipped default configs reference
+        // %MOTD%. resolved_variables is not part of planHash, so this never churns dispatch identity.
+        Map<String, String> resolved = new HashMap<>(result.resolved());
+        resolved.putIfAbsent("MOTD", InstanceCompositionPlanner.selectMotd(group, plan.instanceId()));
+        return resolved;
     }
 
     private void rollbackScheduledPlacement(
@@ -412,8 +420,9 @@ public final class InstancePlacementCoordinator {
                 .addAllConfigPatches(compositionPlan.configPatches().stream()
                         .map(configPatch -> ConfigPatch.newBuilder()
                                 .setFile(configPatch.file())
-                                .setKey(configPatch.key())
+                                .setKey(configPatch.path())
                                 .setValue(configPatch.value())
+                                .setOp(toWireConfigPatchOp(configPatch.op()))
                                 .build())
                         .toList())
                 .setIsolation(toWireIsolation(compositionPlan.isolation()))
@@ -425,6 +434,14 @@ public final class InstancePlacementCoordinator {
                 .setCpuReservation(isolation.cpuReservation())
                 .setDiskReservationMb(isolation.diskReservationMb())
                 .build();
+    }
+
+    private static ConfigPatchOp toWireConfigPatchOp(ConfigRule.Op op) {
+        return switch (op) {
+            case SET -> ConfigPatchOp.CONFIG_PATCH_OP_SET;
+            case REPLACE -> ConfigPatchOp.CONFIG_PATCH_OP_REPLACE;
+            case REGEX -> ConfigPatchOp.CONFIG_PATCH_OP_REGEX;
+        };
     }
 
     /**

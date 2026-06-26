@@ -21,6 +21,7 @@ import me.prexorjustin.prexorcloud.controller.crash.CrashTrendPoint;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
+import me.prexorjustin.prexorcloud.controller.group.spec.ConfigRule;
 import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleManager;
 import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleRuntimeFactory;
 import me.prexorjustin.prexorcloud.controller.module.platform.PlatformModuleStore;
@@ -163,11 +164,15 @@ class InstanceCompositionPlannerTest {
         assertEquals(
                 "http://controller:8080/api/v1/modules/platform/motd-module/artifacts/extensions/motd-paper.jar",
                 plan.extensions().getFirst().downloadUrl());
+        // Per-instance scalars (port/max-players/motd) now ride the shipped files' %VAR% placeholders, not
+        // config patches. The only resolved rule for a plain Paper group is the per-instance velocity
+        // forwarding secret (enabled/online-mode are baked into the bootstrap cache).
         assertEquals(
-                List.of(
-                        new InstanceCompositionPlan.ResolvedConfigPatch("server.properties", "max-players", "100"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch("server.properties", "motd", "Lobby MOTD"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch("server.properties", "server-port", "30001")),
+                List.of(new InstanceCompositionPlan.ResolvedConfigPatch(
+                        "config/paper-global.yml",
+                        "proxies.velocity.secret",
+                        ConfigRule.Op.REPLACE,
+                        "%FORWARDING_SECRET%")),
                 plan.configPatches());
 
         // --- Controller seed-list injection (B1) ---
@@ -193,8 +198,13 @@ class InstanceCompositionPlannerTest {
         // both sides together; this golden constant can. A refactor that alters how ANY plan component
         // serializes will break this -- that is the point. If you change the hash inputs deliberately,
         // update this value and expect a fleet-wide re-roll. See ADR 35 / group-template-v2-plan.md.
+        //
+        // Re-pinned for Group/Template v2 Phase 3: config patches became data-driven ConfigRules carrying
+        // an `op`, and a plain Paper group's per-instance patch set changed from server.properties
+        // port/max-players/motd (now %VAR% placeholders) to the single velocity-forwarding secret rule.
+        // This is the intended, documented re-roll.
         assertEquals(
-                "5996131c66c0c1777d899439dd60328f803bfc85c28275bf2629d5eb24e4e993",
+                "9dea0a52a2e6e5a7c239457ee7b8b99a610b9a86ec297f68326717e96e4d59ba",
                 plan.planHash(),
                 "planHash must stay byte-stable across refactors (frozen seam, ADR 35)");
     }
@@ -313,12 +323,11 @@ class InstanceCompositionPlannerTest {
                 plan.extensions().stream()
                         .map(InstanceCompositionPlan.ResolvedExtension::extensionId)
                         .toList());
+        // Velocity bind/show-max-players ride %VAR% placeholders; only the group's own configPatches
+        // override survives as a resolved rule.
         assertEquals(
-                List.of(
-                        new InstanceCompositionPlan.ResolvedConfigPatch("velocity.toml", "bind", "0.0.0.0:30100"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch(
-                                "velocity.toml", "motd", "<green>Proxy</green>"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch("velocity.toml", "show-max-players", "250")),
+                List.of(new InstanceCompositionPlan.ResolvedConfigPatch(
+                        "velocity.toml", "show-max-players", ConfigRule.Op.SET, "250")),
                 plan.configPatches());
     }
 
@@ -752,7 +761,7 @@ class InstanceCompositionPlannerTest {
     }
 
     @Test
-    @DisplayName("resolves bungeecord config patches for proxy runtimes")
+    @DisplayName("bungeecord proxy needs no config patches -- placeholders + shipped defaults cover it")
     void resolvesBungeecordConfigPatches() throws Exception {
         Path templatesRoot = tempDir.resolve("templates-bungee");
         TemplateManager templateManager = new TemplateManager(templatesRoot, new NoopStateStore(), new EventBus());
@@ -831,12 +840,10 @@ class InstanceCompositionPlannerTest {
                 planner.plan(group, "proxy-bungee-1", "node-a", 30100, "http://controller:8080", Map.of());
 
         assertEquals("BUNGEECORD", plan.runtime().configFormat());
-        assertEquals(
-                List.of(
-                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "host", "0.0.0.0:30100"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "max_players", "150"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "motd", "<gold>Bungee</gold>")),
-                plan.configPatches());
+        // host/max_players ride the shipped config.yml's %PORT%/%MAX_PLAYERS% placeholders (correctly
+        // nested under listeners[]), motd rides %MOTD%, and online_mode/ip_forward are shipped defaults --
+        // so a plain BungeeCord proxy resolves to no config patches at all.
+        assertEquals(List.of(), plan.configPatches());
     }
 
     @Test
@@ -1320,8 +1327,10 @@ class InstanceCompositionPlannerTest {
         assertEquals("GEYSER", plan.runtime().configFormat());
         assertEquals(
                 List.of(
-                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "remote.address", "10.0.0.7"),
-                        new InstanceCompositionPlan.ResolvedConfigPatch("config.yml", "remote.port", "30100")),
+                        new InstanceCompositionPlan.ResolvedConfigPatch(
+                                "config.yml", "remote.address", ConfigRule.Op.REPLACE, "10.0.0.7"),
+                        new InstanceCompositionPlan.ResolvedConfigPatch(
+                                "config.yml", "remote.port", ConfigRule.Op.REPLACE, "30100")),
                 plan.configPatches());
     }
 

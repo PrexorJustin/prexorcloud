@@ -456,10 +456,10 @@ public final class PaperBootstrapCache {
                         "Bootstrap did NOT generate config/paper-global.yml -- velocity forwarding must be configured manually");
             }
 
-            // Patch enabled + online-mode into the cached config so instances get
-            // the correct defaults. The forwarding secret is instance-specific and
-            // is patched later by ServerConfigPatcher.patch() at launch time.
-            ServerConfigPatcher.patchPaperGlobalConfig(bootstrapDir, true);
+            // Bake velocity forwarding enabled + online-mode into the cached config so every instance
+            // inherits the correct defaults. The forwarding secret is instance-specific and is patched
+            // later, per instance, by ServerConfigPatcher's resolved rule set at launch time.
+            bakeVelocityForwardingDefaults(bootstrapDir);
 
             // Copy generated artifacts to cache
             Files.createDirectories(versionDir);
@@ -487,6 +487,56 @@ public final class PaperBootstrapCache {
             }
         } finally {
             deleteDirectory(bootstrapDir);
+        }
+    }
+
+    /**
+     * Bakes velocity modern-forwarding {@code enabled: true} and {@code online-mode: false} into the
+     * bootstrap-generated {@code config/paper-global.yml}. Shared across every instance on this version,
+     * so it is done once at cache time; the per-instance forwarding secret is NOT set here -- it is
+     * injected per instance at launch by {@code ServerConfigPatcher}'s resolved rule set. Edits are
+     * line-level inside the {@code velocity:} section so Paper's {@code _version} key and surrounding
+     * content stay byte-for-byte intact (a reserialised file would be regenerated from defaults).
+     */
+    private static void bakeVelocityForwardingDefaults(Path bootstrapDir) {
+        Path configFile = bootstrapDir.resolve("config").resolve("paper-global.yml");
+        if (!Files.exists(configFile)) {
+            logger.warn("paper-global.yml not found at {} -- cannot bake velocity forwarding", configFile);
+            return;
+        }
+        try {
+            var lines = new ArrayList<>(Files.readAllLines(configFile));
+            boolean changed = false;
+            boolean inVelocitySection = false;
+            int velocityIndent = -1;
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                String trimmed = line.stripLeading();
+                int indent = line.length() - trimmed.length();
+                if (trimmed.startsWith("velocity:") && !inVelocitySection) {
+                    inVelocitySection = true;
+                    velocityIndent = indent;
+                    continue;
+                }
+                if (inVelocitySection && !trimmed.isEmpty() && indent <= velocityIndent) {
+                    inVelocitySection = false;
+                    continue;
+                }
+                if (!inVelocitySection) continue;
+                if (trimmed.startsWith("enabled:") && !trimmed.equals("enabled: true")) {
+                    lines.set(i, line.substring(0, indent) + "enabled: true");
+                    changed = true;
+                } else if (trimmed.startsWith("online-mode:") && !trimmed.equals("online-mode: false")) {
+                    lines.set(i, line.substring(0, indent) + "online-mode: false");
+                    changed = true;
+                }
+            }
+            if (changed) {
+                Files.write(configFile, lines);
+                logger.debug("Baked velocity forwarding defaults into cached paper-global.yml");
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to bake velocity forwarding into paper-global.yml: {}", e.getMessage());
         }
     }
 

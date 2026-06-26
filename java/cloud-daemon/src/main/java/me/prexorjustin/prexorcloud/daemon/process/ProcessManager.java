@@ -42,6 +42,7 @@ import me.prexorjustin.prexorcloud.daemon.template.ServerConfigPatcher;
 import me.prexorjustin.prexorcloud.daemon.template.TemplateCache;
 import me.prexorjustin.prexorcloud.protocol.CompositionPlan;
 import me.prexorjustin.prexorcloud.protocol.ConfigPatch;
+import me.prexorjustin.prexorcloud.protocol.ConfigPatchOp;
 import me.prexorjustin.prexorcloud.protocol.RunningInstance;
 import me.prexorjustin.prexorcloud.protocol.RuntimeArtifact;
 import me.prexorjustin.prexorcloud.protocol.RuntimeIsolation;
@@ -456,7 +457,16 @@ public final class ProcessManager {
     }
 
     private static ServerConfigPatcher.ConfigPatch toConfigPatch(ConfigPatch patch) {
-        return new ServerConfigPatcher.ConfigPatch(patch.getFile(), patch.getKey(), patch.getValue());
+        return new ServerConfigPatcher.ConfigPatch(
+                patch.getFile(), toDaemonConfigOp(patch.getOp()), patch.getKey(), patch.getValue());
+    }
+
+    private static ServerConfigPatcher.ConfigPatch.Op toDaemonConfigOp(ConfigPatchOp op) {
+        return switch (op) {
+            case CONFIG_PATCH_OP_REPLACE -> ServerConfigPatcher.ConfigPatch.Op.REPLACE;
+            case CONFIG_PATCH_OP_REGEX -> ServerConfigPatcher.ConfigPatch.Op.REGEX;
+            case CONFIG_PATCH_OP_SET, UNRECOGNIZED -> ServerConfigPatcher.ConfigPatch.Op.SET;
+        };
     }
 
     // Thin delegators kept on ProcessManager so ProcessManagerTest can keep

@@ -23,6 +23,9 @@ import me.prexorjustin.prexorcloud.common.logging.CorrelationContext;
 import me.prexorjustin.prexorcloud.controller.catalog.CatalogStore;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.GroupRuntimeResolver;
+import me.prexorjustin.prexorcloud.controller.group.spec.ConfigRule;
+import me.prexorjustin.prexorcloud.controller.group.spec.ConfigRuleResolver;
+import me.prexorjustin.prexorcloud.controller.group.spec.PlatformConfigDefaults;
 import me.prexorjustin.prexorcloud.controller.metrics.MetricsCollector;
 import me.prexorjustin.prexorcloud.controller.module.platform.ExtensionRegistry;
 import me.prexorjustin.prexorcloud.controller.module.platform.ExtensionRegistryException;
@@ -131,7 +134,7 @@ public final class InstanceCompositionPlanner {
         List<InstanceCompositionPlan.ResolvedExtension> extensions =
                 resolveExtensions(group, resolvedRuntime, controllerHttpUrl);
         List<InstanceCompositionPlan.ResolvedConfigPatch> configPatches =
-                resolveConfigPatches(group, resolvedRuntime, instanceId, port);
+                resolveConfigPatches(group, resolvedRuntime);
 
         Map<String, String> env = new LinkedHashMap<>(group.env());
         env.put("CLOUD_CONTROLLER_URL", controllerHttpUrl);
@@ -152,7 +155,8 @@ public final class InstanceCompositionPlanner {
                 resolvedRuntime,
                 extensions);
         for (InstanceCompositionPlan.ResolvedConfigPatch configPatch : configPatches) {
-            planHash = planHash(planHash, configPatch.file(), configPatch.key(), configPatch.value());
+            planHash = planHash(
+                    planHash, configPatch.op(), configPatch.file(), configPatch.path(), configPatch.value());
         }
 
         // Controller REST seed list for the in-server plugin's leader-following client. Injected AFTER
@@ -407,87 +411,42 @@ public final class InstanceCompositionPlanner {
         }
     }
 
+    /**
+     * Resolve the instance's ordered, data-driven config-rule set into wire patches. The rule chain is
+     * the platform's {@link PlatformConfigDefaults base-platform defaults} plus any dynamic Geyser remote
+     * rules, collapsed against the group's {@code configPatches} (the highest-precedence SET layer) by
+     * {@link ConfigRuleResolver}. Per-instance scalars (port, max-players, MOTD) are intentionally absent
+     * here -- they ride the shipped files' {@code %VAR%} placeholders, substituted on the daemon.
+     */
     private List<InstanceCompositionPlan.ResolvedConfigPatch> resolveConfigPatches(
-            GroupConfig group, InstanceCompositionPlan.ResolvedRuntime resolvedRuntime, String instanceId, int port) {
-        Map<String, Map<String, String>> merged = new LinkedHashMap<>();
-        autoConfigPatches(group, resolvedRuntime, instanceId, port)
-                .forEach((file, patches) -> merged.put(file, new LinkedHashMap<>(patches)));
-        group.configPatches().forEach((file, patches) -> {
-            Map<String, String> mergedFile = new LinkedHashMap<>(merged.getOrDefault(file, Map.of()));
-            mergedFile.putAll(patches);
-            merged.put(file, mergedFile);
-        });
-
-        return merged.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey())
-                .flatMap(fileEntry -> fileEntry.getValue().entrySet().stream()
-                        .sorted(Map.Entry.comparingByKey())
-                        .map(patchEntry -> new InstanceCompositionPlan.ResolvedConfigPatch(
-                                fileEntry.getKey(), patchEntry.getKey(), patchEntry.getValue())))
+            GroupConfig group, InstanceCompositionPlan.ResolvedRuntime resolvedRuntime) {
+        List<ConfigRule> chain =
+                new ArrayList<>(PlatformConfigDefaults.forConfigFormat(resolvedRuntime.configFormat()));
+        chain.addAll(geyserRemoteRules(group, resolvedRuntime));
+        return ConfigRuleResolver.resolve(chain, group.configPatches()).stream()
+                .map(rule -> new InstanceCompositionPlan.ResolvedConfigPatch(
+                        rule.file(), rule.path(), rule.op(), rule.value()))
                 .toList();
     }
 
-    private Map<String, Map<String, String>> autoConfigPatches(
-            GroupConfig group, InstanceCompositionPlan.ResolvedRuntime resolvedRuntime, String instanceId, int port) {
-        Map<String, Map<String, String>> patches = new LinkedHashMap<>();
-        String motd = selectMotd(group, instanceId);
-        int maxPlayers = group.maxPlayers() > 0 ? group.maxPlayers() : 100;
-        switch (resolvedRuntime.configFormat().toLowerCase(Locale.ROOT)) {
-            case "paper", "spigot" -> {
-                Map<String, String> serverProperties = new LinkedHashMap<>();
-                serverProperties.put("server-port", Integer.toString(port));
-                serverProperties.put("max-players", Integer.toString(maxPlayers));
-                if (!motd.isBlank()) {
-                    serverProperties.put("motd", motd);
-                }
-                patches.put("server.properties", serverProperties);
-            }
-            case "velocity" -> {
-                Map<String, String> velocityToml = new LinkedHashMap<>();
-                velocityToml.put("bind", "0.0.0.0:" + port);
-                velocityToml.put("show-max-players", Integer.toString(maxPlayers));
-                if (!motd.isBlank()) {
-                    velocityToml.put("motd", motd);
-                }
-                patches.put("velocity.toml", velocityToml);
-            }
-            case "bungeecord" -> {
-                Map<String, String> bungeeConfig = new LinkedHashMap<>();
-                bungeeConfig.put("host", "0.0.0.0:" + port);
-                bungeeConfig.put("max_players", Integer.toString(maxPlayers));
-                if (!motd.isBlank()) {
-                    bungeeConfig.put("motd", motd);
-                }
-                patches.put("config.yml", bungeeConfig);
-            }
-            case "geyser" -> {
-                // The Bedrock listen port comes from %PORT% substitution in the shipped config. The
-                // remote (Java proxy) endpoint is resolved dynamically from a live instance of the
-                // group's bedrockProxyGroup; if none is running yet the config default is kept.
-                Map<String, String> geyserConfig = geyserRemotePatches(group);
-                if (!geyserConfig.isEmpty()) {
-                    patches.put("config.yml", geyserConfig);
-                }
-            }
-            default -> {}
-        }
-        return Map.copyOf(patches);
-    }
-
     /**
-     * Builds the dynamic Geyser {@code remote.*} patches by resolving a live instance of the group's
-     * {@code bedrockProxyGroup}. Returns empty (config default kept) when no proxy group is configured,
-     * no resolver is wired, or nothing is running yet. Keys are dotted paths consumed by the daemon's
-     * section-aware Geyser patcher.
+     * The dynamic Geyser {@code remote.*} rules, resolved from a live instance of the group's
+     * {@code bedrockProxyGroup}. Empty (config default kept) when this is not a Geyser instance, no proxy
+     * group is configured, no resolver is wired, or nothing is running yet. {@code REPLACE} so an absent
+     * key is left at its shipped default rather than appended at the wrong nesting.
      */
-    private Map<String, String> geyserRemotePatches(GroupConfig group) {
+    private List<ConfigRule> geyserRemoteRules(
+            GroupConfig group, InstanceCompositionPlan.ResolvedRuntime resolvedRuntime) {
+        if (!"geyser".equalsIgnoreCase(resolvedRuntime.configFormat())) {
+            return List.of();
+        }
         String proxyGroup = group.bedrockProxyGroup();
         if (proxyGroup == null || proxyGroup.isBlank()) {
             logger.warn("Geyser group {} has no bedrockProxyGroup set; remote stays at config default", group.name());
-            return Map.of();
+            return List.of();
         }
         if (bedrockRemoteResolver == null) {
-            return Map.of();
+            return List.of();
         }
         Optional<BedrockRemoteResolver.Endpoint> endpoint = bedrockRemoteResolver.resolve(proxyGroup);
         if (endpoint.isEmpty()) {
@@ -496,15 +455,29 @@ public final class InstanceCompositionPlanner {
                             + "remote stays at config default until restart",
                     group.name(),
                     proxyGroup);
-            return Map.of();
+            return List.of();
         }
-        Map<String, String> remote = new LinkedHashMap<>();
-        remote.put("remote.address", endpoint.get().host());
-        remote.put("remote.port", Integer.toString(endpoint.get().port()));
-        return remote;
+        return List.of(
+                new ConfigRule(
+                        "config.yml",
+                        ConfigRule.Format.YAML,
+                        "remote.address",
+                        ConfigRule.Op.REPLACE,
+                        endpoint.get().host()),
+                new ConfigRule(
+                        "config.yml",
+                        ConfigRule.Format.YAML,
+                        "remote.port",
+                        ConfigRule.Op.REPLACE,
+                        Integer.toString(endpoint.get().port())));
     }
 
-    private static String selectMotd(GroupConfig group, String instanceId) {
+    /**
+     * The MOTD for an instance: the group's first configured MOTD, else a default naming the group and
+     * instance. Injected as the {@code %MOTD%} variable (see {@code InstancePlacementCoordinator}) so it
+     * flows through the same placeholder-substitution path as {@code %PORT%}/{@code %MAX_PLAYERS%}.
+     */
+    public static String selectMotd(GroupConfig group, String instanceId) {
         if (!group.motds().isEmpty()) {
             return group.motds().getFirst();
         }
