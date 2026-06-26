@@ -118,13 +118,28 @@ public final class InstancePlacementCoordinator {
                 tracer,
                 "placement.evaluate",
                 () -> doPlaceResolvedInstance(
-                        resolved, instanceId, variableOverrides, leaseGuard, clearStartRetryBudget));
+                        resolved, instanceId, variableOverrides, false, leaseGuard, clearStartRetryBudget));
+    }
+
+    /**
+     * Place an instance and hold it in the warm pool (born warm: fully started but excluded from routing
+     * until promoted). Bounded by the group's {@code warmPoolMinPrepared} <em>above</em> the serving cap,
+     * not within it — so the warm pool refills even when the group is at {@code maxInstances} serving.
+     */
+    public boolean placeWarmInstance(
+            GroupConfig resolved, String instanceId, LeaseGuard leaseGuard, Consumer<String> clearStartRetryBudget) {
+        return me.prexorjustin.prexorcloud.controller.observability.telemetry.Spans.call(
+                tracer,
+                "placement.evaluate",
+                () -> doPlaceResolvedInstance(
+                        resolved, instanceId, Map.of(), true, leaseGuard, clearStartRetryBudget));
     }
 
     private boolean doPlaceResolvedInstance(
             GroupConfig resolved,
             String instanceId,
             Map<String, String> variableOverrides,
+            boolean warm,
             LeaseGuard leaseGuard,
             Consumer<String> clearStartRetryBudget) {
         if (!leaseGuard.ensureLeaseCurrent(resolved.name(), "schedule instance " + instanceId)) {
@@ -214,18 +229,33 @@ public final class InstancePlacementCoordinator {
                 0,
                 Instant.now(),
                 deploymentRevision);
+        if (warm) {
+            // Mark warm at creation so the flag is durable and announced atomically with the placement —
+            // a crash between placing and a later mark would otherwise leak a warm instance as serving.
+            instance = instance.withWarm(true);
+        }
         // Atomic group-cap guard: the crash-heal replacement and the min-instance reconcile can race
         // here (the per-group lease that used to serialize them is gone). Whoever loses the cap check
         // releases the port + memory it reserved above and yields, so the group never over-provisions.
-        if (!clusterState.addInstanceWithinCap(instance, resolved.maxInstances())) {
+        // Serving placements are bounded by maxInstances; warm placements by warmPoolMinPrepared above it.
+        if (!clusterState.addInstanceWithinCap(instance, resolved.maxInstances(), resolved.warmPoolMinPrepared())) {
             clusterState.releasePlacement(node.nodeId(), resolved.memoryMb(), port);
             clearStartRetryBudget.accept(instanceId);
-            logger.info(
-                    "Skipped placing {} — group {} already at max {} active instances "
-                            + "(a concurrent placement won the slot)",
-                    instanceId,
-                    resolved.name(),
-                    resolved.maxInstances());
+            if (warm) {
+                logger.info(
+                        "Skipped warm placement {} — group {} warm pool already at its target of {} prepared "
+                                + "(a concurrent placement won the slot)",
+                        instanceId,
+                        resolved.name(),
+                        resolved.warmPoolMinPrepared());
+            } else {
+                logger.info(
+                        "Skipped placing {} — group {} already at max {} serving instances "
+                                + "(a concurrent placement won the slot)",
+                        instanceId,
+                        resolved.name(),
+                        resolved.maxInstances());
+            }
             return false;
         }
         clearStartRetryBudget.accept(instanceId);

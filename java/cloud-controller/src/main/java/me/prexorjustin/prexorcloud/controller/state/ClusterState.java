@@ -210,13 +210,34 @@ public final class ClusterState {
                 instance.nodeId(),
                 toModuleState(InstanceState.INSTANCE_STATE_UNSPECIFIED),
                 toModuleState(instance.state())));
+        if (instance.warm()) {
+            // A born-warm instance (warm-pool placement, or one restored on hydrate) must announce its
+            // warmth so proxies exclude it from join targets. addInstance is the single add path, so the
+            // event rides here instead of a separate post-placement markInstanceWarm step — keeping the
+            // warm flag durable and announced atomically with the placement.
+            eventBus.publish(new InstanceWarmChangedEvent(
+                    instance.id(), instance.group(), instance.nodeId(), true));
+        }
         publishGroupAggregatesIfChanged(instance.group());
     }
 
+    /** Serving-only cap (no warm pool): equivalent to {@code addInstanceWithinCap(instance, maxServing, 0)}. */
+    public synchronized boolean addInstanceWithinCap(InstanceInfo instance, int maxServing) {
+        return addInstanceWithinCap(instance, maxServing, 0);
+    }
+
     /**
-     * Atomically place a freshly-scheduled instance only while its group is still below
-     * {@code maxInstances} non-terminal instances. Returns {@code false} when a concurrent placement
-     * already filled the group — the caller must release any node reservation it took.
+     * Atomically place a freshly-scheduled instance only while its group still has room in the relevant
+     * pool. Returns {@code false} when a concurrent placement already filled it — the caller must release
+     * any node reservation it took.
+     *
+     * <p>Warm-pool members are capacity <em>above</em> the serving cap, not within it — matching
+     * {@code ScalingEvaluator}, which excludes warm instances from min/max. So the bound depends on the
+     * kind of instance being placed: a serving placement is capped at {@code maxServing} non-warm peers,
+     * a warm placement at {@code warmPoolSize} warm peers — each pool counted independently, so the
+     * group's hard ceiling emerges as {@code maxServing + warmPoolSize}. (Counting all non-terminal
+     * instances against {@code maxServing} was the bug that left the warm pool unable to refill once a
+     * group reached its serving max.)
      *
      * <p>This is the single serialization point that keeps the two independent placement paths —
      * crash-heal replacement ({@code Scheduler.scheduleReplacement}, on the healing worker) and the
@@ -226,12 +247,14 @@ public final class ClusterState {
      * count check and the insert must be one critical section. The count excludes the instance's own
      * id (re-placing a crashed id under the same name is not a net add) and terminal records.
      */
-    public synchronized boolean addInstanceWithinCap(InstanceInfo instance, int maxInstances) {
-        long active = instanceRegistry.getByGroup(instance.group()).stream()
+    public synchronized boolean addInstanceWithinCap(InstanceInfo instance, int maxServing, int warmPoolSize) {
+        boolean warm = instance.warm();
+        long peers = instanceRegistry.getByGroup(instance.group()).stream()
                 .filter(i -> !i.id().equals(instance.id()))
                 .filter(ClusterState::countsAsRunning)
+                .filter(i -> i.warm() == warm)
                 .count();
-        if (active >= maxInstances) {
+        if (peers >= (warm ? warmPoolSize : maxServing)) {
             return false;
         }
         addInstance(instance);

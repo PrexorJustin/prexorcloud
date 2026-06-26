@@ -401,18 +401,16 @@ public final class Scheduler implements LeaseGate {
                 resolved, instanceId, variableOverrides, this::ensureLeaseCurrent, this::clearStartRetryBudget);
     }
 
-    /** Place a new instance and hold it in the warm pool (non-serving until promoted). */
+    /** Place a new instance and hold it in the warm pool (born warm: non-serving until promoted). */
     private boolean placeWarmInstance(GroupConfig resolved) {
         Set<String> existingIds = new HashSet<>(
                 clusterState.getAllInstances().stream().map(InstanceInfo::id).toList());
         String instanceId = InstanceIdGenerator.generateDynamic(resolved.name(), existingIds);
 
-        boolean placed = placementCoordinator.placeResolvedInstance(
+        // The coordinator creates the instance already-warm (durable + announced atomically) and caps it
+        // against warmPoolMinPrepared above the serving max, so no separate markInstanceWarm step is needed.
+        return placementCoordinator.placeWarmInstance(
                 resolved, instanceId, this::ensureLeaseCurrent, this::clearStartRetryBudget);
-        if (placed) {
-            clusterState.markInstanceWarm(instanceId);
-        }
-        return placed;
     }
 
     /**
