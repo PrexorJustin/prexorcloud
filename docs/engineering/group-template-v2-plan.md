@@ -205,7 +205,10 @@ Data-driven parser rules; platform-as-data; deprecate hardcoded `ServerConfigPat
 Chunked CAS + dedup + delta sync + S3 backend + template signing. Additive proto fields only.
 
 ### Phase 5 (P1) — Rollout v2
-CANARY + auto-rollback; fix the timeout footgun; deploy-back; rollback UX.
+CANARY + auto-rollback; fix the timeout footgun; deploy-back; rollback UX. **In progress.**
+- ✅ **Replacement-stall footgun fixed** (`e85b81b`). `DeploymentReconciler.waitForReplacement` no longer waits `evaluationIntervalSeconds*2` and then "continues anyway" — it returns READY/RETRY/FAILED, and a crashed replacement (now caught even with the health gate off) or one that isn't scheduled within the timeout **halts** the rollout (FAILED, or ROLLED_BACK when auto-rollback is set) instead of stopping more instances into an outage. The timeout is seeded from the group's `startupTimeoutSeconds` (carried in the deployment config snapshot via a new `replacementTimeoutSeconds`), so a slow-but-healthy boot isn't mistaken for a failure; old snapshots fall back to the interval default. Tests added / realism-fixed in `DeploymentReconcilerTest`.
+- 🐛 **Finding — rollback is cosmetic.** Both the manual `POST …/deployments/{rev}/rollback` and the reconciler's auto-rollback only **relabel** the record (`updateDeploymentState(…, "ROLLED_BACK")`); neither reverts the group's templates/config nor re-deploys the previous revision, and `rollbackOf` is never populated. So "auto-rollback on failure" doesn't roll anything back — the bad config stays live and crashed instances keep being replaced with it.
+- **Next — Inc 2: make rollback real.** Snapshot the full `GroupConfig` per deployment; have rollback (manual + auto) restore the previous good snapshot + re-deploy (rollbackOf linked). Then Inc 3: CANARY as a first-class strategy (bake one, observe crash + TPS regression via `InstanceInfo.tps1m`, then proceed or auto-rollback). Then Inc 4: rollback/pause/resume UX (CLI/Dashboard) + deploy-back.
 
 ### Phase 6 (P2) — UX parity + observability
 Dashboard group-edit, variable UI, version diff, CLI template file-ops, per-group scaling metrics + "why (not) scaled" explainability.
