@@ -245,7 +245,9 @@ class PerformanceBaselineTest {
                 List.of(),
                 List.of(),
                 Map.of(),
-                "");
+                "",
+                0,
+                Map.of());
     }
 
     private static long readSchedulerTickCount(MetricsCollector mc) {

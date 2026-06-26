@@ -560,6 +560,7 @@ class RecoveryTest {
                                         ""),
                                 java.util.List.of(),
                                 java.util.List.of(),
+                                java.util.Map.of(),
                                 "ha-recover-start-plan",
                                 Instant.now()));
 
@@ -659,6 +660,7 @@ class RecoveryTest {
                                         ""),
                                 java.util.List.of(),
                                 java.util.List.of(),
+                                java.util.Map.of(),
                                 "recover-start-plan",
                                 Instant.now()));
 
