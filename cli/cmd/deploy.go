@@ -323,6 +323,47 @@ var deployShowCmd = &cobra.Command{
 	},
 }
 
+var deploySaveCmd = &cobra.Command{
+	Use:   "save <instance>",
+	Short: "Deploy-back: capture a running instance's config into a new template version",
+	Long: `Reads the running instance's config files and writes them as a new version of the
+target template, so future instances that compose it inherit that state. Config files
+only — binary and world data are skipped (and reported).`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client, err := requireAuth()
+		if err != nil {
+			return err
+		}
+		template, _ := cmd.Flags().GetString("to-template")
+		if template == "" {
+			return fmt.Errorf("--to-template is required")
+		}
+		body := map[string]any{"template": template}
+		if prefix, _ := cmd.Flags().GetString("path-prefix"); prefix != "" {
+			body["pathPrefix"] = prefix
+		}
+
+		var result map[string]any
+		if err := client.Post("/api/v1/services/"+args[0]+"/save-to-template", body, &result); err != nil {
+			return err
+		}
+		if flagJSON {
+			return theme.PrintJSON(result)
+		}
+		hash := str(result, "hash")
+		if len(hash) > 8 {
+			hash = hash[:8]
+		}
+		theme.PrintSuccess(fmt.Sprintf("Saved %s → template %q (%d files, hash %s)",
+			args[0], str(result, "template"), int(num(result, "filesWritten")), hash))
+		if skipped, ok := result["skipped"].([]any); ok && len(skipped) > 0 {
+			fmt.Printf("  %d file(s) skipped (binary/oversize)\n", len(skipped))
+		}
+		return nil
+	},
+}
+
 func newDeployActionCmd(action, summary, helpTail string) *cobra.Command {
 	return &cobra.Command{
 		Use:   action + " <group> <rev>",
@@ -365,9 +406,13 @@ func init() {
 	deployListCmd.Flags().Int("page", 1, "Page number (1-based)")
 	deployListCmd.Flags().Int("page-size", 50, "Page size (max 100)")
 
+	deploySaveCmd.Flags().String("to-template", "", "Target template to write the new version into (required)")
+	deploySaveCmd.Flags().String("path-prefix", "", "Only capture files under this relative path prefix")
+
 	deployCmd.AddCommand(
 		deployListCmd,
 		deployShowCmd,
+		deploySaveCmd,
 		newDeployActionCmd("pause", "Pause an in-progress deployment", "Useful while investigating a misbehaving rollout."),
 		newDeployActionCmd("resume", "Resume a paused deployment", "Continues the rolling restart from where it left off."),
 		newDeployActionCmd("rollback", "Roll back a deployment", "Restores the group to the most recent succeeded deployment's config and re-deploys it (linked via rollbackOf). No-op when there is no prior good revision."),

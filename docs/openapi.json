@@ -6566,6 +6566,47 @@
         ]
       }
     },
+    "/api/v1/services/{id}/save-to-template": {
+      "post": {
+        "tags": [
+          "Instances"
+        ],
+        "summary": "Deploy-back: capture a running instance\u0027s config files into a new version of a template",
+        "operationId": "saveInstanceToTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "deprecated": false,
+            "allowEmptyValue": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "New template version created"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "404": {
+            "description": "Instance or template not found"
+          },
+          "409": {
+            "description": "Instance not running / nothing captured"
+          }
+        },
+        "deprecated": false,
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
     "/api/v1/services/{id}/stop": {
       "post": {
         "tags": [

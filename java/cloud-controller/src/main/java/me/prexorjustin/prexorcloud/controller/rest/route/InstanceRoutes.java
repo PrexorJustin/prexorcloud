@@ -61,10 +61,61 @@ public final class InstanceRoutes {
             get("/{id}/console/history", this::getConsoleHistory);
             post("/{id}/console/share", this::shareInstanceConsole);
             get("/{id}/files/content", this::readInstanceFile);
+            post("/{id}/save-to-template", this::saveInstanceToTemplate);
             get("/{id}/proxy-metrics", this::getProxyMetrics);
             delete("/{id}", this::deleteInstance);
             post("/{id}/command", this::sendInstanceCommand);
         });
+    }
+
+    @OpenApi(
+            path = "/api/v1/services/{id}/save-to-template",
+            methods = {HttpMethod.POST},
+            operationId = "saveInstanceToTemplate",
+            summary = "Deploy-back: capture a running instance's config files into a new version of a template",
+            tags = {"Instances"},
+            security = {@OpenApiSecurity(name = "bearerAuth")},
+            pathParams = {@OpenApiParam(name = "id", required = true)},
+            responses = {
+                @OpenApiResponse(status = "200", description = "New template version created"),
+                @OpenApiResponse(status = "400", description = "Invalid request"),
+                @OpenApiResponse(status = "404", description = "Instance or template not found"),
+                @OpenApiResponse(status = "409", description = "Instance not running / nothing captured")
+            })
+    private void saveInstanceToTemplate(Context ctx) {
+        JwtAuthMiddleware.requirePermission(ctx, Permission.TEMPLATES_UPDATE);
+        String id = ctx.pathParam("id");
+        InstanceInfo instance = requireFound(controller.clusterState().getInstance(id), "Instance", id);
+        Map<?, ?> body = ctx.body().isBlank() ? Map.of() : ctx.bodyAsClass(java.util.HashMap.class);
+        String template = body.get("template") instanceof String s ? s.strip() : "";
+        if (template.isEmpty()) {
+            ctx.status(400);
+            ctx.json(errorResponse("BAD_REQUEST", "Field 'template' is required", 400));
+            return;
+        }
+        String pathPrefix = body.get("pathPrefix") instanceof String s ? s : null;
+        try {
+            var result = controller.deployBackService().saveToTemplate(instance, template, pathPrefix);
+            var dto = new LinkedHashMap<String, Object>();
+            dto.put("template", result.template());
+            dto.put("hash", result.hash());
+            dto.put("filesWritten", result.filesWritten());
+            dto.put("skipped", result.skipped());
+            var details = new LinkedHashMap<String, Object>();
+            details.put("instance", id);
+            details.put("filesWritten", result.filesWritten());
+            audit(ctx, controller.stateStore(), "instance.save_to_template", "template", template, details);
+            ctx.json(dto);
+        } catch (IllegalArgumentException e) {
+            ctx.status(404);
+            ctx.json(errorResponse("NOT_FOUND", e.getMessage(), 404));
+        } catch (IllegalStateException e) {
+            ctx.status(409);
+            ctx.json(errorResponse("CONFLICT", e.getMessage(), 409));
+        } catch (java.io.IOException e) {
+            ctx.status(500);
+            ctx.json(errorResponse("INTERNAL", "Deploy-back failed: " + e.getMessage(), 500));
+        }
     }
 
     @OpenApi(

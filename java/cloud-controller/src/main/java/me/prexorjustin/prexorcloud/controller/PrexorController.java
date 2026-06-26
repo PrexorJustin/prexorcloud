@@ -129,6 +129,7 @@ public final class PrexorController {
 
     private Scheduler scheduler;
     private me.prexorjustin.prexorcloud.controller.deployment.DeploymentRollbackService deploymentRollbackService;
+    private me.prexorjustin.prexorcloud.controller.template.DeployBackService deployBackService;
     private volatile me.prexorjustin.prexorcloud.controller.rest.middleware.CorsAllowList corsAllowList;
     private volatile me.prexorjustin.prexorcloud.controller.rest.middleware.AllowedSubnetsList allowedSubnetsList;
     private me.prexorjustin.prexorcloud.controller.auth.passwordreset.PasswordResetManager passwordResetManager;
@@ -215,6 +216,18 @@ public final class PrexorController {
             throw new IllegalStateException("DeploymentRollbackService not initialized");
         }
         return deploymentRollbackService;
+    }
+
+    /** Set the deploy-back service after construction (depends on the file-access + template services). */
+    public void setDeployBackService(me.prexorjustin.prexorcloud.controller.template.DeployBackService service) {
+        this.deployBackService = service;
+    }
+
+    public me.prexorjustin.prexorcloud.controller.template.DeployBackService deployBackService() {
+        if (deployBackService == null) {
+            throw new IllegalStateException("DeployBackService not initialized");
+        }
+        return deployBackService;
     }
 
     public void shutdown() {

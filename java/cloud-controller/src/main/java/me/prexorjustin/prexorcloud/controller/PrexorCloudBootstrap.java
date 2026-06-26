@@ -1489,6 +1489,10 @@ public final class PrexorCloudBootstrap {
         controller.setInstanceFileContentService(
                 new me.prexorjustin.prexorcloud.controller.diagnostics.InstanceFileContentService(
                         nodeMessageDispatcher, pendingRequests, config.uuid()));
+        controller.setDeployBackService(new me.prexorjustin.prexorcloud.controller.template.DeployBackService(
+                new me.prexorjustin.prexorcloud.controller.module.capability.ControllerInstanceFileAccess(
+                        controller.instanceFileTreeService(), controller.instanceFileContentService()),
+                controller.templateManager()));
 
         var compositionPlanner = new InstanceCompositionPlanner(
                 controller.templateManager(),
