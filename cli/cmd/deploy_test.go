@@ -54,6 +54,7 @@ func TestBuildDeployBody_AllFlagsSet(t *testing.T) {
 		"auto-rollback":     "false",
 		"promotion-timeout": "300",
 		"min-healthy":       "30",
+		"min-healthy-tps":   "18",
 	}
 	for k, v := range pairs {
 		if err := cmd.Flags().Set(k, v); err != nil {
@@ -70,6 +71,7 @@ func TestBuildDeployBody_AllFlagsSet(t *testing.T) {
 		"autoRollbackOnFailure":   false,
 		"promotionTimeoutSeconds": int64(300),
 		"minHealthySeconds":       int64(30),
+		"minHealthyTps":           float64(18),
 	}
 	for k, v := range want {
 		if body[k] != v {
@@ -90,5 +92,6 @@ func cloneDeployCmd() *cobra.Command {
 	c.Flags().Bool("auto-rollback", false, "")
 	c.Flags().Int64("promotion-timeout", 0, "")
 	c.Flags().Int64("min-healthy", 0, "")
+	c.Flags().Float64("min-healthy-tps", 0, "")
 	return c
 }

@@ -171,7 +171,6 @@ func confirmRollout() (bool, error) {
 	return ans == "y" || ans == "yes", nil
 }
 
-
 func buildDeployBody(cmd *cobra.Command) map[string]any {
 	body := map[string]any{}
 	flags := cmd.Flags()
@@ -207,6 +206,10 @@ func buildDeployBody(cmd *cobra.Command) map[string]any {
 	if flags.Changed("min-healthy") {
 		v, _ := flags.GetInt64("min-healthy")
 		body["minHealthySeconds"] = v
+	}
+	if flags.Changed("min-healthy-tps") {
+		v, _ := flags.GetFloat64("min-healthy-tps")
+		body["minHealthyTps"] = v
 	}
 	return body
 }
@@ -313,6 +316,8 @@ var deployShowCmd = &cobra.Command{
 			theme.PrintKV("Auto-Rollback", fmt.Sprintf("%v", rollout["autoRollbackOnFailure"]))
 			theme.PrintKV("Promotion Timeout", fmt.Sprintf("%.0fs", num(rollout, "promotionTimeoutSeconds")))
 			theme.PrintKV("Min Healthy", fmt.Sprintf("%.0fs", num(rollout, "minHealthySeconds")))
+			theme.PrintKV("Min Healthy TPS", fmt.Sprintf("%.1f", num(rollout, "minHealthyTps")))
+			theme.PrintKV("Replacement Timeout", fmt.Sprintf("%.0fs", num(rollout, "replacementTimeoutSeconds")))
 		}
 		return nil
 	},
@@ -346,7 +351,7 @@ func newDeployActionCmd(action, summary, helpTail string) *cobra.Command {
 }
 
 func init() {
-	deployCmd.Flags().String("strategy", "", "Rollout strategy (overrides the group default)")
+	deployCmd.Flags().String("strategy", "", "Rollout strategy: rolling or canary (canary fills safe defaults; overrides the group default)")
 	deployCmd.Flags().Int("batch-size", 0, "Instances rolled per batch (>=1)")
 	deployCmd.Flags().Int("canary-instances", 0, "Number of canary instances (>=0)")
 	deployCmd.Flags().Int("canary-percent", 0, "Canary percentage (0-100, mutually exclusive with --canary-instances)")
@@ -354,6 +359,7 @@ func init() {
 	deployCmd.Flags().Bool("auto-rollback", false, "Roll back automatically on rollout failure")
 	deployCmd.Flags().Int64("promotion-timeout", 0, "Promotion timeout in seconds (>=1)")
 	deployCmd.Flags().Int64("min-healthy", 0, "Minimum healthy seconds before advancing a batch (>=0)")
+	deployCmd.Flags().Float64("min-healthy-tps", 0, "Min 1-minute TPS for an updated instance; below it (after min-healthy) the wave fails (0 = off)")
 	deployCmd.Flags().BoolP("yes", "y", false, "Skip the rollout confirmation prompt")
 
 	deployListCmd.Flags().Int("page", 1, "Page number (1-based)")
@@ -364,6 +370,6 @@ func init() {
 		deployShowCmd,
 		newDeployActionCmd("pause", "Pause an in-progress deployment", "Useful while investigating a misbehaving rollout."),
 		newDeployActionCmd("resume", "Resume a paused deployment", "Continues the rolling restart from where it left off."),
-		newDeployActionCmd("rollback", "Roll back a deployment", "Marks the deployment ROLLED_BACK; restoring template/module state is operator-driven."),
+		newDeployActionCmd("rollback", "Roll back a deployment", "Restores the group to the most recent succeeded deployment's config and re-deploys it (linked via rollbackOf). No-op when there is no prior good revision."),
 	)
 }
