@@ -79,10 +79,32 @@ class DeploymentRoutesTest {
     }
 
     @Test
+    @DisplayName("CANARY strategy fills safe defaults")
+    void canaryStrategyAppliesSafeDefaults() {
+        var options = DeploymentRoutes.resolveTriggerOptions(Map.of("strategy", "CANARY"), "ROLLING", 6);
+        assertEquals("CANARY", options.strategy());
+        assertEquals(1, options.canaryInstances());
+        assertEquals(true, options.healthGateEnabled());
+        assertEquals(true, options.autoRollbackOnFailure());
+        assertEquals(30L, options.minHealthySeconds());
+        assertEquals(18.0, options.minHealthyTps().doubleValue());
+    }
+
+    @Test
+    @DisplayName("explicit options override CANARY defaults")
+    void canaryStrategyRespectsExplicitOverrides() {
+        var options = DeploymentRoutes.resolveTriggerOptions(
+                Map.of("strategy", "CANARY", "autoRollbackOnFailure", false, "minHealthyTps", 15.0), "ROLLING", 6);
+        assertEquals(false, options.autoRollbackOnFailure());
+        assertEquals(15.0, options.minHealthyTps().doubleValue());
+        assertEquals(true, options.healthGateEnabled());
+    }
+
+    @Test
     @DisplayName("builds config snapshot with rollout settings")
     void buildsConfigSnapshotWithRolloutSettings() {
-        String snapshot =
-                DeploymentRoutes.buildConfigSnapshot("lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 120L, 8);
+        String snapshot = DeploymentRoutes.buildConfigSnapshot(
+                "lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 18.0, 120L, 8);
 
         assertTrue(snapshot.contains("\"group\":\"lobby\""));
         assertTrue(snapshot.contains("\"strategy\":\"ROLLING\""));
@@ -93,6 +115,7 @@ class DeploymentRoutesTest {
         assertTrue(snapshot.contains("\"autoRollbackOnFailure\":true"));
         assertTrue(snapshot.contains("\"promotionTimeoutSeconds\":45"));
         assertTrue(snapshot.contains("\"minHealthySeconds\":30"));
+        assertTrue(snapshot.contains("\"minHealthyTps\":18.0"));
         assertTrue(snapshot.contains("\"replacementTimeoutSeconds\":120"));
     }
 
@@ -107,7 +130,8 @@ class DeploymentRoutesTest {
                 "ROLLING",
                 "IN_PROGRESS",
                 "{}",
-                DeploymentRoutes.buildConfigSnapshot("lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 120L, 8),
+                DeploymentRoutes.buildConfigSnapshot(
+                        "lobby", "ROLLING", 2, null, 25, true, true, 45L, 30L, 18.0, 120L, 8),
                 8,
                 2,
                 "2026-04-25T12:00:00Z",

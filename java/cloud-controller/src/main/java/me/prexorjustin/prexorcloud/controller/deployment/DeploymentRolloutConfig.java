@@ -17,7 +17,11 @@ public record DeploymentRolloutConfig(
         // wave as failed. 0 → fall back to the reconciler's interval-derived default. Seeded from the
         // group's startupTimeoutSeconds so a rollout that can't place a replacement (e.g. no capacity) halts
         // instead of stopping more instances into an outage.
-        long replacementTimeoutSeconds) {
+        long replacementTimeoutSeconds,
+        // Min acceptable 1-minute TPS for an updated instance once it has stabilised (past minHealthySeconds).
+        // 0 → no TPS gate. An updated server that reports TPS below this is a regression and fails the health
+        // gate (→ rollback when auto-rollback is on). 0-TPS reports (no data / not a game server) are ignored.
+        double minHealthyTps) {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -27,10 +31,11 @@ public record DeploymentRolloutConfig(
         promotionTimeoutSeconds = Math.max(0L, promotionTimeoutSeconds);
         minHealthySeconds = Math.max(0L, minHealthySeconds);
         replacementTimeoutSeconds = Math.max(0L, replacementTimeoutSeconds);
+        minHealthyTps = Math.max(0.0, minHealthyTps);
     }
 
     public static DeploymentRolloutConfig defaults() {
-        return new DeploymentRolloutConfig(1, 0, false, false, 0, 0, 0);
+        return new DeploymentRolloutConfig(1, 0, false, false, 0, 0, 0, 0.0);
     }
 
     public static DeploymentRolloutConfig fromConfigSnapshot(String configSnapshot, int totalInstances) {
@@ -50,6 +55,7 @@ public record DeploymentRolloutConfig(
             long promotionTimeoutSeconds = positiveLong(root.get("promotionTimeoutSeconds"), 0L);
             long minHealthySeconds = positiveLong(root.get("minHealthySeconds"), 0L);
             long replacementTimeoutSeconds = positiveLong(root.get("replacementTimeoutSeconds"), 0L);
+            double minHealthyTps = positiveDouble(root.get("minHealthyTps"), 0.0);
             return new DeploymentRolloutConfig(
                     batchSize,
                     canaryInstances,
@@ -57,7 +63,8 @@ public record DeploymentRolloutConfig(
                     autoRollbackOnFailure,
                     promotionTimeoutSeconds,
                     minHealthySeconds,
-                    replacementTimeoutSeconds);
+                    replacementTimeoutSeconds,
+                    minHealthyTps);
         } catch (Exception _) {
             return defaults();
         }
@@ -97,6 +104,13 @@ public record DeploymentRolloutConfig(
             return defaultValue;
         }
         return Math.max(0L, node.asLong(defaultValue));
+    }
+
+    private static double positiveDouble(JsonNode node, double defaultValue) {
+        if (node == null || !node.isNumber()) {
+            return defaultValue;
+        }
+        return Math.max(0.0, node.asDouble(defaultValue));
     }
 
     private static boolean booleanValue(JsonNode node, boolean defaultValue) {

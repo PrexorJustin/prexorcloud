@@ -50,6 +50,12 @@ public final class DeploymentRoutes {
     @SuppressWarnings("unused")
     private static final String P_DEPLOYMENT_ROLLBACK = "/api/v1/groups/{name}/deployments/{rev}/rollback";
 
+    // CANARY-strategy defaults (each overridable per request): bake the canary for this long before judging
+    // it healthy, and treat 1-minute TPS below this floor as a regression. The TPS floor mirrors the
+    // scaler's TPS_DEGRADED_FLOOR — a server starved below ~18 TPS is overloaded.
+    private static final long CANARY_DEFAULT_MIN_HEALTHY_SECONDS = 30L;
+    private static final double CANARY_DEFAULT_MIN_TPS = 18.0;
+
     private final PrexorController controller;
 
     public DeploymentRoutes(PrexorController controller) {
@@ -193,6 +199,7 @@ public final class DeploymentRoutes {
                         triggerOptions.autoRollbackOnFailure(),
                         triggerOptions.promotionTimeoutSeconds(),
                         triggerOptions.minHealthySeconds(),
+                        triggerOptions.minHealthyTps(),
                         group.startupTimeoutSeconds(),
                         runningCount),
                 runningCount,
@@ -348,6 +355,7 @@ public final class DeploymentRoutes {
         dto.put("autoRollbackOnFailure", rollout.autoRollbackOnFailure());
         dto.put("promotionTimeoutSeconds", rollout.promotionTimeoutSeconds());
         dto.put("minHealthySeconds", rollout.minHealthySeconds());
+        dto.put("minHealthyTps", rollout.minHealthyTps());
         dto.put("replacementTimeoutSeconds", rollout.replacementTimeoutSeconds());
         return dto;
     }
@@ -361,6 +369,7 @@ public final class DeploymentRoutes {
         Boolean autoRollbackOnFailure = booleanValue(body.get("autoRollbackOnFailure"));
         Long promotionTimeoutSeconds = longValue(body.get("promotionTimeoutSeconds"));
         Long minHealthySeconds = longValue(body.get("minHealthySeconds"));
+        Double minHealthyTps = doubleValue(body.get("minHealthyTps"));
 
         if (batchSize != null && batchSize <= 0) {
             throw new IllegalArgumentException("batchSize must be >= 1");
@@ -380,6 +389,29 @@ public final class DeploymentRoutes {
         if (minHealthySeconds != null && minHealthySeconds < 0) {
             throw new IllegalArgumentException("minHealthySeconds must be >= 0");
         }
+        if (minHealthyTps != null && minHealthyTps < 0) {
+            throw new IllegalArgumentException("minHealthyTps must be >= 0");
+        }
+
+        // CANARY strategy is safe-by-default: a single canary instance, health gate + auto-rollback on, a
+        // short stabilisation window, and a TPS-regression floor — each still overridable per request.
+        if ("CANARY".equalsIgnoreCase(strategy)) {
+            if (canaryInstances == null && canaryPercent == null) {
+                canaryInstances = 1;
+            }
+            if (healthGateEnabled == null) {
+                healthGateEnabled = true;
+            }
+            if (autoRollbackOnFailure == null) {
+                autoRollbackOnFailure = true;
+            }
+            if (minHealthySeconds == null) {
+                minHealthySeconds = CANARY_DEFAULT_MIN_HEALTHY_SECONDS;
+            }
+            if (minHealthyTps == null) {
+                minHealthyTps = CANARY_DEFAULT_MIN_TPS;
+            }
+        }
 
         return new DeploymentTriggerOptions(
                 strategy,
@@ -389,7 +421,8 @@ public final class DeploymentRoutes {
                 healthGateEnabled,
                 autoRollbackOnFailure,
                 promotionTimeoutSeconds,
-                minHealthySeconds);
+                minHealthySeconds,
+                minHealthyTps);
     }
 
     static String buildConfigSnapshot(
@@ -402,6 +435,7 @@ public final class DeploymentRoutes {
             Boolean autoRollbackOnFailure,
             Long promotionTimeoutSeconds,
             Long minHealthySeconds,
+            Double minHealthyTps,
             long replacementTimeoutSeconds,
             int totalInstances) {
         try {
@@ -430,6 +464,9 @@ public final class DeploymentRoutes {
             }
             if (minHealthySeconds != null) {
                 snapshot.put("minHealthySeconds", Math.max(0L, minHealthySeconds));
+            }
+            if (minHealthyTps != null && minHealthyTps > 0) {
+                snapshot.put("minHealthyTps", minHealthyTps);
             }
             if (replacementTimeoutSeconds > 0) {
                 snapshot.put("replacementTimeoutSeconds", replacementTimeoutSeconds);
@@ -473,6 +510,16 @@ public final class DeploymentRoutes {
         return null;
     }
 
+    private static Double doubleValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String string && !string.isBlank()) {
+            return Double.parseDouble(string);
+        }
+        return null;
+    }
+
     private static Boolean booleanValue(Object value) {
         if (value instanceof Boolean bool) {
             return bool;
@@ -498,7 +545,8 @@ public final class DeploymentRoutes {
             Boolean healthGateEnabled,
             Boolean autoRollbackOnFailure,
             Long promotionTimeoutSeconds,
-            Long minHealthySeconds) {}
+            Long minHealthySeconds,
+            Double minHealthyTps) {}
 
     record DeploymentPageRequest(int page, int pageSize, int offset, int limit) {}
 }

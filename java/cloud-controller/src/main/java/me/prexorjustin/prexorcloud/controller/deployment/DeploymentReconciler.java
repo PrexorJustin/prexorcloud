@@ -215,6 +215,22 @@ public final class DeploymentReconciler {
                 .count();
     }
 
+    /**
+     * Updated, stabilised instances reporting a 1-minute TPS below {@code tpsFloor} — a tick-starved new
+     * revision. Only instances up at least {@code minStableSeconds} are judged (so warmup isn't penalised),
+     * and only those actually reporting TPS ({@code > 0}; 0 means no data / not a game server).
+     */
+    private int countTpsRegressedUpdatedInstances(
+            String groupName, int revision, double tpsFloor, long minStableSeconds) {
+        long minUptimeMs = TimeUnit.SECONDS.toMillis(Math.max(0L, minStableSeconds));
+        return (int) clusterState.getInstancesByGroup(groupName).stream()
+                .filter(instance -> instance.deploymentRevision() >= revision)
+                .filter(instance -> instance.state() == InstanceState.RUNNING)
+                .filter(instance -> instance.uptimeMs() >= minUptimeMs)
+                .filter(instance -> instance.tps1m() > 0.0 && instance.tps1m() < tpsFloor)
+                .count();
+    }
+
     /** Outcome of waiting for a wave's stopped instances to be replaced. */
     private enum ReplacementOutcome {
         /** Replacements reached the new revision — proceed to the health gate / next wave. */
@@ -285,6 +301,20 @@ public final class DeploymentReconciler {
                         "Rolling restart: rollout wave for group {} revision {} observed crashed updated instances",
                         groupName,
                         revision);
+                return false;
+            }
+            if (rolloutConfig.minHealthyTps() > 0
+                    && countTpsRegressedUpdatedInstances(
+                                    groupName,
+                                    revision,
+                                    rolloutConfig.minHealthyTps(),
+                                    rolloutConfig.minHealthySeconds())
+                            > 0) {
+                logger.warn(
+                        "Rolling restart: rollout wave for group {} revision {} observed a TPS regression (below {})",
+                        groupName,
+                        revision,
+                        rolloutConfig.minHealthyTps());
                 return false;
             }
             int healthyUpdated = rolloutConfig.minHealthySeconds() > 0

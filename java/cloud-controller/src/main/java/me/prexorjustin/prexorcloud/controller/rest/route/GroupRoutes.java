@@ -364,25 +364,28 @@ public final class GroupRoutes {
         int runningCount = (int) controller.clusterState().getInstancesByGroup(name).stream()
                 .filter(i -> i.state() == InstanceState.RUNNING)
                 .count();
+        // Resolve rollout options the same way a deploy does, so a CANARY group's restart is canary-gated too.
+        var opts = DeploymentRoutes.resolveTriggerOptions(java.util.Map.of(), group.updateStrategy(), runningCount);
 
         var record = new DeploymentRecord(
                 0,
                 name,
                 nextRevision,
                 "rolling_restart",
-                group.updateStrategy(),
+                opts.strategy(),
                 "IN_PROGRESS",
                 "{}",
                 DeploymentRoutes.buildConfigSnapshot(
                         name,
-                        group.updateStrategy(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
+                        opts.strategy(),
+                        opts.batchSize(),
+                        opts.canaryInstances(),
+                        opts.canaryPercent(),
+                        opts.healthGateEnabled(),
+                        opts.autoRollbackOnFailure(),
+                        opts.promotionTimeoutSeconds(),
+                        opts.minHealthySeconds(),
+                        opts.minHealthyTps(),
                         group.startupTimeoutSeconds(),
                         runningCount),
                 runningCount,

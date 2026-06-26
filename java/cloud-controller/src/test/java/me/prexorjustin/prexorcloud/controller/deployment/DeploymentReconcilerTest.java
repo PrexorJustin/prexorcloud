@@ -665,4 +665,44 @@ class DeploymentReconcilerTest {
         verify(stateStore, never()).updateDeploymentState(19, "ROLLED_BACK");
         assertTrue(rolledBack.isEmpty());
     }
+
+    @Test
+    void healthGateFailsWhenUpdatedInstanceIsTpsRegressed() {
+        // A replacement comes up RUNNING and stable (uptime) but tick-starved (TPS below the floor) — the
+        // health gate must treat that as a regression and fail the wave.
+        var deployment = new DeploymentRecord(
+                20,
+                "tpsgate",
+                2,
+                "manual",
+                "ROLLING",
+                "IN_PROGRESS",
+                "{}",
+                "{\"group\":\"tpsgate\",\"strategy\":\"ROLLING\",\"canaryInstances\":1,"
+                        + "\"healthGateEnabled\":true,\"promotionTimeoutSeconds\":1,\"minHealthyTps\":18.0}",
+                2,
+                0,
+                Instant.now().toString(),
+                null,
+                null);
+        clusterState.addInstance(new InstanceInfo(
+                "tpsgate-1", "tpsgate", "node-1", InstanceState.RUNNING, 25720, 0, 0, Instant.now(), 0));
+        clusterState.addInstance(new InstanceInfo(
+                "tpsgate-2", "tpsgate", "node-1", InstanceState.RUNNING, 25721, 0, 0, Instant.now(), 0));
+        when(stateStore.getDeployment("tpsgate", 2)).thenReturn(Optional.of(deployment), Optional.of(deployment));
+
+        var reconciler = new DeploymentReconciler(clusterState, stateStore, eventBus, 1, (instanceId, force) -> {
+            clusterState.updateInstanceState(instanceId, InstanceState.STOPPING);
+            // RUNNING + stable uptime (60s) but tps1m=5.0, below the 18.0 floor.
+            Thread.startVirtualThread(() -> clusterState.addInstance(new InstanceInfo(
+                    "tpsgate-repl", "tpsgate", "node-1", InstanceState.RUNNING, 25722, 0, 60000, Instant.now(), 2,
+                    5.0)));
+            return true;
+        });
+
+        reconciler.rollingRestart(deployment);
+
+        verify(stateStore).updateDeploymentState(20, "FAILED");
+        verify(stateStore, never()).updateDeploymentState(20, "COMPLETED");
+    }
 }
