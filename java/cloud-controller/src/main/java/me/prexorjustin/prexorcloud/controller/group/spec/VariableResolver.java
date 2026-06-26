@@ -19,9 +19,11 @@ import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef.Scope;
  * template declares, is a hard error rather than a silent drop, so a typo or a forbidden override
  * surfaces at set/apply time instead of producing a server that quietly ignores an operator's setting.
  *
- * <p>{@code SECRET}-typed variables are resolved from the secret backend at apply time (a later
- * increment) and are intentionally not fetched here — their declared default/reference passes through
- * validation untouched so the real value never lands in a plan, snapshot, or audit record.
+ * <p>{@code SECRET}-typed variables are intentionally not fetched here — their declared
+ * default/reference passes through validation untouched so the real value never lands in a plan,
+ * snapshot, or audit record. The reference is resolved to plaintext only at dispatch, by
+ * {@code GroupVariableResolver.resolveForDispatch} via the {@code secret.SecretResolver} backend SPI,
+ * into the transient start message alone.
  */
 public final class VariableResolver {
 

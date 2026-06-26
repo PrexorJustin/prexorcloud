@@ -19,6 +19,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.event.EventBus;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
+import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
+import me.prexorjustin.prexorcloud.controller.group.spec.secret.EnvSecretBackend;
+import me.prexorjustin.prexorcloud.controller.group.spec.secret.SecretResolver;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlanner;
 import me.prexorjustin.prexorcloud.controller.session.NodeSession;
@@ -264,6 +267,85 @@ class InstancePlacementCoordinatorTest {
         verify(stateStore).saveInstanceCompositionPlan(compositionPlan);
         verify(stateStore, never()).deleteInstanceCompositionPlan("lobby-4");
         verify(scalingEvaluator, never()).recordScaleAction(any());
+    }
+
+    @Test
+    void dispatchResolvesSecretVariableReferencesToPlaintextInStartMessage() {
+        var messages = captureDispatchedMessages();
+
+        var group = stubGroup("lobby");
+        var plan = compositionPlan("lobby-1");
+        when(compositionPlanner.plan(
+                        eq(group), eq("lobby-1"), eq("node-1"), eq(30000), eq("http://localhost:8080"), eq(Map.of())))
+                .thenReturn(plan);
+        // The "lobby" template declares a SECRET whose value is an env:// reference, not the secret.
+        when(stateStore.getTemplateVariableDefs("lobby"))
+                .thenReturn(List.of(new VariableDef(
+                        "RCON_PASSWORD",
+                        VariableDef.VarType.SECRET,
+                        "env://RCON_SECRET",
+                        false,
+                        null,
+                        VariableDef.Scope.INSTANCE,
+                        VariableDef.Visibility.ADMIN,
+                        "")));
+        coordinator.setSecretResolver(new SecretResolver(
+                List.of(new EnvSecretBackend(name -> "RCON_SECRET".equals(name) ? "s3cr3t!" : null))));
+
+        assertTrue(coordinator.placeResolvedInstance(group, "lobby-1", (g, action) -> true, x -> {}));
+
+        // The daemon receives the fetched plaintext, never the env:// reference.
+        var resolved = messages.getFirst().getStartInstance().getResolvedVariablesMap();
+        assertEquals("s3cr3t!", resolved.get("RCON_PASSWORD"));
+    }
+
+    @Test
+    void dispatchDropsAnUnresolvableSecretButStillStartsTheInstance() {
+        var messages = captureDispatchedMessages();
+
+        var group = stubGroup("lobby");
+        var plan = compositionPlan("lobby-1");
+        when(compositionPlanner.plan(
+                        eq(group), eq("lobby-1"), eq("node-1"), eq(30000), eq("http://localhost:8080"), eq(Map.of())))
+                .thenReturn(plan);
+        when(stateStore.getTemplateVariableDefs("lobby"))
+                .thenReturn(List.of(new VariableDef(
+                        "RCON_PASSWORD",
+                        VariableDef.VarType.SECRET,
+                        "env://MISSING_SECRET",
+                        false,
+                        null,
+                        VariableDef.Scope.INSTANCE,
+                        VariableDef.Visibility.ADMIN,
+                        "")));
+        coordinator.setSecretResolver(new SecretResolver(List.of(new EnvSecretBackend(name -> null))));
+
+        // A misconfigured secret must never wedge a start: the key is dropped, the instance still goes.
+        assertTrue(coordinator.placeResolvedInstance(group, "lobby-1", (g, action) -> true, x -> {}));
+
+        var resolved = messages.getFirst().getStartInstance().getResolvedVariablesMap();
+        assertFalse(resolved.containsKey("RCON_PASSWORD"));
+    }
+
+    private CopyOnWriteArrayList<ControllerMessage> captureDispatchedMessages() {
+        var messages = new CopyOnWriteArrayList<ControllerMessage>();
+        sessionManager.register(new NodeSession(
+                "session-1",
+                "node-1",
+                new StreamObserver<>() {
+                    @Override
+                    public void onNext(ControllerMessage value) {
+                        messages.add(value);
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {}
+
+                    @Override
+                    public void onCompleted() {}
+                },
+                Instant.now()));
+        return messages;
     }
 
     private static InstanceCompositionPlan compositionPlan(String instanceId) {

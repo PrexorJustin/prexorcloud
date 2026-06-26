@@ -12,6 +12,7 @@ import me.prexorjustin.prexorcloud.controller.cluster.Leadership;
 import me.prexorjustin.prexorcloud.controller.deployment.DeploymentRecord;
 import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.spec.VariableValidator;
+import me.prexorjustin.prexorcloud.controller.group.spec.secret.SecretResolver;
 import me.prexorjustin.prexorcloud.controller.grpc.DaemonServiceImpl;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.GroupVariableResolver;
 import me.prexorjustin.prexorcloud.controller.scheduler.composition.InstanceCompositionPlan;
@@ -58,6 +59,9 @@ public final class InstancePlacementCoordinator {
     // Tracer for placement spans (Track D.2); no-op default, swapped in by bootstrap when on.
     private io.opentelemetry.api.trace.Tracer tracer =
             io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    // Resolves SECRET-typed variable references (env://, file://, …) into plaintext at dispatch only.
+    // Defaults to the built-in backends; bootstrap may inject a resolver carrying additional backends.
+    private volatile SecretResolver secretResolver = SecretResolver.withDefaults();
 
     /**
      * Test-only checkpoint between composition-plan persistence and dispatch. Fires once
@@ -89,6 +93,11 @@ public final class InstancePlacementCoordinator {
         this.tracer = tracer != null
                 ? tracer
                 : io.opentelemetry.api.OpenTelemetry.noop().getTracer("prexorcloud-controller");
+    }
+
+    /** Inject the secret resolver (bootstrap). Null restores the built-in env/file backends. */
+    public void setSecretResolver(SecretResolver secretResolver) {
+        this.secretResolver = secretResolver != null ? secretResolver : SecretResolver.withDefaults();
     }
 
     public boolean placeResolvedInstance(
@@ -339,10 +348,15 @@ public final class InstancePlacementCoordinator {
      * problems are logged and the valid subset is applied rather than blocking placement — a typo'd
      * variable must never wedge a start. Empty when no template declares a typed variable and nothing
      * is set.
+     *
+     * <p>This is also where {@code SECRET}-typed references ({@code env://}, {@code file://}, …) are
+     * fetched to plaintext — last-moment, into this transient map only. The persisted plan and group
+     * config keep the reference; the resolved value travels solely in the start message over the mTLS
+     * stream and is never logged here (only counts + key-named errors are).
      */
     private Map<String, String> resolveInstanceVariables(GroupConfig group, InstanceCompositionPlan plan) {
-        VariableValidator.Result result =
-                GroupVariableResolver.resolve(group, stateStore, group.variableValues(), plan.variableOverrides());
+        VariableValidator.Result result = GroupVariableResolver.resolveForDispatch(
+                group, stateStore, group.variableValues(), plan.variableOverrides(), secretResolver);
         if (!result.ok()) {
             logger.warn(
                     "Variable resolution for group {} produced {} issue(s); applying the valid subset: {}",

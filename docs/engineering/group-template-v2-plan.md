@@ -170,13 +170,28 @@ daemon `%VAR%` (7 builtins: PORT/INSTANCE_ID/INSTANCE_NAME/GROUP/NODE_ID/MEMORY/
    instance, enforces each var's declared `Scope` (TEMPLATE fixed, GROUP group-only, INSTANCE either),
    rejects forbidden-scope and undeclared keys, then type-validates via `VariableValidator`. Pure logic
    + `VariableResolverTest` (8 cases). No persistence/wire change yet.
-2. **Persist typed defs + validate-on-set** — upgrade the template's existing Mongo `variables` field
-   from untyped `TemplateVariable` to typed `VariableDef`; reject invalid values at the REST boundary
-   (422); feed the resolved map into `TemplateMerger` (keeps `{{}}`/`%%` substitution mechanics).
-3. **Secrets SPI** — `SecretBackend` interface + default impl; `SECRET` vars resolved at apply time,
-   never serialized into a plan/snapshot/audit record.
-4. **CLI + REST surface** — declare defs, set/get values with validation.
-5. **Dashboard UI** — typed inputs, secret masking, version-aware.
+2. ✅ **Persist typed defs + validate-on-set** — the template's Mongo `variables` field is now typed
+   `VariableDef` (legacy untyped `TemplateVariable` retired wholesale; `VariableDefCodec` reads a legacy
+   `{key,value,description}` doc back as a STRING/INSTANCE/OPERATOR def so `{{}}` keeps working). Invalid
+   definitions/values are rejected at the REST boundary (422). `GroupConfig.variableValues` carries
+   per-group overrides; `GroupVariableResolver` is the single resolution owner for both the dispatch
+   path and validate-on-set, so a value is judged identically everywhere.
+3. ✅ **Secrets SPI** — `SecretBackend` interface (`group/spec/secret/`) + built-in `env://` and
+   `file://` backends behind a `SecretResolver` registry (extensible: further backends — Vault, cloud
+   secret managers — register through the same SPI). A `SECRET` variable's value is a `scheme://ref`
+   reference (or an inline literal); the reference lives in the group config / composition plan / audit,
+   and is resolved to plaintext **only at dispatch**, last-moment, by `GroupVariableResolver`
+   `.resolveForDispatch` into the transient `StartInstance.resolved_variables` proto alone — never into
+   a persisted plan, snapshot, or audit record, and never logged (only counts + key-named errors are).
+   Validate-on-set stays secret-free (references are not fetched at set time, so setting
+   `env://RCON_PASSWORD` never requires the var to exist on the controller yet). An unresolvable secret
+   is dropped and recorded as an error rather than wedging the start — consistent with the rest of
+   resolution. An unregistered scheme is a hard error (a typo'd backend never ships a bogus secret).
+4. ✅ **CLI + REST surface** — `prexorctl template var list/set/rm` (typed flags) + group value set; REST
+   GET/PUT typed defs with 422 validation.
+5. ✅ **Dashboard UI** — typed `VariableEditor` (type/default/required/scope/visibility/per-type
+   validation + SECRET masking) on the template panel; per-group key→value override editor on the group
+   detail page; controller 422 messages surfaced to the operator.
 
 ### Phase 3 (P1) — Config model v2
 Data-driven parser rules; platform-as-data; deprecate hardcoded `ServerConfigPatcher`.

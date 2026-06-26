@@ -1,6 +1,7 @@
 package me.prexorjustin.prexorcloud.controller.scheduler.composition;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -8,6 +9,8 @@ import me.prexorjustin.prexorcloud.controller.group.GroupConfig;
 import me.prexorjustin.prexorcloud.controller.group.spec.VariableDef;
 import me.prexorjustin.prexorcloud.controller.group.spec.VariableResolver;
 import me.prexorjustin.prexorcloud.controller.group.spec.VariableValidator;
+import me.prexorjustin.prexorcloud.controller.group.spec.secret.SecretResolutionException;
+import me.prexorjustin.prexorcloud.controller.group.spec.secret.SecretResolver;
 import me.prexorjustin.prexorcloud.controller.state.StateStore;
 
 /**
@@ -42,5 +45,42 @@ public final class GroupVariableResolver {
             Map<String, String> groupValues,
             Map<String, String> instanceValues) {
         return VariableResolver.resolve(defsForGroup(group, stateStore), groupValues, instanceValues);
+    }
+
+    /**
+     * As {@link #resolve}, but additionally fetches every {@code SECRET}-typed variable's reference
+     * through the {@link SecretResolver} so the daemon receives the plaintext value, not the reference.
+     * This is the dispatch-only path: the plaintext lives solely in the transient start message, never
+     * in the persisted plan, group config, or audit (which keep the {@code scheme://…} reference). The
+     * plain {@link #resolve} stays secret-free so validate-on-set never has to reach a secret backend.
+     *
+     * <p>A secret that cannot be resolved is dropped from the map and recorded as an error rather than
+     * blocking placement — consistent with the rest of resolution, a misconfigured secret must never
+     * wedge a start; the operator sees the loud warning and a server missing that one value.
+     */
+    public static VariableValidator.Result resolveForDispatch(
+            GroupConfig group,
+            StateStore stateStore,
+            Map<String, String> groupValues,
+            Map<String, String> instanceValues,
+            SecretResolver secretResolver) {
+
+        List<VariableDef> defs = defsForGroup(group, stateStore);
+        VariableValidator.Result base = VariableResolver.resolve(defs, groupValues, instanceValues);
+
+        Map<String, String> resolved = new LinkedHashMap<>(base.resolved());
+        List<String> errors = new ArrayList<>(base.errors());
+        for (VariableDef def : defs) {
+            if (def.type() != VariableDef.VarType.SECRET || !resolved.containsKey(def.key())) {
+                continue;
+            }
+            try {
+                resolved.put(def.key(), secretResolver.resolve(resolved.get(def.key())));
+            } catch (SecretResolutionException e) {
+                resolved.remove(def.key());
+                errors.add("secret variable '" + def.key() + "' could not be resolved: " + e.getMessage());
+            }
+        }
+        return new VariableValidator.Result(resolved, List.copyOf(errors));
     }
 }
