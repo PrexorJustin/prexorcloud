@@ -210,6 +210,7 @@ CANARY + auto-rollback; fix the timeout footgun; deploy-back; rollback UX.
 ### Phase 6 (P2) — UX parity + observability
 Dashboard group-edit, variable UI, version diff, CLI template file-ops, per-group scaling metrics + "why (not) scaled" explainability.
 - ✅ **Placement explainability** (2026-06-26): `NodeSelector.explainIneligibility(request, nodes)` → per-node reason (not-ONLINE / insufficient memory / no free port in range / missing-affinity / anti-affinity), and the `No eligible node available for group X` log now lists the per-node reasons — turning an opaque scheduling stall into an actionable diagnostic. `WeightedNodeSelector`'s reasons mirror `isEligible` check-for-check (shared `ineligibilityReason`, so diagnostics can't drift from the decision). Tests in `WeightedNodeSelectorTest`. Motivated by a live node-fra-2 warm-placement stall whose cause the bare log didn't reveal.
+- ✅ **Scaling-decision explainability** (2026-06-26): `ScalingEvaluator.evaluateScaleUpDecision(group)` returns a `ScaleUpDecision(count, reason)` — every hold/scale branch carries its cause (manual / below-min / static / at-max / cooldown / load-below-target-and-no-TPS-degradation / load≥target / TPS-below-floor) instead of a bare `0`, so a group that stops scaling is self-explaining and the reason is a ready seam for a "why (not) scaled" status surface. `evaluateScaleUp` stays an `int` wrapper (no caller ripple) and logs the reason on a scale-up. Tests in `ScalingEvaluatorTest`.
 
 ## Risks & gates
 

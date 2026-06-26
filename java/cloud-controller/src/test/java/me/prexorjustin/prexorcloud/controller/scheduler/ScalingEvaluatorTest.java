@@ -369,4 +369,72 @@ class ScalingEvaluatorTest {
             assertEquals(0, freshLeader.evaluateScaleUp(cfg));
         }
     }
+
+    @Nested
+    @DisplayName("Scale-up decision reasons (why (not) scaled)")
+    class DecisionReasons {
+
+        @Test
+        @DisplayName("below minInstances → count + reason")
+        void belowMin() {
+            var cfg = group("lobby", 3, 10, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000);
+            var d = evaluator.evaluateScaleUpDecision(cfg);
+            assertEquals(2, d.count());
+            assertTrue(d.reason().contains("below minInstances"), d.reason());
+        }
+
+        @Test
+        @DisplayName("at maxInstances → 0 with reason")
+        void atMax() {
+            var cfg = group("lobby", 1, 2, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 90, 60000);
+            addInstance("lobby-2", "lobby", InstanceState.RUNNING, 90, 60000);
+            var d = evaluator.evaluateScaleUpDecision(cfg);
+            assertEquals(0, d.count());
+            assertTrue(d.reason().contains("at maxInstances"), d.reason());
+        }
+
+        @Test
+        @DisplayName("static group → 0 with reason")
+        void staticGroup() {
+            var cfg = group("lobby", 1, 5, true, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 90, 60000);
+            var d = evaluator.evaluateScaleUpDecision(cfg);
+            assertEquals(0, d.count());
+            assertTrue(d.reason().contains("static"), d.reason());
+        }
+
+        @Test
+        @DisplayName("load below target → 0 with load-vs-target reason")
+        void lowLoadHold() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 10, 60000);
+            var d = evaluator.evaluateScaleUpDecision(cfg);
+            assertEquals(0, d.count());
+            assertTrue(d.reason().contains("< target"), d.reason());
+        }
+
+        @Test
+        @DisplayName("high load → scale up with load-vs-target reason")
+        void scaleUp() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 85, 60000);
+            var d = evaluator.evaluateScaleUpDecision(cfg);
+            assertEquals(1, d.count());
+            assertTrue(d.reason().contains(">= target"), d.reason());
+        }
+
+        @Test
+        @DisplayName("cooldown active → 0 with cooldown reason")
+        void cooldown() {
+            var cfg = group("lobby", 1, 5, false, 100);
+            addInstance("lobby-1", "lobby", InstanceState.RUNNING, 90, 60000);
+            scaleActionStore.recordScaleAction("lobby", Instant.now());
+            var fresh = new ScalingEvaluator(clusterState, 30, scaleActionStore);
+            var d = fresh.evaluateScaleUpDecision(cfg);
+            assertEquals(0, d.count());
+            assertTrue(d.reason().contains("cooldown"), d.reason());
+        }
+    }
 }

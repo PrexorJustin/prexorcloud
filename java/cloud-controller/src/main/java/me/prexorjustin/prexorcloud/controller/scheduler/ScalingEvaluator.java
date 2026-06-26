@@ -40,13 +40,33 @@ public final class ScalingEvaluator {
         this.scaleActionStore = scaleActionStore;
     }
 
+    /** How many instances a group should add, and a human-readable reason for the decision. */
+    public record ScaleUpDecision(int count, String reason) {}
+
     /**
      * Check if a group needs more instances. Returns the number of instances to add
-     * (0 if none needed).
+     * (0 if none needed). Thin wrapper over {@link #evaluateScaleUpDecision} that logs the reason on a
+     * scale-up so operators can see why capacity was added.
      */
     public int evaluateScaleUp(GroupConfig group) {
+        ScaleUpDecision decision = evaluateScaleUpDecision(group);
+        if (decision.count() > 0) {
+            logger.debug("Group {} scale-up +{}: {}", group.name(), decision.count(), decision.reason());
+        }
+        return decision.count();
+    }
+
+    /**
+     * The scale-up decision <em>with its reason</em> ("why (not) scaled", Group/Template v2 Phase 6) —
+     * every hold path carries the cause (manual / below-min / static / at-max / cooldown / no-running /
+     * load-below-target-and-no-TPS-degradation) instead of a bare {@code 0}, so a group that stops
+     * scaling can be explained without re-deriving the conditions by hand.
+     */
+    public ScaleUpDecision evaluateScaleUpDecision(GroupConfig group) {
         // Manual groups: never evaluate
-        if ("MANUAL".equals(group.scalingMode())) return 0;
+        if ("MANUAL".equals(group.scalingMode())) {
+            return new ScaleUpDecision(0, "manual scaling mode");
+        }
 
         List<InstanceInfo> instances = getActiveInstances(group.name());
         int currentCount = instances.size();
@@ -54,24 +74,25 @@ public final class ScalingEvaluator {
         // Always maintain minimum
         if (currentCount < group.minInstances()) {
             int needed = group.minInstances() - currentCount;
-            logger.debug(
-                    "Group {} below minimum: {} < {}, need {} more",
-                    group.name(),
-                    currentCount,
-                    group.minInstances(),
-                    needed);
-            return needed;
+            return new ScaleUpDecision(
+                    needed, "below minInstances (" + currentCount + " < " + group.minInstances() + ")");
         }
 
         // Static groups: maintain exactly minInstances, never scale beyond
-        if ("STATIC".equals(group.scalingMode())) return 0;
+        if ("STATIC".equals(group.scalingMode())) {
+            return new ScaleUpDecision(0, "static group already at minInstances");
+        }
 
         // Don't scale above max
-        if (currentCount >= group.maxInstances()) return 0;
+        if (currentCount >= group.maxInstances()) {
+            return new ScaleUpDecision(0, "at maxInstances (" + group.maxInstances() + ")");
+        }
 
         // Check per-group cooldown
         long cooldown = group.scaleCooldownSeconds() > 0 ? group.scaleCooldownSeconds() : defaultCooldownSeconds;
-        if (isOnCooldown(group.name(), cooldown)) return 0;
+        if (isOnCooldown(group.name(), cooldown)) {
+            return new ScaleUpDecision(0, "scale cooldown active (" + cooldown + "s)");
+        }
 
         // Dynamic scaling on AGGREGATE player load across the running fleet (Group/Template v2,
         // Phase 1). The old rule scaled only when *every* running instance was saturated -- a single
@@ -81,7 +102,9 @@ public final class ScalingEvaluator {
                 .filter(i -> i.state() == InstanceState.RUNNING)
                 .toList();
 
-        if (running.isEmpty()) return 0;
+        if (running.isEmpty()) {
+            return new ScaleUpDecision(0, "no RUNNING instances to measure load");
+        }
 
         double target = group.scaleUpThreshold();
         int maxPlayers = group.maxPlayers();
@@ -99,7 +122,12 @@ public final class ScalingEvaluator {
                 .map(InstanceInfo::tps1m)
                 .anyMatch(tps -> tps > 0.0 && tps < TPS_DEGRADED_FLOOR);
 
-        if (!loadHigh && !tpsDegraded) return 0;
+        if (!loadHigh && !tpsDegraded) {
+            return new ScaleUpDecision(
+                    0,
+                    "load " + (int) (utilization * 100) + "% < target " + (int) (target * 100)
+                            + "% and no TPS degradation");
+        }
 
         int additional;
         if (loadHigh) {
@@ -117,18 +145,13 @@ public final class ScalingEvaluator {
         int toAdd = Math.min(additional, headroom);
 
         if (toAdd > 0) {
-            logger.debug(
-                    "Group {} scaling up by {} (load {}% vs target {}%, loadHigh={}, tpsDegraded={})",
-                    group.name(),
-                    toAdd,
-                    (int) (utilization * 100),
-                    (int) (target * 100),
-                    loadHigh,
-                    tpsDegraded);
-            return toAdd;
+            String cause = loadHigh
+                    ? "load " + (int) (utilization * 100) + "% >= target " + (int) (target * 100) + "%"
+                    : "TPS below floor " + TPS_DEGRADED_FLOOR;
+            return new ScaleUpDecision(toAdd, cause);
         }
 
-        return 0;
+        return new ScaleUpDecision(0, "no headroom below maxInstances");
     }
 
     /**
