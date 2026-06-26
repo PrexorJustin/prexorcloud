@@ -42,22 +42,13 @@ public record TemplateSpec(
     /** Optional sandboxed setup step run once when the template is built/updated. */
     public record InstallHook(String interpreter, List<String> script, int timeoutSeconds) {}
 
-    /**
-     * One data-driven config edit. {@code path} is a dot/wildcard selector (e.g. {@code servers.*.address});
-     * {@code op} chooses set vs in-line replace vs regex. Replaces today's flat {@code configPatches}
-     * and the per-platform {@code ServerConfigPatcher}.
-     */
-    public record ConfigRule(String file, Format format, String path, Op op, String value) {
-
-        public enum Format { PROPERTIES, YAML, JSON, TOML, TEXT }
-
-        public enum Op { SET, REPLACE, REGEX }
-    }
-
     /** Where the template's content-addressed chunks live. {@code chunkManifest} replaces the per-version tar.gz. */
     public record StorageRef(Backend backend, String chunkManifest) {
 
-        public enum Backend { LOCAL, S3 }
+        public enum Backend {
+            LOCAL,
+            S3
+        }
     }
 
     /** Resolve down to today's {@link TemplateConfig} (the five fields the running system stores/serves). */

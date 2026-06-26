@@ -16,14 +16,18 @@ class TemplateSpecTest {
     @DisplayName("resolves down to the five-field TemplateConfig the running system serves")
     void resolvesToLegacyTemplateConfig() {
         TemplateSpec spec = new TemplateSpec(
-                "lobby", "the lobby layer", "PAPER", "deadbeef", 4096L,
+                "lobby",
+                "the lobby layer",
+                "PAPER",
+                "deadbeef",
+                4096L,
                 List.of(),
                 List.of(new TemplateSpec.Include("https://cdn/p.jar", "plugins/p.jar", "abc")),
                 new TemplateSpec.InstallHook("bash", List.of("echo hi"), 60),
-                List.of(new TemplateSpec.ConfigRule(
-                        "config.yml", TemplateSpec.ConfigRule.Format.YAML,
-                        "servers.*.address", TemplateSpec.ConfigRule.Op.SET, "0.0.0.0")),
-                "sig", "prov",
+                List.of(new ConfigRule(
+                        "config.yml", ConfigRule.Format.YAML, "servers.*.address", ConfigRule.Op.SET, "0.0.0.0")),
+                "sig",
+                "prov",
                 new TemplateSpec.StorageRef(TemplateSpec.StorageRef.Backend.S3, "manifest-1"));
 
         TemplateConfig c = spec.toTemplateConfig();
