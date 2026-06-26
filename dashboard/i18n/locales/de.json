@@ -1232,7 +1232,31 @@
         "state": "Status",
         "progress": "Fortschritt",
         "trigger": "Auslöser",
-        "started": "Gestartet"
+        "started": "Gestartet",
+        "actions": "Aktionen"
+      },
+      "actions": {
+        "pause": "Pausieren",
+        "resume": "Fortsetzen",
+        "rollback": "Zurückrollen"
+      },
+      "confirmRollback": {
+        "title": "Deployment zurückrollen?",
+        "description": "Setzt Gruppe {group} auf das letzte erfolgreiche Deployment zurück und rollt es erneut aus. Revision r{rev} wird als zurückgerollt markiert."
+      },
+      "toast": {
+        "pauseRequested": "Deployment pausiert",
+        "pauseRequestedDesc": "r{rev} für {group} pausiert.",
+        "pauseFailed": "Pausieren fehlgeschlagen",
+        "pauseFailedDesc": "Pausieren von r{rev} für {group} fehlgeschlagen.",
+        "resumeRequested": "Deployment fortgesetzt",
+        "resumeRequestedDesc": "r{rev} für {group} fortgesetzt.",
+        "resumeFailed": "Fortsetzen fehlgeschlagen",
+        "resumeFailedDesc": "Fortsetzen von r{rev} für {group} fehlgeschlagen.",
+        "rollbackRequested": "Rollback gestartet",
+        "rollbackRequestedDesc": "{group} wird von r{rev} auf die letzte gute Konfiguration zurückgerollt.",
+        "rollbackFailed": "Zurückrollen fehlgeschlagen",
+        "rollbackFailedDesc": "Zurückrollen von r{rev} für {group} fehlgeschlagen. Prüfe die Controller-Logs."
       }
     },
     "map": {

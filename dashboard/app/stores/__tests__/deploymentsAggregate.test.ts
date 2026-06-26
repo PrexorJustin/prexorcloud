@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-import { useDeploymentsAggregateStore } from '../deploymentsAggregate'
+import { useDeploymentsAggregateStore, availableActions } from '../deploymentsAggregate'
 import { useGroupsStore } from '../groups'
 
 const mockGET = vi.fn()
+const mockPOST = vi.fn()
 vi.mock('~/composables/useApiClient', () => ({
-  useApiClient: () => ({ GET: mockGET, POST: vi.fn(), DELETE: vi.fn(), PUT: vi.fn(), PATCH: vi.fn() }),
+  useApiClient: () => ({ GET: mockGET, POST: mockPOST, DELETE: vi.fn(), PUT: vi.fn(), PATCH: vi.fn() }),
 }))
 
 vi.mock('vue-sonner', () => ({
@@ -27,6 +28,8 @@ function dep(id: string, group: string, createdAt: string) {
 beforeEach(() => {
   setActivePinia(createPinia())
   mockGET.mockReset()
+  mockPOST.mockReset()
+  mockPOST.mockResolvedValue({ data: {} })
 })
 
 describe('useDeploymentsAggregateStore', () => {
@@ -110,5 +113,47 @@ describe('useDeploymentsAggregateStore', () => {
     const store = useDeploymentsAggregateStore()
     await store.fetchAll()
     expect(store.deployments).toEqual([])
+  })
+
+  it('runAction posts to the action endpoint and refreshes the timeline', async () => {
+    const groupsStore = useGroupsStore()
+    // @ts-expect-error — seed Pinia state directly
+    groupsStore.groups = [{ name: 'lobby' }]
+    mockGET.mockResolvedValue({ data: { data: [] } })
+
+    const store = useDeploymentsAggregateStore()
+    await store.runAction('staging env', 3, 'rollback')
+
+    expect(mockPOST).toHaveBeenCalledWith('/api/v1/groups/staging%20env/deployments/3/rollback', {})
+    // fetchAll ran afterwards to refresh the timeline.
+    expect(mockGET).toHaveBeenCalled()
+  })
+
+  it('runAction propagates a failed POST without refreshing', async () => {
+    const groupsStore = useGroupsStore()
+    // @ts-expect-error — seed Pinia state directly
+    groupsStore.groups = [{ name: 'lobby' }]
+    mockPOST.mockRejectedValue(new Error('500'))
+
+    const store = useDeploymentsAggregateStore()
+    await expect(store.runAction('lobby', 2, 'pause')).rejects.toThrow('500')
+    expect(mockGET).not.toHaveBeenCalled()
+  })
+})
+
+describe('availableActions', () => {
+  it('offers pause while in progress', () => {
+    expect(availableActions('IN_PROGRESS')).toEqual(['pause'])
+    expect(availableActions('PENDING')).toEqual(['pause'])
+  })
+  it('offers resume + rollback while paused', () => {
+    expect(availableActions('PAUSED')).toEqual(['resume', 'rollback'])
+  })
+  it('offers rollback for terminal-but-recoverable states', () => {
+    expect(availableActions('COMPLETED')).toEqual(['rollback'])
+    expect(availableActions('FAILED')).toEqual(['rollback'])
+  })
+  it('offers nothing for an already rolled-back deployment', () => {
+    expect(availableActions('ROLLED_BACK')).toEqual([])
   })
 })

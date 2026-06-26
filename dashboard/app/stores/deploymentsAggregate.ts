@@ -4,6 +4,17 @@ import type { Deployment } from "~/types/api"
 
 type LooseClient = {
   GET: (path: string, init?: unknown) => Promise<{ data: unknown }>
+  POST: (path: string, init?: unknown) => Promise<{ data: unknown }>
+}
+
+export type DeploymentAction = "pause" | "resume" | "rollback"
+
+/** Deployment-state → the lifecycle actions available on it (kept pure for the UI + tests). */
+export function availableActions(state: string): DeploymentAction[] {
+  if (state === "IN_PROGRESS" || state === "PENDING") return ["pause"]
+  if (state === "PAUSED") return ["resume", "rollback"]
+  if (state === "COMPLETED" || state === "FAILED") return ["rollback"]
+  return []
 }
 
 export interface AggregateDeployment extends Deployment {
@@ -48,5 +59,16 @@ export const useDeploymentsAggregateStore = defineStore("deploymentsAggregate", 
     }
   }
 
-  return { deployments, loading, fetchAll }
+  /**
+   * Run a lifecycle action (pause / resume / rollback) on a deployment, then refresh the timeline.
+   * Throws on failure (the caller shows the error toast); rollback both relabels the deployment and
+   * re-deploys the previous good config controller-side.
+   */
+  async function runAction(groupName: string, revision: number, action: DeploymentAction) {
+    const path = `/api/v1/groups/${encodeURIComponent(groupName)}/deployments/${revision}/${action}`
+    await loose().POST(path, {})
+    await fetchAll()
+  }
+
+  return { deployments, loading, fetchAll, runAction }
 })

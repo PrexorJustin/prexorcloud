@@ -1232,7 +1232,31 @@
         "state": "State",
         "progress": "Progress",
         "trigger": "Trigger",
-        "started": "Started"
+        "started": "Started",
+        "actions": "Actions"
+      },
+      "actions": {
+        "pause": "Pause",
+        "resume": "Resume",
+        "rollback": "Roll back"
+      },
+      "confirmRollback": {
+        "title": "Roll back deployment?",
+        "description": "Restores group {group} to the previous succeeded deployment and re-deploys it. Revision r{rev} will be marked rolled back."
+      },
+      "toast": {
+        "pauseRequested": "Deployment paused",
+        "pauseRequestedDesc": "Paused r{rev} for {group}.",
+        "pauseFailed": "Could not pause",
+        "pauseFailedDesc": "Pausing r{rev} for {group} failed.",
+        "resumeRequested": "Deployment resumed",
+        "resumeRequestedDesc": "Resumed r{rev} for {group}.",
+        "resumeFailed": "Could not resume",
+        "resumeFailedDesc": "Resuming r{rev} for {group} failed.",
+        "rollbackRequested": "Rollback started",
+        "rollbackRequestedDesc": "Rolling {group} back from r{rev} to the last good config.",
+        "rollbackFailed": "Could not roll back",
+        "rollbackFailedDesc": "Rolling back r{rev} for {group} failed. Check the controller logs."
       }
     },
     "map": {
