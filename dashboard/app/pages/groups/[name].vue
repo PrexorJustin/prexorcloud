@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ArrowLeft, Activity, Settings, Clock, Server, Zap, RefreshCw, Rocket, Box, Pause, Play, RotateCcw, Trash2, Loader2, Paintbrush } from "lucide-vue-next"
+import { ArrowLeft, Activity, Settings, Clock, Server, Zap, RefreshCw, Rocket, Box, Pause, Play, RotateCcw, Trash2, Loader2, Paintbrush, Save, Plus } from "lucide-vue-next"
 import type { Deployment, ServerGroup } from "~/types/api"
 import type { Schema } from "@prexorcloud/api-sdk"
 import { Badge } from "~/components/ui/badge"
 import { StatusBadge } from "~/components/ui/status-badge"
 import { Button } from "~/components/ui/button"
+import { Input } from "~/components/ui/input"
 import { CodeBlock } from "~/components/ui/code-block"
 import { Eyebrow } from "~/components/ui/eyebrow"
 import {
@@ -52,6 +53,48 @@ const groupInstances = computed(() =>
 const isProxyGroup = computed(() => ['velocity', 'bungeecord'].includes(group.value?.platform?.toLowerCase() ?? ''))
 const activeTab = ref<'overview' | 'appearance'>('overview')
 
+// ── Variable values (typed template variables resolved per group) ──
+// There is no standalone group-edit dialog (CreateGroupDialog is a create-only
+// wizard), so the key→value override editor lives here on the detail page.
+const groupVarRows = ref<{ key: string; value: string }[]>([])
+const savingGroupVars = ref(false)
+
+function seedGroupVars() {
+  const values = group.value?.variableValues ?? {}
+  groupVarRows.value = Object.entries(values).map(([key, value]) => ({ key, value: String(value) }))
+}
+
+const groupVarDuplicates = computed(() => {
+  const counts = new Map<string, number>()
+  for (const r of groupVarRows.value) if (r.key) counts.set(r.key, (counts.get(r.key) ?? 0) + 1)
+  return new Set([...counts].filter(([, c]) => c > 1).map(([k]) => k))
+})
+
+function addGroupVar() {
+  groupVarRows.value = [...groupVarRows.value, { key: "", value: "" }]
+}
+function removeGroupVar(index: number) {
+  groupVarRows.value = groupVarRows.value.filter((_, i) => i !== index)
+}
+function updateGroupVar(index: number, field: "key" | "value", value: string) {
+  groupVarRows.value = groupVarRows.value.map((r, i) => (i === index ? { ...r, [field]: value } : r))
+}
+
+async function saveGroupVars() {
+  if (groupVarDuplicates.value.size > 0) return
+  savingGroupVars.value = true
+  try {
+    const record: Record<string, string> = {}
+    for (const { key, value } of groupVarRows.value) {
+      const k = key.trim()
+      if (k) record[k] = value
+    }
+    await groupsStore.updateGroupVariables(groupName, record)
+    await fetchGroup()
+  } catch { /* store surfaces the error toast */ }
+  finally { savingGroupVars.value = false }
+}
+
 /** Mandatory + extra templates for this group */
 const allTemplates = computed(() => {
   if (!group.value) return []
@@ -65,6 +108,7 @@ async function fetchGroup() {
     const client = useApiClient()
     const { data: g } = await client.GET('/api/v1/groups/{name}', { params: { path: { name: groupName } } })
     group.value = (g ?? null) as unknown as ServerGroup | null
+    seedGroupVars()
     const { data: deps } = await client.GET('/api/v1/groups/{name}/deployments', { params: { path: { name: groupName } } })
     deployments.value = (deps?.data ?? []) as unknown as Deployment[]
 
@@ -361,6 +405,64 @@ async function deleteGroup() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Variable values — per-group overrides for typed template variables -->
+      <div class="bg-glass/60 backdrop-blur-xl rounded-2xl border border-glass-border p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-base font-semibold text-foreground flex items-center gap-2"><Settings class="size-4" /> {{ t('pages.groupDetail.variables.title') }}</h3>
+            <p class="text-xs text-muted-foreground mt-1">{{ t('pages.groupDetail.variables.description') }}</p>
+          </div>
+          <Button size="sm" class="h-8 text-xs shrink-0" :disabled="savingGroupVars || groupVarDuplicates.size > 0" @click="saveGroupVars">
+            <Save class="size-3.5 mr-1.5" />
+            {{ savingGroupVars ? t('pages.groupDetail.variables.saving') : t('pages.groupDetail.variables.save') }}
+          </Button>
+        </div>
+        <div class="flex flex-col gap-3">
+          <div v-if="groupVarRows.length" class="grid grid-cols-[1fr_1fr_auto] gap-3 px-1">
+            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('pages.groupDetail.variables.key') }}</span>
+            <span class="text-xs font-medium text-muted-foreground uppercase tracking-wider">{{ t('pages.groupDetail.variables.value') }}</span>
+            <span class="w-8" />
+          </div>
+          <div
+            v-for="(row, index) in groupVarRows"
+            :key="index"
+            class="grid grid-cols-[1fr_1fr_auto] gap-3 items-center group/row"
+          >
+            <Input
+              :model-value="row.key"
+              :placeholder="t('pages.groupDetail.variables.keyPlaceholder')"
+              :aria-invalid="groupVarDuplicates.has(row.key) || undefined"
+              :class="['font-mono bg-glass border-glass-border rounded-lg text-sm h-9', groupVarDuplicates.has(row.key) ? 'border-destructive focus-visible:ring-destructive/50' : '']"
+              @update:model-value="updateGroupVar(index, 'key', String($event))"
+            />
+            <Input
+              :model-value="row.value"
+              :placeholder="t('pages.groupDetail.variables.valuePlaceholder')"
+              class="bg-glass border-glass-border rounded-lg text-sm h-9"
+              @update:model-value="updateGroupVar(index, 'value', String($event))"
+            />
+            <button
+              class="size-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100 transition-all"
+              :title="t('pages.groupDetail.variables.remove')"
+              @click="removeGroupVar(index)"
+            >
+              <Trash2 class="size-4" />
+            </button>
+          </div>
+          <div v-if="!groupVarRows.length" class="flex items-center justify-center py-6 text-sm text-muted-foreground">
+            {{ t('pages.groupDetail.variables.empty') }}
+          </div>
+          <Button
+            variant="outline"
+            class="w-full border-dashed border-glass-border text-muted-foreground hover:text-foreground hover:bg-glass-hover h-9"
+            @click="addGroupVar"
+          >
+            <Plus class="size-4 mr-2" />
+            {{ t('pages.groupDetail.variables.add') }}
+          </Button>
         </div>
       </div>
 

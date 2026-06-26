@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { FileCode, HardDrive, Hash, Layers, Loader2, Lock, Package, Pencil, Save, Search, Trash2 } from "lucide-vue-next"
-import type { Template, TemplateVariable } from "~/types/api"
+import type { Template, VariableDef } from "~/types/api"
 import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { toast } from "vue-sonner"
@@ -11,7 +11,7 @@ const props = defineProps<{
   templateName: string
   isBaseTemplate: boolean
   inheritanceChain: { name: string; active: boolean; link: string }[]
-  templateVariables: TemplateVariable[]
+  templateVariables: VariableDef[]
   variablesSaving: boolean
   scanningVariables: boolean
   usedByGroups: { name: string }[]
@@ -21,7 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:template', value: Template): void
-  (e: 'update:templateVariables', value: TemplateVariable[]): void
+  (e: 'update:templateVariables', value: VariableDef[]): void
   (e: 'saveVariables'): void
   (e: 'scanVariables'): void
   (e: 'inheritanceClick', name: string): void

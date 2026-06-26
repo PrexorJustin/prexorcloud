@@ -1,6 +1,6 @@
 import { defineStore } from "pinia"
 import type { Schema } from "@prexorcloud/api-sdk"
-import type { TemplateFile, TemplateInheritanceNode, TemplateSearchResult, TemplateVariable, TemplateVersion } from "~/types/api"
+import type { TemplateFile, TemplateInheritanceNode, TemplateSearchResult, TemplateVersion, VariableDef } from "~/types/api"
 import { toast } from "vue-sonner"
 import { getAuthToken } from "~/lib/auth-storage"
 import { t } from "~/lib/translate"
@@ -149,16 +149,36 @@ export const useTemplatesStore = defineStore("templates", () => {
     return `${apiBase}/api/v1/templates/${name}/files/download?path=${encodeURIComponent(filePath)}${token ? `&token=${token}` : ""}`
   }
 
-  async function fetchVariables(name: string): Promise<TemplateVariable[]> {
+  async function fetchVariables(name: string): Promise<VariableDef[]> {
     const { data } = await useApiClient().GET('/api/v1/templates/{name}/variables', { params: { path: { name } } })
-    return (data ?? []) as TemplateVariable[]
+    return (data ?? []) as VariableDef[]
   }
 
-  async function saveVariables(name: string, variables: TemplateVariable[]): Promise<void> {
-    await useApiClient().PUT('/api/v1/templates/{name}/variables', {
-      params: { path: { name } },
-      body: variables as any,
+  // PUT replaces the whole typed definition set. The backend answers 422 with a
+  // useful message (ENUM without enumValues, a default that fails its type, a
+  // duplicate key, …). The shared throwing client discards that body, so we use
+  // a raw fetch here — mirroring uploadFiles/importTemplate above — to read the
+  // controller's message and re-throw it for the caller to surface.
+  async function saveVariables(name: string, variables: VariableDef[]): Promise<void> {
+    const config = useRuntimeConfig()
+    const apiBase = config.public.apiBase as string
+    const token = getAuthToken()
+    const res = await fetch(`${apiBase}/api/v1/templates/${encodeURIComponent(name)}/variables`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(variables),
     })
+    if (!res.ok) {
+      let message = t("store.templates.variablesSaveFailed")
+      try {
+        const body = await res.json() as { error?: { message?: string } }
+        if (body?.error?.message) message = body.error.message
+      } catch { /* keep the generic message */ }
+      throw new Error(message)
+    }
     toast.success(t("store.templates.variablesSaved"))
   }
 

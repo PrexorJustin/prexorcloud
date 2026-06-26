@@ -1,5 +1,6 @@
 import { toast } from "vue-sonner"
-import type { Template, TemplateSearchResult, TemplateVariable } from "~/types/api"
+import type { Template, TemplateSearchResult, VariableDef } from "~/types/api"
+import { newVariableDef } from "~/lib/variable-defs"
 import { t } from "~/lib/translate"
 
 /**
@@ -13,7 +14,7 @@ export function useTemplateMeta(templateName: string, template: Ref<Template | n
   const inheritanceChain = ref<{ name: string; active: boolean; link: string }[]>([])
 
   // ── Variables ──
-  const templateVariables = ref<TemplateVariable[]>([])
+  const templateVariables = ref<VariableDef[]>([])
   const variablesSaving = ref(false)
   const scanningVariables = ref(false)
 
@@ -36,7 +37,11 @@ export function useTemplateMeta(templateName: string, template: Ref<Template | n
     variablesSaving.value = true
     try {
       await store.saveVariables(templateName, templateVariables.value)
-    } catch { toast.error(t("store.templateMeta.saveVariablesFailed")) }
+    }
+    // Surface the controller's validation message (e.g. "ENUM without
+    // enumValues") so the operator can fix the offending row; the editor stays
+    // open because we never navigate away on failure.
+    catch (err) { toast.error(err instanceof Error && err.message ? err.message : t("store.templateMeta.saveVariablesFailed")) }
     finally { variablesSaving.value = false }
   }
 
@@ -45,7 +50,7 @@ export function useTemplateMeta(templateName: string, template: Ref<Template | n
     try {
       const discovered = await store.scanVariables(templateName)
       const existing = new Set(templateVariables.value.map(v => v.key))
-      const newVars = discovered.filter(k => !existing.has(k)).map(k => ({ key: k, value: '', description: '' }))
+      const newVars = discovered.filter(k => !existing.has(k)).map(k => newVariableDef(k))
       if (newVars.length > 0) {
         templateVariables.value = [...templateVariables.value, ...newVars]
         toast.success(t("store.templateMeta.newVariablesFound", { count: newVars.length }, newVars.length))

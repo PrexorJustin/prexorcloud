@@ -245,7 +245,10 @@
       "createdDesc": "\"{name}\" has been created",
       "createFailed": "Failed to create group",
       "crashLoop": "Crash loop detected",
-      "crashLoopDesc": "Group \"{group}\" is crash-looping"
+      "crashLoopDesc": "Group \"{group}\" is crash-looping",
+      "variablesSaved": "Variables saved",
+      "variablesSavedDesc": "Variable values for \"{name}\" have been saved",
+      "variablesSaveFailed": "Failed to save variable values"
     },
     "templates": {
       "loadFailed": "Failed to load templates",
@@ -265,6 +268,7 @@
       "rehashed": "Template rehashed",
       "rehashedDesc": "\"{name}\" has been rehashed",
       "variablesSaved": "Variables saved",
+      "variablesSaveFailed": "Failed to save variables",
       "imported": "Template imported"
     },
     "networks": {
@@ -1544,6 +1548,19 @@
         "jvmArgsResolved": "JVM args (resolved)",
         "envResolved": "Environment (resolved)"
       },
+      "variables": {
+        "title": "Variable values",
+        "description": "Override typed template variables for this group. Keys map to the placeholders resolved when instances start.",
+        "key": "Key",
+        "value": "Value",
+        "keyPlaceholder": "VARIABLE_NAME",
+        "valuePlaceholder": "value",
+        "remove": "Remove value",
+        "empty": "No variable values set",
+        "add": "Add value",
+        "save": "Save",
+        "saving": "Saving..."
+      },
       "dangerTitle": "Delete group",
       "dangerBody": "Permanently delete this group and stop all running instances. This action cannot be undone.",
       "delete": "Delete",
@@ -2439,6 +2456,19 @@
     "variableEditor": {
       "key": "Key",
       "value": "Value",
+      "type": "Type",
+      "defaultValue": "Default",
+      "defaultValuePlaceholder": "Default value",
+      "secretPlaceholder": "••••••••",
+      "required": "Required",
+      "scope": "Scope",
+      "visibility": "Visibility",
+      "enumValues": "Allowed values",
+      "enumValuesPlaceholder": "comma, separated, values",
+      "min": "Min",
+      "max": "Max",
+      "regex": "Pattern",
+      "regexPlaceholder": "^[a-z0-9-]+$",
       "description": "Description",
       "keyPlaceholder": "VARIABLE_NAME",
       "valuePlaceholder": "value",

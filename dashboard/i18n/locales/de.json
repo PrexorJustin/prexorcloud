@@ -245,7 +245,10 @@
       "createdDesc": "\"{name}\" wurde erstellt",
       "createFailed": "Gruppe konnte nicht erstellt werden",
       "crashLoop": "Crash-Loop erkannt",
-      "crashLoopDesc": "Gruppe \"{group}\" befindet sich in einem Crash-Loop"
+      "crashLoopDesc": "Gruppe \"{group}\" befindet sich in einem Crash-Loop",
+      "variablesSaved": "Variablen gespeichert",
+      "variablesSavedDesc": "Variablenwerte für \"{name}\" wurden gespeichert",
+      "variablesSaveFailed": "Variablenwerte konnten nicht gespeichert werden"
     },
     "templates": {
       "loadFailed": "Templates konnten nicht geladen werden",
@@ -265,6 +268,7 @@
       "rehashed": "Template neu gehasht",
       "rehashedDesc": "\"{name}\" wurde neu gehasht",
       "variablesSaved": "Variablen gespeichert",
+      "variablesSaveFailed": "Variablen konnten nicht gespeichert werden",
       "imported": "Template importiert"
     },
     "networks": {
@@ -1544,6 +1548,19 @@
         "jvmArgsResolved": "JVM-Argumente (aufgelöst)",
         "envResolved": "Umgebung (aufgelöst)"
       },
+      "variables": {
+        "title": "Variablenwerte",
+        "description": "Typisierte Template-Variablen für diese Gruppe überschreiben. Schlüssel werden auf Platzhalter abgebildet, die beim Start von Instanzen aufgelöst werden.",
+        "key": "Schlüssel",
+        "value": "Wert",
+        "keyPlaceholder": "VARIABLE_NAME",
+        "valuePlaceholder": "Wert",
+        "remove": "Wert entfernen",
+        "empty": "Keine Variablenwerte gesetzt",
+        "add": "Wert hinzufügen",
+        "save": "Speichern",
+        "saving": "Wird gespeichert..."
+      },
       "dangerTitle": "Gruppe löschen",
       "dangerBody": "Diese Gruppe dauerhaft löschen und alle laufenden Instanzen stoppen. Diese Aktion kann nicht rückgängig gemacht werden.",
       "delete": "Löschen",
@@ -2439,6 +2456,19 @@
     "variableEditor": {
       "key": "Schlüssel",
       "value": "Wert",
+      "type": "Typ",
+      "defaultValue": "Standard",
+      "defaultValuePlaceholder": "Standardwert",
+      "secretPlaceholder": "••••••••",
+      "required": "Erforderlich",
+      "scope": "Geltungsbereich",
+      "visibility": "Sichtbarkeit",
+      "enumValues": "Erlaubte Werte",
+      "enumValuesPlaceholder": "kommagetrennte, Werte",
+      "min": "Min",
+      "max": "Max",
+      "regex": "Muster",
+      "regexPlaceholder": "^[a-z0-9-]+$",
       "description": "Beschreibung",
       "keyPlaceholder": "VARIABLE_NAME",
       "valuePlaceholder": "Wert",

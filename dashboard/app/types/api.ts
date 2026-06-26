@@ -1,4 +1,5 @@
 import type { Role } from '~/lib/constants'
+import type { Schema } from '@prexorcloud/api-sdk'
 
 // Auth
 export interface LoginRequest { username: string; password: string }
@@ -53,6 +54,7 @@ export interface ServerGroup {
   nodeAffinity: string[]; nodeAntiAffinity: string[]; spreadConstraint: string
   priority: number; memoryMb: number; jvmArgs: string[]; env: Record<string, string>
   motds: string[]; motdMode: 'STATIC' | 'SEQUENTIAL' | 'RANDOM'; motdIntervalSeconds: number
+  variableValues?: Record<string, string>
   runningInstances: number; totalPlayers: number
 }
 
@@ -70,7 +72,13 @@ export interface PaginatedResponse<T> { data: T[]; page: number; pageSize: numbe
 export interface Template { name: string; description: string; platform: string; hash: string; sizeBytes: number }
 export interface TemplateVersion { templateName: string; hash: string; sizeBytes: number; createdAt: string }
 export interface TemplateFile { name: string; isDirectory: boolean; size: number }
-export interface TemplateVariable { key: string; value: string; description?: string }
+// Typed template variable definitions (unified typed model — mirrors the SDK
+// `VariableDef`). The legacy untyped `{ key, value, description }` shape is gone.
+export type VariableDef = Schema<'VariableDef'>
+export type VarType = NonNullable<VariableDef['type']>
+export type VariableValidation = NonNullable<VariableDef['validation']>
+export type VariableScope = NonNullable<VariableDef['scope']>
+export type VariableVisibility = NonNullable<VariableDef['visibility']>
 export interface TemplateSearchResult { path: string; line: number; content: string; matchStart: number; matchEnd: number }
 export interface TemplateInheritanceNode { name: string; exists: boolean }
 

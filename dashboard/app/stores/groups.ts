@@ -32,6 +32,21 @@ export const useGroupsStore = defineStore("groups", () => {
     )
   }
 
+  /** Merge-patch a group's typed variable values (key→value overrides). */
+  async function updateGroupVariables(name: string, variableValues: Record<string, string>) {
+    await withMutation(
+      () => useApiClient().PATCH('/api/v1/groups/{name}', {
+        params: { path: { name } },
+        body: { variableValues } as Schema<'GroupConfig'>,
+      }),
+      {
+        success: { message: t("store.groups.variablesSaved"), description: t("store.groups.variablesSavedDesc", { name }) },
+        errorMsg: t("store.groups.variablesSaveFailed"),
+        onSuccess: fetchGroups,
+      },
+    )
+  }
+
   function handleEvent(data: CloudEvent) {
     switch (data.type) {
       case "RESYNC_REQUIRED":
@@ -81,6 +96,7 @@ export const useGroupsStore = defineStore("groups", () => {
     lastDeploymentEvent,
     fetchGroups,
     createGroup,
+    updateGroupVariables,
     connectSse: sse.connect,
     disconnectSse: sse.disconnect,
   }

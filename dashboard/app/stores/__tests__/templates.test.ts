@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from 'pinia'
 
 import { toast } from 'vue-sonner'
 import { useTemplatesStore } from '../templates'
+import type { VariableDef } from '~/types/api'
 
 const { mockGetAuthToken, mockBusOn, mockBusOff, mockBusConnect, fetchMock } = vi.hoisted(() => ({
   mockGetAuthToken: vi.fn(),
@@ -212,21 +213,47 @@ describe('useTemplatesStore', () => {
     expect(toast.success).toHaveBeenCalled()
   })
 
-  it('fetchVariables / saveVariables / scanVariables / fetchInheritance hit typed paths', async () => {
-    mockGET.mockResolvedValueOnce({ data: [{ key: 'PORT' }] })
-    mockPUT.mockResolvedValueOnce({ data: null })
+  it('fetchVariables / scanVariables / fetchInheritance hit typed paths', async () => {
+    mockGET.mockResolvedValueOnce({ data: [{ key: 'PORT', type: 'INT', required: false }] })
     mockGET.mockResolvedValueOnce({ data: ['NEW_KEY'] })
     mockGET.mockResolvedValueOnce({ data: [{ name: 't', parent: null }] })
 
     const store = useTemplatesStore()
-    expect(await store.fetchVariables('t')).toEqual([{ key: 'PORT' }])
-    await store.saveVariables('t', [{ key: 'PORT', value: '25565', description: '' }])
+    expect(await store.fetchVariables('t')).toEqual([{ key: 'PORT', type: 'INT', required: false }])
     expect(await store.scanVariables('t')).toEqual(['NEW_KEY'])
     expect(await store.fetchInheritance('t')).toEqual([{ name: 't', parent: null }])
 
-    expect(mockPUT).toHaveBeenCalledWith('/api/v1/templates/{name}/variables', expect.objectContaining({
-      params: { path: { name: 't' } },
-    }))
+    expect(mockGET).toHaveBeenCalledWith('/api/v1/templates/{name}/variables', { params: { path: { name: 't' } } })
+  })
+
+  it('saveVariables PUTs the typed defs as JSON and toasts success', async () => {
+    mockGetAuthToken.mockReturnValue('tok')
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 200 }))
+    const defs: VariableDef[] = [
+      { key: 'PORT', type: 'INT', defaultValue: '25565', required: true, scope: 'TEMPLATE', visibility: 'OPERATOR', description: '' },
+    ]
+
+    const store = useTemplatesStore()
+    await store.saveVariables('t', defs)
+
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('http://localhost:8080/api/v1/templates/t/variables')
+    expect((init as RequestInit).method).toBe('PUT')
+    expect(((init as RequestInit).headers as Record<string, string>).Authorization).toBe('Bearer tok')
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(defs)
+    expect(toast.success).toHaveBeenCalledTimes(1)
+  })
+
+  it('saveVariables surfaces the backend 422 message and does not toast success', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: { message: 'ENUM DIFFICULTY has no enumValues' } }), {
+        status: 422,
+        headers: { 'content-type': 'application/json' },
+      }),
+    )
+    const store = useTemplatesStore()
+    await expect(store.saveVariables('t', [])).rejects.toThrow('ENUM DIFFICULTY has no enumValues')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('searchFiles passes through the query terms and maxResults', async () => {

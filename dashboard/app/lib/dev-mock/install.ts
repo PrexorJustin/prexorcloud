@@ -232,8 +232,19 @@ function resolveMock(url: string, method: string, init?: RequestInit): MockHit |
   if (/\/api\/v1\/templates\/[^/]+\/inheritance$/.test(path)) {
     return { body: { chain: ["base", "base-paper"] } }
   }
+  if (/\/api\/v1\/templates\/[^/]+\/variables\/scan$/.test(path)) {
+    return { body: ["SERVER_NAME", "MAX_PLAYERS", "MOTD"] }
+  }
   if (/\/api\/v1\/templates\/[^/]+\/variables$/.test(path)) {
-    return { body: { variables: {} } }
+    if (method === "PUT") {
+      // Echo the submitted typed definitions back so the editor reflects the save.
+      return { body: parseJsonBody(init) ?? [] }
+    }
+    return { body: [
+      { key: "MAX_PLAYERS", type: "INT", defaultValue: "20", required: true, validation: { min: 1, max: 100 }, scope: "TEMPLATE", visibility: "OPERATOR", description: "Maximum concurrent players" },
+      { key: "DIFFICULTY", type: "ENUM", defaultValue: "normal", required: false, validation: { enumValues: ["peaceful", "easy", "normal", "hard"] }, scope: "TEMPLATE", visibility: "OPERATOR", description: "World difficulty" },
+      { key: "RCON_PASSWORD", type: "SECRET", defaultValue: "", required: false, scope: "INSTANCE", visibility: "ADMIN", description: "RCON password" },
+    ] }
   }
   if (/\/api\/v1\/templates\/[^/]+$/.test(path)) {
     const name = decodeURIComponent(path.split("/").pop()!)

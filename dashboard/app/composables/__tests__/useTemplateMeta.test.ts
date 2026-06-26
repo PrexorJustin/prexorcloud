@@ -5,6 +5,12 @@ import { ref, nextTick } from 'vue'
 import { toast } from 'vue-sonner'
 import { useTemplateMeta } from '../useTemplateMeta'
 import { useTemplatesStore } from '~/stores/templates'
+import type { VariableDef } from '~/types/api'
+
+/** A fully-typed variable definition for assertions. */
+function mkDef(key: string, defaultValue = ''): VariableDef {
+  return { key, type: 'STRING', defaultValue, required: false, scope: 'TEMPLATE', visibility: 'OPERATOR', description: '' }
+}
 
 vi.mock('vue-sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
@@ -87,13 +93,13 @@ describe('useTemplateMeta', () => {
     saveVariables.mockResolvedValue(undefined)
     const tpl = ref<{ name: string } | null>(null)
     const m = useTemplateMeta('paper', tpl as never)
-    m.templateVariables.value = [{ key: 'PORT', value: '25565', description: '' }]
+    m.templateVariables.value = [mkDef('PORT', '25565')]
 
     const promise = m.saveTemplateVariables()
     expect(m.variablesSaving.value).toBe(true)
     await promise
     expect(m.variablesSaving.value).toBe(false)
-    expect(saveVariables).toHaveBeenCalledWith('paper', [{ key: 'PORT', value: '25565', description: '' }])
+    expect(saveVariables).toHaveBeenCalledWith('paper', [mkDef('PORT', '25565')])
   })
 
   it('saveTemplateVariables toasts on failure but still clears variablesSaving', async () => {
@@ -111,7 +117,7 @@ describe('useTemplateMeta', () => {
     scanVariables.mockResolvedValue(['PORT', 'MAX_PLAYERS', 'DIFFICULTY'])
     const tpl = ref<{ name: string } | null>(null)
     const m = useTemplateMeta('paper', tpl as never)
-    m.templateVariables.value = [{ key: 'PORT', value: '25565', description: '' }]
+    m.templateVariables.value = [mkDef('PORT', '25565')]
     await m.scanForVariables()
     expect(m.templateVariables.value.map((v) => v.key)).toEqual(['PORT', 'MAX_PLAYERS', 'DIFFICULTY'])
     expect(toast.success).toHaveBeenCalledWith('Found 2 new variables')
@@ -131,7 +137,7 @@ describe('useTemplateMeta', () => {
     scanVariables.mockResolvedValue(['PORT'])
     const tpl = ref<{ name: string } | null>(null)
     const m = useTemplateMeta('paper', tpl as never)
-    m.templateVariables.value = [{ key: 'PORT', value: '', description: '' }]
+    m.templateVariables.value = [mkDef('PORT')]
     await m.scanForVariables()
     expect(toast.info).toHaveBeenCalledWith('No new variables found')
   })
