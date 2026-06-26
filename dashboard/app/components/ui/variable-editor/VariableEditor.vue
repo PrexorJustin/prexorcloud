@@ -163,6 +163,9 @@ function removeVariable(index: number) {
             class="bg-glass border-glass-border rounded-lg text-sm h-9"
             @update:model-value="patchAt(index, { defaultValue: String($event) })"
           />
+          <p v-if="variable.type === 'SECRET'" class="text-[11px] leading-snug text-muted-foreground/80">
+            {{ t('components.variableEditor.secretHint') }}
+          </p>
         </div>
         <div class="flex flex-col gap-1">
           <span class="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{{ t('components.variableEditor.scope') }}</span>

@@ -2460,6 +2460,7 @@
       "defaultValue": "Standard",
       "defaultValuePlaceholder": "Standardwert",
       "secretPlaceholder": "••••••••",
+      "secretHint": "Auf ein Secret per env://NAME oder file:///pfad verweisen, oder einen Wert direkt eingeben.",
       "required": "Erforderlich",
       "scope": "Geltungsbereich",
       "visibility": "Sichtbarkeit",
